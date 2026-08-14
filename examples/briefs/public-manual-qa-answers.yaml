@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: Apache-2.0
+answers_version: 0.1.0
+design_case_id: design-case.public-manual-qa
+answers:
+  - question_id: question.data-classification
+    decision: confirm
+    value: public
+    rationale: The reference fixture contains only public technical manuals.
+  - question_id: question.action-autonomy
+    decision: confirm
+    value: recommend_only
+    rationale: The fixture returns information and never performs an external action.
+  - question_id: question.production-use
+    decision: confirm
+    value: false
+    rationale: This fixture is for compiler and interface validation only.

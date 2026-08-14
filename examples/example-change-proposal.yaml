@@ -1,0 +1,96 @@
+# SPDX-License-Identifier: Apache-2.0
+schema_version: 0.3.0
+id: change.public-manual-qa.add-reranker
+version: 0.1.0
+status: proposed
+loop: application
+created_at: 2026-08-13T12:00:00Z
+target_ref:
+  id: bundle.public-manual-qa.minimum.local
+  version: 0.1.0
+  digest: sha256:3333333333333333333333333333333333333333333333333333333333333333
+  uri: examples/example-deployment-bundle.yaml
+  media_type: application/yaml
+requirement_ids:
+  - OAK-FR-IMP-001
+  - OAK-FR-IMP-004
+hypothesis: Adding a local reranker improves source-passage recall without breaching latency, citation or egress constraints.
+competing_explanations:
+  - Apparent improvement comes from evaluation-set leakage.
+  - Lexical parameter tuning provides the same gain more simply.
+evidence_refs:
+  - eval-run.fixture-baseline-001
+causal_status: observational
+proposed_diff:
+  id: diff.public-manual-qa.add-reranker
+  version: 0.1.0
+  digest: sha256:8888888888888888888888888888888888888888888888888888888888888888
+  uri: null
+  media_type: application/json-patch+json
+predicted_impact:
+  - name: citation_recall
+    direction: maximize
+    value: 0.04
+    lower: -0.01
+    upper: 0.08
+    unit: absolute_proportion_change
+    weight: 0.7
+    confidence: 0.3
+    estimator_ref: uncalibrated-fixture-prior
+  - name: latency_p95
+    direction: minimize
+    value: 600
+    lower: 200
+    upper: 1200
+    unit: added_milliseconds
+    weight: 0.3
+    confidence: 0.3
+    estimator_ref: uncalibrated-fixture-prior
+invariants:
+  - No runtime egress
+  - Unsupported assertion rate remains at or below the evaluation threshold
+  - No production or personal data
+data_use:
+  allowed_inputs:
+    - Public fixture corpus and held-out questions
+  prohibited_inputs:
+    - Tenant data
+    - Production queries
+  tenant_scope: fixture-only
+  retention: Same as the immutable evaluation fixture
+  global_learning_allowed: false
+experiment:
+  design: Paired offline comparison against baseline with a separately held-out question set
+  population: Public-manual fixture questions
+  duration: One immutable evaluation run
+  sample_requirement: Power analysis before execution; at least 100 paired questions for the prototype
+  stopping_rules:
+    - Stop on any no-egress violation.
+    - Reject if citation correctness or subgroup floor regresses.
+  offline_required: true
+  shadow_required: true
+  canary_stages: []
+blast_radius:
+  maximum_users: 0
+  maximum_cost:
+    currency: GBP
+    low: 0
+    most_likely: 10
+    high: 25
+    period: one_off
+  environments: [offline, shadow]
+  reversible: true
+security_privacy_regulatory_impact:
+  - New model/component licence and supply-chain review required.
+  - Runtime egress must remain denied.
+required_approver_roles:
+  - architecture-reviewer
+  - security-reviewer
+rollback:
+  conditions:
+    - Any invariant or required metric fails.
+  procedure_ref: bundle.public-manual-qa.minimum.local#procedures.rollback
+  maximum_minutes: 5
+  verified: false
+result: null
+extensions: {}

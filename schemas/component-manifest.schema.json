@@ -1,0 +1,173 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://oak.example/schemas/component-manifest.schema.json",
+  "title": "ComponentManifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "id", "name", "category", "description", "owner", "project_url", "repository_url", "release", "artifact", "licensing", "availability_class", "maturity", "targets", "interfaces", "deployment", "security", "data_handling", "operations", "measurements", "limitations", "substitutes", "evidence", "status", "next_review_at", "extensions"],
+  "properties": {
+    "schema_version": {"const": "0.3.0"},
+    "id": {"$ref": "common.schema.json#/$defs/identifier"},
+    "name": {"type": "string", "minLength": 1},
+    "category": {"enum": ["software", "model", "dataset", "adapter", "blueprint", "policy_pack", "external_service"]},
+    "description": {"type": "string", "minLength": 1},
+    "owner": {"type": "string"},
+    "project_url": {"type": "string", "format": "uri"},
+    "repository_url": {"type": ["string", "null"], "format": "uri"},
+    "release": {
+      "type": "object", "additionalProperties": false,
+      "required": ["version", "released_at", "support_until", "update_policy"],
+      "properties": {
+        "version": {"type": "string"},
+        "released_at": {"type": ["string", "null"], "format": "date"},
+        "support_until": {"type": ["string", "null"], "format": "date"},
+        "update_policy": {"type": "string"}
+      }
+    },
+    "artifact": {
+      "type": "object", "additionalProperties": false,
+      "required": ["reference", "digest", "media_type", "signature_status", "provenance_status", "sbom_status"],
+      "properties": {
+        "reference": {"type": "string"},
+        "digest": {"$ref": "common.schema.json#/$defs/digest"},
+        "media_type": {"type": "string"},
+        "signature_status": {"enum": ["verified", "present_unverified", "absent", "unknown"]},
+        "provenance_status": {"enum": ["verified", "present_unverified", "absent", "unknown"]},
+        "sbom_status": {"enum": ["verified", "present_unverified", "absent", "unknown"]}
+      }
+    },
+    "licensing": {
+      "type": "object", "additionalProperties": false,
+      "required": ["software", "model", "data", "transitive_review", "redistribution_constraints"],
+      "properties": {
+        "software": {"$ref": "#/$defs/licence"},
+        "model": {"$ref": "#/$defs/licence"},
+        "data": {"$ref": "#/$defs/licence"},
+        "transitive_review": {"enum": ["passed", "failed", "pending", "not_applicable"]},
+        "redistribution_constraints": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "availability_class": {"enum": ["osi_open_source_software", "osi_open_source_ai", "open_weight_restricted", "source_available", "proprietary_hosted", "dataset_specific", "unknown"]},
+    "maturity": {
+      "type": "object", "additionalProperties": false,
+      "required": ["governance", "lifecycle_stage", "maintainers", "release_cadence", "adoption_evidence", "commercial_support", "confidence"],
+      "properties": {
+        "governance": {"type": "string"},
+        "lifecycle_stage": {"enum": ["experimental", "sandbox", "incubating", "graduated", "mature", "maintenance", "unknown"]},
+        "maintainers": {"type": ["integer", "null"], "minimum": 0},
+        "release_cadence": {"type": "string"},
+        "adoption_evidence": {"type": "array", "items": {"type": "string"}},
+        "commercial_support": {"type": "array", "items": {"type": "string"}},
+        "confidence": {"type": "number", "minimum": 0, "maximum": 1}
+      }
+    },
+    "targets": {
+      "type": "object", "additionalProperties": false,
+      "required": ["operating_systems", "cpu_architectures", "accelerators", "drivers", "minimum_resources"],
+      "properties": {
+        "operating_systems": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "cpu_architectures": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "accelerators": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "drivers": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "minimum_resources": {"type": "object", "additionalProperties": {"type": ["number", "string"]}}
+      }
+    },
+    "interfaces": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["name", "kind", "version", "direction"],
+        "properties": {
+          "name": {"type": "string"},
+          "kind": {"enum": ["http", "grpc", "event", "file", "database", "cli", "library", "oci", "other"]},
+          "version": {"type": ["string", "null"]},
+          "direction": {"enum": ["provides", "requires"]}
+        }
+      }
+    },
+    "deployment": {
+      "type": "object", "additionalProperties": false,
+      "required": ["modes", "offline_behavior", "external_calls", "telemetry_default", "air_gap_suitability"],
+      "properties": {
+        "modes": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "offline_behavior": {"type": "string"},
+        "external_calls": {"type": "array", "items": {"type": "string"}},
+        "telemetry_default": {"type": "string"},
+        "air_gap_suitability": {"enum": ["supported", "possible_with_changes", "unsupported", "unknown"]}
+      }
+    },
+    "security": {
+      "type": "object", "additionalProperties": false,
+      "required": ["identity", "tenancy", "encryption", "secrets", "network", "audit", "known_vulnerabilities", "security_advisory_url"],
+      "properties": {
+        "identity": {"type": "string"},
+        "tenancy": {"type": "string"},
+        "encryption": {"type": "string"},
+        "secrets": {"type": "string"},
+        "network": {"type": "string"},
+        "audit": {"type": "string"},
+        "known_vulnerabilities": {"type": "array", "items": {"type": "string"}},
+        "security_advisory_url": {"type": ["string", "null"], "format": "uri"}
+      }
+    },
+    "data_handling": {
+      "type": "object", "additionalProperties": false,
+      "required": ["data_types", "retention", "deletion", "residency", "privacy_implications"],
+      "properties": {
+        "data_types": {"type": "array", "items": {"type": "string"}},
+        "retention": {"type": "string"},
+        "deletion": {"type": "string"},
+        "residency": {"type": "string"},
+        "privacy_implications": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "operations": {
+      "type": "object", "additionalProperties": false,
+      "required": ["observability", "backup", "restore", "upgrade", "downgrade", "rollback", "disaster_recovery", "operational_burden"],
+      "properties": {
+        "observability": {"type": "string"},
+        "backup": {"type": "string"},
+        "restore": {"type": "string"},
+        "upgrade": {"type": "string"},
+        "downgrade": {"type": "string"},
+        "rollback": {"type": "string"},
+        "disaster_recovery": {"type": "string"},
+        "operational_burden": {"enum": ["low", "medium", "high", "unknown"]}
+      }
+    },
+    "measurements": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["metric", "value", "unit", "workload", "hardware", "measured_at", "evidence_ref"],
+        "properties": {
+          "metric": {"type": "string"},
+          "value": {"type": "number"},
+          "unit": {"type": "string"},
+          "workload": {"type": "string"},
+          "hardware": {"type": "string"},
+          "measured_at": {"type": "string", "format": "date-time"},
+          "evidence_ref": {"type": "string"}
+        }
+      }
+    },
+    "limitations": {"type": "array", "items": {"type": "string"}},
+    "substitutes": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "evidence": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/evidenceRef"}, "minItems": 1},
+    "status": {"enum": ["quarantined", "under_review", "eligible", "approved_for_context", "deprecated", "revoked"]},
+    "next_review_at": {"type": "string", "format": "date-time"},
+    "extensions": {"$ref": "common.schema.json#/$defs/extensions"}
+  },
+  "$defs": {
+    "licence": {
+      "type": "object", "additionalProperties": false,
+      "required": ["spdx_expression", "terms_url", "classification", "review_status"],
+      "properties": {
+        "spdx_expression": {"type": ["string", "null"]},
+        "terms_url": {"type": ["string", "null"], "format": "uri"},
+        "classification": {"enum": ["osi_approved", "open_source_ai", "restricted", "source_available", "proprietary", "dataset_specific", "not_applicable", "unknown"]},
+        "review_status": {"enum": ["passed", "failed", "pending", "not_applicable"]}
+      }
+    }
+  }
+}

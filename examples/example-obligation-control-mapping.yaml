@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: Apache-2.0
+schema_version: 0.3.0
+id: mapping.eu-ai-act.public-manual-qa
+version: 0.1.0
+status: draft
+regulatory_profile_ref: profile.eu-ai-act.public-manual-qa@0.1.0
+mappings:
+  - id: map.interactive-transparency
+    legal_provision: Regulation (EU) 2024/1689, Article 50 (consolidated text; exact paragraph to be confirmed)
+    obligation: Review whether users must be informed that they are interacting with an AI system and what synthetic-content duties apply.
+    actor_role: provider
+    system_requirement_ids:
+      - OAK-FR-REG-004
+      - OAK-NFR-UX-001
+    control_ids:
+      - control.user-ai-disclosure
+    evidence_refs: []
+    test_ids:
+      - test.disclosure-visible-accessible
+    owner: null
+    status: planned
+    interpretation: Illustrative only; legal/compliance owner must confirm applicability, exact duty and evidence sufficiency.
+    gaps:
+      - No approved legal interpretation
+      - No user-interface evidence
+reviewed_at: null
+extensions: {}

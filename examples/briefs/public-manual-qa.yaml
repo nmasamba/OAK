@@ -1,0 +1,42 @@
+# SPDX-License-Identifier: Apache-2.0
+brief_version: 0.1.0
+id: brief.public-manual-qa
+status: non-production-fixture
+title: Cited answers over public technical manuals
+purpose:
+  problem: Help a small internal engineering team locate and cite answers from a bounded collection of public technical manuals.
+  desired_outcomes:
+    - Answers cite the exact source passages used.
+    - Unsupported questions abstain or refer the user to manual review.
+  baseline: Deterministic lexical search with cited passages and no generative model.
+stakeholders:
+  end_users: [internal engineering users]
+  operators: [community-local operator]
+  affected_non_users: []
+decision:
+  actions: [return cited passages, draft a cited answer, abstain]
+  autonomy: recommend_only
+  reversibility: reversible
+data:
+  sources: [public technical manuals]
+  classifications: [public]
+  production_data_permitted: false
+quality:
+  priorities:
+    - citation correctness
+    - supported-answer accuracy
+    - calibrated abstention
+deployment:
+  modes: [local]
+  network: isolated-no-egress-after-setup
+hardware:
+  cpu_architectures: [x86_64]
+  ram_gib: 32
+  storage_gib: 100
+openness:
+  software: OSI-approved by default
+  models: local optional model or no-model baseline
+unknowns:
+  - Exact document count and update cadence for a real deployment.
+  - Approved model licence and hardware if the generated-answer variant is selected.
+extensions: {}

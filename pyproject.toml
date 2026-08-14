@@ -1,0 +1,79 @@
+# SPDX-License-Identifier: Apache-2.0
+
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "oak-community"
+version = "0.4.0.dev3"
+description = "Local-first control plane for designing, evaluating, and planning AI systems"
+readme = "README.md"
+requires-python = ">=3.13,<3.14"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [{ name = "OAK Community contributors" }]
+classifiers = [
+  "Development Status :: 2 - Pre-Alpha",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.13",
+  "Typing :: Typed",
+]
+dependencies = [
+  "fastapi>=0.115,<1",
+  "jsonschema[format]>=4.23,<5",
+  "pydantic>=2.10,<3",
+  "pyyaml>=6.0,<7",
+  "typer>=0.15,<1",
+  "uvicorn>=0.34,<1",
+]
+
+[project.scripts]
+oak = "oak.interfaces.cli.main:main"
+oak-api = "oak.interfaces.api.server:main"
+oak-worker = "oak.interfaces.placeholders:worker_main"
+oak-runner = "oak.interfaces.placeholders:runner_main"
+oak-mcp = "oak.interfaces.placeholders:mcp_main"
+
+[dependency-groups]
+dev = [
+  "build>=1.2,<2",
+  "cyclonedx-bom>=5,<8",
+  "hatchling>=1.27,<2",
+  "httpx>=0.28,<1",
+  "mypy>=1.15,<2",
+  "pip-audit>=2.8,<3",
+  "pytest>=8.3,<10",
+  "ruff>=0.11,<1",
+  "types-jsonschema>=4.23,<5",
+  "types-pyyaml>=6.0,<7",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/oak"]
+
+[tool.pytest.ini_options]
+addopts = "--strict-config --strict-markers"
+testpaths = ["tests"]
+pythonpath = ["."]
+markers = [
+  "integration: local integration behavior",
+  "e2e: installed-entrypoint behavior",
+]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "A", "C4", "SIM", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+files = ["src", "tools", "scripts"]
+exclude = ["tests/fixtures/import_violation"]

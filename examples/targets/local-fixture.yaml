@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: Apache-2.0
+target_profile_version: 0.1.0
+id: target.local-fixture
+status: non-production-fixture
+environment: validation
+tenant_id: community-local
+platform:
+  operating_system: linux
+  architecture: x86_64
+  container_runtime: rootless-compatible OCI runtime
+capacity:
+  ram_gib: 32
+  storage_gib: 100
+network:
+  mode: isolated-no-egress
+  inbound_control_plane: false
+permissions:
+  mutation_allowed: false
+  allowed_operations: [inventory, validate, render, plan, verify]
+secrets:
+  allowed_references: []
+notes:
+  - Synthetic target for compiler and dry-run tests only.

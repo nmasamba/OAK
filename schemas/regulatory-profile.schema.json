@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://oak.example/schemas/regulatory-profile.schema.json",
+  "title": "RegulatoryProfile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "id", "version", "status", "nexus_ref", "regime", "source_version", "checked_at", "applicability", "scope_rationale", "operator_roles", "classifications", "effective_dates", "obligation_ids", "required_control_ids", "required_evidence", "gaps", "exceptions_or_derogations", "owner_confirmation_required", "legal_review_status", "next_review_at", "extensions"],
+  "properties": {
+    "schema_version": {"const": "0.3.0"},
+    "id": {"$ref": "common.schema.json#/$defs/identifier"},
+    "version": {"$ref": "common.schema.json#/$defs/semver"},
+    "status": {"enum": ["draft", "review_required", "approved", "superseded", "retired"]},
+    "nexus_ref": {"type": "string"},
+    "regime": {"type": "string"},
+    "source_version": {"type": "string"},
+    "checked_at": {"type": "string", "format": "date-time"},
+    "applicability": {"enum": ["applies", "likely_applies", "possibly_applies", "does_not_apply", "unknown"]},
+    "scope_rationale": {"type": "string", "minLength": 1},
+    "operator_roles": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "classifications": {"type": "array", "items": {"enum": ["prohibited", "high_risk_annex_i", "high_risk_annex_iii", "transparency", "gpai", "gpai_systemic_risk", "limited_minimal", "pending"]}, "minItems": 1, "uniqueItems": true},
+    "effective_dates": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["provision_group", "effective_from", "effective_to", "source_ref"],
+        "properties": {
+          "provision_group": {"type": "string"},
+          "effective_from": {"type": "string", "format": "date"},
+          "effective_to": {"type": ["string", "null"], "format": "date"},
+          "source_ref": {"type": "string"}
+        }
+      }
+    },
+    "obligation_ids": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/identifier"}, "uniqueItems": true},
+    "required_control_ids": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/identifier"}, "uniqueItems": true},
+    "required_evidence": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "gaps": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "exceptions_or_derogations": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "owner_confirmation_required": {"type": "boolean"},
+    "legal_review_status": {"enum": ["pending", "in_review", "confirmed", "rejected", "expired"]},
+    "next_review_at": {"type": "string", "format": "date-time"},
+    "extensions": {"$ref": "common.schema.json#/$defs/extensions"}
+  }
+}
