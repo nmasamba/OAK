@@ -2,6 +2,13 @@
 answers_version: 0.1.0
 design_case_id: design-case.public-manual-qa
 answers:
+  - question_id: question.model-hardware
+    decision: confirm
+    value:
+      cpu_architectures: [x86_64]
+      ram_gib: 32
+      storage_gib: 100
+    rationale: The synthetic local target has the declared CPU, memory, and storage capacity.
   - question_id: question.data-classification
     decision: confirm
     value: public
@@ -14,3 +21,7 @@ answers:
     decision: confirm
     value: false
     rationale: This fixture is for compiler and interface validation only.
+  - question_id: question.data-volume
+    decision: correct
+    value: Synthetic fixture of 1000 public documents refreshed daily.
+    rationale: This bounded volume is sufficient for deterministic reference evaluation.

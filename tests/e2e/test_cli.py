@@ -46,7 +46,9 @@ def test_installed_cli_help_exposes_only_implemented_behavior() -> None:
     )
 
     assert "serve" in result.stdout
-    for unavailable_command in ("evaluate", "apply"):
+    for available_command in ("candidates", "evaluate", "select", "assure", "plan"):
+        assert available_command in result.stdout
+    for unavailable_command in ("apply",):
         unavailable = subprocess.run(
             [str(OAK), unavailable_command],
             cwd=ROOT,
@@ -127,3 +129,71 @@ def test_cli_rejects_malformed_confirmation_without_state_change(tmp_path: Path)
     assert oversized_result.returncode == 2
     assert oversized_result.stderr.startswith("OAK-CONFIRM-SIZE:")
     assert (workspace / ".oak" / "manifest.json").read_bytes() == before
+
+
+def test_offline_candidate_to_plan_flow_is_semantically_reproducible(tmp_path: Path) -> None:
+    brief = ROOT / "examples/briefs/public-manual-qa.yaml"
+    answers = ROOT / "examples/briefs/public-manual-qa-answers.yaml"
+    target = ROOT / "examples/targets/local-fixture.yaml"
+    rationale = tmp_path / "decision.md"
+    rationale.write_text(
+        "Select candidate-03 to exercise bounded cited-answer drafting while retaining the "
+        "simpler baseline as a visible alternative.\n",
+        encoding="utf-8",
+    )
+
+    outputs: list[Path] = []
+    for sequence in (1, 2):
+        workspace = tmp_path / f"workspace-{sequence}"
+        assurance = tmp_path / f"assurance-{sequence}"
+        bundle = tmp_path / f"bundle-{sequence}"
+        _run_oak("init", str(workspace), cwd=tmp_path)
+        _run_oak("design", str(brief), cwd=workspace)
+        confirmed = _run_oak(
+            "confirm", "--answers", str(answers), "--output", "json", cwd=workspace
+        )
+        candidates = _run_oak("candidates", "--output", "table", cwd=workspace)
+        evaluation = _run_oak("evaluate", "candidate-03", "--output", "json", cwd=workspace)
+        _run_oak(
+            "select",
+            "candidate-03",
+            "--rationale-file",
+            str(rationale),
+            cwd=workspace,
+        )
+        _run_oak("assure", "candidate-03", "--output", str(assurance), cwd=workspace)
+        planned = _run_oak(
+            "plan",
+            "candidate-03",
+            "--target",
+            str(target),
+            "--output",
+            str(bundle),
+            cwd=workspace,
+        )
+
+        assert json.loads(confirmed.stdout)["case"]["status"] == "ready_for_candidates"
+        assert "candidate-00" in candidates.stdout
+        assert "simpler_baseline" in candidates.stdout
+        assert "candidate-04" in candidates.stdout
+        assert "infeasible" in candidates.stdout
+        assert json.loads(evaluation.stdout)["evaluation"]["status"] == "pass"
+        assert "no target action was invoked" in planned.stdout
+        runner_plan = json.loads((bundle / "runner-plan.json").read_text(encoding="utf-8"))
+        assert runner_plan["status"] == "draft"
+        assert runner_plan["approvals"] == []
+        assert [item["kind"] for item in runner_plan["operations"]] == [
+            "inventory",
+            "validate",
+            "render",
+            "plan",
+            "verify",
+        ]
+        serialized = json.dumps(runner_plan, sort_keys=True).casefold()
+        assert '"command"' not in serialized
+        assert '"shell"' not in serialized
+        outputs.append(bundle)
+
+    assert (outputs[0] / "semantic-manifest.json").read_bytes() == (
+        outputs[1] / "semantic-manifest.json"
+    ).read_bytes()

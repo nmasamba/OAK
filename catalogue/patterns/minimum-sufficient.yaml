@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: Apache-2.0
+schema_version: 0.4.0
+id: pattern.minimum-sufficient
+version: 0.1.0
+variant: minimum_sufficient
+description: Minimal deterministic retrieval candidate with abstention rules.
+roles:
+  - id: role.retrieval
+    role: Deterministic cited passage retrieval and abstention
+    component_category: software
+    required_capability: citation_passages
+    data_classifications: [public]
+edges: []
+component_requirements:
+  - role_id: role.retrieval
+    manifest_id: component.fixture-lexical-search
+    purpose: Minimum sufficient cited retrieval
+    required: true
+hard_requirements: [local, no_runtime_egress, public_data, x86_64]
+extensions: {}

@@ -48,20 +48,25 @@ assumptions:
     status: confirmed
 unresolved_questions: []
 candidate_refs:
+  - id: candidate-00
+    version: 0.1.0
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+    uri: null
+    media_type: application/yaml
   - id: candidate-01
     version: 0.1.0
     digest: sha256:0101010101010101010101010101010101010101010101010101010101010101
-    uri: null
-    media_type: application/yaml
-  - id: candidate-02
-    version: 0.1.0
-    digest: sha256:0202020202020202020202020202020202020202020202020202020202020202
     uri: null
     media_type: application/yaml
   - id: candidate-03
     version: 0.1.0
     digest: sha256:0303030303030303030303030303030303030303030303030303030303030303
     uri: examples/example-architecture-candidate.yaml
+    media_type: application/yaml
+  - id: candidate-04
+    version: 0.1.0
+    digest: sha256:0404040404040404040404040404040404040404040404040404040404040404
+    uri: null
     media_type: application/yaml
 selected_candidate_ref: null
 assurance_plan_ref: null

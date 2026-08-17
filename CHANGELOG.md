@@ -8,6 +8,12 @@ All notable changes to OAK Community are recorded here.
 
 ### Added
 
+- Sprint 2 offline compiler flow for `OAK-S2-001` through `OAK-S2-011`.
+- Governed synthetic catalogue snapshots and provider-neutral baseline, minimum, balanced, and high-assurance pattern contracts.
+- Deterministic hardware, deployment, security, licence, locality, and compatibility constraints with fail-closed unknown handling.
+- Transparent cost, latency, quality, operability, and energy ranges with estimator/calibration metadata and Pareto sensitivity.
+- Digest-linked fixture evaluation results, immutable selection decisions, assurance plans, and a stable `candidate-03` exit path.
+- Canonical review bundle and draft typed runner plan with byte-stable normalized semantic manifests.
 - Sprint 1 offline `DesignCase` workflow for `OAK-S1-001` through `OAK-S1-010`.
 - Atomic file-backed workspace with immutable content-addressed artifacts, expected-version checks, idempotent mutations, append-only audit lineage, and digest-verified export/import.
 - Bounded YAML, JSON, Markdown, and text intake with source quarantine and adversarial path, type, size, structure, and Unicode checks.
@@ -26,6 +32,10 @@ All notable changes to OAK Community are recorded here.
 
 ### Security
 
+- Catalogue and target inputs are bounded, schema-validated, alias/symlink safe, and cannot select executable behavior.
+- Target profiles are bound to command tenancy and checked for declared platform, capacity, and read-only planning capabilities before bundle publication.
+- Immutable evaluation results cannot be overwritten by a second non-idempotent evaluation.
+- Runner-plan parameter schemas recursively reject command, shell, executable, and argument-vector fields; Sprint 2 operations are non-mutating and never dispatched.
 - Raw brief content remains an untrusted, separate artifact; text instructions cannot invoke tools or approve claims.
 - Workspace publication uses a lock and atomic manifest replacement, while import rejects symlinks, corruption, digest mismatch, and artifact identity tampering.
 - Idempotent lookup now follows actor/correlation and tenant-context validation.

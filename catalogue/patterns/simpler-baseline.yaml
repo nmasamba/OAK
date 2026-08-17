@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: Apache-2.0
+schema_version: 0.4.0
+id: pattern.simpler-baseline
+version: 0.1.0
+variant: simpler_baseline
+description: Deterministic lexical retrieval with cited passages and no generated answer.
+roles:
+  - id: role.retrieval
+    role: Deterministic cited passage retrieval
+    component_category: software
+    required_capability: lexical_retrieval
+    data_classifications: [public]
+edges: []
+component_requirements:
+  - role_id: role.retrieval
+    manifest_id: component.fixture-lexical-search
+    purpose: Simpler non-generative baseline
+    required: true
+hard_requirements: [local, no_runtime_egress, public_data, x86_64]
+extensions: {}

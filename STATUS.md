@@ -3,10 +3,10 @@
 # Build status
 
 - **Updated:** 2026-08-17
-- **Repository version:** `0.4.0.dev3`
-- **Phase:** Sprint 1 complete — local DesignCase, interpretation, and confirmation
-- **Completed plans:** `docs/exec-plans/completed/OAK-S0-001-009-walking-skeleton.md` and `docs/exec-plans/completed/OAK-S1-001-010-local-design-case.md`
-- **Next task:** `OAK-S2-001` — baseline and feasible candidate models
+- **Repository version:** `0.4.0.dev4`
+- **Phase:** Sprint 2 complete — deterministic candidates, evaluation, assurance, and non-executing planning
+- **Completed plans:** `docs/exec-plans/completed/OAK-S0-001-009-walking-skeleton.md`, `docs/exec-plans/completed/OAK-S1-001-010-local-design-case.md`, and `docs/exec-plans/completed/OAK-S2-001-011-candidate-planning.md`
+- **Next task:** `OAK-S3-001` — PostgreSQL model and migrations
 
 ## Claimed work
 
@@ -31,11 +31,22 @@
 | `OAK-S1-008` | complete | Actor-bound confirm/correct/reject/accept-risk successors with value digests and audit lineage |
 | `OAK-S1-009` | complete | Offline init/design/questions/confirm/export/import CLI with human, JSON, and YAML output |
 | `OAK-S1-010` | complete | Malformed, prompt-injection, Unicode, path, size, provenance, race, corruption, and provider-outage coverage |
+| `OAK-S2-001` | complete | Bounded synthetic catalogue snapshot with deterministic eligibility, licence, evidence, and freshness decisions |
+| `OAK-S2-002` | complete | Provider-neutral simpler, minimum, balanced, and high-assurance candidate graphs |
+| `OAK-S2-003` | complete | Fail-closed hardware, deployment, security, licence, locality, and compatibility constraints |
+| `OAK-S2-004` | complete | Transparent cost, latency, quality, operability, and energy ranges with calibration metadata |
+| `OAK-S2-005` | complete | Order-independent feasible Pareto frontier and visible sensitivity |
+| `OAK-S2-006` | complete | Rule/evidence explanations with requirements, uncertainties, and alternatives but no private reasoning |
+| `OAK-S2-007` | complete | Digest-linked deterministic pass/fail/blocked evaluation artifacts with immutable retry behavior |
+| `OAK-S2-008` | complete | Owner/rationale/alternative/dependency-bound immutable selection decision |
+| `OAK-S2-009` | complete | Selected-candidate tests, evidence, controls, owners, and explicit gate blockers |
+| `OAK-S2-010` | complete | Target-profile-bound canonical review bundle and draft typed non-executing runner plan |
+| `OAK-S2-011` | complete | Offline candidates/evaluate/select/assure/plan CLI exit journey with stable `candidate-03` |
 
 ## Verification evidence
 
 - `make bootstrap` completed from the committed lockfiles.
-- `make check` passed: 30 unit/contract, 4 integration, and 4 end-to-end tests plus formatting, lint, boundary, hygiene, toolchain-consistency, type, generated-contract, and web-build gates.
+- Sprint 0 `make check` passed: 30 unit/contract, 4 integration, and 4 end-to-end tests plus formatting, lint, boundary, hygiene, toolchain-consistency, type, generated-contract, and web-build gates.
 - The bootstrapped environment produced the Python source/wheel artifacts offline, and `make build` produced the production web bundle.
 - Python and web dependency audits reported no known vulnerabilities; `make sbom` produced an ignored development CycloneDX artifact.
 - The Compose exit demonstration made PostgreSQL, API, and web healthy; direct and web-proxied `/version` returned `0.4.0.dev3`; teardown left no project containers running.
@@ -44,8 +55,14 @@
 - Sprint 1 `make check` passed: 183 unit/contract, 18 integration, and 6 end-to-end tests plus formatting, lint, boundaries, hygiene, types, generated contracts, and web build.
 - `make build` produced the source archive, wheel, and web bundle; an isolated wheel install resolved all 18 bundled canonical schemas outside the source checkout.
 - The installed-wheel offline exit journey produced case `0.1.1`, converged an identical confirmation retry without a third event, and imported a byte-identical manifest with two audit events and two idempotency records.
-- Current Python and web dependency audits reported no known vulnerabilities, and the ignored development SBOM was regenerated.
+- Sprint 1 Python and web dependency audits reported no known vulnerabilities, and the ignored development SBOM was regenerated.
+- Sprint 2 `make check` passed: 205 unit/contract, 21 integration, and 7 end-to-end tests plus formatting, lint, boundaries, hygiene, toolchain consistency, types, generated contracts, and web build.
+- `make build` produced `0.4.0.dev4` source and wheel artifacts plus the web bundle. A clean offline wheel environment resolved 25 bundled schemas, three component manifests, and four patterns, then completed the full case-to-plan/export journey at case `0.1.6` with seven audit events.
+- Two clean CLI workspaces produced byte-identical normalized semantic manifests. The selected target profile affected the digest and passed tenant, capacity, platform, network, and read-only capability checks; incompatible and undersized profiles were denied without state change.
+- The generated runner plan remained `draft`, unsigned, unapproved, and limited to five typed read-only operations; schema/runtime scans found no command, shell, executable, or argument-vector field and no target action occurred.
+- Current Python and web dependency audits reported no known vulnerabilities; `make sbom` regenerated the ignored reproducible CycloneDX development artifact.
+- Documentation policy scans found no prohibited product references, the Git diff contains no CI/CD changes, and Git ignore checks continue to hide agent instructions, state, transcripts, and caches.
 
 ## Safety boundary
 
-The current harness accepts bounded local architecture briefs and quarantines their normalized bytes as untrusted artifacts. It has no mandatory or real model-provider call, approval, signing, runner dispatch, secret resolution, subprocess execution, or target mutation behavior. All committed fixtures are public or synthetic.
+The current harness accepts bounded local architecture briefs, catalogue files, rationale, and target profiles and treats their content as untrusted data. It has no mandatory or real model-provider call, approval, signing, runner dispatch, secret resolution, target subprocess, target connection, or mutation behavior. The compiled plan is a draft review artifact whose target identity and declared capabilities are validated but never contacted. All committed fixtures are public or synthetic.

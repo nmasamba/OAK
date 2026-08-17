@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 schema_version: 0.3.0
-id: candidate.public-manual-qa.minimum
+id: candidate-03
 version: 0.1.0
-variant: minimum_sufficient
-status: generated
+variant: balanced_enterprise
+status: feasible
 intent_ref:
   id: intent.public-manual-qa
   version: 0.1.0
@@ -28,11 +28,20 @@ topology:
       role: Deterministic baseline search
       component_ref: component.fixture-lexical-search@0.1.0
       data_classifications: [public]
+    - id: node.local-model
+      role: Bounded cited-answer drafting
+      component_ref: component.fixture-local-model@1.0.0
+      data_classifications: [public]
   edges:
     - from: node.review-ui
       to: node.lexical-search
       interface: HTTP search request
       data: Query and cited public passages
+      security: Isolated local network; no runtime egress
+    - from: node.lexical-search
+      to: node.local-model
+      interface: Local HTTP
+      data: Cited public passages
       security: Isolated local network; no runtime egress
   systems_of_record:
     - Content-digested public fixture corpus
@@ -42,7 +51,12 @@ components:
   - manifest_id: component.fixture-lexical-search
     version: 0.1.0
     digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
-    purpose: Deterministic no-LLM baseline
+    purpose: Deterministic cited-passage retrieval
+    required: true
+  - manifest_id: component.fixture-local-model
+    version: 1.0.0
+    digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    purpose: Bounded cited-answer drafting
     required: true
 hard_constraints:
   - id: constraint.local-only
@@ -55,33 +69,32 @@ hard_constraints:
 objectives:
   - name: component_count
     direction: minimize
-    value: 2
-    lower: 2
-    upper: 2
+    value: 3
+    lower: 3
+    upper: 3
     unit: components
     weight: 0.3
     confidence: 1.0
     estimator_ref: deterministic-count
   - name: answer_synthesis_quality
     direction: maximize
-    value: 0.4
-    lower: 0.2
-    upper: 0.6
+    value: 0.86
+    lower: 0.81
+    upper: 0.91
     unit: normalized_fixture_score
     weight: 0.7
-    confidence: 0.2
-    estimator_ref: uncalibrated-fixture-prior
+    confidence: 0.7
+    estimator_ref: fixture-quality-1.0.0
 pareto:
   frontier_member: true
   dominated_by: []
   preference_weights_ref: fixture-weights-0.1.0
-  sensitivity_summary: Preferred if simplicity and citation transparency outweigh synthesis quality.
+  sensitivity_summary: Retained when quality gains justify added cost, latency, energy and operational burden.
 assumptions:
-  - The lexical baseline may satisfy the user outcome without a foundation model.
-omissions:
-  - No generated synthesis; reviewer reads ranked source excerpts.
+  - Synthetic objective ranges require observed calibration before deployment.
+omissions: []
 risks:
-  - Synonym and multi-passage questions may have low recall.
+  - Generated wording requires citation verification and human review.
 operational_requirements:
   - Rebuild the derived index from the content-digested corpus.
 rejection_reasons: []

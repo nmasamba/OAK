@@ -1,0 +1,34 @@
+# SPDX-License-Identifier: Apache-2.0
+schema_version: 0.4.0
+id: pattern.balanced
+version: 0.1.0
+variant: balanced_enterprise
+description: Local retrieval plus bounded cited-answer drafting with human review.
+roles:
+  - id: role.retrieval
+    role: Deterministic cited passage retrieval
+    component_category: software
+    required_capability: lexical_retrieval
+    data_classifications: [public]
+  - id: role.generation
+    role: Bounded cited-answer drafting
+    component_category: model
+    required_capability: citation_drafting
+    data_classifications: [public]
+edges:
+  - from: role.retrieval
+    to: role.generation
+    interface: Local HTTP
+    data: Cited public passages
+    security: Isolated target network with no runtime egress
+component_requirements:
+  - role_id: role.retrieval
+    manifest_id: component.fixture-lexical-search
+    purpose: Retrieve supporting passages
+    required: true
+  - role_id: role.generation
+    manifest_id: component.fixture-local-model
+    purpose: Draft a bounded answer from cited passages
+    required: true
+hard_requirements: [local, no_runtime_egress, public_data, x86_64, human_review]
+extensions: {}

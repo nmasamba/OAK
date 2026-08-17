@@ -1,0 +1,102 @@
+# SPDX-License-Identifier: Apache-2.0
+schema_version: 0.3.0
+id: component.fixture-lexical-search
+name: Synthetic lexical search
+category: software
+description: Non-production deterministic retrieval fixture.
+owner: OAK Community fixture maintainers
+project_url: https://example.invalid/fixture-lexical-search
+repository_url: https://example.invalid/fixture-lexical-search/repository
+release:
+  version: 1.0.0
+  released_at: 2026-08-16
+  support_until: 2027-08-16
+  update_policy: Immutable synthetic fixture.
+artifact:
+  reference: registry.example.invalid/fixture-lexical-search@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  media_type: application/vnd.oci.image.manifest.v1+json
+  signature_status: absent
+  provenance_status: present_unverified
+  sbom_status: present_unverified
+licensing:
+  software:
+    spdx_expression: Apache-2.0
+    terms_url: https://www.apache.org/licenses/LICENSE-2.0
+    classification: osi_approved
+    review_status: passed
+  model: {spdx_expression: null, terms_url: null, classification: not_applicable, review_status: not_applicable}
+  data: {spdx_expression: null, terms_url: null, classification: not_applicable, review_status: not_applicable}
+  transitive_review: passed
+  redistribution_constraints: []
+availability_class: osi_open_source_software
+maturity:
+  governance: Synthetic fixture
+  lifecycle_stage: experimental
+  maintainers: 1
+  release_cadence: Immutable
+  adoption_evidence: [Reference compiler fixture]
+  commercial_support: []
+  confidence: 1.0
+targets:
+  operating_systems: [linux]
+  cpu_architectures: [x86_64]
+  accelerators: []
+  drivers: []
+  minimum_resources: {ram_gib: 2, storage_gib: 2}
+interfaces:
+  - {name: search, kind: http, version: v1, direction: provides}
+deployment:
+  modes: [local_container]
+  offline_behavior: Fully offline after synthetic artifacts are staged.
+  external_calls: []
+  telemetry_default: Local aggregate metrics only.
+  air_gap_suitability: supported
+security:
+  identity: Delegated to the local review interface.
+  tenancy: Single synthetic tenant.
+  encryption: Target-owned transport and storage.
+  secrets: No secrets.
+  network: Isolated local network.
+  audit: Request metadata without content.
+  known_vulnerabilities: []
+  security_advisory_url: null
+data_handling:
+  data_types: [public_documents]
+  retention: Follows source fixture retention.
+  deletion: Derived index is deleted on decommission.
+  residency: Local target.
+  privacy_implications: []
+operations:
+  observability: Health and aggregate fixture metrics.
+  backup: Source fixture is canonical.
+  restore: Rebuild the derived index.
+  upgrade: Replace the immutable digest.
+  downgrade: Restore the prior digest.
+  rollback: Restore the prior digest.
+  disaster_recovery: Rebuild from the source fixture.
+  operational_burden: low
+measurements:
+  - metric: latency_p95_ms
+    value: 180
+    unit: milliseconds
+    workload: 1000 public documents and concurrency 2
+    hardware: x86_64 CPU with 32 GiB RAM
+    measured_at: 2026-08-16T12:00:00Z
+    evidence_ref: evidence.fixture-lexical-measurement
+limitations: [Synthetic metadata is not a production component recommendation.]
+substitutes: [component.fixture-local-model]
+evidence:
+  - id: evidence.fixture-lexical
+    title: Synthetic lexical component declaration
+    uri: null
+    version: 1.0.0
+    source_type: measured
+    checked_at: 2026-08-16T12:00:00Z
+    confidence: 1.0
+    content_digest: sha256:1111111111111111111111111111111111111111111111111111111111111111
+status: eligible
+next_review_at: 2027-08-16T12:00:00Z
+extensions:
+  oak.community/capabilities: [lexical_retrieval, citation_passages]
+  oak.community/objectives: {monthly_cost_usd: 8, latency_p95_ms: 180, quality_score: 0.62, operability_score: 0.92, energy_wh: 0.08}

@@ -12,7 +12,7 @@ design_case_ref:
   uri: examples/example-design-case.yaml
   media_type: application/yaml
 bundle_ref:
-  id: bundle.public-manual-qa.minimum.local
+  id: bundle.public-manual-qa.balanced.local
   version: 0.1.0
   digest: sha256:3333333333333333333333333333333333333333333333333333333333333333
   uri: examples/example-deployment-bundle.yaml

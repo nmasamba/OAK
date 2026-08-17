@@ -1,0 +1,25 @@
+# SPDX-License-Identifier: Apache-2.0
+schema_version: 0.4.0
+id: decision.candidate-03
+version: 0.1.0
+decided_at: 2026-08-17T10:00:00Z
+owner: local-user
+selected_candidate_ref:
+  id: candidate-03
+  version: 0.1.0
+  digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  uri: null
+  media_type: application/vnd.oak.architecture-candidate+json
+rationale: The balanced fixture retains a simpler baseline while testing bounded cited-answer drafting.
+alternatives:
+  - candidate_ref:
+      id: candidate-00
+      version: 0.1.0
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+      uri: null
+      media_type: application/vnd.oak.architecture-candidate+json
+    reason: Retained as the deterministic non-generative baseline.
+dependency_digests:
+  - sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  - sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+extensions: {}

@@ -1,0 +1,102 @@
+# SPDX-License-Identifier: Apache-2.0
+schema_version: 0.3.0
+id: component.fixture-high-assurance-model
+name: Synthetic high-assurance model
+category: model
+description: Non-production accelerator-bound assurance fixture.
+owner: OAK Community fixture maintainers
+project_url: https://example.invalid/fixture-high-assurance-model
+repository_url: https://example.invalid/fixture-high-assurance-model/repository
+release:
+  version: 1.0.0
+  released_at: 2026-08-16
+  support_until: 2027-08-16
+  update_policy: Immutable synthetic fixture.
+artifact:
+  reference: registry.example.invalid/fixture-high-assurance-model@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+  digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+  media_type: application/vnd.oci.image.manifest.v1+json
+  signature_status: absent
+  provenance_status: present_unverified
+  sbom_status: present_unverified
+licensing:
+  software: {spdx_expression: null, terms_url: null, classification: not_applicable, review_status: not_applicable}
+  model:
+    spdx_expression: Apache-2.0
+    terms_url: https://www.apache.org/licenses/LICENSE-2.0
+    classification: open_source_ai
+    review_status: passed
+  data: {spdx_expression: null, terms_url: null, classification: not_applicable, review_status: not_applicable}
+  transitive_review: passed
+  redistribution_constraints: []
+availability_class: osi_open_source_ai
+maturity:
+  governance: Synthetic fixture
+  lifecycle_stage: experimental
+  maintainers: 1
+  release_cadence: Immutable
+  adoption_evidence: [Reference compiler fixture]
+  commercial_support: []
+  confidence: 0.8
+targets:
+  operating_systems: [linux]
+  cpu_architectures: [x86_64]
+  accelerators: [fixture-gpu]
+  drivers: [fixture-driver-1]
+  minimum_resources: {ram_gib: 24, storage_gib: 24}
+interfaces:
+  - {name: generate, kind: http, version: v1, direction: provides}
+deployment:
+  modes: [local_container]
+  offline_behavior: Fully offline after synthetic artifacts are staged.
+  external_calls: []
+  telemetry_default: Disabled.
+  air_gap_suitability: supported
+security:
+  identity: Delegated to the local review interface.
+  tenancy: Single synthetic tenant.
+  encryption: Target-owned transport and storage.
+  secrets: No secrets.
+  network: Isolated local network.
+  audit: Aggregate generation status only.
+  known_vulnerabilities: []
+  security_advisory_url: null
+data_handling:
+  data_types: [public_passages]
+  retention: No request retention.
+  deletion: Ephemeral request state only.
+  residency: Local target.
+  privacy_implications: []
+operations:
+  observability: Health and aggregate fixture metrics.
+  backup: Model artifact is immutable.
+  restore: Restore the pinned artifact.
+  upgrade: Replace the immutable digest.
+  downgrade: Restore the prior digest.
+  rollback: Restore the prior digest.
+  disaster_recovery: Restore from the fixture bundle.
+  operational_burden: high
+measurements:
+  - metric: latency_p95_ms
+    value: 650
+    unit: milliseconds
+    workload: Dual-pass cited answer at concurrency 2
+    hardware: x86_64 with fixture-gpu
+    measured_at: 2026-08-16T12:00:00Z
+    evidence_ref: evidence.fixture-high-assurance-measurement
+limitations: [Requires a synthetic accelerator absent from the local target fixture.]
+substitutes: [component.fixture-local-model]
+evidence:
+  - id: evidence.fixture-high-assurance-model
+    title: Synthetic high-assurance model declaration
+    uri: null
+    version: 1.0.0
+    source_type: measured
+    checked_at: 2026-08-16T12:00:00Z
+    confidence: 0.8
+    content_digest: sha256:3333333333333333333333333333333333333333333333333333333333333333
+status: eligible
+next_review_at: 2027-08-16T12:00:00Z
+extensions:
+  oak.community/capabilities: [bounded_generation, citation_drafting, independent_verification]
+  oak.community/objectives: {monthly_cost_usd: 74, latency_p95_ms: 650, quality_score: 0.93, operability_score: 0.48, energy_wh: 1.8}

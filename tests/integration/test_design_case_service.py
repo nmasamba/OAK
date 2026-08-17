@@ -123,13 +123,15 @@ def test_confirmation_creates_one_successor_and_identical_retry_converges(
     assert retry.duplicate is True
     assert first.case["version"] == "0.1.1"
     assert first.intent["version"] == "0.1.1"
-    assert first.case["status"] == "needs_confirmation"
+    assert first.case["status"] == "ready_for_candidates"
     statuses = {
         question["id"]: question["status"] for question in first.case["unresolved_questions"]
     }
     assert statuses["question.data-classification"] == "resolved"
     assert statuses["question.action-autonomy"] == "resolved"
     assert statuses["question.production-use"] == "resolved"
+    assert statuses["question.model-hardware"] == "resolved"
+    assert statuses["question.data-volume"] == "resolved"
     manifest = FileWorkspaceRepository(workspace, _registry()).manifest()
     assert manifest["version"] == 2
     assert len(manifest["audit_events"]) == 2

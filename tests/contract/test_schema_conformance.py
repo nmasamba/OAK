@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """OAK-S0-004 canonical schema/runtime conformance tests."""
 
+import copy
 import json
 from pathlib import Path
 from typing import Any
@@ -53,6 +54,17 @@ def test_invalid_document_is_rejected_with_a_safe_path() -> None:
 
     assert captured.value.schema_name == "design-case.schema.json"
     assert captured.value.path.startswith("/")
+
+
+@pytest.mark.parametrize("field", ("command", "shell", "executable", "argv"))
+def test_runner_plan_rejects_execution_fields_even_when_nested(field: str) -> None:
+    registry = SchemaRegistry.from_directory(ROOT / "schemas")
+    plan = _load_yaml(ROOT / "examples/example-runner-plan.yaml")
+    poisoned = copy.deepcopy(plan)
+    poisoned["operations"][0]["parameters"]["nested"] = {field: "untrusted"}
+
+    with pytest.raises(ContractValidationError):
+        registry.validate("runner-plan.schema.json", poisoned)
 
 
 @pytest.mark.parametrize(
