@@ -1,0 +1,48 @@
+# SPDX-License-Identifier: Apache-2.0
+schema_version: 0.4.0
+id: workspace.public-manual-qa
+version: 1
+tenant_id: local
+created_at: 2026-08-17T10:00:00Z
+updated_at: 2026-08-17T10:01:00Z
+current_case_ref:
+  id: design-case.public-manual-qa
+  version: 0.1.0
+  digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  uri: null
+  media_type: application/vnd.oak.design-case+json
+artifact_index:
+  - id: design-case.public-manual-qa
+    version: 0.1.0
+    digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    media_type: application/vnd.oak.design-case+json
+    kind: design_case
+    size_bytes: 1024
+  - id: audit.design-case.public-manual-qa.1
+    version: "1"
+    digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    media_type: application/vnd.oak.audit-event+json
+    kind: audit_event
+    size_bytes: 512
+audit_events:
+  - id: audit.design-case.public-manual-qa.1
+    version: "1"
+    digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    uri: null
+    media_type: application/vnd.oak.audit-event+json
+idempotency_records:
+  - key: design-public-manual-qa-0001
+    input_digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    result_case_ref:
+      id: design-case.public-manual-qa
+      version: 0.1.0
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      uri: null
+      media_type: application/vnd.oak.design-case+json
+    event_ref:
+      id: audit.design-case.public-manual-qa.1
+      version: "1"
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+      uri: null
+      media_type: application/vnd.oak.audit-event+json
+extensions: {}

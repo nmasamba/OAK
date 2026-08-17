@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://oak.example/schemas/interpretation-proposal.schema.json",
+  "title": "InterpretationProposal",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "id", "source_ref", "proposed_claims", "unanswered_paths", "extensions"],
+  "properties": {
+    "schema_version": {"const": "0.4.0"},
+    "id": {"$ref": "common.schema.json#/$defs/identifier"},
+    "source_ref": {"$ref": "common.schema.json#/$defs/artifactRef"},
+    "proposed_claims": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "value", "confidence", "rationale"],
+        "properties": {
+          "path": {"type": "string", "pattern": "^/spec/"},
+          "value": {},
+          "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+          "rationale": {"type": "string", "minLength": 1, "maxLength": 2000}
+        }
+      }
+    },
+    "unanswered_paths": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {"type": "string", "pattern": "^/spec/"},
+      "uniqueItems": true
+    },
+    "extensions": {"$ref": "common.schema.json#/$defs/extensions"}
+  }
+}

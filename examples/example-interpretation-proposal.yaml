@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: Apache-2.0
+schema_version: 0.4.0
+id: proposal.public-manual-qa.fake
+source_ref:
+  id: source.public-manual-qa
+  version: 0.1.0
+  digest: sha256:1111111111111111111111111111111111111111111111111111111111111111
+  uri: null
+  media_type: application/vnd.oak.source-record+json
+proposed_claims:
+  - path: /spec/domain/setting
+    value: Non-production local design review
+    confidence: 0.75
+    rationale: The brief labels itself as a non-production fixture and selects local deployment.
+unanswered_paths:
+  - /spec/stakeholders/accountable_owner
+extensions: {}

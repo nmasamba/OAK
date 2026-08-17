@@ -11,17 +11,22 @@ from oak.contracts import CanonicalDocument, SchemaRegistry, load_yaml_document
 ROOT = Path(__file__).resolve().parents[1]
 EXAMPLE_BY_SCHEMA = {
     "architecture-candidate.schema.json": "example-architecture-candidate.yaml",
+    "audit-event.schema.json": "example-audit-event.yaml",
     "change-proposal.schema.json": "example-change-proposal.yaml",
     "component-manifest.schema.json": "example-component.yaml",
+    "confirmation-answers.schema.json": "briefs/public-manual-qa-answers.yaml",
     "decision-cost-model.schema.json": "example-decision-cost-model.yaml",
     "deployment-bundle.schema.json": "example-deployment-bundle.yaml",
     "design-case.schema.json": "example-design-case.yaml",
     "evaluation-contract.schema.json": "example-evaluation-contract.yaml",
+    "interpretation-proposal.schema.json": "example-interpretation-proposal.yaml",
     "obligation-control-mapping.schema.json": "example-obligation-control-mapping.yaml",
     "regulatory-nexus.schema.json": "example-regulatory-nexus.yaml",
     "regulatory-profile.schema.json": "example-eu-regulatory-profile.yaml",
     "runner-plan.schema.json": "example-runner-plan.yaml",
+    "source-record.schema.json": "example-source-record.yaml",
     "system-intent.schema.json": "example-intent.yaml",
+    "workspace-manifest.schema.json": "example-workspace-manifest.yaml",
 }
 
 
