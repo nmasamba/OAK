@@ -1,0 +1,90 @@
+# SPDX-License-Identifier: Apache-2.0
+schema_version: 0.3.0
+id: candidate.public-manual-qa.minimum
+version: 0.1.0
+variant: minimum_sufficient
+status: generated
+intent_ref:
+  id: intent.public-manual-qa
+  version: 0.1.0
+  digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+  uri: examples/example-intent.yaml
+  media_type: application/yaml
+evaluation_contract_ref:
+  id: eval.public-manual-qa
+  version: 0.1.0
+  digest: sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+  uri: examples/example-evaluation-contract.yaml
+  media_type: application/yaml
+generated_at: 2026-08-13T12:00:00Z
+generator_version: fixture-generator-0.1.0
+topology:
+  nodes:
+    - id: node.review-ui
+      role: Review interface
+      component_ref: null
+      data_classifications: [public]
+    - id: node.lexical-search
+      role: Deterministic baseline search
+      component_ref: component.fixture-lexical-search@0.1.0
+      data_classifications: [public]
+  edges:
+    - from: node.review-ui
+      to: node.lexical-search
+      interface: HTTP search request
+      data: Query and cited public passages
+      security: Isolated local network; no runtime egress
+  systems_of_record:
+    - Content-digested public fixture corpus
+  trust_boundaries:
+    - Untrusted public document content enters the local parser/index.
+components:
+  - manifest_id: component.fixture-lexical-search
+    version: 0.1.0
+    digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    purpose: Deterministic no-LLM baseline
+    required: true
+hard_constraints:
+  - id: constraint.local-only
+    requirement_ids: [OAK-FR-DEP-007]
+    kind: hard
+    expression: runtime_egress == denied
+    result: pass
+    reason: Fixture candidate contains no external runtime dependency.
+    evidence_refs: [evidence.fixture-manifest]
+objectives:
+  - name: component_count
+    direction: minimize
+    value: 2
+    lower: 2
+    upper: 2
+    unit: components
+    weight: 0.3
+    confidence: 1.0
+    estimator_ref: deterministic-count
+  - name: answer_synthesis_quality
+    direction: maximize
+    value: 0.4
+    lower: 0.2
+    upper: 0.6
+    unit: normalized_fixture_score
+    weight: 0.7
+    confidence: 0.2
+    estimator_ref: uncalibrated-fixture-prior
+pareto:
+  frontier_member: true
+  dominated_by: []
+  preference_weights_ref: fixture-weights-0.1.0
+  sensitivity_summary: Preferred if simplicity and citation transparency outweigh synthesis quality.
+assumptions:
+  - The lexical baseline may satisfy the user outcome without a foundation model.
+omissions:
+  - No generated synthesis; reviewer reads ranked source excerpts.
+risks:
+  - Synonym and multi-passage questions may have low recall.
+operational_requirements:
+  - Rebuild the derived index from the content-digested corpus.
+rejection_reasons: []
+evidence_refs:
+  - evidence.fixture-manifest
+extensions: {}

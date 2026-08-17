@@ -1,0 +1,141 @@
+{
+  "components": {
+    "schemas": {
+      "HealthResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "const": "ok",
+            "default": "ok",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "title": "HealthResponse",
+        "type": "object"
+      },
+      "ReadinessResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "enum": [
+              "ready",
+              "not_ready"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "ReadinessResponse",
+        "type": "object"
+      },
+      "VersionResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "commit": {
+            "title": "Commit",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "schema_versions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Schema Versions",
+            "type": "array"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "version",
+          "commit",
+          "schema_versions"
+        ],
+        "title": "VersionResponse",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "A non-production control-plane skeleton. It exposes process metadata only and has no target mutation path.",
+    "summary": "Read-only Community serving harness",
+    "title": "OAK Community API",
+    "version": "0.4.0.dev3"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/healthz": {
+      "get": {
+        "operationId": "health_healthz_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health",
+        "tags": [
+          "system"
+        ]
+      }
+    },
+    "/readyz": {
+      "get": {
+        "operationId": "readiness_readyz_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadinessResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Readiness",
+        "tags": [
+          "system"
+        ]
+      }
+    },
+    "/version": {
+      "get": {
+        "operationId": "version_version_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Version",
+        "tags": [
+          "system"
+        ]
+      }
+    }
+  }
+}

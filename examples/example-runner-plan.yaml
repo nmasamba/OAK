@@ -1,0 +1,116 @@
+# SPDX-License-Identifier: Apache-2.0
+schema_version: 0.4.0
+id: runner-plan.public-manual-qa.local
+version: 0.1.0
+status: approved
+created_at: 2026-08-14T10:00:00Z
+expires_at: 2026-08-15T10:00:00Z
+design_case_ref:
+  id: design-case.public-manual-qa
+  version: 0.1.0
+  digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  uri: examples/example-design-case.yaml
+  media_type: application/yaml
+bundle_ref:
+  id: bundle.public-manual-qa.minimum.local
+  version: 0.1.0
+  digest: sha256:3333333333333333333333333333333333333333333333333333333333333333
+  uri: examples/example-deployment-bundle.yaml
+  media_type: application/yaml
+target:
+  id: target.local-fixture
+  fingerprint: sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  tenant_id: community-local
+  environment: validation
+  network_mode: local
+operations:
+  - id: operation.inventory
+    kind: inventory
+    adapter:
+      id: adapter.fixture-inventory
+      version: 0.1.0
+      digest: sha256:1111111111111111111111111111111111111111111111111111111111111111
+      parameter_schema_digest: sha256:1212121212121212121212121212121212121212121212121212121212121212
+    artifact_refs: []
+    parameters:
+      include: [cpu, memory, storage]
+    secret_references: []
+    permissions:
+      resource_types: [host-capabilities]
+      verbs: [get, list]
+      namespaces: [fixture]
+      network_destinations: []
+    timeout_seconds: 30
+    retry_policy:
+      max_attempts: 2
+      backoff_seconds: 1
+      retryable_errors: [temporary_io]
+    idempotency_key: fixture-inventory-0001
+    expected_state_digest: null
+    failure_action: block
+    depends_on: []
+  - id: operation.plan
+    kind: plan
+    adapter:
+      id: adapter.fixture-local
+      version: 0.1.0
+      digest: sha256:1313131313131313131313131313131313131313131313131313131313131313
+      parameter_schema_digest: sha256:1414141414141414141414141414141414141414141414141414141414141414
+    artifact_refs:
+      - id: artifact.fixture-compose
+        version: 0.1.0
+        digest: sha256:2222222222222222222222222222222222222222222222222222222222222222
+        uri: null
+        media_type: application/vnd.oak.bundle.v1+yaml
+    parameters:
+      profile: validation
+      output_format: normalized-diff
+    secret_references: []
+    permissions:
+      resource_types: [local-container-plan]
+      verbs: [get, list]
+      namespaces: [fixture]
+      network_destinations: []
+    timeout_seconds: 60
+    retry_policy:
+      max_attempts: 1
+      backoff_seconds: 0
+      retryable_errors: []
+    idempotency_key: fixture-plan-local-0001
+    expected_state_digest: sha256:1515151515151515151515151515151515151515151515151515151515151515
+    failure_action: block
+    depends_on: [operation.inventory]
+approvals:
+  - id: approval.fixture-plan
+    approver: fixture-environment-owner
+    role: environment-owner
+    decision: approved
+    object_digest: sha256:1616161616161616161616161616161616161616161616161616161616161616
+    target_id: target.local-fixture
+    decided_at: 2026-08-14T10:05:00Z
+    expires_at: 2026-08-15T10:00:00Z
+    conditions:
+      - Read-only inventory and plan operations only.
+supply_chain:
+  plan_digest: sha256:1616161616161616161616161616161616161616161616161616161616161616
+  signature_ref:
+    id: signature.fixture-runner-plan
+    version: 0.1.0
+    digest: sha256:1717171717171717171717171717171717171717171717171717171717171717
+    uri: null
+    media_type: application/vnd.dev.cosign.simplesigning.v1+json
+  verification_policy_ref:
+    id: policy.fixture-runner-verification
+    version: 0.1.0
+    digest: sha256:1818181818181818181818181818181818181818181818181818181818181818
+    uri: null
+    media_type: application/yaml
+lease_policy:
+  maximum_seconds: 300
+  heartbeat_seconds: 30
+  require_nonce: true
+evidence_policy:
+  allowed_categories: [inventory, plan_diff, status]
+  maximum_bytes: 1048576
+  redact_fields: [credentials, secrets, environment]
+extensions: {}

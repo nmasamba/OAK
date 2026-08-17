@@ -1,0 +1,262 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://oak.example/schemas/system-intent.schema.json",
+  "title": "SystemIntentSpec",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "id", "version", "status", "created_at", "spec", "provenance", "evidence", "unresolved", "extensions"],
+  "properties": {
+    "schema_version": {"const": "0.3.0"},
+    "id": {"$ref": "common.schema.json#/$defs/identifier"},
+    "version": {"$ref": "common.schema.json#/$defs/semver"},
+    "status": {"enum": ["draft", "clarified", "risk_reviewed", "approved", "superseded", "retired"]},
+    "created_at": {"type": "string", "format": "date-time"},
+    "supersedes": {"type": ["string", "null"]},
+    "spec": {"$ref": "#/$defs/spec"},
+    "provenance": {
+      "type": "object",
+      "propertyNames": {"pattern": "^/spec(?:/.*)?$"},
+      "additionalProperties": {"$ref": "common.schema.json#/$defs/provenanceRecord"}
+    },
+    "evidence": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/evidenceRef"}},
+    "unresolved": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "path", "question", "materiality", "blocking_gate", "status"],
+        "properties": {
+          "id": {"$ref": "common.schema.json#/$defs/identifier"},
+          "path": {"type": "string", "pattern": "^/spec/"},
+          "question": {"type": "string", "minLength": 1},
+          "materiality": {"enum": ["low", "medium", "high", "critical"]},
+          "blocking_gate": {"enum": ["none", "gate_0", "gate_1", "gate_2", "gate_3", "gate_4"]},
+          "status": {"enum": ["open", "bounded", "resolved", "accepted_risk"]}
+        }
+      }
+    },
+    "extensions": {"$ref": "common.schema.json#/$defs/extensions"}
+  },
+  "$defs": {
+    "stringArray": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "purpose": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "problem": {"type": ["string", "null"]},
+        "desired_outcomes": {"$ref": "#/$defs/stringArray"},
+        "exclusions": {"$ref": "#/$defs/stringArray"},
+        "baseline": {"type": ["string", "null"]},
+        "ai_needed_hypothesis": {"type": ["string", "null"]},
+        "extensions": {"$ref": "common.schema.json#/$defs/extensions"}
+      }
+    },
+    "stakeholders": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "end_users": {"$ref": "#/$defs/stringArray"},
+        "operators": {"$ref": "#/$defs/stringArray"},
+        "affected_non_users": {"$ref": "#/$defs/stringArray"},
+        "accountable_owner": {"type": ["string", "null"]},
+        "domain_experts": {"$ref": "#/$defs/stringArray"},
+        "reviewers": {"$ref": "#/$defs/stringArray"},
+        "extensions": {"$ref": "common.schema.json#/$defs/extensions"}
+      }
+    },
+    "decision": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "task_types": {"type": "array", "items": {"enum": ["prediction", "classification", "recommendation", "generation", "retrieval", "workflow", "tool_action", "optimization"]}, "uniqueItems": true},
+        "actions": {"$ref": "#/$defs/stringArray"},
+        "autonomy": {"enum": ["none", "assistive", "recommend_only", "human_approved_action", "bounded_automatic", "autonomous", "unknown"]},
+        "reversibility": {"enum": ["reversible", "partially_reversible", "irreversible", "unknown"]},
+        "irreversible_actions": {"$ref": "#/$defs/stringArray"},
+        "extensions": {"$ref": "common.schema.json#/$defs/extensions"}
+      }
+    },
+    "domain": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "sectors": {"$ref": "#/$defs/stringArray"},
+        "setting": {"type": ["string", "null"]},
+        "countries": {"$ref": "#/$defs/stringArray"},
+        "languages": {"$ref": "#/$defs/stringArray"},
+        "accessibility_requirements": {"$ref": "#/$defs/stringArray"},
+        "cultural_considerations": {"$ref": "#/$defs/stringArray"},
+        "extensions": {"$ref": "common.schema.json#/$defs/extensions"}
+      }
+    },
+    "regulatoryNexusSummary": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "nexus_ref": {"type": ["string", "null"]},
+        "eu_nexus": {"enum": ["present", "possible", "absent", "unknown"]},
+        "operator_roles": {"$ref": "#/$defs/stringArray"},
+        "activity_date": {"type": ["string", "null"], "format": "date"},
+        "extensions": {"$ref": "common.schema.json#/$defs/extensions"}
+      }
+    },
+    "riskUtility": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "decision_cost_model_ref": {"type": ["string", "null"]},
+        "risk_tier": {"enum": ["low", "medium", "high", "critical", "unknown"]},
+        "high_materiality_unknowns": {"$ref": "#/$defs/stringArray"},
+        "extensions": {"$ref": "common.schema.json#/$defs/extensions"}
+      }
+    },
+    "data": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "sources": {"$ref": "#/$defs/stringArray"},
+        "classifications": {"$ref": "#/$defs/stringArray"},
+        "volume": {"type": ["string", "null"]},
+        "velocity": {"type": ["string", "null"]},
+        "lineage_requirement": {"type": ["string", "null"]},
+        "retention": {"type": ["string", "null"]},
+        "residency": {"$ref": "#/$defs/stringArray"},
+        "permitted_uses": {"$ref": "#/$defs/stringArray"},
+        "deletion_requirement": {"type": ["string", "null"]},
+        "extensions": {"$ref": "common.schema.json#/$defs/extensions"}
+      }
+    },
+    "qualityContract": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "evaluation_contract_ref": {"type": ["string", "null"]},
+        "task_metrics": {"$ref": "#/$defs/stringArray"},
+        "subgroup_metrics": {"$ref": "#/$defs/stringArray"},
+        "thresholds": {"type": "object", "additionalProperties": {"type": ["number", "string", "null"]}},
+        "unacceptable_behaviors": {"$ref": "#/$defs/stringArray"},
+        "extensions": {"$ref": "common.schema.json#/$defs/extensions"}
+      }
+    },
+    "operationalContract": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "expected_users": {"type": ["integer", "null"], "minimum": 0},
+        "concurrency": {"type": ["integer", "null"], "minimum": 0},
+        "modes": {"type": "array", "items": {"enum": ["batch", "online", "streaming", "interactive"]}, "uniqueItems": true},
+        "latency_p95_ms": {"type": ["number", "null"], "minimum": 0},
+        "throughput_per_second": {"type": ["number", "null"], "minimum": 0},
+        "availability_percent": {"type": ["number", "null"], "minimum": 0, "maximum": 100},
+        "freshness_seconds": {"type": ["number", "null"], "minimum": 0},
+        "rto_seconds": {"type": ["number", "null"], "minimum": 0},
+        "rpo_seconds": {"type": ["number", "null"], "minimum": 0},
+        "extensions": {"$ref": "common.schema.json#/$defs/extensions"}
+      }
+    },
+    "hardware": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "cpu_architectures": {"$ref": "#/$defs/stringArray"},
+        "accelerators": {"$ref": "#/$defs/stringArray"},
+        "vram_gib": {"type": ["number", "null"], "minimum": 0},
+        "ram_gib": {"type": ["number", "null"], "minimum": 0},
+        "storage_gib": {"type": ["number", "null"], "minimum": 0},
+        "network": {"type": ["string", "null"]},
+        "drivers": {"$ref": "#/$defs/stringArray"},
+        "power_watts": {"type": ["number", "null"], "minimum": 0},
+        "topology": {"type": ["string", "null"]},
+        "expansion_path": {"type": ["string", "null"]},
+        "extensions": {"$ref": "common.schema.json#/$defs/extensions"}
+      }
+    },
+    "deploymentEnvironment": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "modes": {"type": "array", "items": {"enum": ["local", "edge", "appliance", "on_premises", "private_cloud", "public_cloud", "hybrid", "hpc", "disconnected", "air_gapped"]}, "uniqueItems": true},
+        "targets": {"$ref": "#/$defs/stringArray"},
+        "network_constraints": {"$ref": "#/$defs/stringArray"},
+        "extensions": {"$ref": "common.schema.json#/$defs/extensions"}
+      }
+    },
+    "securityTenancy": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "identity_provider": {"type": ["string", "null"]},
+        "tenant_model": {"enum": ["single_tenant", "shared_control_isolated_data", "fully_isolated", "unknown"]},
+        "trust_boundaries": {"$ref": "#/$defs/stringArray"},
+        "privileged_actions": {"$ref": "#/$defs/stringArray"},
+        "egress_policy": {"type": ["string", "null"]},
+        "encryption": {"type": ["string", "null"]},
+        "key_owner": {"type": ["string", "null"]},
+        "audit_requirement": {"type": ["string", "null"]},
+        "threat_actors": {"$ref": "#/$defs/stringArray"},
+        "extensions": {"$ref": "common.schema.json#/$defs/extensions"}
+      }
+    },
+    "opennessSovereignty": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "allowed_software_classes": {"$ref": "#/$defs/stringArray"},
+        "allowed_model_classes": {"$ref": "#/$defs/stringArray"},
+        "proprietary_exception_process": {"type": ["string", "null"]},
+        "data_locality": {"$ref": "#/$defs/stringArray"},
+        "model_locality": {"$ref": "#/$defs/stringArray"},
+        "portability_requirement": {"type": ["string", "null"]},
+        "extensions": {"$ref": "common.schema.json#/$defs/extensions"}
+      }
+    },
+    "economics": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "build_budget": {"anyOf": [{"$ref": "common.schema.json#/$defs/moneyRange"}, {"type": "null"}]},
+        "operating_budget": {"anyOf": [{"$ref": "common.schema.json#/$defs/moneyRange"}, {"type": "null"}]},
+        "cost_per_success": {"anyOf": [{"$ref": "common.schema.json#/$defs/moneyRange"}, {"type": "null"}]},
+        "staffing": {"type": ["string", "null"]},
+        "energy_constraints": {"type": ["string", "null"]},
+        "procurement_constraints": {"$ref": "#/$defs/stringArray"},
+        "extensions": {"$ref": "common.schema.json#/$defs/extensions"}
+      }
+    },
+    "organization": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "skills": {"$ref": "#/$defs/stringArray"},
+        "team_size": {"type": ["integer", "null"], "minimum": 0},
+        "owners": {"type": "object", "additionalProperties": {"type": ["string", "null"]}},
+        "support_hours": {"type": ["string", "null"]},
+        "change_process": {"type": ["string", "null"]},
+        "release_cadence": {"type": ["string", "null"]},
+        "vendor_tolerance": {"type": ["string", "null"]},
+        "extensions": {"$ref": "common.schema.json#/$defs/extensions"}
+      }
+    },
+    "lifecycle": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "expected_lifetime_months": {"type": ["integer", "null"], "minimum": 0},
+        "adaptation_policy": {"type": ["string", "null"]},
+        "upgrade_policy": {"type": ["string", "null"]},
+        "compatibility_policy": {"type": ["string", "null"]},
+        "decommission_policy": {"type": ["string", "null"]},
+        "archival_policy": {"type": ["string", "null"]},
+        "deletion_policy": {"type": ["string", "null"]},
+        "extensions": {"$ref": "common.schema.json#/$defs/extensions"}
+      }
+    },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["purpose", "stakeholders", "decision", "domain", "regulatory_nexus", "risk_utility", "data", "quality_contract", "operational_contract", "hardware", "deployment_environment", "security_tenancy", "openness_sovereignty", "economics", "organization", "lifecycle"],
+      "properties": {
+        "purpose": {"$ref": "#/$defs/purpose"},
+        "stakeholders": {"$ref": "#/$defs/stakeholders"},
+        "decision": {"$ref": "#/$defs/decision"},
+        "domain": {"$ref": "#/$defs/domain"},
+        "regulatory_nexus": {"$ref": "#/$defs/regulatoryNexusSummary"},
+        "risk_utility": {"$ref": "#/$defs/riskUtility"},
+        "data": {"$ref": "#/$defs/data"},
+        "quality_contract": {"$ref": "#/$defs/qualityContract"},
+        "operational_contract": {"$ref": "#/$defs/operationalContract"},
+        "hardware": {"$ref": "#/$defs/hardware"},
+        "deployment_environment": {"$ref": "#/$defs/deploymentEnvironment"},
+        "security_tenancy": {"$ref": "#/$defs/securityTenancy"},
+        "openness_sovereignty": {"$ref": "#/$defs/opennessSovereignty"},
+        "economics": {"$ref": "#/$defs/economics"},
+        "organization": {"$ref": "#/$defs/organization"},
+        "lifecycle": {"$ref": "#/$defs/lifecycle"}
+      }
+    }
+  }
+}

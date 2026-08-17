@@ -1,0 +1,69 @@
+# SPDX-License-Identifier: Apache-2.0
+name: oak-community
+
+services:
+  postgres:
+    image: postgres:17.6-alpine@sha256:ef257d85f76e48da1c64832459b59fcaba1a4dac97bf5d7450c77753542eee94
+    environment:
+      POSTGRES_DB: oak
+      POSTGRES_USER: oak
+      POSTGRES_PASSWORD: oak-local-only
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U oak -d oak"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - oak-postgres-data:/var/lib/postgresql/data
+    networks:
+      - control-plane
+
+  api:
+    build:
+      context: .
+      dockerfile: deploy/images/api.Dockerfile
+    environment:
+      OAK_HOST: 0.0.0.0
+      OAK_PORT: "8080"
+      OAK_ALLOW_NON_LOOPBACK: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/readyz', timeout=2)",
+        ]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+    ports:
+      - "127.0.0.1:8080:8080"
+    networks:
+      - control-plane
+
+  web:
+    build:
+      context: .
+      dockerfile: deploy/images/web.Dockerfile
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--spider", "http://127.0.0.1:8080/"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+    ports:
+      - "127.0.0.1:5173:8080"
+    networks:
+      - control-plane
+
+networks:
+  control-plane: {}
+
+volumes:
+  oak-postgres-data:

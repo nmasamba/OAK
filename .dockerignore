@@ -1,0 +1,24 @@
+# SPDX-License-Identifier: Apache-2.0
+.git
+.github
+.venv
+.uv-cache
+node_modules
+web/node_modules
+web/dist
+dist
+build
+sbom
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.coverage
+htmlcov
+.agent
+.agents
+.codex
+.claude
+.DS_Store
+tests
+docs
+examples

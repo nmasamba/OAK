@@ -1,0 +1,72 @@
+# SPDX-License-Identifier: Apache-2.0
+schema_version: 0.4.0
+id: design-case.public-manual-qa
+version: 0.1.0
+status: candidates_ready
+title: Public technical-manual cited-answer fixture
+tenant_id: community-local
+created_at: 2026-08-14T09:00:00Z
+updated_at: 2026-08-14T09:10:00Z
+interface_origin: cli
+brief_refs:
+  - id: brief.public-manual-qa
+    version: 0.1.0
+    digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    uri: examples/briefs/public-manual-qa.yaml
+    media_type: application/yaml
+intent_ref:
+  id: intent.public-manual-qa
+  version: 0.1.0
+  digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+  uri: examples/example-intent.yaml
+  media_type: application/yaml
+decision_cost_model_ref:
+  id: cost.public-manual-qa
+  version: 0.1.0
+  digest: sha256:abababababababababababababababababababababababababababababababab
+  uri: examples/example-decision-cost-model.yaml
+  media_type: application/yaml
+regulatory_nexus_ref:
+  id: nexus.public-manual-qa
+  version: 0.1.0
+  digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+  uri: examples/example-regulatory-nexus.yaml
+  media_type: application/yaml
+evaluation_contract_ref:
+  id: eval.public-manual-qa
+  version: 0.1.0
+  digest: sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+  uri: examples/example-evaluation-contract.yaml
+  media_type: application/yaml
+assumptions:
+  - id: assumption.fixture-public-only
+    path: /spec/data/classifications/0
+    statement: Only public technical manuals are used by this reference fixture.
+    source: domain_default
+    confidence: 1.0
+    materiality: critical
+    status: confirmed
+unresolved_questions: []
+candidate_refs:
+  - id: candidate-01
+    version: 0.1.0
+    digest: sha256:0101010101010101010101010101010101010101010101010101010101010101
+    uri: null
+    media_type: application/yaml
+  - id: candidate-02
+    version: 0.1.0
+    digest: sha256:0202020202020202020202020202020202020202020202020202020202020202
+    uri: null
+    media_type: application/yaml
+  - id: candidate-03
+    version: 0.1.0
+    digest: sha256:0303030303030303030303030303030303030303030303030303030303030303
+    uri: examples/example-architecture-candidate.yaml
+    media_type: application/yaml
+selected_candidate_ref: null
+assurance_plan_ref: null
+deployment_bundle_ref: null
+runner_plan_ref: null
+approvals: []
+audit_head: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+extensions: {}

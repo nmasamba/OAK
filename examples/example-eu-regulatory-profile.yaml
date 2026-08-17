@@ -1,0 +1,39 @@
+# SPDX-License-Identifier: Apache-2.0
+schema_version: 0.3.0
+id: profile.eu-ai-act.public-manual-qa
+version: 0.1.0
+status: review_required
+nexus_ref: nexus.public-manual-qa@0.1.0
+regime: EU AI Act
+source_version: CELEX:02024R1689-20260727 amended by Regulation (EU) 2026/1744
+checked_at: 2026-08-13T12:00:00Z
+applicability: likely_applies
+scope_rationale: Synthetic non-EU provider places an interactive generative system in France and an EU deployer operates it; legal owner must confirm facts and scope.
+operator_roles: [provider, deployer]
+classifications: [transparency, limited_minimal]
+effective_dates:
+  - provision_group: general_application
+    effective_from: 2026-08-02
+    effective_to: null
+    source_ref: eu-commission-ai-act-timeline
+  - provision_group: annex_iii_chapter_iii_sections_1_2_3_if_later_reclassified
+    effective_from: 2027-12-02
+    effective_to: null
+    source_ref: eu-reg-2026-1744-art-113
+  - provision_group: annex_i_chapter_iii_sections_1_2_3_if_later_reclassified
+    effective_from: 2028-08-02
+    effective_to: null
+    source_ref: eu-reg-2026-1744-art-113
+obligation_ids:
+  - obligation.eu-ai-act.interactive-transparency-review
+required_control_ids:
+  - control.user-ai-disclosure
+required_evidence:
+  - Confirmed intended purpose and user-facing disclosure design
+gaps:
+  - Legal facts and Article 50 interpretation are unconfirmed.
+exceptions_or_derogations: []
+owner_confirmation_required: true
+legal_review_status: pending
+next_review_at: 2026-09-13T12:00:00Z
+extensions: {}

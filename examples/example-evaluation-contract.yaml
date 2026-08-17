@@ -1,0 +1,81 @@
+# SPDX-License-Identifier: Apache-2.0
+schema_version: 0.3.0
+id: eval.public-manual-qa
+version: 0.1.0
+status: draft
+scope: generated_system
+user_outcome: A reviewer receives a supported answer with a verifiable source passage or an explicit abstention.
+baseline: Keyword and lexical search returning source excerpts without generated synthesis.
+populations:
+  - id: population.fixture-questions
+    description: Curated questions whose answers are present, absent or ambiguous in the public fixture corpus.
+    subgroups:
+      - answer_present
+      - answer_absent
+      - conflicting_passages
+datasets:
+  - id: dataset.public-manual-fixture
+    purpose: offline_test
+    source: Public technical manuals selected and archived for the fixture
+    version: 0.1.0
+    digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    permitted_use: Non-production OAK evaluation
+    leakage_review: Questions are held out from prompt and retrieval tuning.
+    retention: Retain with the specification fixture; delete local derived index on uninstall.
+metrics:
+  - id: metric.citation-correctness
+    name: Citation correctness
+    kind: quality
+    direction: at_least
+    unit: proportion
+    aggregation: Mean over adjudicated fixture questions with bootstrap interval
+    threshold: 0.98
+    subgroup_floor: 0.95
+    confidence_method: Two-sided 95% bootstrap confidence interval
+    sample_requirement: Set by power analysis before Gate 2; minimum 100 questions for the prototype fixture.
+    owner: domain-reviewer
+  - id: metric.unsupported-assertion-rate
+    name: Unsupported assertion rate
+    kind: safety
+    direction: at_most
+    unit: proportion
+    aggregation: Mean over all answer assertions with expert adjudication
+    threshold: 0.01
+    subgroup_floor: null
+    confidence_method: One-sided 95% upper confidence bound
+    sample_requirement: At least 100 answers and every adversarial question.
+    owner: domain-reviewer
+  - id: metric.latency-p95
+    name: Interactive latency p95
+    kind: latency
+    direction: at_most
+    unit: milliseconds
+    aggregation: p95 after warm-up under recorded concurrency
+    threshold: 5000
+    subgroup_floor: null
+    confidence_method: Nonparametric percentile interval
+    sample_requirement: At least 500 requests at concurrency 2.
+    owner: prototype-operator
+gates:
+  - id: gate.offline-fixture
+    stage: offline
+    required_metric_ids:
+      - metric.citation-correctness
+      - metric.unsupported-assertion-rate
+      - metric.latency-p95
+    critical_failures:
+      - An answer is labelled supported when its citation does not entail it.
+      - Evaluation data appears in tuning input.
+    approver_roles:
+      - domain-reviewer
+      - security-reviewer
+monitoring:
+  window: Per immutable fixture run
+  cadence: On every model, corpus, prompt, retrieval or component change
+  degradation_rules:
+    - Block validation when any required threshold or subgroup floor fails.
+  rollback_rules:
+    - Restore the prior fixture bundle digest and rerun smoke tests.
+owner: unassigned
+expires_at: null
+extensions: {}

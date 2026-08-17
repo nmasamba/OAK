@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://oak.example/schemas/obligation-control-mapping.schema.json",
+  "title": "ObligationControlMapping",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "id", "version", "status", "regulatory_profile_ref", "mappings", "reviewed_at", "extensions"],
+  "properties": {
+    "schema_version": {"const": "0.3.0"},
+    "id": {"$ref": "common.schema.json#/$defs/identifier"},
+    "version": {"$ref": "common.schema.json#/$defs/semver"},
+    "status": {"enum": ["draft", "in_review", "approved", "superseded", "retired"]},
+    "regulatory_profile_ref": {"type": "string"},
+    "mappings": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "legal_provision", "obligation", "actor_role", "system_requirement_ids", "control_ids", "evidence_refs", "test_ids", "owner", "status", "interpretation", "gaps"],
+        "properties": {
+          "id": {"$ref": "common.schema.json#/$defs/identifier"},
+          "legal_provision": {"type": "string"},
+          "obligation": {"type": "string"},
+          "actor_role": {"type": "string"},
+          "system_requirement_ids": {"type": "array", "items": {"type": "string"}, "minItems": 1, "uniqueItems": true},
+          "control_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+          "evidence_refs": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+          "test_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+          "owner": {"type": ["string", "null"]},
+          "status": {"enum": ["not_started", "planned", "implemented", "evidenced", "gap", "not_applicable", "accepted_risk"]},
+          "interpretation": {"type": "string"},
+          "gaps": {"type": "array", "items": {"type": "string"}}
+        }
+      }
+    },
+    "reviewed_at": {"type": ["string", "null"], "format": "date-time"},
+    "extensions": {"$ref": "common.schema.json#/$defs/extensions"}
+  }
+}

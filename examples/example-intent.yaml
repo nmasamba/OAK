@@ -1,0 +1,334 @@
+# SPDX-License-Identifier: Apache-2.0
+schema_version: 0.3.0
+id: intent.public-manual-qa
+version: 0.1.0
+status: draft
+created_at: 2026-08-13T12:00:00Z
+supersedes: null
+spec:
+  purpose:
+    problem: Reviewers need a low-risk fixture that exercises ingestion, retrieval, inference, evidence and rollback.
+    desired_outcomes:
+      - Return answers that cite the relevant passage in a public technical manual.
+    exclusions:
+      - No consequential action or production customer data.
+    baseline: Keyword and lexical search with source excerpts.
+    ai_needed_hypothesis: Retrieval plus generation may improve synthesis only if citation correctness remains above the gate.
+  stakeholders:
+    end_users:
+      - Architecture reviewers
+    operators:
+      - Prototype engineer
+    affected_non_users: []
+    accountable_owner: null
+    domain_experts: []
+    reviewers:
+      - Security reviewer
+  decision:
+    task_types:
+      - retrieval
+      - generation
+    actions:
+      - Display a cited answer or abstain.
+    autonomy: assistive
+    reversibility: reversible
+    irreversible_actions: []
+  domain:
+    sectors:
+      - software engineering
+    setting: Non-production local evaluation
+    countries: []
+    languages:
+      - en
+    accessibility_requirements:
+      - Keyboard-operable review interface
+    cultural_considerations: []
+  regulatory_nexus:
+    nexus_ref: nexus.public-manual-qa
+    eu_nexus: possible
+    operator_roles: []
+  risk_utility:
+    decision_cost_model_ref: cost.public-manual-qa
+    risk_tier: low
+    high_materiality_unknowns:
+      - Real provider, deployer, market and affected-person locations are not supplied.
+  data:
+    sources:
+      - Public technical manuals selected for the fixture
+    classifications:
+      - public
+    volume: Small fixture corpus
+    lineage_requirement: Source URL, version, retrieval time and content digest
+    retention: Fixture corpus retained for reproducible evaluation
+    residency: []
+    permitted_uses:
+      - Architecture compiler evaluation
+    deletion_requirement: Delete local fixture index during uninstall test.
+  quality_contract:
+    evaluation_contract_ref: eval.public-manual-qa
+    task_metrics:
+      - citation_correctness
+      - answer_supported_rate
+      - abstention_quality
+    subgroup_metrics: []
+    thresholds:
+      citation_correctness: 0.98
+    unacceptable_behaviors:
+      - Claiming an answer is supported when no cited passage entails it.
+  operational_contract:
+    expected_users: 10
+    concurrency: 2
+    modes:
+      - interactive
+    latency_p95_ms: 5000
+  hardware:
+    cpu_architectures:
+      - x86_64
+    accelerators: []
+    ram_gib: 32
+    storage_gib: 100
+    drivers: []
+  deployment_environment:
+    modes:
+      - local
+    targets:
+      - OCI-compatible single-node container runtime
+    network_constraints:
+      - No runtime egress after corpus and artifacts are staged.
+  security_tenancy:
+    tenant_model: single_tenant
+    trust_boundaries:
+      - Untrusted document content to parser and retriever
+      - Generated text to cited-answer validator
+    privileged_actions: []
+    egress_policy: Default deny during evaluation.
+    audit_requirement: Record corpus, model, prompt, evaluation and bundle digests.
+    threat_actors:
+      - Malicious content author
+  openness_sovereignty:
+    allowed_software_classes:
+      - osi_open_source_software
+    allowed_model_classes:
+      - osi_open_source_ai
+      - open_weight_restricted_with_exception
+    proprietary_exception_process: Explicit owner approval with an exit path.
+    data_locality:
+      - local
+    model_locality:
+      - local
+    portability_requirement: Export all canonical objects and indexes.
+  economics:
+    staffing: One prototype engineer and part-time reviewers.
+    procurement_constraints: []
+  organization:
+    skills:
+      - Python
+      - container operations
+    team_size: 2
+    owners:
+      architecture: null
+      security: null
+    support_hours: Prototype only; no production support.
+    change_process: Pull request and recorded approval for fixture changes.
+  lifecycle:
+    expected_lifetime_months: 3
+    adaptation_policy: No online learning.
+    upgrade_policy: Recompile and rerun the full fixture suite.
+    decommission_policy: Uninstall, delete derived index and retain test evidence.
+provenance:
+  /spec/purpose/problem: &explicit_high
+    source: explicit
+    confidence: 1.0
+    rationale: Restated from the repository reference-slice decision.
+    evidence_refs: []
+    materiality: high
+    confirmation_required: true
+    confirmed_by: null
+    confirmed_at: null
+  /spec/purpose/desired_outcomes/0: *explicit_high
+  /spec/purpose/exclusions/0: *explicit_high
+  /spec/purpose/baseline: *explicit_high
+  /spec/purpose/ai_needed_hypothesis:
+    source: domain_default
+    confidence: 0.6
+    rationale: Proposed test hypothesis, not an approved need for AI.
+    evidence_refs: []
+    materiality: high
+    confirmation_required: true
+    confirmed_by: null
+    confirmed_at: null
+  /spec/stakeholders/end_users/0: *explicit_high
+  /spec/stakeholders/operators/0: *explicit_high
+  /spec/stakeholders/accountable_owner:
+    source: unknown
+    confidence: 0.0
+    rationale: No accountable owner was supplied.
+    evidence_refs: []
+    materiality: critical
+    confirmation_required: true
+    confirmed_by: null
+    confirmed_at: null
+  /spec/stakeholders/reviewers/0: *explicit_high
+  /spec/decision/task_types/0: *explicit_high
+  /spec/decision/task_types/1: *explicit_high
+  /spec/decision/actions/0: *explicit_high
+  /spec/decision/autonomy: *explicit_high
+  /spec/decision/reversibility: *explicit_high
+  /spec/domain/sectors/0:
+    source: domain_default
+    confidence: 0.7
+    rationale: Selected only for the public-manual fixture.
+    evidence_refs: []
+    materiality: medium
+    confirmation_required: true
+    confirmed_by: null
+    confirmed_at: null
+  /spec/domain/setting: *explicit_high
+  /spec/domain/languages/0: *explicit_high
+  /spec/domain/accessibility_requirements/0: *explicit_high
+  /spec/regulatory_nexus/nexus_ref: *explicit_high
+  /spec/regulatory_nexus/eu_nexus:
+    source: unknown
+    confidence: 0.0
+    rationale: The real legal entities and locations are unknown; EU assessment is conservatively triggered.
+    evidence_refs: []
+    materiality: critical
+    confirmation_required: true
+    confirmed_by: null
+    confirmed_at: null
+  /spec/risk_utility/decision_cost_model_ref: *explicit_high
+  /spec/risk_utility/risk_tier:
+    source: inferred_from_brief
+    confidence: 0.7
+    rationale: Read-only public-data fixture has low provisional impact; owner review remains required.
+    evidence_refs: []
+    materiality: high
+    confirmation_required: true
+    confirmed_by: null
+    confirmed_at: null
+  /spec/risk_utility/high_materiality_unknowns/0: *explicit_high
+  /spec/data/sources/0: *explicit_high
+  /spec/data/classifications/0: *explicit_high
+  /spec/data/volume: *explicit_high
+  /spec/data/lineage_requirement: *explicit_high
+  /spec/data/retention: *explicit_high
+  /spec/data/permitted_uses/0: *explicit_high
+  /spec/data/deletion_requirement: *explicit_high
+  /spec/quality_contract/evaluation_contract_ref: *explicit_high
+  /spec/quality_contract/task_metrics/0: *explicit_high
+  /spec/quality_contract/task_metrics/1: *explicit_high
+  /spec/quality_contract/task_metrics/2: *explicit_high
+  /spec/quality_contract/thresholds/citation_correctness:
+    source: domain_default
+    confidence: 0.5
+    rationale: Proposed fixture threshold requiring reviewer confirmation.
+    evidence_refs: []
+    materiality: high
+    confirmation_required: true
+    confirmed_by: null
+    confirmed_at: null
+  /spec/quality_contract/unacceptable_behaviors/0: *explicit_high
+  /spec/operational_contract/expected_users: *explicit_high
+  /spec/operational_contract/concurrency: *explicit_high
+  /spec/operational_contract/modes/0: *explicit_high
+  /spec/operational_contract/latency_p95_ms:
+    source: domain_default
+    confidence: 0.5
+    rationale: Reference-fixture target, not a customer SLO.
+    evidence_refs: []
+    materiality: medium
+    confirmation_required: true
+    confirmed_by: null
+    confirmed_at: null
+  /spec/hardware/cpu_architectures/0:
+    source: domain_default
+    confidence: 0.5
+    rationale: Example hardware only; target must be measured.
+    evidence_refs: []
+    materiality: critical
+    confirmation_required: true
+    confirmed_by: null
+    confirmed_at: null
+  /spec/hardware/ram_gib:
+    source: domain_default
+    confidence: 0.4
+    rationale: Example capacity only; target must be measured.
+    evidence_refs: []
+    materiality: critical
+    confirmation_required: true
+    confirmed_by: null
+    confirmed_at: null
+  /spec/hardware/storage_gib: *explicit_high
+  /spec/deployment_environment/modes/0: *explicit_high
+  /spec/deployment_environment/targets/0: *explicit_high
+  /spec/deployment_environment/network_constraints/0: *explicit_high
+  /spec/security_tenancy/tenant_model: *explicit_high
+  /spec/security_tenancy/trust_boundaries/0: *explicit_high
+  /spec/security_tenancy/trust_boundaries/1: *explicit_high
+  /spec/security_tenancy/egress_policy: *explicit_high
+  /spec/security_tenancy/audit_requirement: *explicit_high
+  /spec/security_tenancy/threat_actors/0: *explicit_high
+  /spec/openness_sovereignty/allowed_software_classes/0: *explicit_high
+  /spec/openness_sovereignty/allowed_model_classes/0: *explicit_high
+  /spec/openness_sovereignty/allowed_model_classes/1: *explicit_high
+  /spec/openness_sovereignty/proprietary_exception_process: *explicit_high
+  /spec/openness_sovereignty/data_locality/0: *explicit_high
+  /spec/openness_sovereignty/model_locality/0: *explicit_high
+  /spec/openness_sovereignty/portability_requirement: *explicit_high
+  /spec/economics/staffing:
+    source: domain_default
+    confidence: 0.4
+    rationale: Fixture staffing assumption, not a committed team.
+    evidence_refs: []
+    materiality: high
+    confirmation_required: true
+    confirmed_by: null
+    confirmed_at: null
+  /spec/organization/skills/0: *explicit_high
+  /spec/organization/skills/1: *explicit_high
+  /spec/organization/team_size: *explicit_high
+  /spec/organization/owners/architecture:
+    source: unknown
+    confidence: 0.0
+    rationale: Owner must be assigned.
+    evidence_refs: []
+    materiality: critical
+    confirmation_required: true
+    confirmed_by: null
+    confirmed_at: null
+  /spec/organization/owners/security:
+    source: unknown
+    confidence: 0.0
+    rationale: Owner must be assigned.
+    evidence_refs: []
+    materiality: critical
+    confirmation_required: true
+    confirmed_by: null
+    confirmed_at: null
+  /spec/organization/support_hours: *explicit_high
+  /spec/organization/change_process: *explicit_high
+  /spec/lifecycle/expected_lifetime_months: *explicit_high
+  /spec/lifecycle/adaptation_policy: *explicit_high
+  /spec/lifecycle/upgrade_policy: *explicit_high
+  /spec/lifecycle/decommission_policy: *explicit_high
+evidence: []
+unresolved:
+  - id: question.first-real-customer
+    path: /spec/purpose/problem
+    question: What is the first real customer, user decision and measurable outcome?
+    materiality: critical
+    blocking_gate: gate_0
+    status: open
+  - id: question.target-hardware
+    path: /spec/hardware
+    question: Which measured hardware and operating environment must Gate 2 assess?
+    materiality: critical
+    blocking_gate: gate_2
+    status: open
+  - id: question.regulatory-nexus
+    path: /spec/regulatory_nexus
+    question: Which entities, roles, markets, output-use and affected-person locations apply?
+    materiality: critical
+    blocking_gate: gate_1
+    status: open
+extensions: {}

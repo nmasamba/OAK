@@ -1,0 +1,21 @@
+{
+  "name": "oak-community-workspace",
+  "version": "0.4.0-dev.3",
+  "private": true,
+  "license": "Apache-2.0",
+  "packageManager": "pnpm@11.15.1",
+  "engines": {
+    "node": "24.18.0",
+    "pnpm": "11.15.1"
+  },
+  "scripts": {
+    "build": "pnpm --dir web build",
+    "format": "prettier --write \"web/**/*.{css,html,ts,tsx}\"",
+    "format:check": "prettier --check \"web/**/*.{css,html,ts,tsx}\"",
+    "lint": "pnpm --dir web typecheck",
+    "typecheck": "pnpm --dir web typecheck"
+  },
+  "devDependencies": {
+    "prettier": "3.6.2"
+  }
+}

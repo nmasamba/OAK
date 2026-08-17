@@ -1,0 +1,54 @@
+# SPDX-License-Identifier: Apache-2.0
+schema_version: 0.3.0
+id: nexus.public-manual-qa
+version: 0.1.0
+status: review_required
+system_intent_ref: intent.public-manual-qa@0.1.0
+entities:
+  - id: entity.fixture-provider
+    legal_name: Example non-EU provider (synthetic)
+    established_in: GB
+    roles: [provider]
+    offered_under_own_name: true
+  - id: entity.fixture-deployer
+    legal_name: Example EU deployer (synthetic)
+    established_in: FR
+    roles: [deployer]
+    offered_under_own_name: false
+activities:
+  - type: place_on_market
+    entity_id: entity.fixture-provider
+    countries: [FR]
+    intended_date: 2026-09-01
+  - type: operate
+    entity_id: entity.fixture-deployer
+    countries: [FR]
+    intended_date: 2026-09-01
+  - type: output_use
+    entity_id: entity.fixture-deployer
+    countries: [FR]
+    intended_date: 2026-09-01
+affected_person_locations: [FR]
+data_locations:
+  processing: [FR]
+  storage: [FR]
+  transfers: []
+lifecycle:
+  stage: pilot
+  embedded_in_product: false
+  third_party_offering: true
+  material_change_date: null
+claims_provenance:
+  /entities/0/established_in:
+    source: domain_default
+    confidence: 0.5
+    rationale: Synthetic fixture chosen to test extraterritorial scope.
+    evidence_refs: []
+    materiality: critical
+    confirmation_required: true
+    confirmed_by: null
+    confirmed_at: null
+evidence: []
+owner: null
+last_reviewed_at: null
+extensions: {}

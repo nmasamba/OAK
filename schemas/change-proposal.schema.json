@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://oak.example/schemas/change-proposal.schema.json",
+  "title": "ChangeProposal",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "id", "version", "status", "loop", "created_at", "target_ref", "requirement_ids", "hypothesis", "competing_explanations", "evidence_refs", "causal_status", "proposed_diff", "predicted_impact", "invariants", "data_use", "experiment", "blast_radius", "security_privacy_regulatory_impact", "required_approver_roles", "rollback", "result", "extensions"],
+  "properties": {
+    "schema_version": {"const": "0.3.0"},
+    "id": {"$ref": "common.schema.json#/$defs/identifier"},
+    "version": {"$ref": "common.schema.json#/$defs/semver"},
+    "status": {"enum": ["observed", "diagnosed", "proposed", "offline_tested", "shadowed", "approved", "canary", "promoted", "rolled_back", "rejected", "retired"]},
+    "loop": {"enum": ["application", "architecture", "designer"]},
+    "created_at": {"type": "string", "format": "date-time"},
+    "target_ref": {"$ref": "common.schema.json#/$defs/artifactRef"},
+    "requirement_ids": {"type": "array", "items": {"type": "string"}, "minItems": 1, "uniqueItems": true},
+    "hypothesis": {"type": "string", "minLength": 1},
+    "competing_explanations": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+    "evidence_refs": {"type": "array", "items": {"type": "string"}, "minItems": 1, "uniqueItems": true},
+    "causal_status": {"enum": ["observational", "quasi_experimental", "randomized", "mechanistic", "unknown"]},
+    "proposed_diff": {"$ref": "common.schema.json#/$defs/artifactRef"},
+    "predicted_impact": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/objective"}, "minItems": 1},
+    "invariants": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+    "data_use": {
+      "type": "object", "additionalProperties": false,
+      "required": ["allowed_inputs", "prohibited_inputs", "tenant_scope", "retention", "global_learning_allowed"],
+      "properties": {
+        "allowed_inputs": {"type": "array", "items": {"type": "string"}},
+        "prohibited_inputs": {"type": "array", "items": {"type": "string"}},
+        "tenant_scope": {"type": "string"},
+        "retention": {"type": "string"},
+        "global_learning_allowed": {"type": "boolean"}
+      }
+    },
+    "experiment": {
+      "type": "object", "additionalProperties": false,
+      "required": ["design", "population", "duration", "sample_requirement", "stopping_rules", "offline_required", "shadow_required", "canary_stages"],
+      "properties": {
+        "design": {"type": "string"},
+        "population": {"type": "string"},
+        "duration": {"type": "string"},
+        "sample_requirement": {"type": "string"},
+        "stopping_rules": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+        "offline_required": {"type": "boolean"},
+        "shadow_required": {"type": "boolean"},
+        "canary_stages": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "blast_radius": {
+      "type": "object", "additionalProperties": false,
+      "required": ["maximum_users", "maximum_cost", "environments", "reversible"],
+      "properties": {
+        "maximum_users": {"type": "integer", "minimum": 0},
+        "maximum_cost": {"$ref": "common.schema.json#/$defs/moneyRange"},
+        "environments": {"type": "array", "items": {"enum": ["offline", "sandbox", "shadow", "staging", "production"]}, "uniqueItems": true},
+        "reversible": {"type": "boolean"}
+      }
+    },
+    "security_privacy_regulatory_impact": {"type": "array", "items": {"type": "string"}},
+    "required_approver_roles": {"type": "array", "items": {"type": "string"}, "minItems": 1, "uniqueItems": true},
+    "rollback": {
+      "type": "object", "additionalProperties": false,
+      "required": ["conditions", "procedure_ref", "maximum_minutes", "verified"],
+      "properties": {
+        "conditions": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+        "procedure_ref": {"type": "string"},
+        "maximum_minutes": {"type": "number", "minimum": 0},
+        "verified": {"type": "boolean"}
+      }
+    },
+    "result": {"type": ["string", "null"]},
+    "extensions": {"$ref": "common.schema.json#/$defs/extensions"}
+  }
+}

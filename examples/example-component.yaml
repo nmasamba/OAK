@@ -1,0 +1,108 @@
+# SPDX-License-Identifier: Apache-2.0
+schema_version: 0.3.0
+id: component.fixture-lexical-search
+name: Fixture Lexical Search Service
+category: software
+description: Synthetic manifest used to validate OAK catalogue contracts; not a real or approved project.
+owner: OAK fixture maintainers
+project_url: https://example.invalid/oak-fixture-search
+repository_url: https://example.invalid/oak-fixture-search/repository
+release:
+  version: 0.1.0
+  released_at: 2026-08-13
+  support_until: null
+  update_policy: Immutable fixture release; replace by a new version.
+artifact:
+  reference: registry.example.invalid/oak/fixture-search@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  media_type: application/vnd.oci.image.manifest.v1+json
+  signature_status: absent
+  provenance_status: absent
+  sbom_status: absent
+licensing:
+  software:
+    spdx_expression: Apache-2.0
+    terms_url: https://www.apache.org/licenses/LICENSE-2.0
+    classification: osi_approved
+    review_status: pending
+  model:
+    spdx_expression: null
+    terms_url: null
+    classification: not_applicable
+    review_status: not_applicable
+  data:
+    spdx_expression: null
+    terms_url: null
+    classification: not_applicable
+    review_status: not_applicable
+  transitive_review: pending
+  redistribution_constraints: []
+availability_class: osi_open_source_software
+maturity:
+  governance: Synthetic fixture
+  lifecycle_stage: experimental
+  maintainers: 0
+  release_cadence: None
+  adoption_evidence: []
+  commercial_support: []
+  confidence: 1.0
+targets:
+  operating_systems: [linux]
+  cpu_architectures: [x86_64]
+  accelerators: []
+  drivers: []
+  minimum_resources:
+    ram_gib: 1
+    storage_gib: 1
+interfaces:
+  - name: fixture-search-http
+    kind: http
+    version: v1
+    direction: provides
+deployment:
+  modes: [local_container]
+  offline_behavior: Fully offline after image and corpus are staged.
+  external_calls: []
+  telemetry_default: No external telemetry; local structured logs only.
+  air_gap_suitability: supported
+security:
+  identity: No built-in identity; must be behind the fixture gateway.
+  tenancy: Single fixture tenant only.
+  encryption: Relies on target transport and storage controls.
+  secrets: No secrets required.
+  network: Bind only to an isolated fixture network.
+  audit: Local request metadata without document contents.
+  known_vulnerabilities: []
+  security_advisory_url: null
+data_handling:
+  data_types: [public_documents, search_queries]
+  retention: Derived index follows fixture retention.
+  deletion: Delete index volume during uninstall.
+  residency: Local target only.
+  privacy_implications: []
+operations:
+  observability: Health endpoint and local metrics fixture.
+  backup: Rebuild derived index from the source corpus.
+  restore: Re-ingest the content-digested corpus.
+  upgrade: Deploy a new immutable fixture version and rebuild index.
+  downgrade: Restore earlier image and compatible index.
+  rollback: Switch to earlier digest and verify search fixture.
+  disaster_recovery: Recreate from repository fixture and corpus archive.
+  operational_burden: low
+measurements: []
+limitations:
+  - This is a fictional validation fixture and cannot be deployed as software.
+substitutes:
+  - component.real-search-to-be-assessed
+evidence:
+  - id: evidence.fixture-manifest
+    title: Synthetic fixture declaration
+    uri: null
+    version: 0.1.0
+    source_type: inference
+    checked_at: 2026-08-13T12:00:00Z
+    confidence: 1.0
+    content_digest: null
+status: under_review
+next_review_at: 2026-09-13T12:00:00Z
+extensions: {}

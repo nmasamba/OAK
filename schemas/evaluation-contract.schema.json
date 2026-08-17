@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://oak.example/schemas/evaluation-contract.schema.json",
+  "title": "EvaluationContract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "id", "version", "status", "scope", "user_outcome", "baseline", "populations", "datasets", "metrics", "gates", "monitoring", "owner", "expires_at", "extensions"],
+  "properties": {
+    "schema_version": {"const": "0.3.0"},
+    "id": {"$ref": "common.schema.json#/$defs/identifier"},
+    "version": {"$ref": "common.schema.json#/$defs/semver"},
+    "status": {"enum": ["draft", "approved", "active", "expired", "superseded", "retired"]},
+    "scope": {"enum": ["oak", "component", "generated_system", "deployment", "change_proposal"]},
+    "user_outcome": {"type": "string", "minLength": 1},
+    "baseline": {"type": "string", "minLength": 1},
+    "populations": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "description", "subgroups"],
+        "properties": {
+          "id": {"$ref": "common.schema.json#/$defs/identifier"},
+          "description": {"type": "string"},
+          "subgroups": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+        }
+      }
+    },
+    "datasets": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "purpose", "source", "version", "digest", "permitted_use", "leakage_review", "retention"],
+        "properties": {
+          "id": {"$ref": "common.schema.json#/$defs/identifier"},
+          "purpose": {"enum": ["development", "offline_test", "adversarial", "human_review", "shadow", "canary", "monitoring"]},
+          "source": {"type": "string"},
+          "version": {"type": "string"},
+          "digest": {"$ref": "common.schema.json#/$defs/digest"},
+          "permitted_use": {"type": "string"},
+          "leakage_review": {"type": "string"},
+          "retention": {"type": "string"}
+        }
+      }
+    },
+    "metrics": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "name", "kind", "direction", "unit", "aggregation", "threshold", "subgroup_floor", "confidence_method", "sample_requirement", "owner"],
+        "properties": {
+          "id": {"$ref": "common.schema.json#/$defs/identifier"},
+          "name": {"type": "string"},
+          "kind": {"enum": ["outcome", "quality", "safety", "fairness", "latency", "throughput", "availability", "freshness", "cost", "energy", "recovery", "security"]},
+          "direction": {"enum": ["at_least", "at_most", "equals", "range"]},
+          "unit": {"type": "string"},
+          "aggregation": {"type": "string"},
+          "threshold": {"type": ["number", "string"]},
+          "subgroup_floor": {"type": ["number", "string", "null"]},
+          "confidence_method": {"type": "string"},
+          "sample_requirement": {"type": "string"},
+          "owner": {"type": "string"}
+        }
+      }
+    },
+    "gates": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "stage", "required_metric_ids", "critical_failures", "approver_roles"],
+        "properties": {
+          "id": {"$ref": "common.schema.json#/$defs/identifier"},
+          "stage": {"enum": ["offline", "sandbox", "shadow", "canary", "production", "continuous"]},
+          "required_metric_ids": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/identifier"}, "uniqueItems": true},
+          "critical_failures": {"type": "array", "items": {"type": "string"}},
+          "approver_roles": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+        }
+      }
+    },
+    "monitoring": {
+      "type": "object", "additionalProperties": false,
+      "required": ["window", "cadence", "degradation_rules", "rollback_rules"],
+      "properties": {
+        "window": {"type": "string"},
+        "cadence": {"type": "string"},
+        "degradation_rules": {"type": "array", "items": {"type": "string"}},
+        "rollback_rules": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "owner": {"type": "string"},
+    "expires_at": {"type": ["string", "null"], "format": "date-time"},
+    "extensions": {"$ref": "common.schema.json#/$defs/extensions"}
+  }
+}

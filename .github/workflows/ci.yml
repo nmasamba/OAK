@@ -1,0 +1,33 @@
+# SPDX-License-Identifier: Apache-2.0
+name: ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.10.8"
+          enable-cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: corepack enable
+      - run: make bootstrap
+      - run: make check
+      - run: make build
+      - run: make audit
+      - run: make sbom
+      - uses: actions/upload-artifact@v4
+        with:
+          name: development-sbom
+          path: sbom/python.cdx.json

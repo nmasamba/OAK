@@ -1,0 +1,59 @@
+# SPDX-License-Identifier: Apache-2.0
+schema_version: 0.3.0
+id: cost.public-manual-qa
+version: 0.1.0
+status: proposed
+unit_of_decision: One answer displayed to one reviewer for one question.
+stakeholder_groups:
+  - id: group.reviewer
+    name: Architecture reviewer
+    affected: true
+    representation: Fixture reviewer panel
+outcomes:
+  - id: outcome.false-supported-answer
+    type: false_positive
+    stakeholder_group_ids: [group.reviewer]
+    dimensions:
+      - kind: workload
+        low: 5
+        most_likely: 15
+        high: 60
+        unit: minutes_of_rework
+        time_horizon: immediate
+      - kind: reputational
+        low: 0
+        most_likely: 1
+        high: 3
+        unit: ordinal_severity_0_to_5
+        time_horizon: delayed
+    reversibility: reversible
+    remediation_hours: 1
+    frequency_basis: Per displayed answer
+    correlated_failure: true
+    evidence_refs: []
+    confidence: 0.3
+  - id: outcome.abstention
+    type: abstention
+    stakeholder_group_ids: [group.reviewer]
+    dimensions:
+      - kind: workload
+        low: 1
+        most_likely: 5
+        high: 20
+        unit: minutes_of_manual_search
+        time_horizon: immediate
+    reversibility: reversible
+    remediation_hours: 0.34
+    frequency_basis: Per abstained question
+    correlated_failure: false
+    evidence_refs: []
+    confidence: 0.3
+sensitivity:
+  parameters:
+    - false_supported_answer_rate
+    - abstention_rate
+    - reviewer_minutes
+  threshold_policy: Show the trade-off curve; do not choose a unique threshold until reviewers approve costs.
+  pareto_required: true
+approvals: []
+extensions: {}

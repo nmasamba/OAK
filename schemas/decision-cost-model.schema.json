@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://oak.example/schemas/decision-cost-model.schema.json",
+  "title": "DecisionCostModel",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "id", "version", "status", "unit_of_decision", "stakeholder_groups", "outcomes", "sensitivity", "approvals", "extensions"],
+  "properties": {
+    "schema_version": {"const": "0.3.0"},
+    "id": {"$ref": "common.schema.json#/$defs/identifier"},
+    "version": {"$ref": "common.schema.json#/$defs/semver"},
+    "status": {"enum": ["draft", "proposed", "approved", "superseded", "retired"]},
+    "unit_of_decision": {"type": "string", "minLength": 1},
+    "stakeholder_groups": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "name", "affected", "representation"],
+        "properties": {
+          "id": {"$ref": "common.schema.json#/$defs/identifier"},
+          "name": {"type": "string"},
+          "affected": {"type": "boolean"},
+          "representation": {"type": "string"}
+        }
+      }
+    },
+    "outcomes": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "type", "stakeholder_group_ids", "dimensions", "reversibility", "remediation_hours", "frequency_basis", "correlated_failure", "evidence_refs", "confidence"],
+        "properties": {
+          "id": {"$ref": "common.schema.json#/$defs/identifier"},
+          "type": {"enum": ["true_positive", "true_negative", "false_positive", "false_negative", "abstention", "delay", "outage", "stale_data", "system_failure"]},
+          "stakeholder_group_ids": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/identifier"}, "minItems": 1, "uniqueItems": true},
+          "dimensions": {
+            "type": "array", "minItems": 1,
+            "items": {
+              "type": "object", "additionalProperties": false,
+              "required": ["kind", "low", "most_likely", "high", "unit", "time_horizon"],
+              "properties": {
+                "kind": {"enum": ["financial", "physical", "psychological", "legal", "reputational", "opportunity", "workload", "equity", "benefit"]},
+                "low": {"type": "number"},
+                "most_likely": {"type": "number"},
+                "high": {"type": "number"},
+                "unit": {"type": "string"},
+                "time_horizon": {"type": "string"}
+              }
+            }
+          },
+          "reversibility": {"enum": ["reversible", "partially_reversible", "irreversible", "unknown"]},
+          "remediation_hours": {"type": ["number", "null"], "minimum": 0},
+          "frequency_basis": {"type": "string"},
+          "correlated_failure": {"type": "boolean"},
+          "evidence_refs": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/identifier"}, "uniqueItems": true},
+          "confidence": {"type": "number", "minimum": 0, "maximum": 1}
+        }
+      }
+    },
+    "sensitivity": {
+      "type": "object", "additionalProperties": false,
+      "required": ["parameters", "threshold_policy", "pareto_required"],
+      "properties": {
+        "parameters": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "threshold_policy": {"type": "string"},
+        "pareto_required": {"type": "boolean"}
+      }
+    },
+    "approvals": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/approval"}},
+    "extensions": {"$ref": "common.schema.json#/$defs/extensions"}
+  }
+}

@@ -1,0 +1,119 @@
+# SPDX-License-Identifier: Apache-2.0
+schema_version: 0.3.0
+id: bundle.public-manual-qa.minimum.local
+version: 0.1.0
+status: compiled
+created_at: 2026-08-13T12:00:00Z
+architecture_decision_ref:
+  id: decision.public-manual-qa
+  version: 0.1.0
+  digest: sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+  uri: examples/example-architecture-decision.md
+  media_type: text/markdown
+intent_ref:
+  id: intent.public-manual-qa
+  version: 0.1.0
+  digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+  uri: examples/example-intent.yaml
+  media_type: application/yaml
+evaluation_contract_ref:
+  id: eval.public-manual-qa
+  version: 0.1.0
+  digest: sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+  uri: examples/example-evaluation-contract.yaml
+  media_type: application/yaml
+target:
+  class: local
+  fingerprint: sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  environment: validation
+  tenant_id: fixture
+  network_mode: isolated-no-egress
+adapter:
+  id: adapter.fixture-local
+  version: 0.1.0
+  digest: sha256:1111111111111111111111111111111111111111111111111111111111111111
+component_lock:
+  - manifest_id: component.fixture-lexical-search
+    version: 0.1.0
+    digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    licence_decision: allowed
+    source: Synthetic fixture only
+artifacts:
+  - id: artifact.fixture-compose
+    version: 0.1.0
+    digest: sha256:2222222222222222222222222222222222222222222222222222222222222222
+    uri: oci://registry.example.invalid/oak/fixture-bundle
+    media_type: application/vnd.oak.bundle.v1+yaml
+secret_references: []
+preflight_checks:
+  - id: preflight.target-fingerprint
+    category: compatibility
+    required: true
+    failure_action: block
+  - id: preflight.rollback-space
+    category: rollback
+    required: true
+    failure_action: block
+procedures:
+  plan:
+    - Inspect target read-only and produce a normalized diff.
+  install:
+    - Create an isolated fixture network and derived-index volume.
+    - Start the digest-pinned fixture service.
+  verify:
+    - Run health, no-egress, search and evaluation smoke tests.
+  backup:
+    - Preserve the content-digested source corpus; the index is derived.
+  restore:
+    - Recreate the index from the source corpus.
+  rollback:
+    - Stop the candidate and restore the prior digest or empty target state.
+  upgrade:
+    - Compile a new bundle and rebuild the derived index.
+  downgrade:
+    - Restore the earlier compatible bundle digest.
+  uninstall:
+    - Stop the fixture service and delete its isolated network and derived index.
+  decommission:
+    - Verify derived deletion and retain only approved test evidence.
+supply_chain:
+  bundle_digest: sha256:3333333333333333333333333333333333333333333333333333333333333333
+  sbom_ref:
+    id: artifact.fixture-sbom
+    version: 0.1.0
+    digest: sha256:4444444444444444444444444444444444444444444444444444444444444444
+    uri: null
+    media_type: application/spdx+json
+  provenance_ref:
+    id: artifact.fixture-provenance
+    version: 0.1.0
+    digest: sha256:5555555555555555555555555555555555555555555555555555555555555555
+    uri: null
+    media_type: application/vnd.in-toto+json
+  signature_ref:
+    id: artifact.fixture-signature
+    version: 0.1.0
+    digest: sha256:6666666666666666666666666666666666666666666666666666666666666666
+    uri: null
+    media_type: application/vnd.dev.cosign.simplesigning.v1+json
+  verification_policy_ref:
+    id: policy.fixture-verification
+    version: 0.1.0
+    digest: sha256:7777777777777777777777777777777777777777777777777777777777777777
+    uri: null
+    media_type: application/yaml
+approval_policy:
+  required_roles:
+    - fixture-environment-owner
+    - security-reviewer
+  separation_of_duties: true
+  target_bound: true
+  digest_bound: true
+compatibility:
+  minimum_oak_version: 0.3.0
+  target_constraints:
+    - x86_64 Linux with at least 32 GiB RAM and 100 GiB free storage
+  known_incompatibilities:
+    - This synthetic bundle is not executable and exists only for schema validation.
+expires_at: 2026-09-13T12:00:00Z
+extensions: {}
