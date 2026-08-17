@@ -53,6 +53,9 @@ dev = [
 [tool.hatch.build.targets.wheel]
 packages = ["src/oak"]
 
+[tool.hatch.build.targets.wheel.force-include]
+"schemas" = "oak/canonical_schemas"
+
 [tool.pytest.ini_options]
 addopts = "--strict-config --strict-markers"
 testpaths = ["tests"]

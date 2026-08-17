@@ -7,6 +7,11 @@ All schemas use JSON Schema Draft 2020-12. YAML examples are parsed to the equiv
 | Schema | Canonical object | Example |
 |---|---|---|
 | `design-case.schema.json` | `DesignCase` workspace aggregate | `examples/example-design-case.yaml` |
+| `workspace-manifest.schema.json` | Atomic local workspace pointer and artifact index | `examples/example-workspace-manifest.yaml` |
+| `source-record.schema.json` | Quarantined source metadata | `examples/example-source-record.yaml` |
+| `audit-event.schema.json` | Append-only local command lineage | `examples/example-audit-event.yaml` |
+| `confirmation-answers.schema.json` | Bounded confirmation input | `examples/briefs/public-manual-qa-answers.yaml` |
+| `interpretation-proposal.schema.json` | Untrusted provider-neutral claim proposal | `examples/example-interpretation-proposal.yaml` |
 | `system-intent.schema.json` | `SystemIntentSpec` | `examples/example-intent.yaml` |
 | `decision-cost-model.schema.json` | `DecisionCostModel` | `examples/example-decision-cost-model.yaml` |
 | `regulatory-nexus.schema.json` | `RegulatoryNexus` | `examples/example-regulatory-nexus.yaml` |

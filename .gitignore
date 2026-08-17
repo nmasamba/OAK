@@ -121,7 +121,10 @@ junit.xml
 *.sqlite3
 *.db
 .oak/
+.oak.tmp-*/
 oak-workspace/
+case-export/
+oak-export*/
 artifacts/
 .cache/
 tmp/

@@ -14,6 +14,10 @@ sbom
 .ruff_cache
 .coverage
 htmlcov
+.oak
+.oak.tmp-*
+case-export
+oak-export*
 .agent
 .agents
 .codex

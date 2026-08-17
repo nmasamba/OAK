@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://oak.example/schemas/audit-event.schema.json",
+  "title": "AuditEvent",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "id", "sequence", "previous_event_digest", "case_id", "case_version", "event_type", "actor", "tenant_id", "interface_origin", "correlation_id", "idempotency_key", "input_digest", "occurred_at", "result", "extensions"],
+  "properties": {
+    "schema_version": {"const": "0.4.0"},
+    "id": {"$ref": "common.schema.json#/$defs/identifier"},
+    "sequence": {"type": "integer", "minimum": 1},
+    "previous_event_digest": {
+      "anyOf": [
+        {"$ref": "common.schema.json#/$defs/digest"},
+        {"type": "null"}
+      ]
+    },
+    "case_id": {"$ref": "common.schema.json#/$defs/identifier"},
+    "case_version": {"$ref": "common.schema.json#/$defs/semver"},
+    "event_type": {"enum": ["brief_interpreted", "claims_confirmed", "workspace_imported"]},
+    "actor": {"type": "string", "minLength": 1, "maxLength": 160},
+    "tenant_id": {"type": "string", "minLength": 1, "maxLength": 160},
+    "interface_origin": {"enum": ["web", "api", "cli", "mcp", "portal", "import"]},
+    "correlation_id": {"type": "string", "minLength": 8, "maxLength": 160},
+    "idempotency_key": {"type": "string", "minLength": 16, "maxLength": 240},
+    "input_digest": {"$ref": "common.schema.json#/$defs/digest"},
+    "occurred_at": {"type": "string", "format": "date-time"},
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["case_id", "case_version", "intent_ref", "source_record_ref"],
+      "properties": {
+        "case_id": {"$ref": "common.schema.json#/$defs/identifier"},
+        "case_version": {"$ref": "common.schema.json#/$defs/semver"},
+        "intent_ref": {"$ref": "#/$defs/nullableArtifactRef"},
+        "source_record_ref": {"$ref": "#/$defs/nullableArtifactRef"}
+      }
+    },
+    "extensions": {"$ref": "common.schema.json#/$defs/extensions"}
+  },
+  "$defs": {
+    "nullableArtifactRef": {
+      "anyOf": [
+        {"$ref": "common.schema.json#/$defs/artifactRef"},
+        {"type": "null"}
+      ]
+    }
+  }
+}

@@ -1,15 +1,31 @@
 # SPDX-License-Identifier: Apache-2.0
-"""OAK-S0-005 installed CLI behavior tests."""
+"""OAK-S0-005 and OAK-S1-009 installed CLI behavior tests."""
 
+import json
+import os
 import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+OAK = ROOT / ".venv" / "bin" / "oak"
+OAK_RUNNER = ROOT / ".venv" / "bin" / "oak-runner"
+
+
+def _run_oak(*arguments: str, cwd: Path, check: bool = True) -> subprocess.CompletedProcess[str]:
+    environment = {**os.environ, "NO_PROXY": "*", "no_proxy": "*"}
+    return subprocess.run(
+        [str(OAK), *arguments],
+        cwd=cwd,
+        check=check,
+        capture_output=True,
+        text=True,
+        env=environment,
+    )
 
 
 def test_installed_cli_version_matches_version_file() -> None:
     result = subprocess.run(
-        ["oak", "--version"],
+        [str(OAK), "--version"],
         cwd=ROOT,
         check=True,
         capture_output=True,
@@ -22,7 +38,7 @@ def test_installed_cli_version_matches_version_file() -> None:
 
 def test_installed_cli_help_exposes_only_implemented_behavior() -> None:
     result = subprocess.run(
-        ["oak", "--help"],
+        [str(OAK), "--help"],
         cwd=ROOT,
         check=True,
         capture_output=True,
@@ -32,7 +48,7 @@ def test_installed_cli_help_exposes_only_implemented_behavior() -> None:
     assert "serve" in result.stdout
     for unavailable_command in ("evaluate", "apply"):
         unavailable = subprocess.run(
-            ["oak", unavailable_command],
+            [str(OAK), unavailable_command],
             cwd=ROOT,
             check=False,
             capture_output=True,
@@ -44,7 +60,7 @@ def test_installed_cli_help_exposes_only_implemented_behavior() -> None:
 
 def test_unimplemented_runner_fails_honestly() -> None:
     result = subprocess.run(
-        ["oak-runner"],
+        [str(OAK_RUNNER)],
         cwd=ROOT,
         check=False,
         capture_output=True,
@@ -53,3 +69,61 @@ def test_unimplemented_runner_fails_honestly() -> None:
 
     assert result.returncode == 69
     assert "not available" in result.stderr
+
+
+def test_offline_design_confirmation_retry_and_portable_round_trip(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    export = tmp_path / "case-export"
+    imported = tmp_path / "imported"
+    brief = ROOT / "examples" / "briefs" / "public-manual-qa.yaml"
+    answers = ROOT / "examples" / "briefs" / "public-manual-qa-answers.yaml"
+
+    initialized = _run_oak("init", str(workspace), "--output", "json", cwd=tmp_path)
+    designed = _run_oak("design", str(brief), "--output", "json", cwd=workspace)
+    questions = _run_oak("questions", "--output", "json", cwd=workspace)
+    confirmed = _run_oak("confirm", "--answers", str(answers), "--output", "json", cwd=workspace)
+    retry = _run_oak("confirm", "--answers", str(answers), "--output", "json", cwd=workspace)
+    exported = _run_oak("export", "--output", str(export), cwd=workspace)
+    imported_result = _run_oak(
+        "import", str(export), "--directory", str(imported), "--output", "json", cwd=tmp_path
+    )
+
+    assert json.loads(initialized.stdout)["status"] == "initialized"
+    assert json.loads(designed.stdout)["id"] == "intent.public-manual-qa"
+    assert len(json.loads(questions.stdout)["questions"]) == 5
+    first_confirmation = json.loads(confirmed.stdout)
+    retry_confirmation = json.loads(retry.stdout)
+    assert first_confirmation["case"]["version"] == "0.1.1"
+    assert first_confirmation["duplicate"] is False
+    assert retry_confirmation["duplicate"] is True
+    assert retry_confirmation["case"] == first_confirmation["case"]
+    assert "Exported design-case.public-manual-qa@0.1.1" in exported.stdout
+    assert json.loads(imported_result.stdout)["case"] == first_confirmation["case"]
+    source_manifest = json.loads((workspace / ".oak" / "manifest.json").read_text())
+    imported_manifest = json.loads((imported / ".oak" / "manifest.json").read_text())
+    assert source_manifest == imported_manifest
+    assert len(source_manifest["audit_events"]) == 2
+
+
+def test_cli_rejects_malformed_confirmation_without_state_change(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    brief = ROOT / "examples" / "briefs" / "public-manual-qa.yaml"
+    malformed = tmp_path / "malformed.yaml"
+    malformed.write_text("answers: [unterminated\n", encoding="utf-8")
+    _run_oak("init", str(workspace), cwd=tmp_path)
+    _run_oak("design", str(brief), cwd=workspace)
+    before = (workspace / ".oak" / "manifest.json").read_bytes()
+
+    result = _run_oak("confirm", "--answers", str(malformed), cwd=workspace, check=False)
+
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert result.stderr.startswith("OAK-CONFIRM-MALFORMED:")
+    assert (workspace / ".oak" / "manifest.json").read_bytes() == before
+
+    oversized = tmp_path / "oversized.json"
+    oversized.write_bytes(b"x" * 65_537)
+    oversized_result = _run_oak("confirm", "--answers", str(oversized), cwd=workspace, check=False)
+    assert oversized_result.returncode == 2
+    assert oversized_result.stderr.startswith("OAK-CONFIRM-SIZE:")
+    assert (workspace / ".oak" / "manifest.json").read_bytes() == before

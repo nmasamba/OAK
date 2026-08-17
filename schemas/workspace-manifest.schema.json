@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://oak.example/schemas/workspace-manifest.schema.json",
+  "title": "WorkspaceManifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "id", "version", "tenant_id", "created_at", "updated_at", "current_case_ref", "artifact_index", "audit_events", "idempotency_records", "extensions"],
+  "properties": {
+    "schema_version": {"const": "0.4.0"},
+    "id": {"$ref": "common.schema.json#/$defs/identifier"},
+    "version": {"type": "integer", "minimum": 0},
+    "tenant_id": {"type": "string", "minLength": 1, "maxLength": 160},
+    "created_at": {"type": "string", "format": "date-time"},
+    "updated_at": {"type": "string", "format": "date-time"},
+    "current_case_ref": {"$ref": "#/$defs/nullableArtifactRef"},
+    "artifact_index": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/indexedArtifact"}
+    },
+    "audit_events": {
+      "type": "array",
+      "items": {"$ref": "common.schema.json#/$defs/artifactRef"}
+    },
+    "idempotency_records": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/idempotencyRecord"}
+    },
+    "extensions": {"$ref": "common.schema.json#/$defs/extensions"}
+  },
+  "$defs": {
+    "nullableArtifactRef": {
+      "anyOf": [
+        {"$ref": "common.schema.json#/$defs/artifactRef"},
+        {"type": "null"}
+      ]
+    },
+    "indexedArtifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "version", "digest", "media_type", "kind", "size_bytes"],
+      "properties": {
+        "id": {"$ref": "common.schema.json#/$defs/identifier"},
+        "version": {"type": "string", "minLength": 1},
+        "digest": {"$ref": "common.schema.json#/$defs/digest"},
+        "media_type": {"type": "string", "minLength": 1},
+        "kind": {"enum": ["brief_source", "source_record", "system_intent", "design_case", "audit_event"]},
+        "size_bytes": {"type": "integer", "minimum": 0, "maximum": 8388608}
+      }
+    },
+    "idempotencyRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "input_digest", "result_case_ref", "event_ref"],
+      "properties": {
+        "key": {"type": "string", "minLength": 16, "maxLength": 240},
+        "input_digest": {"$ref": "common.schema.json#/$defs/digest"},
+        "result_case_ref": {"$ref": "common.schema.json#/$defs/artifactRef"},
+        "event_ref": {"$ref": "common.schema.json#/$defs/artifactRef"}
+      }
+    }
+  }
+}

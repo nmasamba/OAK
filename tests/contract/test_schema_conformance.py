@@ -11,6 +11,7 @@ from oak.contracts import (
     CanonicalDocument,
     ContractValidationError,
     SchemaRegistry,
+    load_json_document,
     load_yaml_document,
 )
 from scripts.validate_repository import EXAMPLE_BY_SCHEMA
@@ -52,3 +53,24 @@ def test_invalid_document_is_rejected_with_a_safe_path() -> None:
 
     assert captured.value.schema_name == "design-case.schema.json"
     assert captured.value.path.startswith("/")
+
+
+@pytest.mark.parametrize(
+    "source",
+    (
+        '{"id":"first","id":"second"}',
+        '{"value":NaN}',
+        "[]",
+    ),
+)
+def test_json_runtime_rejects_duplicate_nonfinite_or_non_object_input(source: str) -> None:
+    with pytest.raises(ValueError):
+        load_json_document(source)
+
+
+@pytest.mark.parametrize(
+    "source", ("value: .nan\n", "1: numeric-key\n", "value: !!set {a: null}\n")
+)
+def test_yaml_runtime_rejects_non_json_values(source: str) -> None:
+    with pytest.raises(ValueError):
+        load_yaml_document(source)

@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: Apache-2.0
+schema_version: 0.4.0
+id: source.public-manual-qa
+version: 0.1.0
+created_at: 2026-08-17T10:01:00Z
+trust: untrusted
+format: yaml
+original_name: public-manual-qa.yaml
+content_ref:
+  id: brief.public-manual-qa
+  version: 0.1.0
+  digest: sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+  uri: null
+  media_type: application/yaml
+size_bytes: 1462
+normalization:
+  unicode: NFC
+  line_endings: LF
+extensions: {}

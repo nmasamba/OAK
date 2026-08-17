@@ -26,6 +26,25 @@ CI and container builds are the reproducible builder boundary. They pin `uv` 0.1
 
 The bootstrap step may use the public package registries. After dependencies are installed, `make check` requires no hosted service, credentials, model provider, database, or public network.
 
+## Local DesignCase workflow
+
+Run the local workflow from the locked environment:
+
+```bash
+uv run oak init /tmp/oak-demo
+cd /tmp/oak-demo
+/path/to/OAKCommunity/.venv/bin/oak design /path/to/brief.yaml --output yaml
+/path/to/OAKCommunity/.venv/bin/oak questions --output json
+/path/to/OAKCommunity/.venv/bin/oak confirm --answers /path/to/answers.yaml
+/path/to/OAKCommunity/.venv/bin/oak export --output ./case-export
+```
+
+`oak design` accepts bounded regular `.yaml`, `.yml`, `.json`, `.md`, `.markdown`, and `.txt` files. YAML aliases, duplicate keys, malformed/deep structures, non-UTF-8 content, Unicode control characters, symlinks, unsupported types, empty files, and files over 256 KiB are rejected before state is published. Confirmation files are bounded YAML or JSON and contain at most five decisions.
+
+Commands discover the nearest parent workspace. Mutations use expected versions and normalized-input idempotency; pass `--idempotency-key` when a caller needs to control the retry key. Human output is the default, while `--output json` and `--output yaml` are stable machine-readable views. Diagnostics go to stderr and failures leave the prior manifest authoritative.
+
+See [local-design-case.md](local-design-case.md) for workspace portability and recovery details.
+
 ## Local API
 
 ```bash
