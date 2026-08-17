@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: Apache-2.0
+schema_version: 0.4.0
+id: evaluation-result.candidate-03
+version: 0.1.0
+candidate_ref:
+  id: candidate-03
+  version: 0.1.0
+  digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  uri: null
+  media_type: application/vnd.oak.architecture-candidate+json
+evaluation_contract_ref:
+  id: evaluation.public-manual-qa
+  version: 0.1.0
+  digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  uri: null
+  media_type: application/vnd.oak.evaluation-contract+json
+executed_at: 2026-08-17T10:00:00Z
+executor: local-user
+fixture_version: public-manual-qa-evaluation-1.0.0
+status: pass
+metrics:
+  - metric_id: metric.citation-correctness
+    value: 0.99
+    unit: proportion
+    threshold: 0.98
+    direction: at_least
+    result: pass
+    sample_size: 100
+    confidence_interval: Deterministic synthetic fixture.
+critical_failures: []
+limitations: [Not observed production evidence.]
+evidence_refs:
+  - id: candidate-03
+    version: 0.1.0
+    digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    uri: null
+    media_type: application/vnd.oak.architecture-candidate+json
+extensions: {}

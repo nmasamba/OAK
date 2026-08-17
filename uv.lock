@@ -547,7 +547,7 @@ wheels = [
 
 [[package]]
 name = "oak-community"
-version = "0.4.0.dev3"
+version = "0.4.0.dev4"
 source = { editable = "." }
 dependencies = [
     { name = "fastapi" },

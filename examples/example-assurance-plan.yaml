@@ -1,0 +1,47 @@
+# SPDX-License-Identifier: Apache-2.0
+schema_version: 0.4.0
+id: assurance.candidate-03
+version: 0.1.0
+created_at: 2026-08-17T10:00:00Z
+candidate_ref:
+  id: candidate-03
+  version: 0.1.0
+  digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  uri: null
+  media_type: application/vnd.oak.architecture-candidate+json
+evaluation_contract_ref:
+  id: evaluation.public-manual-qa
+  version: 0.1.0
+  digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  uri: null
+  media_type: application/vnd.oak.evaluation-contract+json
+evaluation_result_ref:
+  id: evaluation-result.candidate-03
+  version: 0.1.0
+  digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+  uri: null
+  media_type: application/vnd.oak.evaluation-result+json
+required_tests:
+  - id: test.offline-contract
+    description: Run the deterministic offline evaluation contract.
+    owner: domain-reviewer
+    status: satisfied
+    evidence_refs: [evaluation-result.candidate-03]
+evidence_requirements:
+  - id: evidence.observed-calibration
+    description: Collect observed target calibration before deployment.
+    owner: evaluation-owner
+    status: required
+    evidence_refs: []
+controls:
+  - id: control.read-only-plan
+    description: Permit only typed non-mutating planning operations.
+    owner: security-reviewer
+    status: satisfied
+    evidence_refs: []
+gate_blockers:
+  - gate: gate_3
+    status: blocked
+    reason: Signing, approvals and target verification are not implemented.
+    owner: environment-owner
+extensions: {}

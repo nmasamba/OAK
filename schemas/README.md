@@ -19,7 +19,14 @@ All schemas use JSON Schema Draft 2020-12. YAML examples are parsed to the equiv
 | `obligation-control-mapping.schema.json` | `ObligationControlMapping` | `examples/example-obligation-control-mapping.yaml` |
 | `evaluation-contract.schema.json` | `EvaluationContract` | `examples/example-evaluation-contract.yaml` |
 | `component-manifest.schema.json` | `ComponentManifest` | `examples/example-component.yaml` |
+| `catalogue-snapshot.schema.json` | Eligible and rejected manifest snapshot | `examples/example-catalogue-snapshot.yaml` |
+| `architecture-pattern.schema.json` | Provider-neutral candidate pattern | `examples/example-architecture-pattern.yaml` |
 | `architecture-candidate.schema.json` | `ArchitectureCandidate` | `examples/example-architecture-candidate.yaml` |
+| `evaluation-result.schema.json` | Digest-linked deterministic evaluation | `examples/example-evaluation-result.yaml` |
+| `architecture-decision.schema.json` | Immutable selected-candidate decision | `examples/example-architecture-decision.yaml` |
+| `assurance-plan.schema.json` | Test, evidence, control, owner and blocker plan | `examples/example-assurance-plan.yaml` |
+| `target-profile.schema.json` | Non-production compile target input | `examples/targets/local-fixture.yaml` |
+| `review-artifact.schema.json` | Semantic/supply-chain review artifact | `examples/example-review-artifact.yaml` |
 | `deployment-bundle.schema.json` | `DeploymentBundle` | `examples/example-deployment-bundle.yaml` |
 | `runner-plan.schema.json` | `RunnerPlan` typed execution plan | `examples/example-runner-plan.yaml` |
 | `change-proposal.schema.json` | `ChangeProposal` | `examples/example-change-proposal.yaml` |

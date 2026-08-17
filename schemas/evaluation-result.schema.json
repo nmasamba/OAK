@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://oak.example/schemas/evaluation-result.schema.json",
+  "title": "EvaluationResult",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "id", "version", "candidate_ref", "evaluation_contract_ref", "executed_at", "executor", "fixture_version", "status", "metrics", "critical_failures", "limitations", "evidence_refs", "extensions"],
+  "properties": {
+    "schema_version": {"const": "0.4.0"},
+    "id": {"$ref": "common.schema.json#/$defs/identifier"},
+    "version": {"$ref": "common.schema.json#/$defs/semver"},
+    "candidate_ref": {"$ref": "common.schema.json#/$defs/artifactRef"},
+    "evaluation_contract_ref": {"$ref": "common.schema.json#/$defs/artifactRef"},
+    "executed_at": {"type": "string", "format": "date-time"},
+    "executor": {"type": "string", "minLength": 1},
+    "fixture_version": {"type": "string", "minLength": 1},
+    "status": {"enum": ["pass", "fail", "blocked"]},
+    "metrics": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["metric_id", "value", "unit", "threshold", "direction", "result", "sample_size", "confidence_interval"],
+        "properties": {
+          "metric_id": {"$ref": "common.schema.json#/$defs/identifier"},
+          "value": {"type": ["number", "null"]},
+          "unit": {"type": "string"},
+          "threshold": {"type": ["number", "string"]},
+          "direction": {"enum": ["at_least", "at_most", "equals", "range"]},
+          "result": {"enum": ["pass", "fail", "unknown"]},
+          "sample_size": {"type": "integer", "minimum": 0},
+          "confidence_interval": {"type": ["string", "null"]}
+        }
+      }
+    },
+    "critical_failures": {"type": "array", "items": {"type": "string"}},
+    "limitations": {"type": "array", "items": {"type": "string"}},
+    "evidence_refs": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/artifactRef"}},
+    "extensions": {"$ref": "common.schema.json#/$defs/extensions"}
+  }
+}

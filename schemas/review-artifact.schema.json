@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://oak.example/schemas/review-artifact.schema.json",
+  "title": "ReviewArtifact",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "id", "version", "artifact_type", "status", "content", "extensions"],
+  "properties": {
+    "schema_version": {"const": "0.4.0"},
+    "id": {"$ref": "common.schema.json#/$defs/identifier"},
+    "version": {"$ref": "common.schema.json#/$defs/semver"},
+    "artifact_type": {"enum": ["semantic_manifest", "sbom_summary", "provenance_summary", "signature_marker", "verification_policy"]},
+    "status": {"enum": ["generated", "draft", "not_signed"]},
+    "content": {"type": "object"},
+    "extensions": {"$ref": "common.schema.json#/$defs/extensions"}
+  }
+}

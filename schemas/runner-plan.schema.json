@@ -126,7 +126,7 @@
         "kind": {"enum": ["inventory", "validate", "render", "plan", "apply", "verify", "rollback", "destroy"]},
         "adapter": {"$ref": "#/$defs/adapter"},
         "artifact_refs": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/artifactRef"}},
-        "parameters": {"type": "object"},
+        "parameters": {"$ref": "#/$defs/safeParameters"},
         "secret_references": {"type": "array", "items": {"$ref": "#/$defs/secretReference"}},
         "permissions": {"$ref": "#/$defs/permissionEnvelope"},
         "timeout_seconds": {"type": "integer", "minimum": 1, "maximum": 86400},
@@ -141,6 +141,18 @@
         "failure_action": {"enum": ["block", "rollback", "manual_recovery"]},
         "depends_on": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/identifier"}, "uniqueItems": true}
       }
+    },
+    "safeParameters": {
+      "type": "object",
+      "propertyNames": {"not": {"enum": ["command", "shell", "executable", "argv"]}},
+      "additionalProperties": {"$ref": "#/$defs/safeValue"}
+    },
+    "safeValue": {
+      "anyOf": [
+        {"type": ["string", "number", "integer", "boolean", "null"]},
+        {"type": "array", "items": {"$ref": "#/$defs/safeValue"}},
+        {"$ref": "#/$defs/safeParameters"}
+      ]
     },
     "supplyChain": {
       "type": "object",

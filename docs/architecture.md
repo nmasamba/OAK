@@ -2,7 +2,7 @@
 
 # Community harness architecture
 
-OAK Community is a modular monolith with a separate runner trust domain. Sprint 1 adds the offline local `DesignCase` path to the serving skeleton and contract harness.
+OAK Community is a modular monolith with a separate runner trust domain. Sprint 2 extends the offline local `DesignCase` path through deterministic candidate comparison, fixture evaluation, assurance, and non-executing plan compilation.
 
 ```text
 CLI / HTTP / web -> application services -> domain values
@@ -33,18 +33,20 @@ The CLI and HTTP API both construct the same `SystemInformationService`. That se
 
 The API binds to `127.0.0.1` by default. A caller must pass an explicit unsafe-bind acknowledgement to listen on a non-loopback address. This acknowledgement does not claim that authentication is present.
 
-The local CLI calls one `DesignCaseService` for initialization, brief interpretation, question review, confirmation, export, and import. The interface maps arguments and output only; the application service owns orchestration and uses intake and workspace ports. The deterministic compiler maps explicit facts, records inferences and unknowns with scalar provenance, ranks at most five questions, and treats any optional model result as an untrusted proposal.
+The local CLI calls shared `DesignCaseService` and `CandidatePlanningService` application operations. The interface maps arguments and output only; application services own orchestration through intake, catalogue, target-profile, and workspace ports. The deterministic compiler maps explicit facts, records inferences and unknowns with scalar provenance, validates catalogue eligibility, expands provider-neutral patterns, rejects hard-constraint failures and unknowns, estimates visible objective ranges, computes the Pareto frontier, evaluates the public fixture, and compiles a draft typed plan.
 
 ## Local persistence and lineage
 
 The file adapter stores one atomic `.oak/manifest.json` pointer and immutable content-addressed objects. A mutation takes the workspace lock, checks expected version and idempotency, validates all new artifacts, writes objects, then atomically replaces the manifest. A crash before replacement can leave only unreferenced objects; it cannot partially publish a case.
 
-Every successful mutation creates a successor `DesignCase`, successor intent where applicable, and an audit event linked to the previous event digest. Raw source bytes remain a separate `brief_source` object and the source record marks them untrusted. Export and import validate manifest references, artifact identity, schemas, sizes, and digests before an imported workspace becomes visible.
+Every successful mutation creates a successor `DesignCase`, successor intent where applicable, and an audit event linked to the previous event digest. Raw source bytes remain a separate `brief_source` object and the source record marks them untrusted. Catalogue, candidate, evaluation, decision, assurance, bundle, runner-plan, and review artifacts are immutable and content-addressed. Export and import validate manifest references, artifact identity, schemas, sizes, and digests before an imported workspace becomes visible.
 
 ## Canonical contracts
 
 JSON Schema Draft 2020-12 files in `schemas/` are the external contract authority. Runtime wrappers preserve the parsed JSON data model and validate through a registry containing every canonical schema. Tests prove that public YAML examples validate and round-trip without semantic drift.
 
-## Deferred behavior
+## Compiler and runner boundary
 
-Candidate generation and evaluation, plan compilation, signing, approvals, runner dispatch, and target access remain deferred. Later work must preserve immutable canonical versions, deterministic output, shared application services, and explicit authority gates.
+The compiler bundles synthetic catalogue data and works offline. It emits a byte-stable semantic manifest plus a schema-valid deployment bundle and `draft` runner plan. Explicit target-profile invocation data is tenant-bound and checked against the selected candidate's platform, resource, and read-only operation requirements; the control-plane host is never inferred as the target. The plan contains only inventory, validation, rendering, planning, and verification operation kinds; recursive parameter validation rejects command/shell/executable fields. There is no runner dispatch or target connection.
+
+Signing, approvals, lease/target verification, runner execution, and target access remain deferred. Later work must preserve immutable canonical versions, deterministic output, shared application services, and separate authority gates.

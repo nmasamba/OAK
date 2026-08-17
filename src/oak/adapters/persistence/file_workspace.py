@@ -24,12 +24,34 @@ KIND_SCHEMA = {
     "system_intent": "system-intent.schema.json",
     "design_case": "design-case.schema.json",
     "audit_event": "audit-event.schema.json",
+    "component_manifest": "component-manifest.schema.json",
+    "catalogue_snapshot": "catalogue-snapshot.schema.json",
+    "architecture_pattern": "architecture-pattern.schema.json",
+    "evaluation_contract": "evaluation-contract.schema.json",
+    "architecture_candidate": "architecture-candidate.schema.json",
+    "evaluation_result": "evaluation-result.schema.json",
+    "architecture_decision": "architecture-decision.schema.json",
+    "assurance_plan": "assurance-plan.schema.json",
+    "deployment_bundle": "deployment-bundle.schema.json",
+    "runner_plan": "runner-plan.schema.json",
+    "review_artifact": "review-artifact.schema.json",
 }
 JSON_MEDIA_KIND = {
     "application/vnd.oak.source-record+json": "source_record",
     "application/vnd.oak.system-intent+json": "system_intent",
     "application/vnd.oak.design-case+json": "design_case",
     "application/vnd.oak.audit-event+json": "audit_event",
+    "application/vnd.oak.component-manifest+json": "component_manifest",
+    "application/vnd.oak.catalogue-snapshot+json": "catalogue_snapshot",
+    "application/vnd.oak.architecture-pattern+json": "architecture_pattern",
+    "application/vnd.oak.evaluation-contract+json": "evaluation_contract",
+    "application/vnd.oak.architecture-candidate+json": "architecture_candidate",
+    "application/vnd.oak.evaluation-result+json": "evaluation_result",
+    "application/vnd.oak.architecture-decision+json": "architecture_decision",
+    "application/vnd.oak.assurance-plan+json": "assurance_plan",
+    "application/vnd.oak.deployment-bundle+json": "deployment_bundle",
+    "application/vnd.oak.runner-plan+json": "runner_plan",
+    "application/vnd.oak.review-artifact+json": "review_artifact",
 }
 ReplaceFile = Callable[[Path, Path], None]
 
@@ -332,6 +354,11 @@ class FileWorkspaceRepository:
             identity_matches = document["id"] == artifact.id and str(document["sequence"]) == (
                 artifact.version
             )
+        elif artifact.kind == "component_manifest":
+            identity_matches = (
+                document.get("id") == artifact.id
+                and str(document.get("release", {}).get("version")) == artifact.version
+            )
         else:
             identity_matches = (
                 document.get("id") == artifact.id
@@ -541,6 +568,33 @@ class FileWorkspaceRepository:
                     raise OAKError(
                         "OAK-AUDIT-LINEAGE", "current case intent does not match last event"
                     )
+            for field, kind in (
+                ("evaluation_contract_ref", "evaluation_contract"),
+                ("selected_candidate_ref", "architecture_candidate"),
+                ("assurance_plan_ref", "assurance_plan"),
+                ("deployment_bundle_ref", "deployment_bundle"),
+                ("runner_plan_ref", "runner_plan"),
+            ):
+                nested_reference = current[field]
+                if nested_reference is not None:
+                    self._require_indexed_reference(indexed, nested_reference, kind)
+            for reference in current["candidate_refs"]:
+                self._require_indexed_reference(indexed, reference, "architecture_candidate")
+            extension_refs = current.get("extensions", {})
+            for key, kind in (
+                ("oak.community/catalogue_snapshot_ref", "catalogue_snapshot"),
+                ("oak.community/selection_decision_ref", "architecture_decision"),
+                ("oak.community/semantic_manifest_ref", "review_artifact"),
+            ):
+                nested_reference = extension_refs.get(key)
+                if nested_reference is not None:
+                    self._require_indexed_reference(indexed, nested_reference, kind)
+            for key, kind in (
+                ("oak.community/pattern_refs", "architecture_pattern"),
+                ("oak.community/evaluation_refs", "evaluation_result"),
+            ):
+                for nested_reference in extension_refs.get(key, []):
+                    self._require_indexed_reference(indexed, nested_reference, kind)
 
         for record in manifest["idempotency_records"]:
             event_reference = record["event_ref"]

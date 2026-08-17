@@ -4,7 +4,7 @@
 
 Local source development uses Python 3.13.12, Node.js 24.18.0, `uv` 0.10.x, and `pnpm` 11.15.1. Dependencies are locked in `uv.lock` and `pnpm-lock.yaml`; those lockfiles do not pin the `uv` executable itself. Contributors use `.python-version` and `.node-version`, while `package.json` pins `pnpm`.
 
-CI and container builds are the reproducible builder boundary. They pin `uv` 0.10.8 and the exact Python and Node runtimes; container users need only Docker with Compose on the host. The source-development compatibility range exists for contributor convenience and is not a target-hardware contract. A future OAK compilation receives target capabilities through its invocation data or a target-side inventory adapter, never by treating the control-plane host as the deployment target.
+CI and container builds are the reproducible builder boundary. They pin `uv` 0.10.8 and the exact Python and Node runtimes; container users need only Docker with Compose on the host. The source-development compatibility range exists for contributor convenience and is not a target-hardware contract. OAK compilation receives target capabilities through explicit invocation data, currently a bounded target profile. It never treats the control-plane host as the deployment target. A later target-side inventory adapter must preserve that boundary.
 
 ## Commands
 
@@ -36,6 +36,13 @@ cd /tmp/oak-demo
 /path/to/OAKCommunity/.venv/bin/oak design /path/to/brief.yaml --output yaml
 /path/to/OAKCommunity/.venv/bin/oak questions --output json
 /path/to/OAKCommunity/.venv/bin/oak confirm --answers /path/to/answers.yaml
+/path/to/OAKCommunity/.venv/bin/oak candidates --output table
+/path/to/OAKCommunity/.venv/bin/oak evaluate candidate-03 --output json
+/path/to/OAKCommunity/.venv/bin/oak select candidate-03 --rationale-file /path/to/decision.md
+/path/to/OAKCommunity/.venv/bin/oak assure candidate-03 --output ./assurance
+/path/to/OAKCommunity/.venv/bin/oak plan candidate-03 \
+  --target /path/to/OAKCommunity/examples/targets/local-fixture.yaml \
+  --output ./bundle
 /path/to/OAKCommunity/.venv/bin/oak export --output ./case-export
 ```
 
@@ -43,7 +50,7 @@ cd /tmp/oak-demo
 
 Commands discover the nearest parent workspace. Mutations use expected versions and normalized-input idempotency; pass `--idempotency-key` when a caller needs to control the retry key. Human output is the default, while `--output json` and `--output yaml` are stable machine-readable views. Diagnostics go to stderr and failures leave the prior manifest authoritative.
 
-See [local-design-case.md](local-design-case.md) for workspace portability and recovery details.
+See [local-design-case.md](local-design-case.md) for workspace portability and recovery details, and [compiler-flow.md](compiler-flow.md) for catalogue, candidate, evaluation, assurance, and non-executing plan behavior.
 
 ## Local API
 

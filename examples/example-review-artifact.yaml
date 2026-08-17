@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: Apache-2.0
+schema_version: 0.4.0
+id: signature.pending.candidate-03
+version: 0.1.0
+artifact_type: signature_marker
+status: not_signed
+content:
+  reason: Sprint 2 review artifacts are not signed.
+  authorizes_execution: false
+extensions: {}

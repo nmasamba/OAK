@@ -5,9 +5,11 @@ import os
 from pathlib import Path
 
 from oak import __version__
+from oak.adapters.catalogue import LocalCatalogue
 from oak.adapters.intake import LocalBriefIntake
 from oak.adapters.persistence import FileWorkspaceRepository
-from oak.application import DesignCaseService, SystemInformationService
+from oak.adapters.targets import LocalTargetProfile
+from oak.application import CandidatePlanningService, DesignCaseService, SystemInformationService
 from oak.compiler import DeterministicBriefInterpreter
 from oak.contracts import SchemaRegistry
 from oak.domain import SystemInformation
@@ -50,5 +52,31 @@ def create_design_case_service(workspace: Path) -> DesignCaseService:
         repository,
         LocalBriefIntake(),
         DeterministicBriefInterpreter(),
+        registry,
+    )
+
+
+def canonical_catalogue_directory() -> Path:
+    """Locate the bundled synthetic catalogue without requiring network access."""
+
+    configured = os.getenv("OAK_CATALOGUE_DIRECTORY")
+    candidates = [
+        Path(configured) if configured else None,
+        Path(__file__).resolve().parent / "community_catalogue",
+        Path(__file__).resolve().parents[2] / "catalogue",
+    ]
+    for candidate in candidates:
+        if candidate is not None and (candidate / "components").is_dir():
+            return candidate
+    raise RuntimeError("OAK Community catalogue is not installed")
+
+
+def create_candidate_planning_service(workspace: Path) -> CandidatePlanningService:
+    registry = SchemaRegistry.from_directory(canonical_schema_directory())
+    repository = FileWorkspaceRepository(workspace, registry)
+    return CandidatePlanningService(
+        repository,
+        LocalCatalogue(canonical_catalogue_directory(), registry),
+        LocalTargetProfile(registry),
         registry,
     )

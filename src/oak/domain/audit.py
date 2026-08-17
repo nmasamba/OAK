@@ -22,6 +22,7 @@ def audit_event_document(
     occurred_at: str,
     intent_ref: ArtifactReference | None,
     source_record_ref: ArtifactReference | None,
+    extensions: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     return {
         "schema_version": "0.4.0",
@@ -44,5 +45,5 @@ def audit_event_document(
             "intent_ref": intent_ref.to_document() if intent_ref else None,
             "source_record_ref": source_record_ref.to_document() if source_record_ref else None,
         },
-        "extensions": {},
+        "extensions": extensions or {},
     }

@@ -5,7 +5,9 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import stat
+import tempfile
 import unicodedata
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -15,8 +17,12 @@ from typing import Annotated, Any, NoReturn
 import typer
 import yaml
 
-from oak.application import CommandContext, DesignCaseService
-from oak.bootstrap import create_design_case_service, create_system_information_service
+from oak.application import CandidatePlanningService, CommandContext, DesignCaseService
+from oak.bootstrap import (
+    create_candidate_planning_service,
+    create_design_case_service,
+    create_system_information_service,
+)
 from oak.contracts import ContractValidationError, load_json_document, load_yaml_document
 from oak.domain import OAKError
 
@@ -25,6 +31,7 @@ class OutputFormat(StrEnum):
     HUMAN = "human"
     JSON = "json"
     YAML = "yaml"
+    TABLE = "table"
 
 
 app = typer.Typer(
@@ -195,6 +202,194 @@ def confirm(
         _abort(error)
 
 
+@app.command()
+def candidates(
+    design_case: Annotated[
+        str | None, typer.Argument(help="Optional design-case identifier.")
+    ] = None,
+    output: Annotated[
+        OutputFormat, typer.Option("--output", help="Output format.")
+    ] = OutputFormat.TABLE,
+    idempotency_key: Annotated[
+        str | None,
+        typer.Option("--idempotency-key", help="Stable retry key; derived by default."),
+    ] = None,
+) -> None:
+    """Generate and compare deterministic architecture candidates."""
+
+    try:
+        current = _workspace_service().current().case
+        if design_case is not None and design_case != current["id"]:
+            raise OAKError("OAK-CASE-NOT-FOUND", "requested design case is not current")
+        result = _planning_service().candidates(
+            _context(
+                idempotency_key=idempotency_key,
+                expected_version=str(current["version"]),
+            )
+        )
+        document = result.to_document()
+        table = _candidate_table(result.candidates)
+        _emit(document, output, human=table)
+    except (OAKError, ContractValidationError, OSError, RuntimeError, ValueError) as error:
+        _abort(error)
+
+
+@app.command()
+def evaluate(
+    candidate_id: Annotated[str, typer.Argument(help="Candidate identifier.")],
+    output: Annotated[
+        OutputFormat, typer.Option("--output", help="Output format.")
+    ] = OutputFormat.HUMAN,
+    idempotency_key: Annotated[
+        str | None,
+        typer.Option("--idempotency-key", help="Stable retry key; derived by default."),
+    ] = None,
+) -> None:
+    """Run the deterministic reference evaluation contract."""
+
+    try:
+        current = _workspace_service().current().case
+        result = _planning_service().evaluate(
+            candidate_id,
+            _context(
+                idempotency_key=idempotency_key,
+                expected_version=str(current["version"]),
+            ),
+        )
+        _emit(
+            result.to_document(),
+            output,
+            human=(
+                f"Evaluation {result.evaluation['id']} is {result.evaluation['status']}"
+                + (" (idempotent retry)" if result.duplicate else "")
+            ),
+        )
+    except (OAKError, ContractValidationError, OSError, RuntimeError, ValueError) as error:
+        _abort(error)
+
+
+@app.command()
+def select(
+    candidate_id: Annotated[str, typer.Argument(help="Candidate identifier.")],
+    rationale_file: Annotated[
+        Path | None, typer.Option("--rationale-file", help="Bounded UTF-8 rationale file.")
+    ] = None,
+    output: Annotated[
+        OutputFormat, typer.Option("--output", help="Output format.")
+    ] = OutputFormat.HUMAN,
+    idempotency_key: Annotated[
+        str | None,
+        typer.Option("--idempotency-key", help="Stable retry key; derived by default."),
+    ] = None,
+) -> None:
+    """Record an immutable owner-bound candidate decision."""
+
+    try:
+        if rationale_file is None:
+            raise OAKError("OAK-SELECT-RATIONALE", "--rationale-file is required")
+        current = _workspace_service().current().case
+        result = _planning_service().select(
+            candidate_id,
+            _load_bounded_text(rationale_file, code="OAK-SELECT-RATIONALE"),
+            _context(
+                idempotency_key=idempotency_key,
+                expected_version=str(current["version"]),
+            ),
+        )
+        _emit(
+            result.to_document(),
+            output,
+            human=(
+                f"Selected {candidate_id} in {result.decision['id']}"
+                + (" (idempotent retry)" if result.duplicate else "")
+            ),
+        )
+    except (OAKError, ContractValidationError, OSError, RuntimeError, ValueError) as error:
+        _abort(error)
+
+
+@app.command()
+def assure(
+    candidate_id: Annotated[str, typer.Argument(help="Selected candidate identifier.")],
+    output: Annotated[
+        Path | None, typer.Option("--output", help="New assurance output directory.")
+    ] = None,
+    idempotency_key: Annotated[
+        str | None,
+        typer.Option("--idempotency-key", help="Stable retry key; derived by default."),
+    ] = None,
+) -> None:
+    """Create the selected candidate's deterministic assurance plan."""
+
+    try:
+        if output is None:
+            raise OAKError("OAK-ASSURE-OUTPUT", "--output is required")
+        current = _workspace_service().current().case
+        result = _planning_service().assure(
+            candidate_id,
+            _context(
+                idempotency_key=idempotency_key,
+                expected_version=str(current["version"]),
+            ),
+        )
+        _write_output_directory(
+            output,
+            {"assurance-plan.json": result.assurance_plan},
+        )
+        typer.echo(
+            f"Wrote {result.assurance_plan['id']} to {output}"
+            + (" (idempotent retry)" if result.duplicate else "")
+        )
+    except (OAKError, ContractValidationError, OSError, RuntimeError, ValueError) as error:
+        _abort(error)
+
+
+@app.command()
+def plan(
+    candidate_id: Annotated[str, typer.Argument(help="Selected candidate identifier.")],
+    target: Annotated[
+        Path | None, typer.Option("--target", help="Bounded non-production target profile.")
+    ] = None,
+    output: Annotated[
+        Path | None, typer.Option("--output", help="New compiled review directory.")
+    ] = None,
+    idempotency_key: Annotated[
+        str | None,
+        typer.Option("--idempotency-key", help="Stable retry key; derived by default."),
+    ] = None,
+) -> None:
+    """Compile canonical review files and a non-executing typed runner plan."""
+
+    try:
+        if target is None or output is None:
+            raise OAKError("OAK-PLAN-INPUT", "--target and --output are required")
+        current = _workspace_service().current().case
+        result = _planning_service().plan(
+            candidate_id,
+            target,
+            _context(
+                idempotency_key=idempotency_key,
+                expected_version=str(current["version"]),
+            ),
+        )
+        _write_output_directory(
+            output,
+            {
+                "architecture-decision.json": result.decision,
+                "assurance-plan.json": result.assurance_plan,
+                "semantic-manifest.json": result.semantic_manifest,
+                "deployment-bundle.json": result.deployment_bundle,
+                "runner-plan.json": result.runner_plan,
+            },
+        )
+        typer.echo(
+            f"Compiled {result.deployment_bundle['id']} to {output}; no target action was invoked"
+            + (" (idempotent retry)" if result.duplicate else "")
+        )
+    except (OAKError, ContractValidationError, OSError, RuntimeError, ValueError) as error:
+        _abort(error)
+
+
 @app.command("export")
 def export_workspace(
     design_case: Annotated[
@@ -269,6 +464,11 @@ def serve(
 def _workspace_service() -> DesignCaseService:
     root_path = FileWorkspaceRoot.discover(Path.cwd())
     return create_design_case_service(root_path)
+
+
+def _planning_service() -> CandidatePlanningService:
+    root_path = FileWorkspaceRoot.discover(Path.cwd())
+    return create_candidate_planning_service(root_path)
 
 
 class FileWorkspaceRoot:
@@ -352,8 +552,68 @@ def _read_bounded_answers(path: Path) -> bytes:
     return content
 
 
+def _load_bounded_text(path: Path, *, code: str) -> str:
+    absolute = path.absolute()
+    if absolute.is_symlink() or not absolute.is_file():
+        raise OAKError(code, "input must be a regular non-symlink file")
+    try:
+        flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+        descriptor = os.open(absolute, flags)
+        with os.fdopen(descriptor, "rb") as stream:
+            details = os.fstat(stream.fileno())
+            if not stat.S_ISREG(details.st_mode):
+                raise ValueError("input is not a regular file")
+            content = stream.read(65_537)
+        if not content or len(content) > 65_536:
+            raise ValueError("input size is outside the accepted range")
+        text = content.decode("utf-8")
+    except (OSError, UnicodeError, ValueError) as error:
+        raise OAKError(code, "input must be bounded UTF-8 text") from error
+    if any(
+        unicodedata.category(character) in {"Cc", "Cf"} and character not in {"\n", "\r", "\t"}
+        for character in text
+    ):
+        raise OAKError(code, "input contains disallowed control characters")
+    return text
+
+
+def _write_output_directory(destination: Path, documents: dict[str, dict[str, Any]]) -> None:
+    absolute = destination.absolute()
+    if absolute.exists() or absolute.is_symlink():
+        raise OAKError("OAK-OUTPUT-EXISTS", "output directory already exists")
+    parent = absolute.parent
+    parent.mkdir(parents=True, exist_ok=True)
+    temporary = Path(tempfile.mkdtemp(prefix=f".{absolute.name}.tmp-", dir=parent))
+    try:
+        for name, document in sorted(documents.items()):
+            path = temporary / name
+            path.write_text(
+                json.dumps(document, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+                + "\n",
+                encoding="utf-8",
+            )
+            path.chmod(0o600)
+        os.replace(temporary, absolute)
+    finally:
+        if temporary.exists():
+            shutil.rmtree(temporary)
+
+
+def _candidate_table(candidates_value: tuple[dict[str, Any], ...]) -> str:
+    header = "ID            VARIANT                    STATUS      FRONTIER  REJECTIONS"
+    rows = [header]
+    for candidate in candidates_value:
+        variant = str(candidate["extensions"]["oak.community/pattern_variant"])
+        rows.append(
+            f"{candidate['id']:<13} {variant:<26} {candidate['status']:<11} "
+            f"{str(candidate['pareto']['frontier_member']).lower():<9} "
+            f"{len(candidate['rejection_reasons'])}"
+        )
+    return "\n".join(rows)
+
+
 def _emit(document: dict[str, Any], output: OutputFormat, *, human: str) -> None:
-    if output is OutputFormat.HUMAN:
+    if output in {OutputFormat.HUMAN, OutputFormat.TABLE}:
         typer.echo(human)
     elif output is OutputFormat.JSON:
         typer.echo(json.dumps(document, ensure_ascii=False, sort_keys=True))

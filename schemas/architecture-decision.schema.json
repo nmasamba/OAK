@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://oak.example/schemas/architecture-decision.schema.json",
+  "title": "ArchitectureDecision",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "id", "version", "decided_at", "owner", "selected_candidate_ref", "rationale", "alternatives", "dependency_digests", "extensions"],
+  "properties": {
+    "schema_version": {"const": "0.4.0"},
+    "id": {"$ref": "common.schema.json#/$defs/identifier"},
+    "version": {"$ref": "common.schema.json#/$defs/semver"},
+    "decided_at": {"type": "string", "format": "date-time"},
+    "owner": {"type": "string", "minLength": 1},
+    "selected_candidate_ref": {"$ref": "common.schema.json#/$defs/artifactRef"},
+    "rationale": {"type": "string", "minLength": 1, "maxLength": 12000},
+    "alternatives": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["candidate_ref", "reason"],
+        "properties": {
+          "candidate_ref": {"$ref": "common.schema.json#/$defs/artifactRef"},
+          "reason": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "dependency_digests": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/digest"}, "minItems": 1, "uniqueItems": true},
+    "extensions": {"$ref": "common.schema.json#/$defs/extensions"}
+  }
+}

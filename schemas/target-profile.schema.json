@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://oak.example/schemas/target-profile.schema.json",
+  "title": "TargetProfile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["target_profile_version", "id", "status", "environment", "tenant_id", "platform", "capacity", "network", "permissions", "secrets", "notes"],
+  "properties": {
+    "target_profile_version": {"const": "0.1.0"},
+    "id": {"$ref": "common.schema.json#/$defs/identifier"},
+    "status": {"const": "non-production-fixture"},
+    "environment": {"enum": ["development", "validation", "staging"]},
+    "tenant_id": {"type": "string", "minLength": 1},
+    "platform": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operating_system", "architecture", "accelerators", "drivers", "container_runtime"],
+      "properties": {
+        "operating_system": {"type": "string"},
+        "architecture": {"type": "string"},
+        "accelerators": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "drivers": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "container_runtime": {"type": "string"}
+      }
+    },
+    "capacity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ram_gib", "storage_gib"],
+      "properties": {
+        "ram_gib": {"type": "number", "minimum": 0},
+        "storage_gib": {"type": "number", "minimum": 0}
+      }
+    },
+    "network": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "inbound_control_plane"],
+      "properties": {
+        "mode": {"enum": ["local", "isolated-no-egress", "outbound-only", "disconnected", "air-gapped"]},
+        "inbound_control_plane": {"type": "boolean"}
+      }
+    },
+    "permissions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mutation_allowed", "allowed_operations"],
+      "properties": {
+        "mutation_allowed": {"const": false},
+        "allowed_operations": {"type": "array", "items": {"enum": ["inventory", "validate", "render", "plan", "verify"]}, "uniqueItems": true}
+      }
+    },
+    "secrets": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allowed_references"],
+      "properties": {"allowed_references": {"type": "array", "maxItems": 0}}
+    },
+    "notes": {"type": "array", "items": {"type": "string"}}
+  }
+}

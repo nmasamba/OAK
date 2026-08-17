@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: Apache-2.0
+schema_version: 0.4.0
+id: catalogue.fixture
+version: 0.1.0
+created_at: 2026-08-17T10:00:00Z
+valid_at: 2026-08-17T10:00:00Z
+policy_version: fixture-policy-1.0.0
+entries:
+  - manifest_ref:
+      id: component.fixture-lexical-search
+      version: 1.0.0
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      uri: null
+      media_type: application/vnd.oak.component-manifest+json
+    category: software
+    availability_class: osi_open_source_software
+    eligible: true
+    reasons: []
+    evidence_checked_at: 2026-08-16T12:00:00Z
+    next_review_at: 2027-08-16T12:00:00Z
+eligible_manifest_ids: [component.fixture-lexical-search]
+rejected_manifest_ids: []
+extensions: {}

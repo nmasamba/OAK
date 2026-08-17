@@ -80,8 +80,15 @@ class DesignCase:
         status: DesignCaseStatus,
         updated_at: str,
         intent_ref: ArtifactReference | None = None,
+        evaluation_contract_ref: ArtifactReference | None = None,
         assumptions: tuple[dict[str, Any], ...] | None = None,
         unresolved_questions: tuple[dict[str, Any], ...] | None = None,
+        candidate_refs: tuple[ArtifactReference, ...] | None = None,
+        selected_candidate_ref: ArtifactReference | None = None,
+        assurance_plan_ref: ArtifactReference | None = None,
+        deployment_bundle_ref: ArtifactReference | None = None,
+        runner_plan_ref: ArtifactReference | None = None,
+        extensions: dict[str, Any] | None = None,
         audit_head: str | None = None,
     ) -> "DesignCase":
         if status != self.status and status not in ALLOWED_TRANSITIONS[self.status]:
@@ -95,10 +102,31 @@ class DesignCase:
             status=status,
             updated_at=updated_at,
             intent_ref=self.intent_ref if intent_ref is None else intent_ref,
+            evaluation_contract_ref=(
+                self.evaluation_contract_ref
+                if evaluation_contract_ref is None
+                else evaluation_contract_ref
+            ),
             assumptions=self.assumptions if assumptions is None else assumptions,
             unresolved_questions=(
                 self.unresolved_questions if unresolved_questions is None else unresolved_questions
             ),
+            candidate_refs=self.candidate_refs if candidate_refs is None else candidate_refs,
+            selected_candidate_ref=(
+                self.selected_candidate_ref
+                if selected_candidate_ref is None
+                else selected_candidate_ref
+            ),
+            assurance_plan_ref=(
+                self.assurance_plan_ref if assurance_plan_ref is None else assurance_plan_ref
+            ),
+            deployment_bundle_ref=(
+                self.deployment_bundle_ref
+                if deployment_bundle_ref is None
+                else deployment_bundle_ref
+            ),
+            runner_plan_ref=self.runner_plan_ref if runner_plan_ref is None else runner_plan_ref,
+            extensions=self.extensions if extensions is None else extensions,
             audit_head=self.audit_head if audit_head is None else audit_head,
         )
 

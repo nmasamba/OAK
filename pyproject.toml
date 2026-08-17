@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "oak-community"
-version = "0.4.0.dev3"
+version = "0.4.0.dev4"
 description = "Local-first control plane for designing, evaluating, and planning AI systems"
 readme = "README.md"
 requires-python = ">=3.13,<3.14"
@@ -55,6 +55,7 @@ packages = ["src/oak"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "schemas" = "oak/canonical_schemas"
+"catalogue" = "oak/community_catalogue"
 
 [tool.pytest.ini_options]
 addopts = "--strict-config --strict-markers"

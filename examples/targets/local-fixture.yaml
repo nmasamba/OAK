@@ -3,10 +3,12 @@ target_profile_version: 0.1.0
 id: target.local-fixture
 status: non-production-fixture
 environment: validation
-tenant_id: community-local
+tenant_id: local
 platform:
   operating_system: linux
   architecture: x86_64
+  accelerators: []
+  drivers: []
   container_runtime: rootless-compatible OCI runtime
 capacity:
   ram_gib: 32

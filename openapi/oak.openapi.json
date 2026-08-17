@@ -70,7 +70,7 @@
     "description": "A non-production control-plane skeleton. It exposes process metadata only and has no target mutation path.",
     "summary": "Read-only Community serving harness",
     "title": "OAK Community API",
-    "version": "0.4.0.dev3"
+    "version": "0.4.0.dev4"
   },
   "openapi": "3.1.0",
   "paths": {
