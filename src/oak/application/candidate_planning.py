@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from oak.application.context import CommandContext
+from oak.application.persistence import build_workspace_mutation
 from oak.compiler import (
     compile_catalogue,
     compile_review_plan,
@@ -28,7 +29,7 @@ from oak.domain import (
     json_artifact,
 )
 from oak.domain.audit import audit_event_document
-from oak.ports import CataloguePort, TargetProfilePort, WorkspaceMutation, WorkspaceRepository
+from oak.ports import CataloguePort, TargetProfilePort, WorkspaceRepository
 
 CASE_MEDIA_TYPE = "application/vnd.oak.design-case+json"
 AUDIT_MEDIA_TYPE = "application/vnd.oak.audit-event+json"
@@ -193,6 +194,15 @@ class CandidatePlanningService:
             ),
         )
         return self._candidates_result(published, duplicate=False)
+
+    def list_candidates(self) -> tuple[dict[str, Any], ...]:
+        """Return the current immutable candidates in deterministic identity order."""
+
+        current = self._require_case()
+        return tuple(
+            self._repository.read_json_artifact(ArtifactReference.from_document(item))
+            for item in sorted(current["candidate_refs"], key=lambda item: str(item["id"]))
+        )
 
     def evaluate(self, candidate_id: str, context: CommandContext) -> EvaluationResult:
         input_digest = self._request_digest(context, {"candidate_id": candidate_id})
@@ -381,6 +391,15 @@ class CandidatePlanningService:
 
     def plan(self, candidate_id: str, target_path: Path, context: CommandContext) -> PlanResult:
         target = self._target_profiles.load(target_path)
+        return self.plan_document(candidate_id, target, context)
+
+    def plan_document(
+        self,
+        candidate_id: str,
+        target_document: dict[str, Any],
+        context: CommandContext,
+    ) -> PlanResult:
+        target = self._target_profiles.validate_document(copy.deepcopy(target_document))
         input_digest = self._request_digest(
             context, {"candidate_id": candidate_id, "target": target}
         )
@@ -517,13 +536,15 @@ class CandidatePlanningService:
             document=case_document,
         )
         committed = self._repository.commit(
-            WorkspaceMutation(
+            build_workspace_mutation(
+                workspace_id=str(manifest["id"]),
                 expected_case_version=context.expected_version,
                 idempotency_key=context.idempotency_key,
                 input_digest=input_digest,
                 artifacts=(*artifacts, event, case),
                 current_case_ref=case.reference,
-                event_ref=event.reference,
+                event_artifact=event,
+                event_document=event_document,
                 updated_at=context.occurred_at,
             )
         )

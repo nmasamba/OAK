@@ -325,6 +325,28 @@ class FileWorkspaceRepository:
         for artifact in mutation.artifacts:
             self._validate_artifact(artifact)
         event = json.loads(event_artifact.content)
+        transaction_event = mutation.event
+        if (
+            transaction_event.event_ref != mutation.event_ref
+            or transaction_event.case_ref != mutation.current_case_ref
+            or transaction_event.workspace_id != manifest["id"]
+            or transaction_event.event_ref.id != event["id"]
+            or transaction_event.aggregate_id != event["case_id"]
+            or transaction_event.aggregate_version != event["case_version"]
+            or transaction_event.aggregate_sequence != event["sequence"]
+            or transaction_event.event_type != event["event_type"]
+            or transaction_event.tenant_id != event["tenant_id"]
+            or transaction_event.actor != event["actor"]
+            or transaction_event.interface_origin != event["interface_origin"]
+            or transaction_event.correlation_id != event["correlation_id"]
+            or transaction_event.idempotency_key != mutation.idempotency_key
+            or transaction_event.input_digest != mutation.input_digest
+            or transaction_event.occurred_at != event["occurred_at"]
+        ):
+            raise OAKError(
+                "OAK-WORKSPACE-MUTATION",
+                "transaction metadata does not match its audit event",
+            )
         expected_sequence = len(manifest["audit_events"]) + 1
         if event["sequence"] != expected_sequence:
             raise OAKError("OAK-AUDIT-SEQUENCE", "audit event sequence is not contiguous")

@@ -3,10 +3,12 @@
 # Build status
 
 - **Updated:** 2026-08-17
-- **Repository version:** `0.4.0.dev4`
-- **Phase:** Sprint 2 complete — deterministic candidates, evaluation, assurance, and non-executing planning
+- **Repository version:** `0.5.0.dev5`
+- **Phase:** Sprint 3 verification — persistent REST control plane and durable jobs
 - **Completed plans:** `docs/exec-plans/completed/OAK-S0-001-009-walking-skeleton.md`, `docs/exec-plans/completed/OAK-S1-001-010-local-design-case.md`, and `docs/exec-plans/completed/OAK-S2-001-011-candidate-planning.md`
-- **Next task:** `OAK-S3-001` — PostgreSQL model and migrations
+- **Active plan:** `docs/exec-plans/active/OAK-S3-001-009-persistent-rest-jobs.md`
+- **Next task:** finish pinned PostgreSQL 17.6 Compose plus web build/audit/SBOM verification;
+  CI compatibility wiring remains explicitly deferred by user direction
 
 ## Claimed work
 
@@ -42,6 +44,15 @@
 | `OAK-S2-009` | complete | Selected-candidate tests, evidence, controls, owners, and explicit gate blockers |
 | `OAK-S2-010` | complete | Target-profile-bound canonical review bundle and draft typed non-executing runner plan |
 | `OAK-S2-011` | complete | Offline candidates/evaluate/select/assure/plan CLI exit journey with stable `candidate-03` |
+| `OAK-S3-001` | complete | Empty-database forward baseline and atomic immutable case/head/transition/idempotency/outbox transaction |
+| `OAK-S3-002` | complete | Shared file/PostgreSQL restart, concurrency, rollback, tenant, and application digest contract suite |
+| `OAK-S3-003` | complete | At-least-once outbox leases, stable IDs/sequences, consumer deduplication, and observable projection lag |
+| `OAK-S3-004` | complete | Bounded retry/lease/checkpoint/cancellation Operations and real non-runner `oak-worker` |
+| `OAK-S3-005` | complete | Shared-service `/v1` DesignCase and candidate workflow with async compiler/evaluation stages |
+| `OAK-S3-006` | complete | Durable status/cancel, safe problems, idempotency, ETag/If-Match, and opaque pagination |
+| `OAK-S3-007` | complete | Bounded digest/media artifact reads and tenant-safe file/PostgreSQL/REST export/import |
+| `OAK-S3-008` | partial | Generated OpenAPI/client and tested local breaking-change gate complete; `.github` CI wiring explicitly deferred |
+| `OAK-S3-009` | complete | Local actor/tenant binding, unsafe-bind guard, body limits, safe errors/readiness, and cross-tenant denials |
 
 ## Verification evidence
 
@@ -62,6 +73,25 @@
 - The generated runner plan remained `draft`, unsigned, unapproved, and limited to five typed read-only operations; schema/runtime scans found no command, shell, executable, or argument-vector field and no target action occurred.
 - Current Python and web dependency audits reported no known vulnerabilities; `make sbom` regenerated the ignored reproducible CycloneDX development artifact.
 - Documentation policy scans found no prohibited product references, the Git diff contains no CI/CD changes, and Git ignore checks continue to hide agent instructions, state, transcripts, and caches.
+- Sprint 3 static verification passed repository validation, Python formatting/lint, modular
+  boundaries, repository hygiene, strict mypy across 75 source files, generated OpenAPI/client
+  reproduction, the local compatibility gate, and `docker compose config` validation.
+- Sprint 3 unit/contract verification passed 210 tests. Database-free integration passed 26
+  tests with 18 PostgreSQL cases skipped by contract. Focused PostgreSQL repository/outbox/job
+  verification passed 16 tests (3 file-only parameter cases skipped), the bounded export/
+  restore proof passed, and the full REST/worker/digest-parity journey passed both tests.
+- The persistent REST journey created, interpreted, confirmed, generated/evaluated via durable
+  Operations, selected, assured, compiled, streamed artifacts, exported/imported, rejected a
+  tamper, and matched the file journey's semantic case projection,
+  `candidate-03`, deployment-bundle, and semantic-manifest digests at case `0.1.7`.
+- Operation idempotency checks prove that concurrent inserts converge and that completed retries
+  return the original durable Operation before re-evaluating an obsolete case precondition;
+  correlation, time, interface origin, and later observed version remain audit metadata rather
+  than changing the semantic request identity.
+- Six of seven end-to-end tests passed; the process-level API test was blocked only because the
+  managed sandbox denied binding an ephemeral loopback socket. The approval system also denied
+  restoration of the locked pnpm workspace after it was recreated, leaving web format/type/
+  build/audit and final image/Compose execution pending. Source and lockfile checks remain clean.
 
 ## Safety boundary
 

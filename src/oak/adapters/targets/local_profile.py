@@ -40,8 +40,7 @@ class LocalTargetProfile:
             ):
                 raise ValueError("YAML aliases are not accepted")
             document = load_yaml_document(source)
-            self._registry.validate("target-profile.schema.json", document)
-            return document
+            return self.validate_document(document)
         except (
             OSError,
             UnicodeError,
@@ -52,3 +51,14 @@ class LocalTargetProfile:
             raise OAKError(
                 "OAK-TARGET-INVALID", "target profile failed bounded validation"
             ) from error
+
+    def validate_document(self, document: dict[str, Any]) -> dict[str, Any]:
+        """Validate an already parsed REST/job document through the same contract."""
+
+        try:
+            self._registry.validate("target-profile.schema.json", document)
+        except ContractValidationError as error:
+            raise OAKError(
+                "OAK-TARGET-INVALID", "target profile failed bounded validation"
+            ) from error
+        return document

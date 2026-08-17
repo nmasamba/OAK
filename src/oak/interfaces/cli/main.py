@@ -113,6 +113,8 @@ def design(
             brief,
             _context(idempotency_key=idempotency_key, expected_version=None),
         )
+        if result.intent is None:
+            raise OAKError("OAK-INTENT-NOT-FOUND", "interpreted design has no intent artifact")
         _emit(
             result.intent,
             output,

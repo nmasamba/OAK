@@ -12,7 +12,16 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 COPY --from=uv /uv /uvx /bin/
 COPY pyproject.toml uv.lock README.md LICENSE VERSION ./
 COPY src ./src
+COPY schemas ./schemas
+COPY catalogue ./catalogue
+COPY migrations ./migrations
+COPY alembic.ini ./alembic.ini
 RUN uv sync --frozen --no-dev --no-editable
+
+RUN useradd --create-home --uid 10001 oak \
+    && mkdir -p /var/lib/oak/artifacts \
+    && chown -R oak:oak /var/lib/oak
+USER oak
 
 EXPOSE 8080
 CMD ["oak-api"]

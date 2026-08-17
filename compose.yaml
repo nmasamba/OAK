@@ -26,9 +26,14 @@ services:
       OAK_HOST: 0.0.0.0
       OAK_PORT: "8080"
       OAK_ALLOW_NON_LOOPBACK: "true"
+      OAK_DATABASE_URL: postgresql+psycopg://oak:oak-local-only@postgres:5432/oak
+      OAK_ARTIFACT_ROOT: /var/lib/oak/artifacts
+      OAK_ENVIRONMENT_ID: local
+      OAK_LOCAL_ACTOR: local-user
+      OAK_LOCAL_TENANT: local
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     healthcheck:
       test:
         [
@@ -44,6 +49,40 @@ services:
       - "127.0.0.1:8080:8080"
     networks:
       - control-plane
+    volumes:
+      - oak-artifacts:/var/lib/oak/artifacts
+
+  migrate:
+    build:
+      context: .
+      dockerfile: deploy/images/api.Dockerfile
+    command: ["oak-db-migrate"]
+    environment:
+      OAK_DATABASE_URL: postgresql+psycopg://oak:oak-local-only@postgres:5432/oak
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - control-plane
+
+  worker:
+    build:
+      context: .
+      dockerfile: deploy/images/api.Dockerfile
+    command: ["oak-worker"]
+    environment:
+      OAK_DATABASE_URL: postgresql+psycopg://oak:oak-local-only@postgres:5432/oak
+      OAK_ARTIFACT_ROOT: /var/lib/oak/artifacts
+      OAK_ENVIRONMENT_ID: local
+      OAK_LOCAL_TENANT: local
+      OAK_WORKER_ID: oak-worker-compose
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    networks:
+      - control-plane
+    volumes:
+      - oak-artifacts:/var/lib/oak/artifacts
 
   web:
     build:
@@ -66,4 +105,5 @@ networks:
   control-plane: {}
 
 volumes:
+  oak-artifacts:
   oak-postgres-data:

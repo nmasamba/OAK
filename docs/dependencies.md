@@ -2,7 +2,9 @@
 
 # Dependency record
 
-Sprint 0 uses small, replaceable open components at interface and validation boundaries.
+OAK uses small, replaceable open components at interface, validation, and persistence
+boundaries. Versions are locked in `uv.lock` and `pnpm-lock.yaml`; ranges below are not a
+substitute for those locks.
 
 | Component | Purpose | Boundary | Licence family |
 |---|---|---|---|
@@ -12,13 +14,48 @@ Sprint 0 uses small, replaceable open components at interface and validation bou
 | Uvicorn | Local ASGI process | interface entrypoint | BSD-3-Clause |
 | jsonschema | Canonical JSON Schema validation | contracts | MIT |
 | PyYAML | Public YAML example parsing | contracts | MIT |
+| SQLAlchemy 2.0 | PostgreSQL transaction and mapping toolkit | PostgreSQL persistence adapter only | MIT |
+| Alembic | Forward-only PostgreSQL migrations | migration tooling and API/worker startup | MIT |
+| Psycopg 3 with binary implementation | PostgreSQL DB-API driver and bundled local `libpq` | below SQLAlchemy in PostgreSQL processes only | LGPL-3.0-only; bundled libraries retain their terms |
 | React | Static status view | web only | MIT |
 | Vite | Web build tooling | web development | MIT |
 | TypeScript | Strict web type checking | web development | Apache-2.0 |
 
-The core domain and compiler packages do not import these interface frameworks. Development-only format, lint, type, test, audit, and SBOM tools are locked but do not ship as runtime requirements.
+The core domain and compiler packages do not import interface or persistence frameworks.
+Development-only format, lint, type, test, audit, and SBOM tools are locked but do not ship as
+runtime requirements.
 
-Rollback is a manifest-and-lockfile revert. No dependency creates a hosted runtime requirement or receives customer content in this sprint.
+## Sprint 3 persistence review
+
+The capability gap is ACID PostgreSQL transactions, migrations, and a maintained Python
+driver. Reimplementing SQL parsing, connection pooling, PostgreSQL type adaptation, migration
+ordering, and concurrency behavior with the standard library would be unsafe. ADR-0013
+already selects PostgreSQL, SQLAlchemy, and Alembic for Community `0.x`; this review selects
+Psycopg 3 as the driver.
+
+- **SQLAlchemy 2.0:** established MIT-licensed toolkit with explicit PostgreSQL/DB-API
+  boundaries and Python 3 support. OAK uses SQLAlchemy only in
+  `oak.adapters.persistence`, so the repository port is the replacement seam.
+- **Alembic:** maintained by the SQLAlchemy project under MIT and designed for SQLAlchemy
+  metadata. It is invoked only for database schema lifecycle. Migrations remain plain,
+  reviewable Python/DDL and do not define canonical object meaning.
+- **Psycopg 3:** the current maintained Psycopg generation, supports Python 3.13 and
+  PostgreSQL 17, and exposes sync/async DB-API behavior. It is LGPL-3.0-only rather than
+  permissive. ADR-0011 permits contextually reviewed OSI-approved copyleft dependencies and
+  requires their independent terms to be recorded. OAK does not copy or modify Psycopg; it
+  remains a replaceable SQLAlchemy driver. The `binary` extra is chosen for reproducible local
+  Community/container setup without host `libpq` headers and brings its own client libraries;
+  the SBOM and vulnerability audit therefore cover both Python distributions and bundled
+  native libraries. A production distribution may replace it with the source/C build behind
+  the same SQLAlchemy URL after an image-level review.
+
+The selected ranges intentionally stay on SQLAlchemy 2.0 and Psycopg 3 major versions.
+Alembic revisions are forward-only. A dependency rollback reverts `pyproject.toml` and
+`uv.lock`; file-backed local mode has no dependency on this stack.
+
+No dependency creates a hosted runtime requirement. PostgreSQL receives only the canonical
+control-plane metadata permitted by the data boundary; production/customer content remains
+excluded by default.
 
 The pnpm workspace permits an install-time build hook only for the lockfile-pinned `esbuild` package required by Vite. All other dependency build scripts remain blocked by default.
 
