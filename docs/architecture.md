@@ -86,4 +86,35 @@ JSON Schema Draft 2020-12 files in `schemas/` are the external contract authorit
 
 The compiler bundles synthetic catalogue data and works offline. It emits a byte-stable semantic manifest plus a schema-valid deployment bundle and `draft` runner plan. Explicit target-profile invocation data is tenant-bound and checked against the selected candidate's platform, resource, and read-only operation requirements; the control-plane host is never inferred as the target. The plan contains only inventory, validation, rendering, planning, and verification operation kinds; recursive parameter validation rejects command/shell/executable fields. There is no runner dispatch or target connection.
 
-Signing, approvals, lease/target verification, runner execution, and target access remain deferred. Later work must preserve immutable canonical versions, deterministic output, shared application services, and separate authority gates.
+## Signing, approval, and the runner trust domain
+
+Signing never edits a compiled artifact. The control plane signs an immutable
+`plan-signature` document that binds the plan digest, bundle digest, target identity, and
+locally recomputed target fingerprint; approvals are separate signed documents bound to one
+action, digest pair, target, actor, nonce, and expiry, and revocation publishes a notice the
+runner reads. A dispatch envelope carries the lease, the requested operation kinds, and
+content-addressed references to plan, bundle, policy, signature, and approvals. Signer and
+approver hold distinct key roles, and the runner enforces that their identities differ.
+
+`oak-runner` is a separate trust domain: it imports only `oak.contracts` and `oak.domain`,
+holds no database credential, opens no listening socket, and reads its mailbox, trust
+anchors, and own copy of the target profile. Before any target access it independently
+verifies protocol version, schema validity, every attachment digest, all signatures against
+pinned anchors, tenant/environment/target identity and fingerprint, lease window and nonce
+replay, separation of duties, adapter identity and parameter-schema digests against a
+code-level allowlist, permission envelopes and secret-reference bounds, and a current
+unrevoked approval for the action class. Every check fails closed, and unknown kinds,
+adapters, or schemas are refused rather than skipped.
+
+Execution brackets each side effect with hash-chained journal entries, so an interrupted
+run resumes into `manual_recovery_required` rather than guessing. Adapters map validated
+typed fields to a fixed allowlisted executable and argument vector with no shell, a
+sanitized environment, and bounded output; the executable allowlist is code, never plan
+data. Evidence is category-filtered, size-capped, and redacted before it leaves the runner.
+Delivery of a dispatch is never success: only a signed, verified runner completion advances
+the case.
+
+Enterprise authentication, remote runner transport, production targets, real secret
+resolution, and Git provider promotion remain deferred. Later work must preserve immutable
+canonical versions, deterministic output, shared application services, and separate
+authority gates.

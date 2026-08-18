@@ -6,8 +6,8 @@
 
 - Owner/agent: Claude
 - Started: 2026-08-18
-- Last updated: 2026-08-18 18:20 BST
-- State: in-progress
+- Last updated: 2026-08-18 21:40 BST
+- State: done
 - Claimed tasks: `OAK-S5-001`–`OAK-S5-011`
 
 ## Outcome
@@ -184,12 +184,30 @@ never-started containers removable by name; `docker compose` behavior is unchang
 - [x] 2026-08-18 18:20 BST Fast-forwarded `main` to `588ead3` (PR #6 merged), created
   `claude/sprint-5-signed-runner`, gathered governance/contract/code-seam context, and
   authored this plan; claimed `OAK-S5-001`–`011`.
-- [ ] Milestone 1 — signing, trust, envelope, approval schemas, `oak keys`/`oak sign`.
-- [ ] Milestone 2 — protocol, verifier, journal.
-- [ ] Milestone 3 — approvals and revocation.
-- [ ] Milestone 4 — inventory and container adapters.
-- [ ] Milestone 5 — dispatch, execution lifecycle, rollback/destroy.
-- [ ] Milestone 6 — GitOps output, adversarial closure, exit demonstration, docs.
+- [x] 2026-08-18 Milestone 1 complete. Added `cryptography` as a reviewed locked dependency,
+  the `SigningPort` with a local Ed25519 adapter (0600 per-role keys, `development` trust
+  marker, key-id derived from the public key), verification primitives in `oak.contracts`
+  so signer and verifier stay separate, and the `plan-signature`, `approval`,
+  `runner-envelope`, and `runner-message` schemas with signed examples plus a shared
+  `signatureBlock` and additive audit event types.
+- [x] 2026-08-18 Milestone 2 complete. Added versioned protocol messages, the fail-closed
+  pre-target verifier covering every security-invariant check, and the hash-chained journal
+  with interrupted-operation resume and sticky `manual_recovery_required`.
+- [x] 2026-08-18 Milestone 3 complete. Approvals are signed canonical artifacts bound to
+  action, plan and bundle digest, target identity and fingerprint, actor, nonce, and expiry;
+  revocation re-signs the approval and publishes a mailbox notice the runner honors.
+- [x] 2026-08-18 Milestone 4 complete. Added the bounded inventory collector and the
+  container fixture adapter constructing fixed allowlisted argv with `shell=False`, a
+  sanitized environment, and bounded output; target-profile `0.2.0` gates mutation behind an
+  explicit acknowledgement and the compiler emits typed apply/rollback/destroy operations.
+- [x] 2026-08-18 Milestone 5 complete. Dispatch issues signed lease envelopes with
+  content-addressed attachments through the outbound-only mailbox; the runner executes
+  verified kinds with journaled side effects, category-filtered redacted evidence, and a
+  signed completion; ingestion advances the case only on a verified completion.
+- [x] 2026-08-18 Milestone 6 complete. `oak gitops` renders byte-identical branch-ready
+  manifests with a patch description that promotes nothing; the adversarial matrix, contract
+  invariants, and the exit demonstration all pass; docs, dependency review, and the runner
+  guide are updated and the `oak-runner` entrypoint replaces the placeholder.
 
 ## Decisions
 
@@ -210,7 +228,12 @@ never-started containers removable by name; `docker compose` behavior is unchang
 
 ## Discoveries and follow-ups
 
-- `tests/e2e/test_cli.py::test_unimplemented_runner_fails_honestly` pins the placeholder
-  exit 69 and must be replaced when the entrypoint is repointed (Milestone 6).
-- `docs/development.md` ("the project does not start a runner") and the STATUS.md safety
-  boundary must be revised in Milestone 6, not silently contradicted.
+- `tests/e2e/test_cli.py::test_unimplemented_runner_fails_honestly` was replaced by tests
+  asserting the real runner refuses to act without its environment and exposes only
+  verification-bound commands.
+- `docs/development.md`, the README limits, `docs/architecture.md`, and the STATUS.md safety
+  boundary were revised rather than left contradicting the new behavior.
+- The `approvals` PostgreSQL table remains unused: Community approvals are canonical signed
+  artifacts. Wiring the table belongs to a later deployment controller.
+- Signing, approval, dispatch, and ingestion are CLI-only. Exposing them through `/v1` and
+  the web workspace is deliberately deferred to Sprint 7 interface parity.

@@ -4,7 +4,7 @@
 
 OAK Community is a local-first, compiler-shaped control plane for designing, evaluating, and planning AI systems. The current harness provides canonical contract validation, an offline `DesignCase`-to-plan journey, shared application services, a command-line entrypoint, a loopback-safe HTTP API, a browser architecture workspace, and local container orchestration.
 
-OAK does not proxy an installed application's inference traffic. The current harness is non-production and contains no target mutation path, hosted-provider requirement, customer credentials, or customer data.
+OAK does not proxy an installed application's inference traffic. The current harness is non-production and contains no hosted-provider requirement, customer credentials, or customer data. The only target mutation it can perform is against an explicitly acknowledged local fixture profile, through a separately signed and approved typed plan.
 
 ## Choose a run mode
 
@@ -89,7 +89,7 @@ The canonical schemas and public synthetic examples live in `schemas/` and `exam
 
 ## Current limits
 
-Signing, deployment approval, runner dispatch, and target execution are not implemented. The generated runner plan is deliberately unsigned, unapproved, non-mutating, and non-executing. The local file workspace is a reference persistence adapter, not a production metadata store. Progress is tracked in [STATUS.md](STATUS.md).
+Signing, approval, and runner execution exist only in local development form: keys are labelled `development`, the runner reaches only an isolated non-production fixture target, and the sole permitted mutation is creating and removing one network-isolated, never-started container. Enterprise authentication, remote runner transport, production targets, real secret resolution, and Git provider promotion are not implemented. The local file workspace is a reference persistence adapter, not a production metadata store. Progress is tracked in [STATUS.md](STATUS.md).
 
 ## Licence
 

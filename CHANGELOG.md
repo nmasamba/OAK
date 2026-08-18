@@ -8,6 +8,21 @@ All notable changes to OAK Community are recorded here.
 
 ### Added
 
+- Sprint 5 signed typed runner and GitOps boundary for `OAK-S5-001` through `OAK-S5-011`:
+  local Ed25519 signing with per-role development keys, immutable plan-signature binding,
+  digest/target/action/expiry-bound signed approvals with revocation, outbound-only mailbox
+  dispatch with signed lease envelopes, and canonical `plan-signature`, `approval`,
+  `runner-envelope`, and `runner-message` schemas.
+- A separate `oak-runner` trust domain that independently verifies protocol, digests,
+  signatures, trust anchors, target fingerprint, lease and nonce, separation of duties,
+  adapter and parameter-schema allowlists, and approvals before any target access, then
+  executes typed operations with a hash-chained journal, crash resume, cooperative
+  cancellation, `manual_recovery_required` states, and bounded redacted evidence.
+- Bounded inventory and isolated container fixture adapters building fixed allowlisted
+  argument vectors with no shell, target-profile `0.2.0` gating mutation behind an explicit
+  acknowledgement, typed apply/rollback/destroy operations, `oak keys`/`sign`/`approve`/
+  `revoke-approval`/`dispatch`/`ingest`/`gitops` commands, and deterministic GitOps output
+  that promotes nothing automatically.
 - Sprint 4 architecture web workspace for `OAK-S4-001` through `OAK-S4-009`: routed case
   list/create/open screens, server-status-driven actions, durable operation polling with
   cancellation, audit timeline, and stale-version conflict recovery, backed by additive
