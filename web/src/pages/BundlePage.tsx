@@ -413,7 +413,12 @@ export function BundlePage({ caseId }: { readonly caseId: string }) {
                 {diffRows.length === 0 ? (
                   <p>The two manifests are semantically identical.</p>
                 ) : (
-                  <div className="table-scroll">
+                  <div
+                    className="table-scroll"
+                    tabIndex={0}
+                    role="region"
+                    aria-label="Semantic diff table"
+                  >
                     <table>
                       <caption className="visually-hidden">
                         Semantic differences between manifest versions

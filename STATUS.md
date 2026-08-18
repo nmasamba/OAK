@@ -4,11 +4,11 @@
 
 - **Updated:** 2026-08-18
 - **Repository version:** `0.5.0.dev5`
-- **Phase:** Sprint 4 — architecture web workspace
-- **Completed plans:** `docs/exec-plans/completed/OAK-S0-001-009-walking-skeleton.md`, `docs/exec-plans/completed/OAK-S1-001-010-local-design-case.md`, `docs/exec-plans/completed/OAK-S2-001-011-candidate-planning.md`, and `docs/exec-plans/completed/OAK-S3-001-009-persistent-rest-jobs.md`
-- **Active plan:** `docs/exec-plans/active/OAK-S4-001-009-web-workspace.md`
-- **Next task:** Sprint 4 Milestone 2 — brief/inference review and the question/
-  confirmation flow; CI compatibility wiring remains explicitly deferred by user direction
+- **Phase:** Sprint 4 complete — architecture web workspace verified
+- **Completed plans:** `docs/exec-plans/completed/OAK-S0-001-009-walking-skeleton.md`, `docs/exec-plans/completed/OAK-S1-001-010-local-design-case.md`, `docs/exec-plans/completed/OAK-S2-001-011-candidate-planning.md`, `docs/exec-plans/completed/OAK-S3-001-009-persistent-rest-jobs.md`, and `docs/exec-plans/completed/OAK-S4-001-009-web-workspace.md`
+- **Active plan:** none — authoring the Sprint 5 signed typed runner ExecPlan is the next step
+- **Next task:** author and claim the Sprint 5 (`OAK-S5-001`–`OAK-S5-011`) ExecPlan;
+  CI compatibility wiring remains explicitly deferred by user direction
 
 ## Claimed work
 
@@ -54,6 +54,14 @@
 | `OAK-S3-008` | partial | Generated OpenAPI/client and tested local breaking-change gate complete; `.github` CI wiring explicitly deferred |
 | `OAK-S3-009` | complete | Local actor/tenant binding, unsafe-bind guard, body limits, safe errors/readiness, and cross-tenant denials |
 | `OAK-S4-001` | complete | Routed workspace shell with case list/create/open over new additive list/audit endpoints, server-driven actions, durable operation polling, audit timeline, and stale-version conflict recovery |
+| `OAK-S4-002` | complete | Brief review with fact/inference/default/correction/unknown provenance classes, materiality, confidence, and confirmation lineage |
+| `OAK-S4-003` | complete | Ranked-question confirmation with confirm/correct/reject/accept-risk decisions, value prefill, subset answering, and conflict recovery |
+| `OAK-S4-004` | complete | Candidate comparison with variants, visible rejection reasons, Pareto status, objective ranges, constraints, topology, and raw documents |
+| `OAK-S4-005` | complete | Selection rationale, alternative rejections, evaluation metrics against contract thresholds, and the assurance plan with owners and gate blockers |
+| `OAK-S4-006` | complete | Bundle review with plan/approval/apply separation, digest-verified component lock, artifact viewers, and semantic manifest diff |
+| `OAK-S4-007` | complete | Audit lineage timeline and downloadable bounded canonical export |
+| `OAK-S4-008` | complete | Keyboard focus management, semantic landmarks and labels, contrast, motionless UI, and automated axe checks on every core screen |
+| `OAK-S4-009` | complete | Compose-only Playwright journey with denied transition and cooperatively cancelled interrupted operation |
 
 ## Verification evidence
 
@@ -107,6 +115,16 @@
 - A Sprint 0-era `oak-postgres-data` volume had been initialised under a different password;
   the empty database was recovered with `ALTER ROLE oak WITH PASSWORD` over the container's
   local trust socket rather than volume deletion, consistent with restore-forward recovery.
+- Sprint 4 completed the architecture web workspace: brief/inference review with provenance
+  classes, ranked-question confirmation, candidate comparison with objective ranges and
+  visible infeasibility, decision/assurance display, bundle review with plan/approval/apply
+  separation and semantic diff, audit timeline, and canonical export download. The
+  Playwright suite (`make web-e2e`) passed against the pinned Compose stack: the full
+  brief-to-bundle reference journey with zero axe violations on all eight core screens, a
+  denied stale-version transition with visible recovery, and an interrupted operation
+  cancelled cooperatively across a worker stop/start. `make check` passed on the final
+  tree; accessibility scanning surfaced and fixed a heading-order defect and a
+  keyboard-unreachable scroll region.
 - Sprint 4 Milestone 1 added additive tenant-scoped `GET /v1/design-cases` and
   `GET /v1/design-cases/{case_id}/audit` resources (regenerated OpenAPI/client passed the
   local compatibility gate without a baseline reset), forwarded `/v1` through the nginx and

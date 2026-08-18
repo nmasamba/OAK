@@ -4,7 +4,7 @@ UV_CACHE_DIR ?= .uv-cache
 UV := UV_CACHE_DIR=$(UV_CACHE_DIR) uv
 PNPM := pnpm
 
-.PHONY: bootstrap lock toolchain-check validate format format-check lint typecheck test test-integration test-e2e openapi-compatibility web-build build check audit sbom clean
+.PHONY: bootstrap lock toolchain-check validate format format-check lint typecheck test test-integration test-e2e openapi-compatibility web-build web-e2e build check audit sbom clean
 
 bootstrap:
 	$(UV) sync --frozen
@@ -54,6 +54,9 @@ openapi-compatibility:
 
 web-build:
 	$(PNPM) build
+
+web-e2e:
+	OAK_E2E_DOCKER=1 $(PNPM) --dir web e2e
 
 build:
 	$(UV) build --no-build-isolation

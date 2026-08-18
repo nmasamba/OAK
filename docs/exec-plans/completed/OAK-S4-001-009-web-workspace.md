@@ -6,8 +6,8 @@
 
 - Owner/agent: Claude
 - Started: 2026-08-18
-- Last updated: 2026-08-18 13:40 BST
-- State: in-progress
+- Last updated: 2026-08-18 17:20 BST
+- State: done
 - Claimed tasks: `OAK-S4-001`–`OAK-S4-009`
 
 ## Outcome
@@ -225,13 +225,45 @@ project containers after teardown.
   `succeeded` → candidates table, plus a forced stale `If-Match` conflict whose recovery
   banner reloaded to the current server state.
 - [ ] Milestone 2 — brief/inference review and question/confirmation flow.
-- [ ] Milestone 2 — brief/inference review and question/confirmation flow.
-- [ ] Milestone 3 — candidate comparison, decision, and assurance screens.
-  Carry-over from Milestone 1: the case screen renders the candidate document's raw
-  `variant` field, which reads `other` for the simpler baseline; the typed view models in
-  this milestone should surface the same variant label the CLI table derives.
-- [ ] Milestone 4 — bundle review, audit timeline, and export download.
-- [ ] Milestone 5 — accessibility evidence and Compose browser end-to-end.
+- [x] 2026-08-18 15:55 BST Milestone 2 complete. The review screen classifies every
+  interpreted value by provenance (fact from brief, inference, domain default, reviewer
+  correction, unknown) with materiality, confidence, rationale, and confirmation lineage;
+  the confirmation screen presents the ranked open questions with confirm/correct/reject/
+  accept-risk decisions, JSON-pointer value prefill, required rationale, subset answering,
+  and conflict recovery. Browser-verified: a fresh case fully confirmed through the UI
+  (four confirms, one correction) reached `ready_for_candidates` with `claims_confirmed`
+  in the timeline.
+- [x] 2026-08-18 16:20 BST Milestone 3 complete. The comparison screen renders all
+  variants with pattern labels (resolving the Milestone 1 `variant` carry-over via
+  `oak.community/pattern_variant`), feasibility with rejection reasons, Pareto membership,
+  objective values/ranges/units, constraint results with requirement IDs, topology,
+  sensitivity, uncertainties, and raw documents; evaluate/select actions flow through the
+  durable operations and shared services. The decision screen shows the selection
+  rationale, alternative rejections, evaluation metrics against contract thresholds with
+  limitations, and the assurance plan with controls, tests, evidence, owners, and gate
+  blockers. `listArtifacts`/`getJsonArtifact` were added to the generated client.
+- [x] 2026-08-18 16:40 BST Milestone 4 complete. The bundle screen compiles from a JSON
+  target profile, then shows the explicit plan/approval/apply separation (draft unsigned
+  plan; apply unavailable in Community), the digest-verified component lock with licence
+  decisions, lazily loaded bundle/runner-plan/review artifacts, and a client-side semantic
+  diff between the two most recent semantic manifests. The case screen downloads the
+  bounded canonical export.
+- [x] 2026-08-18 17:10 BST Milestone 5 complete. Added Playwright 1.62 and
+  @axe-core/playwright as web dev dependencies (no build-allowance change was needed; the
+  Chromium download is an explicit `playwright install` step), `web/playwright.config.ts`,
+  and the `make web-e2e` target. The suite passes against the Compose stack: (1) the full
+  reference journey from brief creation through confirmation, candidate generation,
+  evaluation, selection, assurance, compilation, bundle review, canonical export download,
+  and the audit timeline, with zero axe violations on the case list, case detail, review,
+  confirmation, operation, comparison, decision/assurance, and bundle screens; (2) a
+  denied stale-version transition with the visible recovery path; (3) an interrupted
+  operation cancelled cooperatively while the Compose worker was stopped, observed
+  `cancelled` durably after restart. Axe surfaced and fixed two real defects
+  (heading order in candidate details; scrollable comparison region not
+  keyboard-focusable). Manual review: focus moves to the page heading on navigation
+  (asserted in the suite), no animations exist so reduced motion is satisfied, tables
+  collapse at narrow widths, and every screen was reviewed by hand in the live browser
+  during Milestones 1–4.
 
 ## Decisions
 
@@ -245,8 +277,13 @@ project containers after teardown.
   record the outcome here.
 - 2026-08-18 Follow the established `<agent>/sprint-<n>-<short-name>` branch pattern as
   precedent (`claude/sprint-4-web-workspace`); no governance rule mandates it.
-- Pending: browser end-to-end tool selection (Playwright preferred) with the exact
-  `pnpm-workspace.yaml` build-allowance additions reviewed and recorded.
+- 2026-08-18 Selected Playwright with @axe-core/playwright for the browser end-to-end and
+  accessibility suites. No `pnpm-workspace.yaml` build allowance was required: neither
+  package runs an install-time build, and the Chromium binary arrives through an explicit
+  `playwright install chromium` step rather than a postinstall hook.
+- 2026-08-18 Kept the hand-maintained `CLIENT_SOURCE` client through the whole sprint; the
+  two artifact functions were the only additions after Milestone 1, so real client
+  generation stays a future decision rather than a Sprint 4 need.
 
 ## Discoveries and follow-ups
 

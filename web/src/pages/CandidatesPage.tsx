@@ -148,9 +148,9 @@ function CandidateDetail({ candidate }: { readonly candidate: JsonObject }) {
   const pareto = asObject(candidate["pareto"]) ?? {};
   return (
     <div className="candidate-detail">
-      <h4>Hard constraints</h4>
+      <h3>Hard constraints</h3>
       <ConstraintTable candidate={candidate} />
-      <h4>Topology</h4>
+      <h3>Topology</h3>
       <ul>
         {nodes.map((node) => {
           const id = asString(node["id"]) ?? "";
@@ -162,11 +162,11 @@ function CandidateDetail({ candidate }: { readonly candidate: JsonObject }) {
           );
         })}
       </ul>
-      <h4>Pareto and sensitivity</h4>
+      <h3>Pareto and sensitivity</h3>
       <p>
         {asString(pareto["sensitivity_summary"]) ?? "No sensitivity summary."}
       </p>
-      <h4>Explanation</h4>
+      <h3>Explanation</h3>
       <p className="timeline-meta">
         Satisfied requirements:{" "}
         {asArray(explanation["satisfied_requirements"])
@@ -288,7 +288,12 @@ export function CandidatesPage({ caseId }: { readonly caseId: string }) {
           estimator outputs with ranges; every raw document is inspectable
           below. Infeasible variants stay visible with their rejection reasons.
         </p>
-        <div className="table-scroll">
+        <div
+          className="table-scroll"
+          tabIndex={0}
+          role="region"
+          aria-label="Candidate comparison table"
+        >
           <table>
             <caption className="visually-hidden">
               Candidate architectures with feasibility, Pareto status, and
