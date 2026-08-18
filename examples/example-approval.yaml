@@ -19,8 +19,9 @@ signature:
   key_id: sha256:6198462de9e49b95612b45a2a20ace9627d4ec352b90a575a04c1a2df8a5356e
   public_key_base64: rdtZWOUOma6jJT7+fJRK8yTfQEuggqCNIFPlL0oUsmM=
   role: approver
-  signature_base64: fuF3bdVKwJqH1Bbsz9FDh9PdSAwnC0xN8v2DpfjEbqsyNkVKdak15TZK8us1oXbE1DcIJ16aHoocgYORX4mzAw==
+  signature_base64: it4vYHao7DMC6HnmCMpnQ0igOxyPoCgGdOB1jZD8bdzGknP4QUTD0n2vp4XTjyvDNPcGrB12VC1tmp7CpIrRBg==
   trust_level: development
 target_fingerprint: sha256:44863b03e9909b7100e05b02526909a346fd7455183f6619e0fe6198c89981e0
 target_id: target.local-fixture
 tenant_id: local
+version: 0.1.0

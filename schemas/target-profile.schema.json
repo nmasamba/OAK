@@ -4,93 +4,268 @@
   "title": "TargetProfile",
   "type": "object",
   "additionalProperties": false,
-  "required": ["target_profile_version", "id", "status", "environment", "tenant_id", "platform", "capacity", "network", "permissions", "secrets", "notes"],
+  "required": [
+    "target_profile_version",
+    "id",
+    "status",
+    "environment",
+    "tenant_id",
+    "platform",
+    "capacity",
+    "network",
+    "permissions",
+    "secrets",
+    "notes"
+  ],
   "properties": {
-    "target_profile_version": {"enum": ["0.1.0", "0.2.0"]},
-    "id": {"$ref": "common.schema.json#/$defs/identifier"},
-    "status": {"enum": ["non-production-fixture", "non-production-local"]},
-    "environment": {"enum": ["development", "validation", "staging"]},
-    "tenant_id": {"type": "string", "minLength": 1},
+    "target_profile_version": {
+      "enum": [
+        "0.1.0",
+        "0.2.0"
+      ]
+    },
+    "id": {
+      "$ref": "common.schema.json#/$defs/identifier"
+    },
+    "status": {
+      "enum": [
+        "non-production-fixture",
+        "non-production-local"
+      ]
+    },
+    "environment": {
+      "enum": [
+        "development",
+        "validation",
+        "staging"
+      ]
+    },
+    "tenant_id": {
+      "type": "string",
+      "minLength": 1
+    },
     "platform": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["operating_system", "architecture", "accelerators", "drivers", "container_runtime"],
+      "required": [
+        "operating_system",
+        "architecture",
+        "accelerators",
+        "drivers",
+        "container_runtime"
+      ],
       "properties": {
-        "operating_system": {"type": "string"},
-        "architecture": {"type": "string"},
-        "accelerators": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
-        "drivers": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
-        "container_runtime": {"type": "string"}
+        "operating_system": {
+          "type": "string"
+        },
+        "architecture": {
+          "type": "string"
+        },
+        "accelerators": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "drivers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "container_runtime": {
+          "type": "string"
+        }
       }
     },
     "capacity": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["ram_gib", "storage_gib"],
+      "required": [
+        "ram_gib",
+        "storage_gib"
+      ],
       "properties": {
-        "ram_gib": {"type": "number", "minimum": 0},
-        "storage_gib": {"type": "number", "minimum": 0}
+        "ram_gib": {
+          "type": "number",
+          "minimum": 0
+        },
+        "storage_gib": {
+          "type": "number",
+          "minimum": 0
+        }
       }
     },
     "network": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["mode", "inbound_control_plane"],
+      "required": [
+        "mode",
+        "inbound_control_plane"
+      ],
       "properties": {
-        "mode": {"enum": ["local", "isolated-no-egress", "outbound-only", "disconnected", "air-gapped"]},
-        "inbound_control_plane": {"type": "boolean"}
+        "mode": {
+          "enum": [
+            "local",
+            "isolated-no-egress",
+            "outbound-only",
+            "disconnected",
+            "air-gapped"
+          ]
+        },
+        "inbound_control_plane": {
+          "type": "boolean"
+        }
       }
     },
     "permissions": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["mutation_allowed", "allowed_operations"],
+      "required": [
+        "mutation_allowed",
+        "allowed_operations"
+      ],
       "properties": {
-        "mutation_allowed": {"type": "boolean"},
-        "allowed_operations": {"type": "array", "items": {"enum": ["inventory", "validate", "render", "plan", "verify", "apply", "rollback", "destroy"]}, "uniqueItems": true}
+        "mutation_allowed": {
+          "type": "boolean"
+        },
+        "allowed_operations": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "inventory",
+              "validate",
+              "render",
+              "plan",
+              "verify",
+              "apply",
+              "rollback",
+              "destroy"
+            ]
+          },
+          "uniqueItems": true
+        }
       }
     },
     "execution": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["mutation_acknowledgement", "container_image_reference", "container_image_digest"],
+      "required": [
+        "mutation_acknowledgement",
+        "container_image_reference",
+        "container_image_digest"
+      ],
       "properties": {
-        "mutation_acknowledgement": {"const": "isolated-non-production-fixture-only"},
-        "container_image_reference": {"type": "string", "minLength": 3, "maxLength": 300, "pattern": "^[a-z0-9][a-zA-Z0-9./_:@-]*$"},
-        "container_image_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+        "mutation_acknowledgement": {
+          "const": "isolated-non-production-fixture-only"
+        },
+        "container_image_reference": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 300,
+          "pattern": "^[a-z0-9][a-zA-Z0-9./_:@-]*$"
+        },
+        "container_image_digest": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        }
       }
     },
     "secrets": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["allowed_references"],
-      "properties": {"allowed_references": {"type": "array", "maxItems": 0}}
+      "required": [
+        "allowed_references"
+      ],
+      "properties": {
+        "allowed_references": {
+          "type": "array",
+          "maxItems": 0
+        }
+      }
     },
-    "notes": {"type": "array", "items": {"type": "string"}}
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
   },
   "allOf": [
     {
-      "if": {"properties": {"target_profile_version": {"const": "0.1.0"}}},
+      "if": {
+        "properties": {
+          "target_profile_version": {
+            "const": "0.1.0"
+          }
+        },
+        "required": [
+          "target_profile_version"
+        ]
+      },
       "then": {
         "properties": {
-          "status": {"const": "non-production-fixture"},
+          "status": {
+            "const": "non-production-fixture"
+          },
           "permissions": {
             "properties": {
-              "mutation_allowed": {"const": false},
-              "allowed_operations": {"items": {"enum": ["inventory", "validate", "render", "plan", "verify"]}}
+              "mutation_allowed": {
+                "const": false
+              },
+              "allowed_operations": {
+                "items": {
+                  "enum": [
+                    "inventory",
+                    "validate",
+                    "render",
+                    "plan",
+                    "verify"
+                  ]
+                }
+              }
             }
           }
         }
       }
     },
     {
-      "if": {"properties": {"permissions": {"properties": {"mutation_allowed": {"const": true}}, "required": ["mutation_allowed"]}},
-      "then": {
-        "required": ["execution"],
+      "if": {
         "properties": {
-          "target_profile_version": {"const": "0.2.0"},
-          "status": {"const": "non-production-local"},
-          "environment": {"enum": ["development", "validation"]}
+          "permissions": {
+            "properties": {
+              "mutation_allowed": {
+                "const": true
+              }
+            },
+            "required": [
+              "mutation_allowed"
+            ]
+          }
+        },
+        "required": [
+          "permissions"
+        ]
+      },
+      "then": {
+        "required": [
+          "execution"
+        ],
+        "properties": {
+          "target_profile_version": {
+            "const": "0.2.0"
+          },
+          "status": {
+            "const": "non-production-local"
+          },
+          "environment": {
+            "enum": [
+              "development",
+              "validation"
+            ]
+          }
         }
       }
     }

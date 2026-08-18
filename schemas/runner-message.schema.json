@@ -4,31 +4,119 @@
   "title": "RunnerMessage",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "protocol_version", "id", "kind", "runner_id", "tenant_id", "environment", "correlation_id", "sequence", "lease_id", "operation_id", "occurred_at", "nonce", "payload", "signature", "extensions"],
+  "required": [
+    "schema_version",
+    "protocol_version",
+    "id",
+    "version",
+    "kind",
+    "runner_id",
+    "tenant_id",
+    "environment",
+    "correlation_id",
+    "sequence",
+    "lease_id",
+    "operation_id",
+    "occurred_at",
+    "nonce",
+    "payload",
+    "signature",
+    "extensions"
+  ],
   "properties": {
-    "schema_version": {"const": "0.1.0"},
-    "protocol_version": {"const": "0.1.0"},
-    "id": {"$ref": "common.schema.json#/$defs/identifier"},
-    "kind": {"enum": ["registration", "inventory", "progress", "heartbeat", "evidence", "completion"]},
-    "runner_id": {"$ref": "common.schema.json#/$defs/identifier"},
-    "tenant_id": {"type": "string", "minLength": 1, "maxLength": 160},
-    "environment": {"enum": ["development", "validation", "staging"]},
-    "correlation_id": {"type": "string", "minLength": 8, "maxLength": 160},
-    "sequence": {"type": "integer", "minimum": 1},
+    "schema_version": {
+      "const": "0.1.0"
+    },
+    "protocol_version": {
+      "const": "0.1.0"
+    },
+    "id": {
+      "$ref": "common.schema.json#/$defs/identifier"
+    },
+    "version": {
+      "$ref": "common.schema.json#/$defs/semver"
+    },
+    "kind": {
+      "enum": [
+        "registration",
+        "inventory",
+        "progress",
+        "heartbeat",
+        "evidence",
+        "completion"
+      ]
+    },
+    "runner_id": {
+      "$ref": "common.schema.json#/$defs/identifier"
+    },
+    "tenant_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "environment": {
+      "enum": [
+        "development",
+        "validation",
+        "staging"
+      ]
+    },
+    "correlation_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 160
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 1
+    },
     "lease_id": {
-      "anyOf": [{"$ref": "common.schema.json#/$defs/identifier"}, {"type": "null"}]
+      "anyOf": [
+        {
+          "$ref": "common.schema.json#/$defs/identifier"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "operation_id": {
-      "anyOf": [{"$ref": "common.schema.json#/$defs/identifier"}, {"type": "null"}]
+      "anyOf": [
+        {
+          "$ref": "common.schema.json#/$defs/identifier"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
-    "occurred_at": {"type": "string", "format": "date-time"},
-    "nonce": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "nonce": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
     "payload": {
       "type": "object",
       "maxProperties": 40,
-      "propertyNames": {"not": {"enum": ["command", "shell", "executable", "argv"]}}
+      "propertyNames": {
+        "not": {
+          "enum": [
+            "command",
+            "shell",
+            "executable",
+            "argv"
+          ]
+        }
+      }
     },
-    "signature": {"$ref": "common.schema.json#/$defs/signatureBlock"},
-    "extensions": {"$ref": "common.schema.json#/$defs/extensions"}
+    "signature": {
+      "$ref": "common.schema.json#/$defs/signatureBlock"
+    },
+    "extensions": {
+      "$ref": "common.schema.json#/$defs/extensions"
+    }
   }
 }

@@ -4,21 +4,76 @@
   "title": "PlanSignature",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "id", "case_id", "tenant_id", "environment", "plan_ref", "bundle_ref", "verification_policy_ref", "target_id", "target_fingerprint", "nonce", "signed_at", "signature", "extensions"],
+  "required": [
+    "schema_version",
+    "id",
+    "version",
+    "case_id",
+    "tenant_id",
+    "environment",
+    "plan_ref",
+    "bundle_ref",
+    "verification_policy_ref",
+    "target_id",
+    "target_fingerprint",
+    "nonce",
+    "signed_at",
+    "signature",
+    "extensions"
+  ],
   "properties": {
-    "schema_version": {"const": "0.1.0"},
-    "id": {"$ref": "common.schema.json#/$defs/identifier"},
-    "case_id": {"$ref": "common.schema.json#/$defs/identifier"},
-    "tenant_id": {"type": "string", "minLength": 1, "maxLength": 160},
-    "environment": {"enum": ["development", "validation", "staging"]},
-    "plan_ref": {"$ref": "common.schema.json#/$defs/artifactRef"},
-    "bundle_ref": {"$ref": "common.schema.json#/$defs/artifactRef"},
-    "verification_policy_ref": {"$ref": "common.schema.json#/$defs/artifactRef"},
-    "target_id": {"$ref": "common.schema.json#/$defs/identifier"},
-    "target_fingerprint": {"$ref": "common.schema.json#/$defs/digest"},
-    "nonce": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
-    "signed_at": {"type": "string", "format": "date-time"},
-    "signature": {"$ref": "common.schema.json#/$defs/signatureBlock"},
-    "extensions": {"$ref": "common.schema.json#/$defs/extensions"}
+    "schema_version": {
+      "const": "0.1.0"
+    },
+    "id": {
+      "$ref": "common.schema.json#/$defs/identifier"
+    },
+    "version": {
+      "$ref": "common.schema.json#/$defs/semver"
+    },
+    "case_id": {
+      "$ref": "common.schema.json#/$defs/identifier"
+    },
+    "tenant_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "environment": {
+      "enum": [
+        "development",
+        "validation",
+        "staging"
+      ]
+    },
+    "plan_ref": {
+      "$ref": "common.schema.json#/$defs/artifactRef"
+    },
+    "bundle_ref": {
+      "$ref": "common.schema.json#/$defs/artifactRef"
+    },
+    "verification_policy_ref": {
+      "$ref": "common.schema.json#/$defs/artifactRef"
+    },
+    "target_id": {
+      "$ref": "common.schema.json#/$defs/identifier"
+    },
+    "target_fingerprint": {
+      "$ref": "common.schema.json#/$defs/digest"
+    },
+    "nonce": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "signed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "signature": {
+      "$ref": "common.schema.json#/$defs/signatureBlock"
+    },
+    "extensions": {
+      "$ref": "common.schema.json#/$defs/extensions"
+    }
   }
 }

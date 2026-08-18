@@ -35,6 +35,10 @@ KIND_SCHEMA = {
     "deployment_bundle": "deployment-bundle.schema.json",
     "runner_plan": "runner-plan.schema.json",
     "review_artifact": "review-artifact.schema.json",
+    "plan_signature": "plan-signature.schema.json",
+    "approval": "approval.schema.json",
+    "dispatch_envelope": "runner-envelope.schema.json",
+    "runner_message": "runner-message.schema.json",
 }
 JSON_MEDIA_KIND = {
     "application/vnd.oak.source-record+json": "source_record",
@@ -52,6 +56,10 @@ JSON_MEDIA_KIND = {
     "application/vnd.oak.deployment-bundle+json": "deployment_bundle",
     "application/vnd.oak.runner-plan+json": "runner_plan",
     "application/vnd.oak.review-artifact+json": "review_artifact",
+    "application/vnd.oak.plan-signature+json": "plan_signature",
+    "application/vnd.oak.approval+json": "approval",
+    "application/vnd.oak.runner-envelope+json": "dispatch_envelope",
+    "application/vnd.oak.runner-message+json": "runner_message",
 }
 ReplaceFile = Callable[[Path, Path], None]
 

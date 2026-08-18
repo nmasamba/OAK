@@ -101,6 +101,7 @@ class ReleaseService:
         document: dict[str, Any] = {
             "schema_version": "0.1.0",
             "id": f"plan-signature.{plan_ref.id.removeprefix('runner-plan.')}",
+            "version": "0.1.0",
             "case_id": current.id,
             "tenant_id": context.tenant_id,
             "environment": str(plan["target"]["environment"]),
@@ -174,6 +175,7 @@ class ReleaseService:
         document: dict[str, Any] = {
             "schema_version": "0.1.0",
             "id": f"approval.{action.replace('_', '-')}.{plan_ref.id.removeprefix('runner-plan.')}",
+            "version": "0.1.0",
             "case_id": current.id,
             "tenant_id": context.tenant_id,
             "environment": str(plan["target"]["environment"]),
@@ -251,6 +253,7 @@ class ReleaseService:
             raise OAKError("OAK-APPROVAL-REVOKED", "approval is already revoked")
         revoked = dict(approval)
         revoked.pop("signature", None)
+        revoked["version"] = _next_patch(str(approval["version"]))
         revoked["revoked"] = True
         revoked["revoked_at"] = context.occurred_at
         revoked["revocation_reason"] = reason.strip()
@@ -358,6 +361,7 @@ class ReleaseService:
             "schema_version": "0.1.0",
             "protocol_version": "0.1.0",
             "id": f"dispatch.{current.id.removeprefix('design-case.')}.{sequence}",
+            "version": "0.1.0",
             "kind": "dispatch_envelope",
             "case_id": current.id,
             "tenant_id": context.tenant_id,
@@ -459,6 +463,7 @@ class ReleaseService:
             return duplicate
         current_document = self._require_case()
         current = DesignCase.from_document(current_document)
+        ingest_context = replace(ingest_context, expected_version=current.version)
         payload = message.get("payload", {})
         outcome = str(payload.get("outcome", "unknown"))
         applied = bool(payload.get("applied_kinds")) and "apply" in payload.get("applied_kinds", [])

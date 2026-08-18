@@ -24,6 +24,7 @@ signature:
   key_id: sha256:16febc1f2f3f1a7c9beb2c94430f5309ea9b8035e74a5269f4edc90ffe2d6450
   public_key_base64: IewUKARJiOc4tulODUUCW091uTmZR1OSsZ1qnw9gSeY=
   role: runner
-  signature_base64: qu8HY0ZlyGdV59PW9IBZKs2VrRnGX/6sj/M7TMmwv8FE2VaGLHrYO4MBdfnijlD2TJoDL/00KCwhhU1YmA2IDA==
+  signature_base64: UNz69TQ4+tJ5hkr22tsyvuuO5VIRIZH4Ewnh5AZhTCwhAi5jjL1sCxMcmhE3TMZKgu7gfUEjylxiHUOH5FRXCw==
   trust_level: development
 tenant_id: local
+version: 0.1.0

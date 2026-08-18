@@ -96,6 +96,7 @@ class RunnerMailbox:
             "schema_version": "0.1.0",
             "protocol_version": "0.1.0",
             "id": f"runner-message.{kind}.{correlation_id}.{sequence}",
+            "version": "0.1.0",
             "kind": kind,
             "runner_id": identity.runner_id,
             "tenant_id": tenant_id,

@@ -48,7 +48,7 @@ signature:
   key_id: sha256:f68e3a1195cc42265d9548925ad19fd8d9290f59d116a877d05be724a22ae03e
   public_key_base64: F7JmyT+gkp0vor923DVvynlxipkA8FbKxHoE+BEI2RM=
   role: plan-signer
-  signature_base64: mhTn+Bf3I+/I/xHx2DAIe9MvMjW8Aj4aaPBwdoRjrtSiGt8HxeDry0ZAR8eLhstkcAdoFmQY1UTQfuvJl4T5AQ==
+  signature_base64: khQ2j6Q0XXswL7Husimojk67r+2RiQAhHkdBvza1KyJvSAJuttmTgk+5ijHd3VhSYu1juf8IYvzCzlUSkk6oBA==
   trust_level: development
 target_fingerprint: sha256:44863b03e9909b7100e05b02526909a346fd7455183f6619e0fe6198c89981e0
 target_id: target.local-fixture
@@ -59,3 +59,4 @@ verification_policy_ref:
   media_type: application/vnd.oak.review-artifact+json
   uri: null
   version: 0.1.0
+version: 0.1.0
