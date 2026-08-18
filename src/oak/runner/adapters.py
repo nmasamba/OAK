@@ -137,7 +137,15 @@ class ContainerFixtureAdapter:
             raise OAKError("OAK-RUNNER-PARAMETERS", "image reference is not permitted")
         if not re.fullmatch(r"sha256:[a-f0-9]{64}", digest):
             raise OAKError("OAK-RUNNER-PARAMETERS", "image digest is not permitted")
-        image = reference if "@" in reference else f"{reference}@{digest}"
+        # The approved digest is the only pin that may reach the runtime. A
+        # reference that carries its own digest could otherwise smuggle a
+        # different image past the approval, so it is refused outright.
+        if "@" in reference:
+            raise OAKError(
+                "OAK-RUNNER-PARAMETERS",
+                "image reference must not carry its own digest",
+            )
+        image = f"{reference}@{digest}"
         if _IMAGE_PATTERN.fullmatch(image) is None:
             raise OAKError("OAK-RUNNER-PARAMETERS", "pinned image reference is not permitted")
         return name, image

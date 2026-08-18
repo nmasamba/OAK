@@ -54,8 +54,8 @@ def run_once(*, cancellation_requested: bool = False) -> int:
     now = _now()
 
     processed_any = False
-    for envelope, attachments in mailbox.pending_dispatches():
-        dispatch_id = str(envelope.get("id", ""))
+    for dispatch_id, envelope, attachments in mailbox.pending_dispatches():
+        # dispatch_id comes from the filesystem, never from the unverified envelope.
         correlation = str(envelope.get("lease", {}).get("lease_id", dispatch_id) or dispatch_id)
         try:
             verified = verify_dispatch(

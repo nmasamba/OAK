@@ -110,7 +110,7 @@ def test_replayed_lease_nonce_is_denied(readonly_dispatch) -> None:
 
 
 def test_untrusted_signer_is_denied(readonly_dispatch) -> None:
-    empty = TrustAnchors(plan_signer_key_ids=frozenset(), approver_key_ids=frozenset())
+    empty = TrustAnchors(keys_by_role={"plan-signer": {}, "approver": {}})
     with pytest.raises(RunnerDenialError) as caught:
         _verify(readonly_dispatch, anchors=empty)
     assert caught.value.code == "OAK-RUNNER-TRUST"

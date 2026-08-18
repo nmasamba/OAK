@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from oak.contracts import ContractValidationError, SchemaRegistry
-from oak.contracts.signatures import verify_signed_document
+from oak.contracts.signatures import signed_payload_bytes, verify_signature
 from oak.domain import OAKError, canonical_json_bytes, content_digest
 from oak.domain.runner_adapters import (
     ADAPTER_IDENTITY_BY_ID,
@@ -36,25 +36,107 @@ class RunnerDenialError(OAKError):
 
 @dataclass(frozen=True, slots=True)
 class TrustAnchors:
-    """Pinned control-plane public keys the runner accepts, by role."""
+    """Pinned control-plane public keys the runner accepts, by role.
 
-    plan_signer_key_ids: frozenset[str]
-    approver_key_ids: frozenset[str]
+    Anchors hold the public key itself, never merely its identifier. Verification
+    uses the pinned key; a document's own embedded key and `key_id` are untrusted
+    claims and are only ever compared against the pinned material.
+    """
+
+    keys_by_role: dict[str, dict[str, str]]
 
     @classmethod
     def from_directory(cls, trust_directory: Path) -> TrustAnchors:
-        anchors: dict[str, set[str]] = {"plan-signer": set(), "approver": set()}
+        anchors: dict[str, dict[str, str]] = {"plan-signer": {}, "approver": {}}
         for role in anchors:
             identity_path = trust_directory / f"{role}.identity.json"
-            if identity_path.is_file():
+            if not identity_path.is_file():
+                continue
+            try:
                 document = json.loads(identity_path.read_text(encoding="utf-8"))
-                key_id = document.get("key_id")
-                if isinstance(key_id, str):
-                    anchors[role].add(key_id)
-        return cls(
-            plan_signer_key_ids=frozenset(anchors["plan-signer"]),
-            approver_key_ids=frozenset(anchors["approver"]),
+            except (OSError, ValueError):
+                continue
+            key_id = document.get("key_id")
+            public_key = document.get("public_key_base64")
+            if isinstance(key_id, str) and isinstance(public_key, str):
+                if key_id != derive_key_id(role, public_key):
+                    continue
+                anchors[role][key_id] = public_key
+        return cls(keys_by_role=anchors)
+
+    def public_key(self, role: str, key_id: str) -> str | None:
+        return self.keys_by_role.get(role, {}).get(key_id)
+
+    def key_ids(self, role: str) -> frozenset[str]:
+        return frozenset(self.keys_by_role.get(role, {}))
+
+
+def derive_key_id(role: str, public_key_base64: str) -> str:
+    """Reproduce the signer's key identifier from its public material."""
+
+    return content_digest(
+        canonical_json_bytes(
+            {
+                "algorithm": "ed25519",
+                "public_key_base64": public_key_base64,
+                "role": role,
+            }
         )
+    )
+
+
+def _verify_against_anchor(
+    document: dict[str, Any],
+    anchors: TrustAnchors,
+    expected_role: str,
+    label: str,
+) -> None:
+    """Verify a signed document with a pinned key, not the one it carries."""
+
+    signature = document.get("signature")
+    if not isinstance(signature, dict):
+        raise RunnerDenialError("OAK-RUNNER-SIGNATURE", f"{label} carries no signature block")
+    role = signature.get("role")
+    key_id = signature.get("key_id")
+    claimed_key = signature.get("public_key_base64")
+    signature_value = signature.get("signature_base64")
+    if (
+        not isinstance(role, str)
+        or not isinstance(key_id, str)
+        or not isinstance(claimed_key, str)
+        or not isinstance(signature_value, str)
+    ):
+        raise RunnerDenialError("OAK-RUNNER-SIGNATURE", f"{label} signature block is malformed")
+    _check(
+        role == expected_role,
+        "OAK-RUNNER-TRUST",
+        f"{label} is not signed in the {expected_role} role",
+    )
+    pinned_key = anchors.public_key(expected_role, key_id)
+    _check(
+        pinned_key is not None,
+        "OAK-RUNNER-TRUST",
+        f"{label} names a key that is not a pinned {expected_role} anchor",
+    )
+    assert pinned_key is not None
+    # The embedded key is a claim; it must equal the pinned key, and the key
+    # identifier must be reproducible from that material.
+    _check(claimed_key == pinned_key, "OAK-RUNNER-TRUST", f"{label} embeds a different public key")
+    _check(
+        derive_key_id(expected_role, pinned_key) == key_id,
+        "OAK-RUNNER-TRUST",
+        f"{label} key identifier does not derive from its key",
+    )
+    _check(
+        verify_signature(
+            algorithm=str(signature.get("algorithm")),
+            public_key_base64=pinned_key,
+            message=signed_payload_bytes(document),
+            signature_base64=signature_value,
+        ),
+        "OAK-RUNNER-SIGNATURE",
+        f"{label} signature does not verify against the pinned key",
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -101,33 +183,21 @@ def verify_dispatch(
     _check_digest(envelope["verification_policy_ref"], policy, "verification policy")
     approvals: list[dict[str, Any]] = []
     for reference in envelope["approval_refs"]:
-        name = "approval-" + str(reference["id"]).split(".")[1].replace("_", "-")
+        parts = str(reference.get("id", "")).split(".")
+        _check(
+            len(parts) > 1 and parts[0] == "approval" and bool(parts[1]),
+            "OAK-RUNNER-ATTACHMENT",
+            "approval reference identifier is malformed",
+        )
+        name = "approval-" + parts[1].replace("_", "-")
         approval = _attachment(attachments, name)
         _validate(registry, "approval.schema.json", approval, "approval")
         _check_digest(reference, approval, "approval")
         approvals.append(approval)
 
-    # 3. Signatures and trust anchors.
-    _check(
-        verify_signed_document(envelope),
-        "OAK-RUNNER-SIGNATURE",
-        "dispatch envelope signature does not verify",
-    )
-    _check(
-        envelope["signature"]["key_id"] in anchors.plan_signer_key_ids,
-        "OAK-RUNNER-TRUST",
-        "dispatch envelope is not signed by a trusted plan signer",
-    )
-    _check(
-        verify_signed_document(plan_signature),
-        "OAK-RUNNER-SIGNATURE",
-        "plan signature does not verify",
-    )
-    _check(
-        plan_signature["signature"]["key_id"] in anchors.plan_signer_key_ids,
-        "OAK-RUNNER-TRUST",
-        "plan signature is not from a trusted plan signer",
-    )
+    # 3. Signatures verified with pinned anchor keys, never the embedded claim.
+    _verify_against_anchor(envelope, anchors, "plan-signer", "dispatch envelope")
+    _verify_against_anchor(plan_signature, anchors, "plan-signer", "plan signature")
     _check(
         plan_signature["plan_ref"]["digest"] == envelope["plan_ref"]["digest"],
         "OAK-RUNNER-SIGNATURE",
@@ -139,16 +209,7 @@ def verify_dispatch(
         "plan signature binds a different bundle digest",
     )
     for approval in approvals:
-        _check(
-            verify_signed_document(approval),
-            "OAK-RUNNER-APPROVAL",
-            "approval signature does not verify",
-        )
-        _check(
-            approval["signature"]["key_id"] in anchors.approver_key_ids,
-            "OAK-RUNNER-TRUST",
-            "approval is not signed by a trusted approver",
-        )
+        _verify_against_anchor(approval, anchors, "approver", "approval")
 
     # 4. Tenant, environment, target identity, and locally recomputed fingerprint.
     local_fingerprint = content_digest(canonical_json_bytes(target_document))

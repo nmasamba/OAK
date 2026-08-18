@@ -23,11 +23,19 @@ class RunnerMailbox:
         self._root = root
         self._home = home
 
-    def pending_dispatches(self) -> tuple[tuple[dict[str, Any], dict[str, dict[str, Any]]], ...]:
+    def pending_dispatches(
+        self,
+    ) -> tuple[tuple[str, dict[str, Any], dict[str, dict[str, Any]]], ...]:
+        """Yield (directory name, envelope, attachments).
+
+        The directory name is authoritative for bookkeeping; the envelope's own
+        id is an unverified claim at this point and must never build a path.
+        """
+
         directory = self._root / DISPATCH_DIRECTORY
         if not directory.is_dir():
             return ()
-        results: list[tuple[dict[str, Any], dict[str, dict[str, Any]]]] = []
+        results: list[tuple[str, dict[str, Any], dict[str, dict[str, Any]]]] = []
         for dispatch_dir in sorted(directory.iterdir()):
             if not dispatch_dir.is_dir() or (dispatch_dir / PROCESSED_MARKER).exists():
                 continue
@@ -41,10 +49,11 @@ class RunnerMailbox:
                 document = _read_document(path)
                 if document is not None:
                     attachments[path.stem] = document
-            results.append((envelope, attachments))
+            results.append((dispatch_dir.name, envelope, attachments))
         return tuple(results)
 
     def mark_processed(self, dispatch_id: str) -> None:
+        _check_component(dispatch_id)
         marker = self._root / DISPATCH_DIRECTORY / dispatch_id / PROCESSED_MARKER
         marker.parent.mkdir(parents=True, exist_ok=True)
         marker.write_text("processed\n", encoding="utf-8")
@@ -124,6 +133,13 @@ class RunnerMailbox:
         with os.fdopen(descriptor, "wb") as stream:
             stream.write(payload_bytes)
         return message
+
+
+def _check_component(value: str) -> None:
+    """Refuse any self-declared name that could escape its directory."""
+
+    if not value or "/" in value or "\\" in value or value.startswith(".") or ".." in value:
+        raise ValueError("mailbox document name is unsafe")
 
 
 def _read_document(path: Path) -> dict[str, Any] | None:
