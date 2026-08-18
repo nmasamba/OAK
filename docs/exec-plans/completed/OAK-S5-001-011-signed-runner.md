@@ -275,6 +275,40 @@ Known limitations, deliberately not fixed in this sprint:
 - The signature block's own fields (`role`, `trust_level`) are outside the signed payload.
   Anchor-based verification now makes a mismatch unusable, but the fields remain claims.
 
+## Repository sweep
+
+A separate repository-wide sweep (beyond the Sprint 5 security lenses) found and fixed:
+
+- **A source package excluded from version control.** `.gitignore`'s runtime `artifacts/`
+  rule also matched `src/oak/adapters/artifacts/`, so that package existed in every working
+  tree but in no clean checkout or built wheel, while all ten sibling adapters were tracked.
+  The rule is now anchored to runtime paths.
+- **Documentation contradicting shipped behavior**, including a sentence in
+  `docs/architecture.md` denying runner dispatch two lines above the section describing it,
+  and stale "cannot be dispatched" claims in `docs/compiler-flow.md` and
+  `docs/local-design-case.md`.
+- **Dead code:** the unused `oak.runner.crypto` re-export module and the unread
+  `VerifiedDispatch.operations_by_kind` field were removed, and `READ_ONLY_KINDS` — written
+  as a defense but never connected — now fails closed on an unclassified dispatch kind
+  instead of silently inheriting the dry-run approval.
+
+Recorded but not changed, because each needs a decision rather than an edit:
+
+- `STATUS.md` and `CHANGELOG.md` still describe OpenAPI compatibility CI wiring as deferred,
+  but `.github/workflows/ci.yml` runs `make check`, which has included
+  `openapi-compatibility` since Sprint 3. The gate is enforced in CI without the workflow
+  ever being edited, so `OAK-S3-008` may be completable without touching `.github`.
+- `tests/integration/test_persistent_api.py` is gated on `OAK_TEST_DATABASE_URL`, which CI
+  never sets, so twenty integration tests skip silently there. Compose also publishes no
+  host port for PostgreSQL, which is why the variable is usually unset locally too.
+- `test_mutating_dispatch_applies_and_rolls_back` verifies a dispatch but never executes it;
+  real apply/rollback coverage lives only in the Docker-gated end-to-end test.
+- `src/oak/compiler/planning.py` still emits a `not_signed` marker whose reason says signing
+  is not implemented. It is canonical, digest-bound content, so correcting it shifts bundle
+  digests and needs a deliberate migration.
+- The suite takes roughly nine minutes, about eighty per cent of it rebuilding the same
+  compiled fixture eleven times; a session-scoped template would remove most of that.
+
 ## Discoveries and follow-ups
 
 - `tests/e2e/test_cli.py::test_unimplemented_runner_fails_honestly` was replaced by tests

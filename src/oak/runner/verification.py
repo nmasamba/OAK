@@ -144,7 +144,6 @@ class VerifiedDispatch:
     envelope: dict[str, Any]
     plan: dict[str, Any]
     bundle: dict[str, Any]
-    operations_by_kind: dict[str, dict[str, Any]]
     requested_kinds: tuple[str, ...]
     operations: tuple[dict[str, Any], ...]
     """Exactly the operations verification approved, in plan order."""
@@ -394,7 +393,6 @@ def verify_dispatch(
         envelope=envelope,
         plan=plan,
         bundle=bundle,
-        operations_by_kind=operations_by_kind,
         requested_kinds=requested,
         operations=ordered,
     )

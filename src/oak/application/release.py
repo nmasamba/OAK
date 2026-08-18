@@ -338,6 +338,14 @@ class ReleaseService:
         if signature_document["plan_ref"]["digest"] != plan_ref.digest:
             raise OAKError("OAK-DISPATCH-SIGNATURE", "plan signature binds a different plan")
         approvals = (current.extensions or {}).get("oak.community/approval_refs", {})
+        unknown_kinds = [
+            kind
+            for kind in kinds
+            if kind not in MUTATING_ACTION_BY_KIND and kind not in READ_ONLY_KINDS
+        ]
+        if unknown_kinds:
+            # A kind in neither set must not silently inherit the dry-run approval.
+            raise OAKError("OAK-DISPATCH-KINDS", "dispatch requested an unclassified kind")
         required_actions = {MUTATING_ACTION_BY_KIND.get(kind, "dry_run") for kind in kinds}
         approval_documents: dict[str, dict[str, Any]] = {}
         approval_references: list[ArtifactReference] = []

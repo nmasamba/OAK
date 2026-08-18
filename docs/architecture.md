@@ -28,7 +28,7 @@ runner -> runner-owned protocols and adapters
 - `oak.interfaces` maps transport requests to application requests and results. It does not write state directly.
 - `oak.runner` remains a separate package boundary and has no control-plane database or model dependency.
 
-Automated AST checks enforce these dependency directions and reject shell execution patterns outside the future runner/deployment-adapter boundary.
+Automated AST checks enforce these dependency directions and reject shell execution patterns outside the runner/deployment-adapter boundary.
 
 ## Current interface paths
 
@@ -84,7 +84,7 @@ JSON Schema Draft 2020-12 files in `schemas/` are the external contract authorit
 
 ## Compiler and runner boundary
 
-The compiler bundles synthetic catalogue data and works offline. It emits a byte-stable semantic manifest plus a schema-valid deployment bundle and `draft` runner plan. Explicit target-profile invocation data is tenant-bound and checked against the selected candidate's platform, resource, and read-only operation requirements; the control-plane host is never inferred as the target. The plan contains only inventory, validation, rendering, planning, and verification operation kinds; recursive parameter validation rejects command/shell/executable fields. There is no runner dispatch or target connection.
+The compiler bundles synthetic catalogue data and works offline. It emits a byte-stable semantic manifest plus a schema-valid deployment bundle and `draft` runner plan. Explicit target-profile invocation data is tenant-bound and checked against the selected candidate's platform, resource, and read-only operation requirements; the control-plane host is never inferred as the target. For a read-only target profile the plan contains only inventory, validation, rendering, planning, and verification operation kinds; an acknowledged non-production mutation profile additionally receives typed apply, rollback, and destroy operations. Recursive parameter validation rejects command/shell/executable fields in every case. Dispatch and target access require the signing, approval, and runner verification described below.
 
 ## Signing, approval, and the runner trust domain
 

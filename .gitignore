@@ -125,7 +125,10 @@ junit.xml
 oak-workspace/
 case-export/
 oak-export*/
-artifacts/
+# Runtime output only; anchored so it cannot swallow a source package such as
+# src/oak/adapters/artifacts/.
+/artifacts/
+.oak/**/artifacts/
 .cache/
 tmp/
 temp/
