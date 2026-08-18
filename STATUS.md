@@ -6,8 +6,9 @@
 - **Repository version:** `0.5.0.dev5`
 - **Phase:** Sprint 4 complete — architecture web workspace verified
 - **Completed plans:** `docs/exec-plans/completed/OAK-S0-001-009-walking-skeleton.md`, `docs/exec-plans/completed/OAK-S1-001-010-local-design-case.md`, `docs/exec-plans/completed/OAK-S2-001-011-candidate-planning.md`, `docs/exec-plans/completed/OAK-S3-001-009-persistent-rest-jobs.md`, and `docs/exec-plans/completed/OAK-S4-001-009-web-workspace.md`
-- **Active plan:** none — authoring the Sprint 5 signed typed runner ExecPlan is the next step
-- **Next task:** author and claim the Sprint 5 (`OAK-S5-001`–`OAK-S5-011`) ExecPlan;
+- **Active plan:** `docs/exec-plans/active/OAK-S5-001-011-signed-runner.md`
+- **Next task:** Sprint 5 Milestone 1 — signing port, trust lifecycle, and the signed
+  dispatch envelope;
   CI compatibility wiring remains explicitly deferred by user direction
 
 ## Claimed work

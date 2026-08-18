@@ -1,0 +1,216 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
+# OAK-S5-001–011: Signed typed runner and GitOps boundary
+
+## Status
+
+- Owner/agent: Claude
+- Started: 2026-08-18
+- Last updated: 2026-08-18 18:20 BST
+- State: in-progress
+- Claimed tasks: `OAK-S5-001`–`OAK-S5-011`
+
+## Outcome
+
+With the runner unable to receive inbound connections, the control plane signs the compiled
+draft runner plan into an immutable dispatch envelope, records digest/target/action/expiry
+bound approvals, and dispatches a lease through an outbound-only local mailbox. `oak-runner`
+independently verifies protocol version, plan and bundle digests, signature and trust
+policy, target fingerprint, lease/nonce/expiry, approvals, adapter identity and
+parameter-schema digests, and the permission envelope before any target access. Tampering
+one plan byte, changing the target fingerprint, or removing an approval blocks before any
+adapter call. The allowed plan dry-runs, applies, and rolls back only the isolated
+non-production fixture profile, leaving a hash-chained journal and bounded redacted
+evidence, and `oak gitops` renders deterministic branch-ready files with a change proposal
+and patch description that never promote automatically.
+
+## Context and invariants
+
+Sprint 4 is merged at `588ead3`. `oak.runner` is an empty trust-domain package and
+`oak-runner` is a placeholder exiting 69. The compiler already emits a draft immutable
+`RunnerPlan` whose schema anticipates Sprint 5 (status through `manual_recovery_required`,
+apply/rollback/destroy kinds, lease policy `{300s, 30s heartbeat, require_nonce}`, evidence
+policy with redaction, `supply_chain` binding plan digest + signature ref + verification
+policy ref), plus `signature.pending` and `verification-policy` review artifacts and an
+`approvals` PostgreSQL table that no code reads yet.
+
+Governing requirements: `OAK-FR-CTL-005`–`009`, `OAK-FR-DEP-001`–`008`,
+`OAK-NFR-SEC-001`–`006`, `OAK-NFR-REL-001`–`002`; ADR-0015 (typed runner operations),
+ADR-0002, ADR-0008, ADR-0013; threat model TM-01, TM-06–09, TM-16, TM-18; the
+security-invariants "Runner execution" checklist; and the skills.md "Runner safety" and
+"Deployment adapter" recipes with Security review as the reviewing lens.
+
+Hard invariants:
+
+- The runner executes only typed operations from a schema-valid plan; no `command`,
+  `shell`, `executable`, or `argv` field may appear in any canonical document; adapters map
+  validated typed fields to a fixed allowlisted executable and argument vector with
+  `shell=False`, a sanitized environment, and output/time bounds.
+- Plans and apply authorizations are separately signed objects; a plan alone never
+  authorizes apply, and no development shortcut can reach a target unsigned.
+- The runner trusts nothing because it came from the control plane: every check runs
+  runner-side before any target connection, and unknown kinds/adapters/schemas fail closed.
+- Compiled canonical artifacts stay immutable: signing wraps the draft plan's digest in a
+  separate envelope artifact rather than editing the plan.
+- The runner has no control-plane database access, no inbound port, and a separate
+  identity; proposal, approval, signing, and mutation never collapse into one actor, and no
+  model output authorizes anything.
+- Secrets appear only as references; the fixture profile allows none, and the verifier
+  enforces the target's allowed-reference set before resolution would ever occur.
+
+## Scope
+
+### In
+
+- Ed25519 signing through a new `SigningPort` with a local key-lifecycle adapter
+  (`cryptography` as a reviewed locked dependency), explicit development-mode trust marker,
+  and an `oak keys` CLI for init/inspect.
+- A signed immutable dispatch envelope over the draft plan digest, a signed approval
+  document bound to plan/bundle digest, target identity, environment, action, actor, nonce,
+  and expiry, with revocation; `oak sign`, `oak approve`, `oak revoke-approval` CLI.
+- Versioned runner protocol messages (register/inventory, poll/lease, progress, evidence,
+  heartbeat, completion) with protocol version, identities, correlation/operation IDs,
+  nonces, and expiry; an outbound-only filesystem mailbox transport for Community local
+  mode (the runner reads and writes only its mailbox, journal, and target).
+- Runner-side plan verifier implementing the security-invariants checklist before target
+  access; hash-chained append-only journal with before/after checkpoints, crash resume,
+  cooperative cancellation, and `manual_recovery_required`.
+- Bounded local inventory adapter (platform/CPU/RAM/storage capabilities via standard
+  APIs; no file scraping or secret access) producing a sanitized target fingerprint digest.
+- Local container adapter: typed render/plan/verify plus isolated reversible apply
+  (digest-pinned `docker create --network=none` of a labelled, never-started container) and
+  rollback/destroy of exactly the journaled name, only for an explicit non-production
+  target profile; allowlisted argv, injected executor for hermetic tests.
+- Target-profile schema evolution to `0.2.0` (additive): a `non-production-local` status
+  whose mutation permission requires development/validation environment and an explicit
+  acknowledgement field; the `0.1.0` fixture stays valid and read-only.
+- Dispatch and ingestion: `oak dispatch` (issues the signed lease envelope; requires
+  signature and approvals per the verification policy), `oak-runner run-once` /
+  `--poll`, `oak runner-status` ingesting evidence/completion with delivery
+  never treated as success.
+- Deterministic GitOps output: `oak gitops` renders branch-ready normalized files, a
+  schema-valid change proposal, and a patch/PR description; promotion remains manual.
+- Adversarial suite: tampered/forged/stale/replayed/revoked/wrong-target envelopes and
+  approvals, command/path/environment injection attempts, executable substitution, output
+  flooding, lease loss, crash resume, rollback failure to `manual_recovery_required`, and
+  secret/environment redaction.
+- New canonical schemas (`approval`, `runner-envelope`, `runner-message`,
+  `runner-evidence`) registered with conformance examples; docs, STATUS, CHANGELOG,
+  dependency review updates; `oak-runner` entrypoint repointed with the placeholder test
+  replaced.
+
+### Out
+
+- Any production/customer target, enterprise authentication, remote/networked runner
+  transport (the protocol is transport-neutral; HTTP polling arrives with Sprint 7
+  interface parity), Kubernetes or second deployment adapter (Sprint 6), OPA/policy packs
+  (Sprint 6), real secret resolution (the fixture forbids references), Git provider PR
+  creation (optional adapter later), `.github` CI wiring (still explicitly deferred), and
+  the PostgreSQL `approvals` table wiring (approvals are canonical signed artifacts in
+  Community local mode; the table remains for the later deployment controller).
+
+## Contract and data changes
+
+New additive canonical schemas: `approval.schema.json`, `runner-envelope.schema.json`
+(signed dispatch envelope + lease), `runner-message.schema.json` (protocol messages), and
+`runner-evidence.schema.json` (journaled evidence/completion). Target profile evolves
+additively to `0.2.0` as above. The runner-plan and deployment-bundle schemas are
+unchanged; compiled artifacts remain byte-stable. No database schema change. No REST
+surface change (CLI-first; Sprint 7 owns interface parity), so OpenAPI is untouched.
+
+## Milestones
+
+1. **Signing and trust (`OAK-S5-004`, part `OAK-S5-002`)** — `cryptography` dependency
+   review and lock; `SigningPort` + local Ed25519 adapter with 0600 key files, explicit
+   `development` trust marker, and deterministic canonical-bytes signing; `oak keys`;
+   envelope/approval schemas; `oak sign` producing the signed envelope artifact.
+   Proof: signing round-trips; a flipped byte fails verification; unsigned dispatch is
+   impossible because dispatch requires the envelope.
+2. **Runner core (`OAK-S5-001`, `OAK-S5-002`, `OAK-S5-003`)** — protocol messages, the
+   full pre-target verifier, hash-chained journal with resume/cancel/manual-recovery.
+   Proof: unit suites over every verifier denial and journal transition; the journal
+   detects tampering of any prior entry.
+3. **Approvals (`OAK-S5-008`)** — signed approval artifacts with revocation and the CLI;
+   verifier consumes approvals for mutating kinds only.
+   Proof: forged/stale/wrong-target/replayed/revoked all denied before adapter calls.
+4. **Adapters (`OAK-S5-005`, `OAK-S5-006`)** — inventory + container adapters with
+   parameter schemas and digests, allowlisted argv, injected executor.
+   Proof: fingerprint is stable and secret-free; argv construction rejects every injection
+   fixture; apply/rollback round-trip against real Docker in a gated integration test.
+5. **Dispatch and lifecycle (`OAK-S5-007`, `OAK-S5-009`)** — mailbox dispatch, lease
+   issuance, runner execution loop, evidence/completion ingestion, rollback/destroy,
+   `manual_recovery_required`.
+   Proof: the exit journey end-to-end; delivery-versus-success separation; crash resume.
+6. **GitOps, adversarial closure (`OAK-S5-010`, `OAK-S5-011`)** — `oak gitops`,
+   the full adversarial suite, exit demonstration test, docs/status updates, entrypoint
+   repoint.
+   Proof: byte-identical GitOps output across clean runs; complete adversarial matrix
+   green; `make check` and the Compose journey unchanged.
+
+Rollback for every milestone: revert the branch; compiled canonical artifacts and all
+Sprint ≤4 behavior are untouched until the `oak-runner` entrypoint repoint in Milestone 6,
+and file mode remains the source of truth.
+
+## Verification
+
+Unit/contract suites for signing, envelope, approval, protocol, verifier, journal, argv
+construction, and GitOps determinism; integration suites for the mailbox dispatch journey,
+Docker-gated apply/rollback, crash resume, and the adversarial matrix; the E2E exit
+demonstration; schema conformance for the four new schemas; `make check`, `make audit`,
+`make sbom`; documentation policy scan and `.github`-unchanged check.
+
+## Security, privacy and authority review
+
+The signer, approver, dispatcher, and runner are separate identities; Community local mode
+labels every trust anchor `development` and never claims production assurance. All
+verification is fail-closed and runner-side. Evidence is category-allowlisted, size-capped,
+and redacted (secret/credential/environment patterns) before leaving the runner; journals
+are append-only and hash-chained. Argv never includes plan-supplied executables; the
+executable allowlist is code, not data. The mailbox contains only signed canonical
+documents; a tampered mailbox file is an expected adversarial case and is denied. No
+canonical or runner document may contain `command`/`shell`/`executable`/`argv` fields.
+
+## Operational and rollback plan
+
+Keys live under a local trust directory (0600, gitignored) created by `oak keys init`;
+losing them invalidates outstanding envelopes/approvals, which are re-signable from
+canonical artifacts. The mailbox and journal are plain directories; recovery is re-dispatch
+after inspection, and `manual_recovery_required` states demand explicit operator action
+(`oak-runner resume` re-verifies everything first). Docker mutations are labelled,
+never-started containers removable by name; `docker compose` behavior is unchanged.
+
+## Progress
+
+- [x] 2026-08-18 18:20 BST Fast-forwarded `main` to `588ead3` (PR #6 merged), created
+  `claude/sprint-5-signed-runner`, gathered governance/contract/code-seam context, and
+  authored this plan; claimed `OAK-S5-001`–`011`.
+- [ ] Milestone 1 — signing, trust, envelope, approval schemas, `oak keys`/`oak sign`.
+- [ ] Milestone 2 — protocol, verifier, journal.
+- [ ] Milestone 3 — approvals and revocation.
+- [ ] Milestone 4 — inventory and container adapters.
+- [ ] Milestone 5 — dispatch, execution lifecycle, rollback/destroy.
+- [ ] Milestone 6 — GitOps output, adversarial closure, exit demonstration, docs.
+
+## Decisions
+
+- 2026-08-18 Sign an immutable envelope over the draft plan digest instead of mutating the
+  compiled plan: canonical artifacts stay byte-stable and `supply_chain.plan_digest` is the
+  binding the runner verifies.
+- 2026-08-18 Use Ed25519 via the `cryptography` package (Apache-2.0/BSD dual licence,
+  maintained by the PyCA project) behind a `SigningPort`; the runner imports only the
+  verify primitive, keeping signer and verifier identities separate.
+- 2026-08-18 Community local dispatch is an outbound-only filesystem mailbox: the runner
+  never listens, shares no database, and the protocol messages are transport-neutral so
+  Sprint 7 can add a polling HTTP transport without changing verification.
+- 2026-08-18 Approvals are signed canonical artifacts in Community local mode; the
+  Sprint 3 `approvals` table stays unused until a deployment controller exists.
+- 2026-08-18 The container adapter's apply is `docker create --network=none` of a
+  digest-pinned, labelled, never-started container: a real, observable, fully reversible
+  local mutation with no code execution inside the container.
+
+## Discoveries and follow-ups
+
+- `tests/e2e/test_cli.py::test_unimplemented_runner_fails_honestly` pins the placeholder
+  exit 69 and must be replaced when the entrypoint is repointed (Milestone 6).
+- `docs/development.md` ("the project does not start a runner") and the STATUS.md safety
+  boundary must be revised in Milestone 6, not silently contradicted.
