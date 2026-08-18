@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: Apache-2.0
+action: dry_run
+actor: local-user
+bundle_digest: sha256:1e6ed65d77d6364eeaed5a745ba5c4985ae2b700dd85d7cf7f027bdf294a33fc
+case_id: design-case.public-manual-qa
+environment: validation
+expires_at: '2026-08-19T18:01:00Z'
+extensions: {}
+id: approval.dry-run.bundle.candidate-03.target.local-fixture
+issued_at: '2026-08-18T18:01:00Z'
+nonce: 77feef004cfd54bb56ff372d9f710033fb2b0193a0223198afca449138aa0384
+plan_digest: sha256:64879f7d6b960a01909762d911a32d4582c20010c5641ee90278b644a9e3b525
+revocation_reason: null
+revoked: false
+revoked_at: null
+schema_version: 0.1.0
+signature:
+  algorithm: ed25519
+  key_id: sha256:6198462de9e49b95612b45a2a20ace9627d4ec352b90a575a04c1a2df8a5356e
+  public_key_base64: rdtZWOUOma6jJT7+fJRK8yTfQEuggqCNIFPlL0oUsmM=
+  role: approver
+  signature_base64: fuF3bdVKwJqH1Bbsz9FDh9PdSAwnC0xN8v2DpfjEbqsyNkVKdak15TZK8us1oXbE1DcIJ16aHoocgYORX4mzAw==
+  trust_level: development
+target_fingerprint: sha256:44863b03e9909b7100e05b02526909a346fd7455183f6619e0fe6198c89981e0
+target_id: target.local-fixture
+tenant_id: local

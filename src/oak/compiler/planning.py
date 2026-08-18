@@ -15,25 +15,23 @@ from oak.domain import (
     content_digest,
     json_artifact,
 )
+from oak.domain.runner_adapters import (
+    ADAPTER_IDENTITY_BY_ID,
+    CONTAINER_ADAPTER_ID,
+    REVIEW_ADAPTER_DIGEST,
+    REVIEW_ADAPTER_ID,
+    REVIEW_ADAPTER_VERSION,
+    REVIEW_PARAMETER_SCHEMA_DIGEST,
+)
 
 BUNDLE_MEDIA_TYPE = "application/vnd.oak.deployment-bundle+json"
 RUNNER_PLAN_MEDIA_TYPE = "application/vnd.oak.runner-plan+json"
 REVIEW_MEDIA_TYPE = "application/vnd.oak.review-artifact+json"
-ADAPTER_ID = "adapter.local-review"
-ADAPTER_VERSION = "0.1.0"
-ADAPTER_DIGEST = content_digest(
-    canonical_json_bytes(
-        {"id": ADAPTER_ID, "version": ADAPTER_VERSION, "authority": "read-only-planning"}
-    )
-)
-PARAMETER_SCHEMA_DIGEST = content_digest(
-    canonical_json_bytes(
-        {
-            "allowed_keys": ["artifact", "mode", "target_profile_id"],
-            "additional_properties": False,
-        }
-    )
-)
+ADAPTER_ID = REVIEW_ADAPTER_ID
+ADAPTER_VERSION = REVIEW_ADAPTER_VERSION
+ADAPTER_DIGEST = REVIEW_ADAPTER_DIGEST
+PARAMETER_SCHEMA_DIGEST = REVIEW_PARAMETER_SCHEMA_DIGEST
+MUTATION_KINDS = ("apply", "verify", "rollback", "destroy")
 
 
 @dataclass(frozen=True, slots=True)
@@ -387,6 +385,14 @@ def _runner_plan_document(
             }
         )
         previous.append(operation_id)
+    if target["permissions"].get("mutation_allowed") is True:
+        operations.extend(
+            _mutation_operations(
+                target=target,
+                target_fingerprint=target_fingerprint,
+                depends_on=previous[-1:],
+            )
+        )
     plan_digest = content_digest(
         canonical_json_bytes(
             {
@@ -427,6 +433,68 @@ def _runner_plan_document(
         },
         "extensions": {"oak.community/dispatch_allowed": False},
     }
+
+
+def _mutation_operations(
+    *,
+    target: dict[str, Any],
+    target_fingerprint: str,
+    depends_on: list[str],
+) -> list[dict[str, Any]]:
+    execution = target.get("execution")
+    if not isinstance(execution, dict):
+        raise OAKError(
+            "OAK-TARGET-EXECUTION",
+            "mutation-capable target profile is missing its execution block",
+        )
+    allowed = set(target["permissions"]["allowed_operations"])
+    container_name = "oak-fixture-" + str(target["id"]).removeprefix("target.")
+    parameters = {
+        "container_name": container_name,
+        "image_reference": str(execution["container_image_reference"]),
+        "image_digest": str(execution["container_image_digest"]),
+        "isolation": "network-none-never-started",
+    }
+    identity = ADAPTER_IDENTITY_BY_ID[CONTAINER_ADAPTER_ID]
+    operations: list[dict[str, Any]] = []
+    previous = list(depends_on)
+    failure_by_kind = {
+        "apply": "rollback",
+        "rollback": "manual_recovery",
+        "destroy": "manual_recovery",
+    }
+    for index, kind in enumerate(("apply", "rollback", "destroy"), start=1):
+        if kind not in allowed:
+            continue
+        operation_id = f"operation.{kind}"
+        operations.append(
+            {
+                "id": operation_id,
+                "kind": kind,
+                "adapter": dict(identity),
+                "artifact_refs": [],
+                "parameters": dict(parameters),
+                "secret_references": [],
+                "permissions": {
+                    "resource_types": ["local-fixture-container"],
+                    "verbs": ["get", "list", "create", "delete"],
+                    "namespaces": ["fixture"],
+                    "network_destinations": [],
+                },
+                "timeout_seconds": 120,
+                "retry_policy": {
+                    "max_attempts": 1,
+                    "backoff_seconds": 0,
+                    "retryable_errors": [],
+                },
+                "idempotency_key": f"fixture-{kind}-operation-{index:02d}",
+                "expected_state_digest": target_fingerprint,
+                "failure_action": failure_by_kind[kind],
+                "depends_on": previous[-1:],
+            }
+        )
+        previous.append(operation_id)
+    return operations
 
 
 def _reject_execution_fields(document: Any) -> None:
@@ -517,18 +585,33 @@ def _target_preflight(candidate: dict[str, Any], target: dict[str, Any]) -> list
             "id": "preflight.policy",
             "category": "policy",
             "result": "pass"
-            if target["permissions"]["mutation_allowed"] is False
-            and required_operations.issubset(allowed)
+            if required_operations.issubset(allowed)
+            and (
+                target["permissions"]["mutation_allowed"] is False
+                or (
+                    target.get("status") == "non-production-local"
+                    and isinstance(target.get("execution"), dict)
+                    and "rollback" in allowed
+                )
+            )
             else "fail",
-            "reason": "The target allows every required read-only operation and no mutation.",
+            "reason": (
+                "The target allows every required read-only operation and either no "
+                "mutation or an acknowledged isolated reversible fixture mutation."
+            ),
             "evidence": target["permissions"],
         },
         {
             "id": "preflight.rollback",
             "category": "rollback",
-            "result": "pass",
-            "reason": "No target mutation occurs; rollback remains restoration of reviewed state.",
-            "evidence": {"mutation_allowed": False},
+            "result": "pass"
+            if target["permissions"]["mutation_allowed"] is False or "rollback" in allowed
+            else "fail",
+            "reason": (
+                "Rollback is restoration of reviewed state, and any permitted mutation "
+                "carries a typed rollback operation."
+            ),
+            "evidence": {"mutation_allowed": target["permissions"]["mutation_allowed"]},
         },
     ]
 

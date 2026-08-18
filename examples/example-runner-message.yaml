@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: Apache-2.0
+correlation_id: correlation-dispatch-1
+environment: validation
+extensions: {}
+id: runner-message.completion.dispatch.1
+kind: completion
+lease_id: lease.dispatch.1
+nonce: b5697402e8f7e7a527cffa8ab0289f68dfb220619576bcdb041e1ade87e34a2a
+occurred_at: '2026-08-18T18:05:00Z'
+operation_id: op.verify-fixture
+payload:
+  evidence_categories:
+  - diff
+  - inventory
+  journal_digest: sha256:81dd6b775afcccb6dbb8a25a58ea844271bbefaeea7cb1d91c1687d7450f850c
+  outcome: succeeded
+  verified_state_digest: sha256:4ba69735ca53765ed6a709edb56c6ea236b7193a3b29a6b390c346f0f4340e4e
+protocol_version: 0.1.0
+runner_id: runner.local-fixture-runner
+schema_version: 0.1.0
+sequence: 7
+signature:
+  algorithm: ed25519
+  key_id: sha256:16febc1f2f3f1a7c9beb2c94430f5309ea9b8035e74a5269f4edc90ffe2d6450
+  public_key_base64: IewUKARJiOc4tulODUUCW091uTmZR1OSsZ1qnw9gSeY=
+  role: runner
+  signature_base64: qu8HY0ZlyGdV59PW9IBZKs2VrRnGX/6sj/M7TMmwv8FE2VaGLHrYO4MBdfnijlD2TJoDL/00KCwhhU1YmA2IDA==
+  trust_level: development
+tenant_id: local

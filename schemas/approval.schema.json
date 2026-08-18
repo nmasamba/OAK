@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://oak.example/schemas/approval.schema.json",
+  "title": "Approval",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "id", "case_id", "tenant_id", "environment", "action", "plan_digest", "bundle_digest", "target_id", "target_fingerprint", "actor", "nonce", "issued_at", "expires_at", "revoked", "revoked_at", "revocation_reason", "signature", "extensions"],
+  "properties": {
+    "schema_version": {"const": "0.1.0"},
+    "id": {"$ref": "common.schema.json#/$defs/identifier"},
+    "case_id": {"$ref": "common.schema.json#/$defs/identifier"},
+    "tenant_id": {"type": "string", "minLength": 1, "maxLength": 160},
+    "environment": {"enum": ["development", "validation", "staging"]},
+    "action": {"enum": ["dry_run", "apply", "rollback", "destroy"]},
+    "plan_digest": {"$ref": "common.schema.json#/$defs/digest"},
+    "bundle_digest": {"$ref": "common.schema.json#/$defs/digest"},
+    "target_id": {"$ref": "common.schema.json#/$defs/identifier"},
+    "target_fingerprint": {"$ref": "common.schema.json#/$defs/digest"},
+    "actor": {"type": "string", "minLength": 1, "maxLength": 160},
+    "nonce": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "issued_at": {"type": "string", "format": "date-time"},
+    "expires_at": {"type": "string", "format": "date-time"},
+    "revoked": {"type": "boolean"},
+    "revoked_at": {"anyOf": [{"type": "string", "format": "date-time"}, {"type": "null"}]},
+    "revocation_reason": {"anyOf": [{"type": "string", "minLength": 1, "maxLength": 500}, {"type": "null"}]},
+    "signature": {"$ref": "common.schema.json#/$defs/signatureBlock"},
+    "extensions": {"$ref": "common.schema.json#/$defs/extensions"}
+  }
+}

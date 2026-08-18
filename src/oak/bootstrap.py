@@ -6,6 +6,7 @@ from pathlib import Path
 
 from oak import __version__
 from oak.adapters.catalogue import LocalCatalogue
+from oak.adapters.dispatch import FilesystemMailbox
 from oak.adapters.intake import LocalBriefIntake
 from oak.adapters.persistence import (
     FileWorkspaceRepository,
@@ -16,6 +17,7 @@ from oak.adapters.persistence import (
     PostgreSQLWorkspaceRepository,
     create_postgresql_engine,
 )
+from oak.adapters.signing import LocalEd25519Signer, initialize_trust_directory
 from oak.adapters.targets import LocalTargetProfile
 from oak.application import (
     CandidatePlanningService,
@@ -24,8 +26,10 @@ from oak.application import (
     DesignCaseService,
     OperationService,
     OperationWorker,
+    ReleaseService,
     SystemInformationService,
 )
+from oak.application.gitops import GitOpsRenderer
 from oak.compiler import DeterministicBriefInterpreter
 from oak.contracts import SchemaRegistry
 from oak.domain import SystemInformation
@@ -100,6 +104,45 @@ def create_candidate_planning_service(workspace: Path) -> CandidatePlanningServi
         LocalTargetProfile(registry),
         registry,
     )
+
+
+def default_trust_directory() -> Path:
+    configured = os.getenv("OAK_TRUST_DIRECTORY")
+    if configured:
+        return Path(configured).absolute()
+    return Path.home() / ".oak" / "trust"
+
+
+def default_mailbox_directory() -> Path:
+    configured = os.getenv("OAK_DISPATCH_MAILBOX")
+    if configured:
+        return Path(configured).absolute()
+    return Path.home() / ".oak" / "mailbox"
+
+
+def initialize_local_trust() -> tuple[dict[str, str], ...]:
+    """Create missing local signing keys and return their public identities."""
+
+    return tuple(
+        identity.to_document() for identity in initialize_trust_directory(default_trust_directory())
+    )
+
+
+def create_release_service(workspace: Path) -> ReleaseService:
+    registry = SchemaRegistry.from_directory(canonical_schema_directory())
+    repository = FileWorkspaceRepository(workspace, registry)
+    trust_directory = default_trust_directory()
+    return ReleaseService(
+        repository,
+        registry,
+        lambda role: LocalEd25519Signer.load(trust_directory, role),
+        FilesystemMailbox(default_mailbox_directory()),
+    )
+
+
+def create_gitops_renderer(workspace: Path) -> GitOpsRenderer:
+    registry = SchemaRegistry.from_directory(canonical_schema_directory())
+    return GitOpsRenderer(FileWorkspaceRepository(workspace, registry))
 
 
 def create_persistent_control_plane() -> CommunityControlPlane:

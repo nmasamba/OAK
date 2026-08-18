@@ -6,9 +6,9 @@
   "additionalProperties": false,
   "required": ["target_profile_version", "id", "status", "environment", "tenant_id", "platform", "capacity", "network", "permissions", "secrets", "notes"],
   "properties": {
-    "target_profile_version": {"const": "0.1.0"},
+    "target_profile_version": {"enum": ["0.1.0", "0.2.0"]},
     "id": {"$ref": "common.schema.json#/$defs/identifier"},
-    "status": {"const": "non-production-fixture"},
+    "status": {"enum": ["non-production-fixture", "non-production-local"]},
     "environment": {"enum": ["development", "validation", "staging"]},
     "tenant_id": {"type": "string", "minLength": 1},
     "platform": {
@@ -46,8 +46,18 @@
       "additionalProperties": false,
       "required": ["mutation_allowed", "allowed_operations"],
       "properties": {
-        "mutation_allowed": {"const": false},
-        "allowed_operations": {"type": "array", "items": {"enum": ["inventory", "validate", "render", "plan", "verify"]}, "uniqueItems": true}
+        "mutation_allowed": {"type": "boolean"},
+        "allowed_operations": {"type": "array", "items": {"enum": ["inventory", "validate", "render", "plan", "verify", "apply", "rollback", "destroy"]}, "uniqueItems": true}
+      }
+    },
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mutation_acknowledgement", "container_image_reference", "container_image_digest"],
+      "properties": {
+        "mutation_acknowledgement": {"const": "isolated-non-production-fixture-only"},
+        "container_image_reference": {"type": "string", "minLength": 3, "maxLength": 300, "pattern": "^[a-z0-9][a-zA-Z0-9./_:@-]*$"},
+        "container_image_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
       }
     },
     "secrets": {
@@ -57,5 +67,32 @@
       "properties": {"allowed_references": {"type": "array", "maxItems": 0}}
     },
     "notes": {"type": "array", "items": {"type": "string"}}
-  }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"target_profile_version": {"const": "0.1.0"}}},
+      "then": {
+        "properties": {
+          "status": {"const": "non-production-fixture"},
+          "permissions": {
+            "properties": {
+              "mutation_allowed": {"const": false},
+              "allowed_operations": {"items": {"enum": ["inventory", "validate", "render", "plan", "verify"]}}
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {"properties": {"permissions": {"properties": {"mutation_allowed": {"const": true}}, "required": ["mutation_allowed"]}},
+      "then": {
+        "required": ["execution"],
+        "properties": {
+          "target_profile_version": {"const": "0.2.0"},
+          "status": {"const": "non-production-local"},
+          "environment": {"enum": ["development", "validation"]}
+        }
+      }
+    }
+  ]
 }
