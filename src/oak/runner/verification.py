@@ -64,6 +64,8 @@ class VerifiedDispatch:
     bundle: dict[str, Any]
     operations_by_kind: dict[str, dict[str, Any]]
     requested_kinds: tuple[str, ...]
+    operations: tuple[dict[str, Any], ...]
+    """Exactly the operations verification approved, in plan order."""
 
 
 def verify_dispatch(
@@ -213,11 +215,22 @@ def verify_dispatch(
         )
 
     # 7-9. Operations: allowlisted adapters, parameter schemas, permissions.
+    # Every operation the runner will execute is verified individually. Operation
+    # kinds must be unique so that verification and execution cannot diverge: a
+    # duplicate kind would otherwise let an unverified operation run alongside a
+    # verified one.
     requested = tuple(envelope["requested_kinds"])
     operations_by_kind: dict[str, dict[str, Any]] = {}
     for operation in plan["operations"]:
-        operations_by_kind[str(operation["kind"])] = operation
+        kind_key = str(operation["kind"])
+        _check(
+            kind_key not in operations_by_kind,
+            "OAK-RUNNER-OPERATION",
+            "plan contains more than one operation of the same kind",
+        )
+        operations_by_kind[kind_key] = operation
     approvals_by_action = {approval["action"]: approval for approval in approvals}
+    verified_operations: list[dict[str, Any]] = []
     for kind in requested:
         operation = operations_by_kind.get(kind)
         _check(
@@ -226,6 +239,7 @@ def verify_dispatch(
             f"plan does not contain a {kind} operation",
         )
         assert operation is not None
+        verified_operations.append(operation)
         adapter = operation["adapter"]
         identity = ADAPTER_IDENTITY_BY_ID.get(str(adapter["id"]))
         _check(
@@ -302,12 +316,16 @@ def verify_dispatch(
     if policy_body.get("requires_signature_before_dispatch") is False:
         raise RunnerDenialError("OAK-RUNNER-POLICY", "verification policy is not acceptable")
 
+    ordered = tuple(
+        operation for operation in plan["operations"] if operation in verified_operations
+    )
     return VerifiedDispatch(
         envelope=envelope,
         plan=plan,
         bundle=bundle,
         operations_by_kind=operations_by_kind,
         requested_kinds=requested,
+        operations=ordered,
     )
 
 

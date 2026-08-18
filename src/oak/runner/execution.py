@@ -82,12 +82,8 @@ def execute_dispatch(
     evidence: list[dict[str, Any]] = []
     applied: list[str] = []
     policy = verified.plan["evidence_policy"]
-    ordered = [
-        operation
-        for operation in verified.plan["operations"]
-        if operation["kind"] in verified.requested_kinds
-    ]
-    for operation in ordered:
+    # Execute exactly what verification approved; never re-derive from the plan.
+    for operation in verified.operations:
         kind = str(operation["kind"])
         if cancellation_requested:
             journal.append("cancellation_observed", now, {"before_operation": kind})
