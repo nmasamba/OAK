@@ -3,9 +3,11 @@ import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 
 import { getVersion } from "./generated/api";
+import { CandidatesPage } from "./pages/CandidatesPage";
 import { CaseListPage } from "./pages/CaseListPage";
 import { CasePage } from "./pages/CasePage";
 import { ConfirmPage } from "./pages/ConfirmPage";
+import { DecisionPage } from "./pages/DecisionPage";
 import { OperationPage } from "./pages/OperationPage";
 import { ReviewPage } from "./pages/ReviewPage";
 import { Link, RouterProvider, matchPath, useRouter } from "./router";
@@ -29,6 +31,14 @@ function Routes() {
   const confirmMatch = matchPath("/cases/:caseId/confirm", path);
   if (confirmMatch?.["caseId"] !== undefined) {
     return <ConfirmPage caseId={confirmMatch["caseId"]} />;
+  }
+  const candidatesMatch = matchPath("/cases/:caseId/candidates", path);
+  if (candidatesMatch?.["caseId"] !== undefined) {
+    return <CandidatesPage caseId={candidatesMatch["caseId"]} />;
+  }
+  const decisionMatch = matchPath("/cases/:caseId/decision", path);
+  if (decisionMatch?.["caseId"] !== undefined) {
+    return <DecisionPage caseId={decisionMatch["caseId"]} />;
   }
   const caseMatch = matchPath("/cases/:caseId", path);
   if (caseMatch?.["caseId"] !== undefined) {

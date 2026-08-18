@@ -209,6 +209,23 @@ export function CasePage({ caseId }: { readonly caseId: string }) {
       {candidates !== null && candidates.length > 0 && (
         <section aria-labelledby="candidates-heading" className="panel">
           <h2 id="candidates-heading">Candidates</h2>
+          <p className="hint">
+            <Link to={`/cases/${encodeURIComponent(caseId)}/candidates`}>
+              Open the full comparison
+            </Link>{" "}
+            for constraints, objective ranges, Pareto status, evaluation, and
+            selection.
+            {caseDocument["selected_candidate_ref"] !== null &&
+              caseDocument["selected_candidate_ref"] !== undefined && (
+                <>
+                  {" "}
+                  <Link to={`/cases/${encodeURIComponent(caseId)}/decision`}>
+                    See the decision and assurance plan
+                  </Link>
+                  .
+                </>
+              )}
+          </p>
           <table>
             <caption className="visually-hidden">
               Architecture candidates for this case

@@ -408,6 +408,28 @@ legend {
   font-weight: 400;
 }
 
+.table-scroll {
+  overflow-x: auto;
+}
+
+.candidate-detail h4 {
+  margin: 1rem 0 0.4rem;
+  font-size: 0.95rem;
+}
+
+.objective-value {
+  font-weight: 700;
+}
+
+details {
+  margin: 0.75rem 0 0;
+}
+
+summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
 .visually-hidden {
   position: absolute;
   width: 1px;
