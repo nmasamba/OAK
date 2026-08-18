@@ -4,11 +4,12 @@
 
 - **Updated:** 2026-08-18
 - **Repository version:** `0.5.0.dev5`
-- **Phase:** Sprint 3 complete — persistent REST control plane and durable jobs verified
+- **Phase:** Sprint 4 — architecture web workspace
 - **Completed plans:** `docs/exec-plans/completed/OAK-S0-001-009-walking-skeleton.md`, `docs/exec-plans/completed/OAK-S1-001-010-local-design-case.md`, `docs/exec-plans/completed/OAK-S2-001-011-candidate-planning.md`, and `docs/exec-plans/completed/OAK-S3-001-009-persistent-rest-jobs.md`
-- **Active plan:** none — authoring the Sprint 4 architecture web workspace ExecPlan is the next step
-- **Next task:** author and claim the Sprint 4 (`OAK-S4-001`–`OAK-S4-009`) ExecPlan;
-  CI compatibility wiring remains explicitly deferred by user direction
+- **Active plan:** `docs/exec-plans/active/OAK-S4-001-009-web-workspace.md`
+- **Next task:** Sprint 4 Milestone 1 — additive list/audit `/v1` read endpoints, `/v1`
+  proxy forwarding, and the routed workspace shell; CI compatibility wiring remains
+  explicitly deferred by user direction
 
 ## Claimed work
 
