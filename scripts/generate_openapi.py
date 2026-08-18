@@ -362,7 +362,9 @@ export async function getJsonArtifact(
   reference: ArtifactReference,
   baseUrl = "",
 ): Promise<JsonObject> {
-  const query = `?version=${encodeURIComponent(reference.version)}&digest=${encodeURIComponent(reference.digest)}`;
+  const version = encodeURIComponent(reference.version);
+  const digest = encodeURIComponent(reference.digest);
+  const query = `?version=${version}&digest=${digest}`;
   return requestJson<JsonObject>(
     `/v1/design-cases/${encodeURIComponent(caseId)}/artifacts/${encodeURIComponent(reference.id)}${query}`,
     {},

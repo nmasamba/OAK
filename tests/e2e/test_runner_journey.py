@@ -16,9 +16,7 @@ MUTATION_TARGET = ROOT / "examples/targets/local-mutation-fixture.yaml"
 
 
 def _run(argv: list[str], cwd: Path, env: dict[str, str]) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        argv, cwd=cwd, env=env, check=False, capture_output=True, text=True
-    )
+    return subprocess.run(argv, cwd=cwd, env=env, check=False, capture_output=True, text=True)
 
 
 def _environment(tmp_path: Path) -> dict[str, str]:
@@ -141,9 +139,7 @@ def test_signed_apply_and_rollback_touch_only_the_fixture_container(tmp_path: Pa
     ):
         result = _run([str(OAK), *step], workspace, environment)
         assert result.returncode == 0, result.stderr
-    dispatched = _run(
-        [str(OAK), "dispatch", "apply", "verify", "rollback"], workspace, environment
-    )
+    dispatched = _run([str(OAK), "dispatch", "apply", "verify", "rollback"], workspace, environment)
     assert dispatched.returncode == 0, dispatched.stderr
 
     runner_environment = dict(environment)
