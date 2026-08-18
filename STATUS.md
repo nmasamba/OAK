@@ -2,12 +2,12 @@
 
 # Build status
 
-- **Updated:** 2026-08-17
+- **Updated:** 2026-08-18
 - **Repository version:** `0.5.0.dev5`
-- **Phase:** Sprint 3 verification — persistent REST control plane and durable jobs
-- **Completed plans:** `docs/exec-plans/completed/OAK-S0-001-009-walking-skeleton.md`, `docs/exec-plans/completed/OAK-S1-001-010-local-design-case.md`, and `docs/exec-plans/completed/OAK-S2-001-011-candidate-planning.md`
-- **Active plan:** `docs/exec-plans/active/OAK-S3-001-009-persistent-rest-jobs.md`
-- **Next task:** finish pinned PostgreSQL 17.6 Compose plus web build/audit/SBOM verification;
+- **Phase:** Sprint 3 complete — persistent REST control plane and durable jobs verified
+- **Completed plans:** `docs/exec-plans/completed/OAK-S0-001-009-walking-skeleton.md`, `docs/exec-plans/completed/OAK-S1-001-010-local-design-case.md`, `docs/exec-plans/completed/OAK-S2-001-011-candidate-planning.md`, and `docs/exec-plans/completed/OAK-S3-001-009-persistent-rest-jobs.md`
+- **Active plan:** none — authoring the Sprint 4 architecture web workspace ExecPlan is the next step
+- **Next task:** author and claim the Sprint 4 (`OAK-S4-001`–`OAK-S4-009`) ExecPlan;
   CI compatibility wiring remains explicitly deferred by user direction
 
 ## Claimed work
@@ -88,10 +88,24 @@
   return the original durable Operation before re-evaluating an obsolete case precondition;
   correlation, time, interface origin, and later observed version remain audit metadata rather
   than changing the semantic request identity.
-- Six of seven end-to-end tests passed; the process-level API test was blocked only because the
-  managed sandbox denied binding an ephemeral loopback socket. The approval system also denied
-  restoration of the locked pnpm workspace after it was recreated, leaving web format/type/
-  build/audit and final image/Compose execution pending. Source and lockfile checks remain clean.
+- 2026-08-18 verification cleared the previously blocked items: `pnpm install --frozen-lockfile`
+  restored the locked web workspace; web format/type/build gates passed; Python and web
+  dependency audits reported no known vulnerabilities; `make sbom` regenerated the ignored
+  development SBOM; and all seven end-to-end tests passed, including the previously
+  sandbox-blocked process-level loopback API test.
+- The full `make check` aggregate gate passed. The complete integration suite ran against the
+  pinned Compose `postgres:17.6-alpine` image (40 passed, 4 file-only parameter skips),
+  including the REST/worker digest-parity journey and the PostgreSQL repository/outbox/
+  operation contracts.
+- The pinned PostgreSQL 17.6 Compose exit journey built all images, applied
+  `0001_sprint3_baseline` to the pinned empty database, served `/version` (`0.5.0.dev5`)
+  directly and web-proxied, and completed the full `/v1` reference workflow to
+  `bundle_compiled` at case `0.1.7` with API/worker restarts between stages and a durable
+  compile Operation surviving a mid-flight worker restart. Teardown left no project
+  containers; named volumes persist.
+- A Sprint 0-era `oak-postgres-data` volume had been initialised under a different password;
+  the empty database was recovered with `ALTER ROLE oak WITH PASSWORD` over the container's
+  local trust socket rather than volume deletion, consistent with restore-forward recovery.
 
 ## Safety boundary
 

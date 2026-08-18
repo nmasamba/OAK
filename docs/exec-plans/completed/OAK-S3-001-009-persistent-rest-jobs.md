@@ -4,10 +4,10 @@
 
 ## Status
 
-- Owner/agent: Codex
+- Owner/agent: Codex (final verification completed by Claude)
 - Started: 2026-08-17
-- Last updated: 2026-08-17 23:10 BST
-- State: in-progress
+- Last updated: 2026-08-18 13:05 BST
+- State: done
 - Claimed tasks: `OAK-S3-001`–`OAK-S3-009`
 
 ## Outcome
@@ -259,10 +259,21 @@ databases. No customer or production environment is authorized or contacted.
   file/PostgreSQL round-trip parity, bounded REST export/import, and tamper denial.
 - [x] Regenerated OpenAPI and the typed TypeScript client; added a local compatibility
   signature and a controlled removal test. `.github` remains unchanged as required.
-- [ ] Complete the remaining repository-wide, image/Compose, audit, SBOM, and clean-diff
-  verification. The approval system denied restoration of pnpm dependencies after the web
-  workspace was recreated, so web format/type/build/audit gates require that locked install
-  before final closure.
+- [x] 2026-08-18 Completed the remaining repository-wide, image/Compose, audit, SBOM, and
+  clean-diff verification in an environment without the earlier approval/sandbox limits.
+  `pnpm install --frozen-lockfile` restored the locked web workspace; web format/type/build,
+  the full `make check` aggregate, `make audit` (no known vulnerabilities), and `make sbom`
+  all passed; all seven end-to-end tests passed, including the previously sandbox-blocked
+  process-level loopback API test.
+- [x] 2026-08-18 Ran the complete integration suite against the pinned Compose
+  `postgres:17.6-alpine` image (40 passed, 4 file-only parameter skips), including the
+  REST/worker digest-parity journey and the PostgreSQL repository/outbox/operation contracts.
+- [x] 2026-08-18 Executed the pinned PostgreSQL 17.6 Compose exit journey: built all images,
+  applied `0001_sprint3_baseline` to the pinned database, served `/version` (`0.5.0.dev5`)
+  directly and web-proxied, and completed the full `/v1` reference workflow to
+  `bundle_compiled` at case `0.1.7` with API/worker restarts between stages and a durable
+  compile Operation surviving a mid-flight worker restart. Teardown left no project
+  containers; named volumes persist.
 
 ## Decisions
 
@@ -296,3 +307,9 @@ databases. No customer or production environment is authorized or contacted.
 - Changing package metadata caused pnpm to recreate `node_modules`; its network restoration
   was denied by the approval system after the Python/OpenAPI steps completed. This is a local
   verification-environment limitation, not a change to lockfiles or source behavior.
+  Resolved 2026-08-18: the frozen-lockfile install succeeded from the local store.
+- The Sprint 0-era `oak-postgres-data` volume (created 2026-08-14) had been initialised under
+  a different password, so the first pinned-17.6 `migrate` run failed authentication. The
+  database was empty; recovery used `ALTER ROLE oak WITH PASSWORD` over the container's local
+  trust socket rather than volume deletion, consistent with the restore-forward posture.
+  `POSTGRES_PASSWORD` only applies at first initialisation of a data volume.
