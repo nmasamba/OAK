@@ -7,9 +7,8 @@
 - **Phase:** Sprint 4 — architecture web workspace
 - **Completed plans:** `docs/exec-plans/completed/OAK-S0-001-009-walking-skeleton.md`, `docs/exec-plans/completed/OAK-S1-001-010-local-design-case.md`, `docs/exec-plans/completed/OAK-S2-001-011-candidate-planning.md`, and `docs/exec-plans/completed/OAK-S3-001-009-persistent-rest-jobs.md`
 - **Active plan:** `docs/exec-plans/active/OAK-S4-001-009-web-workspace.md`
-- **Next task:** Sprint 4 Milestone 1 — additive list/audit `/v1` read endpoints, `/v1`
-  proxy forwarding, and the routed workspace shell; CI compatibility wiring remains
-  explicitly deferred by user direction
+- **Next task:** Sprint 4 Milestone 2 — brief/inference review and the question/
+  confirmation flow; CI compatibility wiring remains explicitly deferred by user direction
 
 ## Claimed work
 
@@ -54,6 +53,7 @@
 | `OAK-S3-007` | complete | Bounded digest/media artifact reads and tenant-safe file/PostgreSQL/REST export/import |
 | `OAK-S3-008` | partial | Generated OpenAPI/client and tested local breaking-change gate complete; `.github` CI wiring explicitly deferred |
 | `OAK-S3-009` | complete | Local actor/tenant binding, unsafe-bind guard, body limits, safe errors/readiness, and cross-tenant denials |
+| `OAK-S4-001` | complete | Routed workspace shell with case list/create/open over new additive list/audit endpoints, server-driven actions, durable operation polling, audit timeline, and stale-version conflict recovery |
 
 ## Verification evidence
 
@@ -107,6 +107,15 @@
 - A Sprint 0-era `oak-postgres-data` volume had been initialised under a different password;
   the empty database was recovered with `ALTER ROLE oak WITH PASSWORD` over the container's
   local trust socket rather than volume deletion, consistent with restore-forward recovery.
+- Sprint 4 Milestone 1 added additive tenant-scoped `GET /v1/design-cases` and
+  `GET /v1/design-cases/{case_id}/audit` resources (regenerated OpenAPI/client passed the
+  local compatibility gate without a baseline reset), forwarded `/v1` through the nginx and
+  Vite proxies, and replaced the status shell with a routed dependency-free workspace shell.
+  Three new integration tests covering ordering, cursors, tenant non-enumeration, audit
+  parity on file and PostgreSQL adapters passed against the pinned 17.6 image, strict mypy
+  covered 77 files, `make check` passed, and a Compose browser journey proved case
+  creation, interpretation, in-browser candidate generation through a durable operation,
+  the audit timeline, and stale-version conflict recovery through the web origin.
 
 ## Safety boundary
 

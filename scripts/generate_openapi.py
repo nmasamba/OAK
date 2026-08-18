@@ -47,6 +47,16 @@ export interface DesignCaseResponse {
   readonly duplicate: boolean;
 }
 
+export interface DesignCaseListResponse {
+  readonly items: readonly JsonObject[];
+  readonly next_cursor: string | null;
+}
+
+export interface AuditTrailResponse {
+  readonly items: readonly JsonObject[];
+  readonly next_cursor: string | null;
+}
+
 export interface OperationResponse {
   readonly operation_id: string;
   readonly workspace_id: string;
@@ -179,6 +189,33 @@ export async function getDesignCase(
 ): Promise<DesignCaseResponse> {
   return requestJson<DesignCaseResponse>(
     `/v1/design-cases/${encodeURIComponent(caseId)}`,
+    {},
+    baseUrl,
+  );
+}
+
+export async function listDesignCases(
+  cursor?: string,
+  baseUrl = "",
+): Promise<DesignCaseListResponse> {
+  const query =
+    cursor === undefined ? "" : `?cursor=${encodeURIComponent(cursor)}`;
+  return requestJson<DesignCaseListResponse>(
+    `/v1/design-cases${query}`,
+    {},
+    baseUrl,
+  );
+}
+
+export async function listAuditEvents(
+  caseId: string,
+  cursor?: string,
+  baseUrl = "",
+): Promise<AuditTrailResponse> {
+  const query =
+    cursor === undefined ? "" : `?cursor=${encodeURIComponent(cursor)}`;
+  return requestJson<AuditTrailResponse>(
+    `/v1/design-cases/${encodeURIComponent(caseId)}/audit${query}`,
     {},
     baseUrl,
   );

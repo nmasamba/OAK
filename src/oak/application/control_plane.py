@@ -29,6 +29,7 @@ from oak.contracts import SchemaRegistry
 from oak.domain import ArtifactReference, OAKError, canonical_json_bytes, content_digest
 from oak.ports import (
     BriefIntakePort,
+    CaseDirectoryPort,
     CataloguePort,
     OutboxLag,
     OutboxStore,
@@ -39,6 +40,7 @@ from oak.ports import (
 RepositoryFactory = Callable[[str, str], WorkspaceRepository]
 OperationServiceFactory = Callable[[str], OperationService]
 OutboxStoreFactory = Callable[[str], OutboxStore]
+CaseDirectoryFactory = Callable[[str], CaseDirectoryPort]
 MAXIMUM_PORTABLE_EXPORT_BYTES = 67_108_864
 DIGEST_PATTERN = re.compile(r"^sha256:([a-f0-9]{64})$")
 
@@ -63,6 +65,7 @@ class CommunityControlPlane:
         target_profiles: TargetProfilePort,
         registry: SchemaRegistry,
         outbox_store_factory: OutboxStoreFactory | None = None,
+        case_directory_factory: CaseDirectoryFactory | None = None,
     ) -> None:
         self._repository_factory = repository_factory
         self._operation_service_factory = operation_service_factory
@@ -72,6 +75,7 @@ class CommunityControlPlane:
         self._target_profiles = target_profiles
         self._registry = registry
         self._outbox_store_factory = outbox_store_factory
+        self._case_directory_factory = case_directory_factory
 
     def create_design_case(
         self,
@@ -107,6 +111,31 @@ class CommunityControlPlane:
         result = service.current()
         self._verify_case(case_id, result.case)
         return result
+
+    def list_design_cases(self, *, tenant_id: str) -> tuple[dict[str, Any], ...]:
+        if self._case_directory_factory is None:
+            raise OAKError("OAK-DIRECTORY-UNAVAILABLE", "design-case directory is unavailable")
+        return self._case_directory_factory(tenant_id).list_cases()
+
+    def list_audit_events(self, case_id: str, *, tenant_id: str) -> tuple[dict[str, Any], ...]:
+        repository = self._repository_for_case(case_id, tenant_id)
+        self._verify_case(case_id, self._require_case(repository))
+        events: list[dict[str, Any]] = []
+        for entry in repository.manifest()["artifact_index"]:
+            if str(entry["kind"]) != "audit_event":
+                continue
+            events.append(
+                repository.read_json_artifact(
+                    ArtifactReference(
+                        id=str(entry["id"]),
+                        version=str(entry["version"]),
+                        digest=str(entry["digest"]),
+                        media_type=str(entry["media_type"]),
+                    )
+                )
+            )
+        events.sort(key=lambda event: int(event["sequence"]))
+        return tuple(events)
 
     def interpret(self, case_id: str, context: CommandContext) -> DesignResult:
         service = self._design_for_case(case_id, context.tenant_id)

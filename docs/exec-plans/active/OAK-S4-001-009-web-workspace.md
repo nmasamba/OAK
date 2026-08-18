@@ -206,9 +206,30 @@ project containers after teardown.
 - [x] 2026-08-18 13:40 BST Authored this plan from the Sprint 4 backlog, the Workspace UI
   recipe, requirements `OAK-FR-CTL-001`/`OAK-NFR-UX-001`/`OAK-NFR-UX-002`, ADRs 0002/0013/
   0014, and a full-repository readiness analysis; claimed `OAK-S4-001`–`009`.
-- [ ] Milestone 1 — list/audit endpoints, proxy forwarding, workspace shell.
+- [x] 2026-08-18 15:10 BST Milestone 1 complete. Added the `CaseDirectoryPort`, the
+  PostgreSQL directory adapter over the authoritative head/version tables, and
+  `list_design_cases`/`list_audit_events` control-plane queries (the audit trail reads
+  `audit_event` artifacts through existing repository ports, so file and PostgreSQL
+  adapters behave identically). Added additive `GET /v1/design-cases` and
+  `GET /v1/design-cases/{case_id}/audit` resources with the established cursor/limit
+  contract; regenerated OpenAPI and the typed client; the local compatibility gate passed
+  without a baseline reset. Forwarded `/v1` through both the nginx and Vite proxies.
+  Replaced the status shell with a routed, dependency-free workspace shell: case
+  list/create/open, server-status-driven interpret/generate actions, durable operation
+  polling with cancellation, audit timeline, RFC-7807 problem rendering, and stale-version
+  conflict recovery, with skip link, landmarks, focus management, and live regions.
+  Verified by three new integration tests (tenant non-enumeration, ordering, cursors,
+  audit trail, file-adapter parity) against pinned PostgreSQL 17.6, strict mypy over 77
+  files, `make check`, and a browser journey through the Compose web origin covering
+  create → interpret → REST-seeded confirm → in-browser generate-candidates → operation
+  `succeeded` → candidates table, plus a forced stale `If-Match` conflict whose recovery
+  banner reloaded to the current server state.
+- [ ] Milestone 2 — brief/inference review and question/confirmation flow.
 - [ ] Milestone 2 — brief/inference review and question/confirmation flow.
 - [ ] Milestone 3 — candidate comparison, decision, and assurance screens.
+  Carry-over from Milestone 1: the case screen renders the candidate document's raw
+  `variant` field, which reads `other` for the simpler baseline; the typed view models in
+  this milestone should surface the same variant label the CLI table derives.
 - [ ] Milestone 4 — bundle review, audit timeline, and export download.
 - [ ] Milestone 5 — accessibility evidence and Compose browser end-to-end.
 

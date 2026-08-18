@@ -24,11 +24,13 @@ from oak.interfaces.api.models import (
     ArtifactListResponse,
     AssurancePlanRequest,
     AssuranceResponse,
+    AuditTrailResponse,
     CandidateListResponse,
     CanonicalExport,
     CompileBundleRequest,
     ConfirmClaimsRequest,
     CreateDesignCaseRequest,
+    DesignCaseListResponse,
     DesignCaseResponse,
     EvaluateCandidateRequest,
     FieldProblem,
@@ -383,6 +385,25 @@ def create_app(
         return DesignCaseResponse(case=result.case, duplicate=result.duplicate)
 
     @api.get(
+        "/v1/design-cases",
+        response_model=DesignCaseListResponse,
+        tags=["design-cases"],
+    )
+    def list_design_cases(
+        auth: AuthorityDependency,
+        cursor: Annotated[str | None, Query(max_length=512)] = None,
+        limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    ) -> DesignCaseListResponse:
+        items = plane().list_design_cases(tenant_id=auth.tenant_id)
+        offset = _cursor_offset(cursor)
+        page = items[offset : offset + limit]
+        next_offset = offset + len(page)
+        return DesignCaseListResponse(
+            items=page,
+            next_cursor=_cursor(next_offset) if next_offset < len(items) else None,
+        )
+
+    @api.get(
         "/v1/design-cases/{case_id}",
         response_model=DesignCaseResponse,
         tags=["design-cases"],
@@ -669,6 +690,26 @@ def create_app(
             correlation_id=correlation_id,
         )
         return _operation_response(plane().cancel_operation(operation_id, context=context))
+
+    @api.get(
+        "/v1/design-cases/{case_id}/audit",
+        response_model=AuditTrailResponse,
+        tags=["design-cases"],
+    )
+    def list_audit_events(
+        case_id: str,
+        auth: AuthorityDependency,
+        cursor: Annotated[str | None, Query(max_length=512)] = None,
+        limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    ) -> AuditTrailResponse:
+        items = plane().list_audit_events(case_id, tenant_id=auth.tenant_id)
+        offset = _cursor_offset(cursor)
+        page = items[offset : offset + limit]
+        next_offset = offset + len(page)
+        return AuditTrailResponse(
+            items=page,
+            next_cursor=_cursor(next_offset) if next_offset < len(items) else None,
+        )
 
     @api.get(
         "/v1/design-cases/{case_id}/artifacts",

@@ -8,6 +8,11 @@ All notable changes to OAK Community are recorded here.
 
 ### Added
 
+- Sprint 4 workspace shell for `OAK-S4-001`: routed case list/create/open screens,
+  server-status-driven actions, durable operation polling with cancellation, audit
+  timeline, and stale-version conflict recovery, backed by additive tenant-scoped
+  design-case list and audit trail REST resources and `/v1` forwarding in the nginx and
+  Vite proxies.
 - Sprint 3 PostgreSQL control plane and `/v1` REST workflow for `OAK-S3-001` through `OAK-S3-009`.
 - Forward-only Alembic baseline with tenant/environment/workspace-scoped immutable artifacts,
   DesignCase heads and versions, transitions, idempotency, outbox, operations, checkpoints,

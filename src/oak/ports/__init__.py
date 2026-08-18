@@ -2,6 +2,7 @@
 """Ports used by application services."""
 
 from oak.ports.catalogue import CatalogueDocuments, CataloguePort
+from oak.ports.directory import CaseDirectoryPort
 from oak.ports.events import OutboxLag, OutboxMessage, OutboxStore
 from oak.ports.intake import BriefIntakePort
 from oak.ports.interpreter import ModelInterpreterPort, ProposalLimits
@@ -23,6 +24,7 @@ from oak.ports.workspace import (
 
 __all__ = [
     "BriefIntakePort",
+    "CaseDirectoryPort",
     "CatalogueDocuments",
     "CataloguePort",
     "EnqueuedOperation",

@@ -74,6 +74,16 @@ class DesignCaseResponse(StrictResponse):
     duplicate: bool
 
 
+class DesignCaseListResponse(StrictResponse):
+    items: tuple[dict[str, Any], ...]
+    next_cursor: str | None = None
+
+
+class AuditTrailResponse(StrictResponse):
+    items: tuple[dict[str, Any], ...]
+    next_cursor: str | None = None
+
+
 class CandidateListResponse(StrictResponse):
     items: tuple[dict[str, Any], ...]
     next_cursor: str | None = None
