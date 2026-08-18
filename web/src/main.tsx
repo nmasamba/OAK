@@ -3,6 +3,7 @@ import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 
 import { getVersion } from "./generated/api";
+import { BundlePage } from "./pages/BundlePage";
 import { CandidatesPage } from "./pages/CandidatesPage";
 import { CaseListPage } from "./pages/CaseListPage";
 import { CasePage } from "./pages/CasePage";
@@ -39,6 +40,10 @@ function Routes() {
   const decisionMatch = matchPath("/cases/:caseId/decision", path);
   if (decisionMatch?.["caseId"] !== undefined) {
     return <DecisionPage caseId={decisionMatch["caseId"]} />;
+  }
+  const bundleMatch = matchPath("/cases/:caseId/bundle", path);
+  if (bundleMatch?.["caseId"] !== undefined) {
+    return <BundlePage caseId={bundleMatch["caseId"]} />;
   }
   const caseMatch = matchPath("/cases/:caseId", path);
   if (caseMatch?.["caseId"] !== undefined) {

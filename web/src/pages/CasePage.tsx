@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 
 import {
+  exportDesignCase,
   generateCandidates,
   getDesignCase,
   interpretDesignCase,
@@ -258,8 +259,46 @@ export function CasePage({ caseId }: { readonly caseId: string }) {
         </section>
       )}
 
+      {(status === "assurance_planned" || status === "bundle_compiled") && (
+        <section aria-labelledby="bundle-link-heading" className="panel">
+          <h2 id="bundle-link-heading">Compiled bundle</h2>
+          <p>
+            <Link to={`/cases/${encodeURIComponent(caseId)}/bundle`}>
+              {status === "bundle_compiled"
+                ? "Review the compiled bundle"
+                : "Compile the review bundle"}
+            </Link>{" "}
+            — normalized review files, component lock, and the explicit
+            plan/approval/apply separation.
+          </p>
+        </section>
+      )}
+
       <section aria-labelledby="audit-heading" className="panel">
         <h2 id="audit-heading">Audit timeline</h2>
+        <div className="actions">
+          <button
+            type="button"
+            onClick={() => {
+              setFailure(null);
+              exportDesignCase(caseId)
+                .then((exported) => {
+                  const blob = new Blob([JSON.stringify(exported)], {
+                    type: "application/json",
+                  });
+                  const url = URL.createObjectURL(blob);
+                  const anchor = document.createElement("a");
+                  anchor.href = url;
+                  anchor.download = `${caseId}-export.json`;
+                  anchor.click();
+                  URL.revokeObjectURL(url);
+                })
+                .catch((error: unknown) => setFailure(toActionFailure(error)));
+            }}
+          >
+            Download the canonical export
+          </button>
+        </div>
         {auditEvents.length === 0 ? (
           <p>No audit events are recorded yet.</p>
         ) : (
