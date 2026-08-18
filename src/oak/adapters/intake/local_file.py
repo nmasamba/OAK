@@ -34,14 +34,29 @@ class LocalBriefIntake:
         absolute = path.absolute()
         if absolute.is_symlink() or not absolute.is_file():
             raise OAKError("OAK-INTAKE-UNSAFE-PATH", "brief must be a regular non-symlink file")
-        if unicodedata.normalize("NFC", absolute.name) != absolute.name:
+        raw = self._read_bounded_regular_file(absolute)
+        return self.read_content(original_name=absolute.name, content=raw)
+
+    def read_content(self, *, original_name: str, content: bytes) -> IngestedBrief:
+        if (
+            not original_name
+            or Path(original_name).name != original_name
+            or "/" in original_name
+            or "\\" in original_name
+        ):
+            raise OAKError("OAK-INTAKE-UNSAFE-PATH", "brief filename must not contain a path")
+        if unicodedata.normalize("NFC", original_name) != original_name:
             raise OAKError("OAK-INTAKE-UNICODE-PATH", "brief filename must use NFC Unicode")
-        format_details = SUPPORTED_FORMATS.get(absolute.suffix.lower())
+        format_details = SUPPORTED_FORMATS.get(Path(original_name).suffix.lower())
         if format_details is None:
             raise OAKError("OAK-INTAKE-TYPE", "brief file type is not supported")
-        raw = self._read_bounded_regular_file(absolute)
+        if not content or len(content) > MAXIMUM_BRIEF_BYTES:
+            raise OAKError(
+                "OAK-INTAKE-SIZE",
+                f"brief must contain 1 to {MAXIMUM_BRIEF_BYTES} bytes",
+            )
         try:
-            text = raw.decode("utf-8")
+            text = content.decode("utf-8")
         except UnicodeDecodeError as error:
             raise OAKError("OAK-INTAKE-ENCODING", "brief must be valid UTF-8") from error
         self._reject_control_characters(text)
@@ -49,14 +64,14 @@ class LocalBriefIntake:
         normalized_bytes = normalized.encode("utf-8")
         format_name, media_type = format_details
         structured = self._structured_document(format_name, normalized)
-        brief_id, version, title = self._identity(absolute, normalized, structured)
+        brief_id, version, title = self._identity(Path(original_name), normalized, structured)
         return IngestedBrief(
             id=brief_id,
             version=version,
             title=title,
             format=format_name,
             media_type=media_type,
-            original_name=absolute.name,
+            original_name=original_name,
             content=normalized_bytes,
             structured=structured,
         )

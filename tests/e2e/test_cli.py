@@ -95,16 +95,16 @@ def test_offline_design_confirmation_retry_and_portable_round_trip(tmp_path: Pat
     assert len(json.loads(questions.stdout)["questions"]) == 5
     first_confirmation = json.loads(confirmed.stdout)
     retry_confirmation = json.loads(retry.stdout)
-    assert first_confirmation["case"]["version"] == "0.1.1"
+    assert first_confirmation["case"]["version"] == "0.1.2"
     assert first_confirmation["duplicate"] is False
     assert retry_confirmation["duplicate"] is True
     assert retry_confirmation["case"] == first_confirmation["case"]
-    assert "Exported design-case.public-manual-qa@0.1.1" in exported.stdout
+    assert "Exported design-case.public-manual-qa@0.1.2" in exported.stdout
     assert json.loads(imported_result.stdout)["case"] == first_confirmation["case"]
     source_manifest = json.loads((workspace / ".oak" / "manifest.json").read_text())
     imported_manifest = json.loads((imported / ".oak" / "manifest.json").read_text())
     assert source_manifest == imported_manifest
-    assert len(source_manifest["audit_events"]) == 2
+    assert len(source_manifest["audit_events"]) == 3
 
 
 def test_cli_rejects_malformed_confirmation_without_state_change(tmp_path: Path) -> None:

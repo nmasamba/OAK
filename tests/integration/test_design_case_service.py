@@ -92,13 +92,14 @@ def test_design_creates_one_atomic_case_intent_source_and_audit_lineage(
     assert retry.duplicate is True
     assert retry.case == first.case
     assert first.case["status"] == "needs_confirmation"
-    assert first.case["version"] == "0.1.0"
+    assert first.case["version"] == "0.1.1"
+    assert first.intent is not None
     assert first.intent["id"] == "intent.public-manual-qa"
     assert len(service.questions().questions) == 5
     manifest = FileWorkspaceRepository(workspace, _registry()).manifest()
-    assert manifest["version"] == 1
-    assert len(manifest["artifact_index"]) == 5
-    assert len(manifest["audit_events"]) == 1
+    assert manifest["version"] == 2
+    assert len(manifest["artifact_index"]) == 7
+    assert len(manifest["audit_events"]) == 2
     _registry().validate("design-case.schema.json", first.case)
     _registry().validate("system-intent.schema.json", first.intent)
 
@@ -112,7 +113,7 @@ def test_confirmation_creates_one_successor_and_identical_retry_converges(
     )
     context = _context(
         key="confirm-public-manual-qa-0001",
-        expected="0.1.0",
+        expected="0.1.1",
         occurred_at=CONFIRM_TIME,
     )
 
@@ -121,7 +122,7 @@ def test_confirmation_creates_one_successor_and_identical_retry_converges(
 
     assert first.duplicate is False
     assert retry.duplicate is True
-    assert first.case["version"] == "0.1.1"
+    assert first.case["version"] == "0.1.2"
     assert first.intent["version"] == "0.1.1"
     assert first.case["status"] == "ready_for_candidates"
     statuses = {
@@ -133,9 +134,9 @@ def test_confirmation_creates_one_successor_and_identical_retry_converges(
     assert statuses["question.model-hardware"] == "resolved"
     assert statuses["question.data-volume"] == "resolved"
     manifest = FileWorkspaceRepository(workspace, _registry()).manifest()
-    assert manifest["version"] == 2
-    assert len(manifest["audit_events"]) == 2
-    assert len(manifest["idempotency_records"]) == 2
+    assert manifest["version"] == 3
+    assert len(manifest["audit_events"]) == 3
+    assert len(manifest["idempotency_records"]) == 3
 
 
 def test_confirm_correct_reject_and_accept_risk_are_distinct_successor_decisions(
@@ -179,7 +180,7 @@ def test_confirm_correct_reject_and_accept_risk_are_distinct_successor_decisions
         answers,
         _context(
             key="confirm-decision-types-0001",
-            expected="0.1.0",
+            expected="0.1.1",
             occurred_at=CONFIRM_TIME,
         ),
     )
@@ -207,7 +208,7 @@ def test_invalid_confirmation_and_reused_key_leave_workspace_unchanged(tmp_path:
     before = FileWorkspaceRepository(workspace, _registry()).manifest()
     context = _context(
         key="confirm-public-manual-qa-0001",
-        expected="0.1.0",
+        expected="0.1.1",
         occurred_at=CONFIRM_TIME,
     )
 

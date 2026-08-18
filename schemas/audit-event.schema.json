@@ -17,7 +17,7 @@
     },
     "case_id": {"$ref": "common.schema.json#/$defs/identifier"},
     "case_version": {"$ref": "common.schema.json#/$defs/semver"},
-    "event_type": {"enum": ["brief_interpreted", "claims_confirmed", "workspace_imported", "candidates_generated", "candidate_evaluated", "candidate_selected", "assurance_planned", "bundle_compiled"]},
+    "event_type": {"enum": ["case_created", "brief_interpreted", "claims_confirmed", "workspace_imported", "candidates_generated", "candidate_evaluated", "candidate_selected", "assurance_planned", "bundle_compiled"]},
     "actor": {"type": "string", "minLength": 1, "maxLength": 160},
     "tenant_id": {"type": "string", "minLength": 1, "maxLength": 160},
     "interface_origin": {"enum": ["web", "api", "cli", "mcp", "portal", "import"]},

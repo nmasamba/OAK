@@ -2,11 +2,13 @@
 """Shared local DesignCase application operations."""
 
 import copy
+import hashlib
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
 from oak.application.context import CommandContext
+from oak.application.persistence import build_workspace_mutation
 from oak.compiler import (
     DeterministicBriefInterpreter,
     validate_interpretation_proposal,
@@ -18,6 +20,7 @@ from oak.domain import (
     ArtifactReference,
     DesignCase,
     DesignCaseStatus,
+    IngestedBrief,
     OAKError,
     canonical_json_bytes,
     content_digest,
@@ -29,7 +32,6 @@ from oak.ports import (
     BriefIntakePort,
     ModelInterpreterPort,
     ProposalLimits,
-    WorkspaceMutation,
     WorkspaceRepository,
 )
 
@@ -40,9 +42,15 @@ AUDIT_MEDIA_TYPE = "application/vnd.oak.audit-event+json"
 
 
 @dataclass(frozen=True, slots=True)
+class CreateCaseResult:
+    case: dict[str, Any]
+    duplicate: bool
+
+
+@dataclass(frozen=True, slots=True)
 class DesignResult:
     case: dict[str, Any]
-    intent: dict[str, Any]
+    intent: dict[str, Any] | None
     duplicate: bool
 
 
@@ -84,6 +92,28 @@ class DesignCaseService:
 
     def design(self, brief_path: Path, context: CommandContext) -> DesignResult:
         brief = self._intake.read(brief_path)
+        create_identity = context.idempotency_key or content_digest(brief.content)
+        create_context = replace(
+            context,
+            idempotency_key=(
+                f"create:{hashlib.sha256(create_identity.encode('utf-8')).hexdigest()}"
+            ),
+            expected_version=None,
+        )
+        created = self._create_brief(brief, create_context)
+        return self.interpret(replace(context, expected_version=str(created.case["version"])))
+
+    def create_content(
+        self,
+        *,
+        original_name: str,
+        content: bytes,
+        context: CommandContext,
+    ) -> CreateCaseResult:
+        brief = self._intake.read_content(original_name=original_name, content=content)
+        return self._create_brief(brief, context)
+
+    def _create_brief(self, brief: IngestedBrief, context: CommandContext) -> CreateCaseResult:
         input_digest = self._request_digest(
             context,
             {
@@ -94,18 +124,14 @@ class DesignCaseService:
                 "content_digest": content_digest(brief.content),
             },
         )
-        context = self._normalized_context(context, "design", input_digest)
+        context = self._normalized_context(context, "create", input_digest)
         self._check_context(context)
         manifest = self._repository.manifest()
         if manifest["tenant_id"] != context.tenant_id:
             raise OAKError("OAK-TENANT-MISMATCH", "workspace tenant does not match command")
         duplicate_case = self._repository.idempotent_case(context.idempotency_key, input_digest)
         if duplicate_case is not None:
-            return DesignResult(
-                case=duplicate_case,
-                intent=self._intent_for_case(duplicate_case),
-                duplicate=True,
-            )
+            return CreateCaseResult(case=duplicate_case, duplicate=True)
         raw_artifact = Artifact(
             id=brief.id,
             version=brief.version,
@@ -136,11 +162,100 @@ class DesignCaseService:
             document=source_document,
         )
 
+        case_id = self._derived_id("design-case", brief.id)
+        case = DesignCase(
+            id=case_id,
+            version="0.1.0",
+            status=DesignCaseStatus.DRAFT,
+            title=brief.title,
+            tenant_id=context.tenant_id,
+            created_at=context.occurred_at,
+            updated_at=context.occurred_at,
+            interface_origin=context.interface_origin,
+            brief_refs=(raw_artifact.reference,),
+            extensions={"oak.community/source_record_ref": source_artifact.reference.to_document()},
+        )
+        sequence = len(manifest["audit_events"]) + 1
+        previous = manifest["audit_events"][-1]["digest"] if manifest["audit_events"] else None
+        event_document = audit_event_document(
+            sequence=sequence,
+            previous_event_digest=previous,
+            case_id=case.id,
+            case_version=case.version,
+            event_type="case_created",
+            actor=context.actor,
+            tenant_id=context.tenant_id,
+            interface_origin=context.interface_origin,
+            correlation_id=context.correlation_id,
+            idempotency_key=context.idempotency_key,
+            input_digest=input_digest,
+            occurred_at=context.occurred_at,
+            intent_ref=None,
+            source_record_ref=source_artifact.reference,
+        )
+        event_artifact = self._audit_artifact(event_document, sequence)
+        case = case.with_audit_head(event_artifact.digest)
+        case_artifact = self._case_artifact(case)
+        committed = self._repository.commit(
+            build_workspace_mutation(
+                workspace_id=str(manifest["id"]),
+                expected_case_version=context.expected_version,
+                idempotency_key=context.idempotency_key,
+                input_digest=input_digest,
+                artifacts=(
+                    raw_artifact,
+                    source_artifact,
+                    event_artifact,
+                    case_artifact,
+                ),
+                current_case_ref=case_artifact.reference,
+                event_artifact=event_artifact,
+                event_document=event_document,
+                updated_at=context.occurred_at,
+            )
+        )
+        return CreateCaseResult(case=committed.case_document, duplicate=committed.duplicate)
+
+    def interpret(self, context: CommandContext) -> DesignResult:
+        current_document = self._require_case()
+        current = DesignCase.from_document(current_document)
+        extensions = current_document.get("extensions", {})
+        source_ref_document = extensions.get("oak.community/source_record_ref")
+        if not isinstance(source_ref_document, dict):
+            raise OAKError("OAK-SOURCE-MISSING", "draft case has no source record")
+        source_ref = ArtifactReference.from_document(source_ref_document)
+        source_document = self._repository.read_json_artifact(source_ref)
+        content_ref = ArtifactReference.from_document(source_document["content_ref"])
+        source_content = self._repository.read_artifact(content_ref)
+        input_digest = self._request_digest(
+            context,
+            {
+                "case_id": current.id,
+                "source_ref": source_ref.to_document(),
+                "content_digest": content_ref.digest,
+            },
+        )
+        context = self._normalized_context(context, "interpret", input_digest)
+        self._check_context(context)
+        manifest = self._repository.manifest()
+        if manifest["tenant_id"] != context.tenant_id:
+            raise OAKError("OAK-TENANT-MISMATCH", "workspace tenant does not match command")
+        duplicate_case = self._repository.idempotent_case(context.idempotency_key, input_digest)
+        if duplicate_case is not None:
+            return DesignResult(
+                case=duplicate_case,
+                intent=self._intent_for_case(duplicate_case),
+                duplicate=True,
+            )
+        if current.status is not DesignCaseStatus.DRAFT:
+            raise OAKError("OAK-INTERPRET-STATE", "only a draft case can be interpreted")
+        brief = self._intake.read_content(
+            original_name=str(source_document["original_name"]),
+            content=source_content,
+        )
         interpreted = self._interpreter.interpret(brief, created_at=context.occurred_at)
         intent_document = copy.deepcopy(interpreted.intent_document)
-        intent_document["extensions"]["oak.community/source_record"] = (
-            source_artifact.reference.to_document()
-        )
+        intent_document["extensions"]["oak.community/source_record"] = source_ref.to_document()
         self._registry.validate("system-intent.schema.json", intent_document)
         intent_artifact = json_artifact(
             artifact_id=str(intent_document["id"]),
@@ -154,17 +269,9 @@ class DesignCaseService:
             if interpreted.questions
             else DesignCaseStatus.READY_FOR_CANDIDATES
         )
-        case_id = self._derived_id("design-case", brief.id)
-        case = DesignCase(
-            id=case_id,
-            version="0.1.0",
+        successor = current.revise(
             status=status,
-            title=brief.title,
-            tenant_id=context.tenant_id,
-            created_at=context.occurred_at,
             updated_at=context.occurred_at,
-            interface_origin=context.interface_origin,
-            brief_refs=(raw_artifact.reference,),
             intent_ref=intent_artifact.reference,
             assumptions=interpreted.assumptions,
             unresolved_questions=tuple(
@@ -172,12 +279,12 @@ class DesignCaseService:
             ),
         )
         sequence = len(manifest["audit_events"]) + 1
-        previous = manifest["audit_events"][-1]["digest"] if manifest["audit_events"] else None
+        previous = manifest["audit_events"][-1]["digest"]
         event_document = audit_event_document(
             sequence=sequence,
             previous_event_digest=previous,
-            case_id=case.id,
-            case_version=case.version,
+            case_id=successor.id,
+            case_version=successor.version,
             event_type="brief_interpreted",
             actor=context.actor,
             tenant_id=context.tenant_id,
@@ -187,25 +294,21 @@ class DesignCaseService:
             input_digest=input_digest,
             occurred_at=context.occurred_at,
             intent_ref=intent_artifact.reference,
-            source_record_ref=source_artifact.reference,
+            source_record_ref=source_ref,
         )
         event_artifact = self._audit_artifact(event_document, sequence)
-        case = case.with_audit_head(event_artifact.digest)
-        case_artifact = self._case_artifact(case)
+        successor = successor.with_audit_head(event_artifact.digest)
+        case_artifact = self._case_artifact(successor)
         committed = self._repository.commit(
-            WorkspaceMutation(
+            build_workspace_mutation(
+                workspace_id=str(manifest["id"]),
                 expected_case_version=context.expected_version,
                 idempotency_key=context.idempotency_key,
                 input_digest=input_digest,
-                artifacts=(
-                    raw_artifact,
-                    source_artifact,
-                    intent_artifact,
-                    event_artifact,
-                    case_artifact,
-                ),
+                artifacts=(intent_artifact, event_artifact, case_artifact),
                 current_case_ref=case_artifact.reference,
-                event_ref=event_artifact.reference,
+                event_artifact=event_artifact,
+                event_document=event_document,
                 updated_at=context.occurred_at,
             )
         )
@@ -338,13 +441,15 @@ class DesignCaseService:
         successor = successor.with_audit_head(event_artifact.digest)
         case_artifact = self._case_artifact(successor)
         committed = self._repository.commit(
-            WorkspaceMutation(
+            build_workspace_mutation(
+                workspace_id=str(manifest["id"]),
                 expected_case_version=context.expected_version,
                 idempotency_key=context.idempotency_key,
                 input_digest=input_digest,
                 artifacts=(intent_artifact, event_artifact, case_artifact),
                 current_case_ref=case_artifact.reference,
-                event_ref=event_artifact.reference,
+                event_artifact=event_artifact,
+                event_document=event_document,
                 updated_at=context.occurred_at,
             )
         )
@@ -384,7 +489,8 @@ class DesignCaseService:
 
     def current(self) -> DesignResult:
         case = self._require_case()
-        return DesignResult(case=case, intent=self._intent_for_case(case), duplicate=False)
+        intent = self._intent_for_case(case) if isinstance(case.get("intent_ref"), dict) else None
+        return DesignResult(case=case, intent=intent, duplicate=False)
 
     def _require_case(self) -> dict[str, Any]:
         case = self._repository.current_case()

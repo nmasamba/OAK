@@ -1,0 +1,592 @@
+{
+  "paths": {
+    "/healthz": {
+      "get": {
+        "request_body_required": false,
+        "required_parameters": [],
+        "responses": [
+          "200"
+        ]
+      }
+    },
+    "/readyz": {
+      "get": {
+        "request_body_required": false,
+        "required_parameters": [],
+        "responses": [
+          "200"
+        ]
+      }
+    },
+    "/v1/candidates/{candidate_id}:evaluate": {
+      "post": {
+        "request_body_required": true,
+        "required_parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key"
+          },
+          {
+            "in": "header",
+            "name": "If-Match"
+          },
+          {
+            "in": "path",
+            "name": "candidate_id"
+          }
+        ],
+        "responses": [
+          "202",
+          "422"
+        ]
+      }
+    },
+    "/v1/design-cases": {
+      "post": {
+        "request_body_required": true,
+        "required_parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key"
+          }
+        ],
+        "responses": [
+          "201",
+          "422"
+        ]
+      }
+    },
+    "/v1/design-cases/{case_id}": {
+      "get": {
+        "request_body_required": false,
+        "required_parameters": [
+          {
+            "in": "path",
+            "name": "case_id"
+          }
+        ],
+        "responses": [
+          "200",
+          "422"
+        ]
+      }
+    },
+    "/v1/design-cases/{case_id}/artifacts": {
+      "get": {
+        "request_body_required": false,
+        "required_parameters": [
+          {
+            "in": "path",
+            "name": "case_id"
+          }
+        ],
+        "responses": [
+          "200",
+          "422"
+        ]
+      }
+    },
+    "/v1/design-cases/{case_id}/artifacts/{artifact_id}": {
+      "get": {
+        "request_body_required": false,
+        "required_parameters": [
+          {
+            "in": "path",
+            "name": "artifact_id"
+          },
+          {
+            "in": "path",
+            "name": "case_id"
+          },
+          {
+            "in": "query",
+            "name": "digest"
+          },
+          {
+            "in": "query",
+            "name": "version"
+          }
+        ],
+        "responses": [
+          "200",
+          "422"
+        ]
+      }
+    },
+    "/v1/design-cases/{case_id}/candidates": {
+      "get": {
+        "request_body_required": false,
+        "required_parameters": [
+          {
+            "in": "path",
+            "name": "case_id"
+          }
+        ],
+        "responses": [
+          "200",
+          "422"
+        ]
+      }
+    },
+    "/v1/design-cases/{case_id}/export": {
+      "get": {
+        "request_body_required": false,
+        "required_parameters": [
+          {
+            "in": "path",
+            "name": "case_id"
+          }
+        ],
+        "responses": [
+          "200",
+          "422"
+        ]
+      }
+    },
+    "/v1/design-cases/{case_id}:compile": {
+      "post": {
+        "request_body_required": true,
+        "required_parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key"
+          },
+          {
+            "in": "header",
+            "name": "If-Match"
+          },
+          {
+            "in": "path",
+            "name": "case_id"
+          }
+        ],
+        "responses": [
+          "202",
+          "422"
+        ]
+      }
+    },
+    "/v1/design-cases/{case_id}:confirm": {
+      "post": {
+        "request_body_required": true,
+        "required_parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key"
+          },
+          {
+            "in": "header",
+            "name": "If-Match"
+          },
+          {
+            "in": "path",
+            "name": "case_id"
+          }
+        ],
+        "responses": [
+          "200",
+          "422"
+        ]
+      }
+    },
+    "/v1/design-cases/{case_id}:create-assurance-plan": {
+      "post": {
+        "request_body_required": true,
+        "required_parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key"
+          },
+          {
+            "in": "header",
+            "name": "If-Match"
+          },
+          {
+            "in": "path",
+            "name": "case_id"
+          }
+        ],
+        "responses": [
+          "200",
+          "422"
+        ]
+      }
+    },
+    "/v1/design-cases/{case_id}:generate-candidates": {
+      "post": {
+        "request_body_required": false,
+        "required_parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key"
+          },
+          {
+            "in": "header",
+            "name": "If-Match"
+          },
+          {
+            "in": "path",
+            "name": "case_id"
+          }
+        ],
+        "responses": [
+          "202",
+          "422"
+        ]
+      }
+    },
+    "/v1/design-cases/{case_id}:interpret": {
+      "post": {
+        "request_body_required": false,
+        "required_parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key"
+          },
+          {
+            "in": "header",
+            "name": "If-Match"
+          },
+          {
+            "in": "path",
+            "name": "case_id"
+          }
+        ],
+        "responses": [
+          "200",
+          "422"
+        ]
+      }
+    },
+    "/v1/design-cases/{case_id}:select-candidate": {
+      "post": {
+        "request_body_required": true,
+        "required_parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key"
+          },
+          {
+            "in": "header",
+            "name": "If-Match"
+          },
+          {
+            "in": "path",
+            "name": "case_id"
+          }
+        ],
+        "responses": [
+          "200",
+          "422"
+        ]
+      }
+    },
+    "/v1/design-cases:import": {
+      "post": {
+        "request_body_required": true,
+        "required_parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key"
+          }
+        ],
+        "responses": [
+          "201",
+          "422"
+        ]
+      }
+    },
+    "/v1/operations/{operation_id}": {
+      "get": {
+        "request_body_required": false,
+        "required_parameters": [
+          {
+            "in": "path",
+            "name": "operation_id"
+          }
+        ],
+        "responses": [
+          "200",
+          "422"
+        ]
+      }
+    },
+    "/v1/operations/{operation_id}:cancel": {
+      "post": {
+        "request_body_required": false,
+        "required_parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key"
+          },
+          {
+            "in": "path",
+            "name": "operation_id"
+          }
+        ],
+        "responses": [
+          "200",
+          "422"
+        ]
+      }
+    },
+    "/v1/system/outbox-lag": {
+      "get": {
+        "request_body_required": false,
+        "required_parameters": [],
+        "responses": [
+          "200",
+          "422"
+        ]
+      }
+    },
+    "/version": {
+      "get": {
+        "request_body_required": false,
+        "required_parameters": [],
+        "responses": [
+          "200"
+        ]
+      }
+    }
+  },
+  "schemas": {
+    "ArtifactListResponse": {
+      "properties": {
+        "items": "\"array\"",
+        "next_cursor": "anyOf:\"null\",\"string\""
+      },
+      "required": [
+        "items"
+      ]
+    },
+    "AssurancePlanRequest": {
+      "properties": {
+        "candidate_id": "\"string\""
+      },
+      "required": [
+        "candidate_id"
+      ]
+    },
+    "AssuranceResponse": {
+      "properties": {
+        "assurance_plan": "\"object\"",
+        "case": "\"object\"",
+        "duplicate": "\"boolean\""
+      },
+      "required": [
+        "assurance_plan",
+        "case",
+        "duplicate"
+      ]
+    },
+    "CandidateListResponse": {
+      "properties": {
+        "items": "\"array\"",
+        "next_cursor": "anyOf:\"null\",\"string\""
+      },
+      "required": [
+        "items"
+      ]
+    },
+    "CanonicalExport": {
+      "properties": {
+        "export_version": "\"string\"",
+        "manifest": "\"object\"",
+        "objects": "\"array\""
+      },
+      "required": [
+        "export_version",
+        "manifest",
+        "objects"
+      ]
+    },
+    "CompileBundleRequest": {
+      "properties": {
+        "candidate_id": "\"string\"",
+        "target": "\"object\""
+      },
+      "required": [
+        "candidate_id",
+        "target"
+      ]
+    },
+    "ConfirmClaimsRequest": {
+      "properties": {
+        "answers": "\"object\""
+      },
+      "required": [
+        "answers"
+      ]
+    },
+    "CreateDesignCaseRequest": {
+      "properties": {
+        "content": "\"string\"",
+        "original_name": "\"string\""
+      },
+      "required": [
+        "content",
+        "original_name"
+      ]
+    },
+    "DesignCaseResponse": {
+      "properties": {
+        "case": "\"object\"",
+        "duplicate": "\"boolean\"",
+        "intent": "anyOf:\"null\",\"object\""
+      },
+      "required": [
+        "case",
+        "duplicate"
+      ]
+    },
+    "EvaluateCandidateRequest": {
+      "properties": {
+        "case_id": "\"string\""
+      },
+      "required": [
+        "case_id"
+      ]
+    },
+    "ExportObject": {
+      "properties": {
+        "content_base64": "\"string\"",
+        "digest": "\"string\""
+      },
+      "required": [
+        "content_base64",
+        "digest"
+      ]
+    },
+    "HTTPValidationError": {
+      "properties": {
+        "detail": "\"array\""
+      },
+      "required": []
+    },
+    "HealthResponse": {
+      "properties": {
+        "status": "\"string\""
+      },
+      "required": []
+    },
+    "OperationResponse": {
+      "properties": {
+        "attempt_count": "\"integer\"",
+        "cancel_requested": "\"boolean\"",
+        "case_id": "\"string\"",
+        "checkpoint": "anyOf:\"null\",\"object\"",
+        "completed_at": "anyOf:\"null\",\"string\"",
+        "correlation_id": "\"string\"",
+        "created_at": "\"string\"",
+        "duplicate": "\"boolean\"",
+        "kind": "\"string\"",
+        "lease_expires_at": "anyOf:\"null\",\"string\"",
+        "max_attempts": "\"integer\"",
+        "next_attempt_at": "\"string\"",
+        "operation_id": "\"string\"",
+        "problem": "anyOf:\"null\",\"object\"",
+        "result": "anyOf:\"null\",\"object\"",
+        "state": "\"string\"",
+        "updated_at": "\"string\"",
+        "version": "\"integer\"",
+        "workspace_id": "\"string\""
+      },
+      "required": [
+        "attempt_count",
+        "cancel_requested",
+        "case_id",
+        "checkpoint",
+        "completed_at",
+        "correlation_id",
+        "created_at",
+        "kind",
+        "lease_expires_at",
+        "max_attempts",
+        "next_attempt_at",
+        "operation_id",
+        "problem",
+        "result",
+        "state",
+        "updated_at",
+        "version",
+        "workspace_id"
+      ]
+    },
+    "OutboxLagResponse": {
+      "properties": {
+        "indexed_through": "\"integer\"",
+        "latest_sequence": "\"integer\"",
+        "oldest_pending_at": "anyOf:\"null\",\"string\"",
+        "pending_events": "\"integer\"",
+        "sequence_lag": "\"integer\""
+      },
+      "required": [
+        "indexed_through",
+        "latest_sequence",
+        "oldest_pending_at",
+        "pending_events",
+        "sequence_lag"
+      ]
+    },
+    "ReadinessResponse": {
+      "properties": {
+        "status": "\"string\""
+      },
+      "required": [
+        "status"
+      ]
+    },
+    "SelectCandidateRequest": {
+      "properties": {
+        "candidate_id": "\"string\"",
+        "rationale": "\"string\""
+      },
+      "required": [
+        "candidate_id",
+        "rationale"
+      ]
+    },
+    "SelectionResponse": {
+      "properties": {
+        "case": "\"object\"",
+        "decision": "\"object\"",
+        "duplicate": "\"boolean\""
+      },
+      "required": [
+        "case",
+        "decision",
+        "duplicate"
+      ]
+    },
+    "ValidationError": {
+      "properties": {
+        "ctx": "\"object\"",
+        "input": "unspecified",
+        "loc": "\"array\"",
+        "msg": "\"string\"",
+        "type": "\"string\""
+      },
+      "required": [
+        "loc",
+        "msg",
+        "type"
+      ]
+    },
+    "VersionResponse": {
+      "properties": {
+        "commit": "\"string\"",
+        "name": "\"string\"",
+        "schema_versions": "\"array\"",
+        "version": "\"string\""
+      },
+      "required": [
+        "commit",
+        "name",
+        "schema_versions",
+        "version"
+      ]
+    }
+  },
+  "signature_version": 1
+}

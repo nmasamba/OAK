@@ -14,4 +14,12 @@ def test_committed_openapi_matches_application() -> None:
 
     assert committed == app.openapi()
     assert committed["openapi"].startswith("3.1")
-    assert set(committed["paths"]) == {"/healthz", "/readyz", "/version"}
+    assert {
+        "/healthz",
+        "/readyz",
+        "/version",
+        "/v1/design-cases",
+        "/v1/design-cases/{case_id}",
+        "/v1/design-cases/{case_id}:generate-candidates",
+        "/v1/operations/{operation_id}",
+    }.issubset(committed["paths"])

@@ -20,6 +20,7 @@ CI and container builds are the reproducible builder boundary. They pin `uv` 0.1
 | `make test` | Run unit and contract tests |
 | `make test-integration` | Run local API integration tests |
 | `make test-e2e` | Run CLI/API user-visible smoke tests |
+| `make openapi-compatibility` | Reproduce OpenAPI/client output and reject local breaking changes |
 | `make build` | Build Python and web artifacts from bootstrapped dependencies without network |
 | `make sbom` | Generate a development dependency SBOM under ignored `sbom/` |
 | `make check` | Run the non-destructive repository gate |
@@ -55,17 +56,36 @@ See [local-design-case.md](local-design-case.md) for workspace portability and r
 ## Local API
 
 ```bash
+export OAK_DATABASE_URL=postgresql+psycopg://oak:oak-local-only@127.0.0.1:5432/oak
+export OAK_ARTIFACT_ROOT="$PWD/.oak/server-artifacts"
+uv run oak-db-migrate
 uv run oak-api
+# In another terminal, with the same environment:
+uv run oak-worker
 ```
 
 The default address is `http://127.0.0.1:8080`. Use `OAK_HOST` and `OAK_PORT` for local process configuration. A non-loopback host is rejected unless `OAK_ALLOW_NON_LOOPBACK=true` is also set.
 
+Persistent mutations require `Idempotency-Key`; case successors additionally require
+`If-Match` with the current ETag. Community local mode accepts only the configured
+`OAK_LOCAL_ACTOR` and `OAK_LOCAL_TENANT` (defaults `local-user` and `local`). These headers are
+local isolation controls, not enterprise authentication. The worker compiles/evaluates typed
+artifacts only and cannot approve, dispatch, contact, or mutate a target.
+
 ## Compose
 
 ```bash
-docker compose up -d postgres api web
+docker compose up -d postgres migrate api worker web
 docker compose ps
 docker compose down
 ```
 
-Compose publishes API and web ports on loopback and keeps PostgreSQL on the project network. The default project does not start a runner or external model service. Use `docker compose down --volumes` only when intentionally deleting local database state.
+Compose applies the forward baseline before starting API/worker, publishes API and web ports
+on loopback, and keeps PostgreSQL on the project network. The named artifact and PostgreSQL
+volumes survive normal teardown. The project does not start a runner or external model
+service. Use `docker compose down --volumes` only when intentionally deleting local state.
+
+See [the migration guide](../migrations/README.md) before a schema change. Stop writers and
+take a database backup before future forward migrations. Supported recovery restores into a
+clean database and then runs `oak-db-migrate`; `alembic downgrade` is intentionally not
+an OAK recovery mechanism.

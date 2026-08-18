@@ -10,6 +10,7 @@ from typing import NoReturn
 import pytest
 
 from oak.adapters.persistence import FileWorkspaceRepository
+from oak.application.persistence import build_workspace_mutation
 from oak.contracts import SchemaRegistry
 from oak.domain import (
     Artifact,
@@ -84,13 +85,15 @@ def _initial_mutation(
         media_type="application/vnd.oak.design-case+json",
         document=case.to_document(),
     )
-    return WorkspaceMutation(
+    return build_workspace_mutation(
+        workspace_id="workspace.workspace-test",
         expected_case_version=None,
         idempotency_key=idempotency_key,
         input_digest=input_digest,
         artifacts=(brief, event, case_artifact),
         current_case_ref=case_artifact.reference,
-        event_ref=event.reference,
+        event_artifact=event,
+        event_document=event_document,
         updated_at=NOW,
     )
 

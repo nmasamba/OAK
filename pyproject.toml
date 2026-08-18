@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "oak-community"
-version = "0.4.0.dev4"
+version = "0.5.0.dev5"
 description = "Local-first control plane for designing, evaluating, and planning AI systems"
 readme = "README.md"
 requires-python = ">=3.13,<3.14"
@@ -21,10 +21,13 @@ classifiers = [
   "Typing :: Typed",
 ]
 dependencies = [
+  "alembic>=1.18,<2",
   "fastapi>=0.115,<1",
   "jsonschema[format]>=4.23,<5",
+  "psycopg[binary]>=3.3,<4",
   "pydantic>=2.10,<3",
   "pyyaml>=6.0,<7",
+  "sqlalchemy>=2.0.45,<2.1",
   "typer>=0.15,<1",
   "uvicorn>=0.34,<1",
 ]
@@ -32,7 +35,8 @@ dependencies = [
 [project.scripts]
 oak = "oak.interfaces.cli.main:main"
 oak-api = "oak.interfaces.api.server:main"
-oak-worker = "oak.interfaces.placeholders:worker_main"
+oak-db-migrate = "oak.interfaces.migrations:main"
+oak-worker = "oak.interfaces.worker:main"
 oak-runner = "oak.interfaces.placeholders:runner_main"
 oak-mcp = "oak.interfaces.placeholders:mcp_main"
 
@@ -56,6 +60,7 @@ packages = ["src/oak"]
 [tool.hatch.build.targets.wheel.force-include]
 "schemas" = "oak/canonical_schemas"
 "catalogue" = "oak/community_catalogue"
+"migrations" = "oak/migrations"
 
 [tool.pytest.ini_options]
 addopts = "--strict-config --strict-markers"

@@ -10,19 +10,40 @@ from oak.application.candidate_planning import (
     SelectionResult,
 )
 from oak.application.context import CommandContext
-from oak.application.design_case import DesignCaseService, DesignResult, QuestionResult
+from oak.application.control_plane import ArtifactContent, CommunityControlPlane
+from oak.application.design_case import (
+    CreateCaseResult,
+    DesignCaseService,
+    DesignResult,
+    QuestionResult,
+)
+from oak.application.operations import (
+    CommunityWorker,
+    OperationService,
+    OperationSubmission,
+    OperationWorker,
+    WorkerCycleResult,
+)
 from oak.application.system_information import SystemInformationService
 
 __all__ = [
+    "ArtifactContent",
     "AssuranceResult",
     "CandidatePlanningService",
     "CandidatesResult",
     "CommandContext",
+    "CommunityControlPlane",
+    "CommunityWorker",
+    "CreateCaseResult",
     "DesignCaseService",
     "DesignResult",
     "EvaluationResult",
+    "OperationService",
+    "OperationSubmission",
+    "OperationWorker",
     "PlanResult",
     "QuestionResult",
     "SelectionResult",
     "SystemInformationService",
+    "WorkerCycleResult",
 ]

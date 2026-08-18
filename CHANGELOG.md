@@ -8,6 +8,21 @@ All notable changes to OAK Community are recorded here.
 
 ### Added
 
+- Sprint 3 PostgreSQL control plane and `/v1` REST workflow for `OAK-S3-001` through `OAK-S3-009`.
+- Forward-only Alembic baseline with tenant/environment/workspace-scoped immutable artifacts,
+  DesignCase heads and versions, transitions, idempotency, outbox, operations, checkpoints,
+  consumer receipts, and rebuildable projection positions.
+- Shared file/PostgreSQL repository contract suite covering restart, concurrency, atomic
+  rollback, tenant denial, digest lineage, and canonical export/restore.
+- At-least-once outbox leases with stable event IDs, consumer deduplication, projection lag,
+  and a real separately leased `oak-worker` process.
+- Durable generate/evaluate/compile Operations with checkpoints, lease expiry, bounded retry,
+  safe terminal failure, cooperative cancellation, and cancellation command provenance.
+- DesignCase, candidate, Operation, artifact, export, and import REST resources with local
+  actor/tenant binding, ETags, required idempotency keys, optimistic concurrency, safe problem
+  details, deterministic opaque pagination, and bounded requests/artifacts.
+- Generated OpenAPI 3.1 and typed TypeScript client for the persistent workflow, plus a tested
+  local breaking-change gate. CI workflow enforcement remains explicitly deferred.
 - Sprint 2 offline compiler flow for `OAK-S2-001` through `OAK-S2-011`.
 - Governed synthetic catalogue snapshots and provider-neutral baseline, minimum, balanced, and high-assurance pattern contracts.
 - Deterministic hardware, deployment, security, licence, locality, and compatibility constraints with fail-closed unknown handling.
@@ -32,6 +47,15 @@ All notable changes to OAK Community are recorded here.
 
 ### Security
 
+- PostgreSQL uniqueness constraints and every repository, operation, outbox, artifact, and
+  projection query include tenant/environment scope; cross-tenant REST requests return the
+  same safe not-found shape as missing resources.
+- API binding remains loopback-only unless explicitly acknowledged, dependency failures expose
+  only coarse readiness, request/export sizes are bounded, and problems omit payloads, stack
+  traces, provider output, credentials, and private reasoning.
+- Worker requests reject command, shell, executable, and argument-vector fields and can invoke
+  only deterministic candidate generation, evaluation, or draft bundle compilation. They have
+  no approval, signing, runner, secret, target connection, subprocess, or mutation authority.
 - Catalogue and target inputs are bounded, schema-validated, alias/symlink safe, and cannot select executable behavior.
 - Target profiles are bound to command tenancy and checked for declared platform, capacity, and read-only planning capabilities before bundle publication.
 - Immutable evaluation results cannot be overwritten by a second non-idempotent evaluation.

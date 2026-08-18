@@ -321,7 +321,7 @@ def _bundle_document(
             "digest_bound": True,
         },
         "compatibility": {
-            "minimum_oak_version": "0.4.0.dev4",
+            "minimum_oak_version": "0.5.0.dev5",
             "target_constraints": [
                 "Non-production local target with mutation_allowed=false",
                 "Only inventory, validate, render, plan and verify operations",

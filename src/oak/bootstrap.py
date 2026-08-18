@@ -7,9 +7,24 @@ from pathlib import Path
 from oak import __version__
 from oak.adapters.catalogue import LocalCatalogue
 from oak.adapters.intake import LocalBriefIntake
-from oak.adapters.persistence import FileWorkspaceRepository
+from oak.adapters.persistence import (
+    FileWorkspaceRepository,
+    PostgreSQLOperationStore,
+    PostgreSQLOutboxStore,
+    PostgreSQLReadinessProbe,
+    PostgreSQLWorkspaceRepository,
+    create_postgresql_engine,
+)
 from oak.adapters.targets import LocalTargetProfile
-from oak.application import CandidatePlanningService, DesignCaseService, SystemInformationService
+from oak.application import (
+    CandidatePlanningService,
+    CommunityControlPlane,
+    CommunityWorker,
+    DesignCaseService,
+    OperationService,
+    OperationWorker,
+    SystemInformationService,
+)
 from oak.compiler import DeterministicBriefInterpreter
 from oak.contracts import SchemaRegistry
 from oak.domain import SystemInformation
@@ -27,7 +42,11 @@ def create_system_information_service() -> SystemInformationService:
         commit=commit,
         schema_versions=SUPPORTED_SCHEMA_VERSIONS,
     )
-    return SystemInformationService(information)
+    database_url = os.getenv("OAK_DATABASE_URL")
+    probes = (
+        (PostgreSQLReadinessProbe(create_postgresql_engine(database_url)),) if database_url else ()
+    )
+    return SystemInformationService(information, readiness_probes=probes)
 
 
 def canonical_schema_directory() -> Path:
@@ -79,4 +98,88 @@ def create_candidate_planning_service(workspace: Path) -> CandidatePlanningServi
         LocalCatalogue(canonical_catalogue_directory(), registry),
         LocalTargetProfile(registry),
         registry,
+    )
+
+
+def create_persistent_control_plane() -> CommunityControlPlane:
+    """Construct the PostgreSQL-backed local Community application facade."""
+
+    database_url = os.getenv("OAK_DATABASE_URL")
+    if not database_url:
+        raise RuntimeError("OAK_DATABASE_URL is required for persistent API operations")
+    artifact_root = Path(os.getenv("OAK_ARTIFACT_ROOT", ".oak/server-artifacts")).absolute()
+    environment_id = os.getenv("OAK_ENVIRONMENT_ID", "local")
+    engine = create_postgresql_engine(database_url)
+    registry = SchemaRegistry.from_directory(canonical_schema_directory())
+
+    def repository_factory(workspace_id: str, tenant_id: str) -> PostgreSQLWorkspaceRepository:
+        return PostgreSQLWorkspaceRepository(
+            engine,
+            registry,
+            artifact_root,
+            workspace_id=workspace_id,
+            tenant_id=tenant_id,
+            environment_id=environment_id,
+        )
+
+    def operation_service_factory(tenant_id: str) -> OperationService:
+        return OperationService(
+            PostgreSQLOperationStore(
+                engine,
+                tenant_id=tenant_id,
+                environment_id=environment_id,
+            ),
+            environment_id=environment_id,
+        )
+
+    def outbox_store_factory(tenant_id: str) -> PostgreSQLOutboxStore:
+        return PostgreSQLOutboxStore(
+            engine,
+            tenant_id=tenant_id,
+            environment_id=environment_id,
+        )
+
+    return CommunityControlPlane(
+        repository_factory,
+        operation_service_factory,
+        LocalBriefIntake(),
+        DeterministicBriefInterpreter(),
+        LocalCatalogue(canonical_catalogue_directory(), registry),
+        LocalTargetProfile(registry),
+        registry,
+        outbox_store_factory,
+    )
+
+
+def create_persistent_worker(*, worker_id: str) -> CommunityWorker:
+    """Construct the separately leased compiler/outbox worker for local Community mode."""
+
+    database_url = os.getenv("OAK_DATABASE_URL")
+    if not database_url:
+        raise RuntimeError("OAK_DATABASE_URL is required for oak-worker")
+    tenant_id = os.getenv("OAK_LOCAL_TENANT", "local")
+    environment_id = os.getenv("OAK_ENVIRONMENT_ID", "local")
+    engine = create_postgresql_engine(database_url)
+    control_plane = create_persistent_control_plane()
+    operation_store = PostgreSQLOperationStore(
+        engine,
+        tenant_id=tenant_id,
+        environment_id=environment_id,
+    )
+    operation_worker = OperationWorker(
+        operation_store,
+        {
+            "generate_candidates": control_plane.execute_operation,
+            "evaluate_candidate": control_plane.execute_operation,
+            "compile_bundle": control_plane.execute_operation,
+        },
+    )
+    return CommunityWorker(
+        operation_worker,
+        PostgreSQLOutboxStore(
+            engine,
+            tenant_id=tenant_id,
+            environment_id=environment_id,
+        ),
+        worker_id=worker_id,
     )

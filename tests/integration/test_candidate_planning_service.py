@@ -69,7 +69,7 @@ def _ready_services(tmp_path: Path) -> tuple[DesignCaseService, CandidatePlannin
     answers = load_yaml_document(
         (ROOT / "examples/briefs/public-manual-qa-answers.yaml").read_text(encoding="utf-8")
     )
-    confirmed = design.confirm(answers, _context("confirm-candidate-planning-0001", "0.1.0", 1))
+    confirmed = design.confirm(answers, _context("confirm-candidate-planning-0001", "0.1.1", 1))
     assert confirmed.case["status"] == "ready_for_candidates"
     return design, planning, workspace
 
@@ -78,22 +78,22 @@ def test_full_candidate_to_plan_lineage_is_atomic_idempotent_and_non_executing(
     tmp_path: Path,
 ) -> None:
     _design, planning, workspace = _ready_services(tmp_path)
-    candidate_context = _context("candidates-planning-flow-0001", "0.1.1", 2)
+    candidate_context = _context("candidates-planning-flow-0001", "0.1.2", 2)
 
     candidates = planning.candidates(candidate_context)
     retry = planning.candidates(candidate_context)
-    evaluation_context = _context("evaluate-planning-flow-0001", "0.1.2", 3)
+    evaluation_context = _context("evaluate-planning-flow-0001", "0.1.3", 3)
     evaluation = planning.evaluate("candidate-03", evaluation_context)
     evaluation_retry = planning.evaluate("candidate-03", evaluation_context)
     before_re_evaluation = FileWorkspaceRepository(workspace, _registry()).manifest()
     with pytest.raises(OAKError) as re_evaluation:
         planning.evaluate(
             "candidate-03",
-            _context("evaluate-planning-flow-again-0001", "0.1.3", 4),
+            _context("evaluate-planning-flow-again-0001", "0.1.4", 4),
         )
     assert re_evaluation.value.code == "OAK-EVALUATION-EXISTS"
     assert FileWorkspaceRepository(workspace, _registry()).manifest() == before_re_evaluation
-    selection_context = _context("select-planning-flow-0001", "0.1.3", 4)
+    selection_context = _context("select-planning-flow-0001", "0.1.4", 4)
     selection = planning.select(
         "candidate-03",
         "Select the balanced fixture to compare bounded generation with the retained baseline.",
@@ -104,7 +104,7 @@ def test_full_candidate_to_plan_lineage_is_atomic_idempotent_and_non_executing(
         "Select the balanced fixture to compare bounded generation with the retained baseline.",
         selection_context,
     )
-    assurance_context = _context("assure-planning-flow-0001", "0.1.4", 5)
+    assurance_context = _context("assure-planning-flow-0001", "0.1.5", 5)
     assurance = planning.assure("candidate-03", assurance_context)
     assurance_retry = planning.assure("candidate-03", assurance_context)
     target = load_yaml_document(
@@ -119,7 +119,7 @@ def test_full_candidate_to_plan_lineage_is_atomic_idempotent_and_non_executing(
         planning.plan(
             "candidate-03",
             wrong_tenant_path,
-            _context("plan-wrong-tenant-flow-0001", "0.1.5", 6),
+            _context("plan-wrong-tenant-flow-0001", "0.1.6", 6),
         )
     assert wrong_tenant.value.code == "OAK-TARGET-TENANT"
     assert FileWorkspaceRepository(workspace, _registry()).manifest() == before_wrong_tenant
@@ -136,7 +136,7 @@ def test_full_candidate_to_plan_lineage_is_atomic_idempotent_and_non_executing(
         planning.plan(
             "candidate-03",
             restricted_target_path,
-            _context("plan-restricted-target-flow-0001", "0.1.5", 6),
+            _context("plan-restricted-target-flow-0001", "0.1.6", 6),
         )
     assert restricted.value.code == "OAK-TARGET-CAPABILITY"
     assert FileWorkspaceRepository(workspace, _registry()).manifest() == before_wrong_tenant
@@ -148,11 +148,11 @@ def test_full_candidate_to_plan_lineage_is_atomic_idempotent_and_non_executing(
         planning.plan(
             "candidate-03",
             undersized_target_path,
-            _context("plan-undersized-target-flow-0001", "0.1.5", 6),
+            _context("plan-undersized-target-flow-0001", "0.1.6", 6),
         )
     assert undersized.value.code == "OAK-TARGET-INCOMPATIBLE"
     assert FileWorkspaceRepository(workspace, _registry()).manifest() == before_wrong_tenant
-    plan_context = _context("plan-planning-flow-0001", "0.1.5", 6)
+    plan_context = _context("plan-planning-flow-0001", "0.1.6", 6)
     plan = planning.plan(
         "candidate-03",
         ROOT / "examples/targets/local-fixture.yaml",
@@ -196,22 +196,22 @@ def test_full_candidate_to_plan_lineage_is_atomic_idempotent_and_non_executing(
 
     repository = FileWorkspaceRepository(workspace, _registry())
     manifest = repository.manifest()
-    assert manifest["version"] == 7
-    assert len(manifest["audit_events"]) == 7
-    assert len(manifest["idempotency_records"]) == 7
+    assert manifest["version"] == 8
+    assert len(manifest["audit_events"]) == 8
+    assert len(manifest["idempotency_records"]) == 8
     repository.export_to(tmp_path / "export")
 
 
 def test_infeasible_or_unevaluated_candidate_cannot_be_selected(tmp_path: Path) -> None:
     _design, planning, workspace = _ready_services(tmp_path)
-    planning.candidates(_context("candidates-denial-flow-0001", "0.1.1", 2))
+    planning.candidates(_context("candidates-denial-flow-0001", "0.1.2", 2))
     before = FileWorkspaceRepository(workspace, _registry()).manifest()
 
     with pytest.raises(OAKError) as infeasible:
         planning.select(
             "candidate-04",
             "Attempt to select a fixture whose accelerator requirement is unknown.",
-            _context("select-infeasible-flow-0001", "0.1.2", 3),
+            _context("select-infeasible-flow-0001", "0.1.3", 3),
         )
     assert infeasible.value.code == "OAK-SELECT-INFEASIBLE"
     assert FileWorkspaceRepository(workspace, _registry()).manifest() == before
@@ -220,7 +220,7 @@ def test_infeasible_or_unevaluated_candidate_cannot_be_selected(tmp_path: Path) 
         planning.select(
             "candidate-03",
             "Attempt to select before deterministic evaluation exists.",
-            _context("select-unevaluated-flow-0001", "0.1.2", 3),
+            _context("select-unevaluated-flow-0001", "0.1.3", 3),
         )
     assert unevaluated.value.code == "OAK-EVALUATION-NOT-FOUND"
     assert FileWorkspaceRepository(workspace, _registry()).manifest() == before
@@ -239,17 +239,17 @@ def test_wrong_state_and_stale_version_leave_state_unchanged(
     repository = FileWorkspaceRepository(workspace, _registry())
     before_confirmation = repository.manifest()
     with pytest.raises(OAKError) as state_error:
-        planning.candidates(_context("candidates-wrong-state-0001", "0.1.0", 1))
+        planning.candidates(_context("candidates-wrong-state-0001", "0.1.1", 1))
     assert state_error.value.code == "OAK-CANDIDATES-STATE"
     assert repository.manifest() == before_confirmation
 
     answers = load_yaml_document(
         (ROOT / "examples/briefs/public-manual-qa-answers.yaml").read_text(encoding="utf-8")
     )
-    design.confirm(answers, _context("confirm-denial-flow-0001", "0.1.0", 1))
+    design.confirm(answers, _context("confirm-denial-flow-0001", "0.1.1", 1))
     before_stale = repository.manifest()
     with pytest.raises(OAKError) as stale:
-        planning.candidates(_context("candidates-stale-flow-0001", "0.1.0", 2))
+        planning.candidates(_context("candidates-stale-flow-0001", "0.1.1", 2))
     assert stale.value.code == "OAK-EXPECTED-VERSION"
     assert repository.manifest() == before_stale
 

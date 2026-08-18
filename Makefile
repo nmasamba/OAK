@@ -4,7 +4,7 @@ UV_CACHE_DIR ?= .uv-cache
 UV := UV_CACHE_DIR=$(UV_CACHE_DIR) uv
 PNPM := pnpm
 
-.PHONY: bootstrap lock toolchain-check validate format format-check lint typecheck test test-integration test-e2e web-build build check audit sbom clean
+.PHONY: bootstrap lock toolchain-check validate format format-check lint typecheck test test-integration test-e2e openapi-compatibility web-build build check audit sbom clean
 
 bootstrap:
 	$(UV) sync --frozen
@@ -48,6 +48,10 @@ test-integration:
 test-e2e:
 	$(UV) run pytest tests/e2e
 
+openapi-compatibility:
+	$(UV) run python scripts/generate_openapi.py --check
+	$(UV) run python scripts/check_openapi_compatibility.py
+
 web-build:
 	$(PNPM) build
 
@@ -55,7 +59,7 @@ build:
 	$(UV) build --no-build-isolation
 	$(PNPM) build
 
-check: validate format-check lint typecheck test test-integration test-e2e web-build
+check: validate format-check lint typecheck test test-integration test-e2e openapi-compatibility web-build
 
 audit:
 	$(UV) run pip-audit
