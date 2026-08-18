@@ -8,6 +8,20 @@ All notable changes to OAK Community are recorded here.
 
 ### Added
 
+- Sprint 4 architecture web workspace for `OAK-S4-001` through `OAK-S4-009`: routed case
+  list/create/open screens, server-status-driven actions, durable operation polling with
+  cancellation, audit timeline, and stale-version conflict recovery, backed by additive
+  tenant-scoped design-case list and audit trail REST resources and `/v1` forwarding in
+  the nginx and Vite proxies.
+- Brief/inference review with fact, inference, domain-default, reviewer-correction, and
+  unknown provenance classes; ranked-question confirmation with confirm/correct/reject/
+  accept-risk decisions; candidate comparison with objective ranges, Pareto status, and
+  visible rejection reasons; decision and assurance display; bundle review with explicit
+  plan/approval/apply separation, digest-verified component lock, and semantic manifest
+  diff; and a downloadable bounded canonical export.
+- Playwright and axe-core browser suites (`make web-e2e`) covering the Compose-only
+  reference journey, a denied stale-version transition, an interrupted cancelled
+  operation, and automated accessibility checks on every core screen.
 - Sprint 3 PostgreSQL control plane and `/v1` REST workflow for `OAK-S3-001` through `OAK-S3-009`.
 - Forward-only Alembic baseline with tenant/environment/workspace-scoped immutable artifacts,
   DesignCase heads and versions, transitions, idempotency, outbox, operations, checkpoints,

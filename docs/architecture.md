@@ -42,6 +42,16 @@ The API binds to `127.0.0.1` by default. A caller must pass an explicit unsafe-b
 acknowledgement to listen on a non-loopback address. This acknowledgement does not claim that
 local actor headers are enterprise authentication.
 
+The web workspace is a routed React application that consumes `/v1` through the generated
+typed client and the same-origin nginx/Vite proxies; it adds no transport of its own and no
+CORS relaxation. Following ADR-0014, the browser renders server-returned case state,
+questions, candidates, decisions, and denials — it never computes lifecycle transitions,
+and a stale `If-Match` surfaces as a visible conflict-recovery path. The additive
+`GET /v1/design-cases` directory reads the authoritative case head/version tables, and
+`GET /v1/design-cases/{id}/audit` reads the immutable `audit_event` artifacts through the
+same repository port in both persistence adapters; neither read surface grants transition
+authority.
+
 The local CLI calls shared `DesignCaseService` and `CandidatePlanningService` application operations. The interface maps arguments and output only; application services own orchestration through intake, catalogue, target-profile, and workspace ports. The deterministic compiler maps explicit facts, records inferences and unknowns with scalar provenance, validates catalogue eligibility, expands provider-neutral patterns, rejects hard-constraint failures and unknowns, estimates visible objective ranges, computes the Pareto frontier, evaluates the public fixture, and compiles a draft typed plan.
 
 ## Local persistence and lineage

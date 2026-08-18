@@ -34,6 +34,16 @@ export interface DesignCaseResponse {
   readonly duplicate: boolean;
 }
 
+export interface DesignCaseListResponse {
+  readonly items: readonly JsonObject[];
+  readonly next_cursor: string | null;
+}
+
+export interface AuditTrailResponse {
+  readonly items: readonly JsonObject[];
+  readonly next_cursor: string | null;
+}
+
 export interface OperationResponse {
   readonly operation_id: string;
   readonly workspace_id: string;
@@ -171,6 +181,33 @@ export async function getDesignCase(
   );
 }
 
+export async function listDesignCases(
+  cursor?: string,
+  baseUrl = "",
+): Promise<DesignCaseListResponse> {
+  const query =
+    cursor === undefined ? "" : `?cursor=${encodeURIComponent(cursor)}`;
+  return requestJson<DesignCaseListResponse>(
+    `/v1/design-cases${query}`,
+    {},
+    baseUrl,
+  );
+}
+
+export async function listAuditEvents(
+  caseId: string,
+  cursor?: string,
+  baseUrl = "",
+): Promise<AuditTrailResponse> {
+  const query =
+    cursor === undefined ? "" : `?cursor=${encodeURIComponent(cursor)}`;
+  return requestJson<AuditTrailResponse>(
+    `/v1/design-cases/${encodeURIComponent(caseId)}/audit${query}`,
+    {},
+    baseUrl,
+  );
+}
+
 export async function interpretDesignCase(
   caseId: string,
   options: CommandOptions,
@@ -284,6 +321,39 @@ export async function compileBundle(
       body: JSON.stringify(input),
     },
     options.baseUrl,
+  );
+}
+
+export interface ArtifactReference {
+  readonly id: string;
+  readonly version: string;
+  readonly digest: string;
+}
+
+export async function listArtifacts(
+  caseId: string,
+  cursor?: string,
+  baseUrl = "",
+): Promise<ArtifactListResponse> {
+  const query =
+    cursor === undefined ? "" : `?cursor=${encodeURIComponent(cursor)}`;
+  return requestJson<ArtifactListResponse>(
+    `/v1/design-cases/${encodeURIComponent(caseId)}/artifacts${query}`,
+    {},
+    baseUrl,
+  );
+}
+
+export async function getJsonArtifact(
+  caseId: string,
+  reference: ArtifactReference,
+  baseUrl = "",
+): Promise<JsonObject> {
+  const query = `?version=${encodeURIComponent(reference.version)}&digest=${encodeURIComponent(reference.digest)}`;
+  return requestJson<JsonObject>(
+    `/v1/design-cases/${encodeURIComponent(caseId)}/artifacts/${encodeURIComponent(reference.id)}${query}`,
+    {},
+    baseUrl,
   );
 }
 

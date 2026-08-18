@@ -2,74 +2,107 @@
 import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 
-import { getVersion, type VersionResponse } from "./generated/api";
+import { getVersion } from "./generated/api";
+import { BundlePage } from "./pages/BundlePage";
+import { CandidatesPage } from "./pages/CandidatesPage";
+import { CaseListPage } from "./pages/CaseListPage";
+import { CasePage } from "./pages/CasePage";
+import { ConfirmPage } from "./pages/ConfirmPage";
+import { DecisionPage } from "./pages/DecisionPage";
+import { OperationPage } from "./pages/OperationPage";
+import { ReviewPage } from "./pages/ReviewPage";
+import { Link, RouterProvider, matchPath, useRouter } from "./router";
 import "./styles.css";
 
-type LoadState =
-  | { readonly kind: "loading" }
-  | { readonly kind: "ready"; readonly information: VersionResponse }
-  | { readonly kind: "failed"; readonly message: string };
-
-function App() {
-  const [state, setState] = useState<LoadState>({ kind: "loading" });
+function Routes() {
+  const { path } = useRouter();
 
   useEffect(() => {
-    const controller = new AbortController();
+    const heading = document.getElementById("page-heading");
+    if (heading !== null) {
+      heading.setAttribute("tabindex", "-1");
+      heading.focus();
+    }
+  }, [path]);
+
+  const reviewMatch = matchPath("/cases/:caseId/review", path);
+  if (reviewMatch?.["caseId"] !== undefined) {
+    return <ReviewPage caseId={reviewMatch["caseId"]} />;
+  }
+  const confirmMatch = matchPath("/cases/:caseId/confirm", path);
+  if (confirmMatch?.["caseId"] !== undefined) {
+    return <ConfirmPage caseId={confirmMatch["caseId"]} />;
+  }
+  const candidatesMatch = matchPath("/cases/:caseId/candidates", path);
+  if (candidatesMatch?.["caseId"] !== undefined) {
+    return <CandidatesPage caseId={candidatesMatch["caseId"]} />;
+  }
+  const decisionMatch = matchPath("/cases/:caseId/decision", path);
+  if (decisionMatch?.["caseId"] !== undefined) {
+    return <DecisionPage caseId={decisionMatch["caseId"]} />;
+  }
+  const bundleMatch = matchPath("/cases/:caseId/bundle", path);
+  if (bundleMatch?.["caseId"] !== undefined) {
+    return <BundlePage caseId={bundleMatch["caseId"]} />;
+  }
+  const caseMatch = matchPath("/cases/:caseId", path);
+  if (caseMatch?.["caseId"] !== undefined) {
+    return <CasePage caseId={caseMatch["caseId"]} />;
+  }
+  const operationMatch = matchPath("/operations/:operationId", path);
+  if (operationMatch?.["operationId"] !== undefined) {
+    return <OperationPage operationId={operationMatch["operationId"]} />;
+  }
+  if (path === "/") {
+    return <CaseListPage />;
+  }
+  return (
+    <>
+      <h1 id="page-heading">Page not found</h1>
+      <p>
+        <Link to="/">Back to all cases</Link>
+      </p>
+    </>
+  );
+}
+
+function App() {
+  const [version, setVersion] = useState<string | null>(null);
+
+  useEffect(() => {
     getVersion()
-      .then((information) => {
-        if (!controller.signal.aborted) {
-          setState({ kind: "ready", information });
-        }
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) {
-          setState({
-            kind: "failed",
-            message: "The local OAK API is unavailable. Start it and retry.",
-          });
-        }
-      });
-    return () => controller.abort();
+      .then((information) => setVersion(information.version))
+      .catch(() => setVersion(null));
   }, []);
 
   return (
-    <main>
-      <section className="status-card" aria-labelledby="status-heading">
-        <p className="eyebrow">Local control plane</p>
-        <h1 id="status-heading">OAK Community</h1>
-        <p className="summary">
-          A non-production harness for typed architecture design and planning.
+    <RouterProvider>
+      <a className="skip-link" href="#content">
+        Skip to content
+      </a>
+      <header className="masthead">
+        <nav aria-label="Primary">
+          <Link to="/" className="wordmark">
+            OAK Community
+          </Link>
+        </nav>
+        <p className="masthead-meta">
+          {version === null ? "API unavailable" : `v${version}`} · local
+          non-production workspace
         </p>
-
-        <div className="status" aria-live="polite">
-          {state.kind === "loading" && <p>Checking the local API…</p>}
-          {state.kind === "failed" && <p className="error">{state.message}</p>}
-          {state.kind === "ready" && (
-            <dl>
-              <div>
-                <dt>API status</dt>
-                <dd>
-                  <span className="indicator" aria-hidden="true" /> Ready
-                </dd>
-              </div>
-              <div>
-                <dt>Version</dt>
-                <dd>{state.information.version}</dd>
-              </div>
-              <div>
-                <dt>Canonical schemas</dt>
-                <dd>{state.information.schema_versions.join(", ")}</dd>
-              </div>
-            </dl>
-          )}
+      </header>
+      <main id="content">
+        <div className="page">
+          <Routes />
         </div>
-
-        <p className="boundary">
-          This harness has no target mutation, secret resolution, or
-          inference-traffic path.
+      </main>
+      <footer className="boundary-footer">
+        <p>
+          This workspace has no target mutation, secret resolution, or
+          inference-traffic path. Compiled plans stay draft review artifacts.
         </p>
-      </section>
-    </main>
+      </footer>
+    </RouterProvider>
   );
 }
 

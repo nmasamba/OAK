@@ -8,6 +8,9 @@ export default defineConfig({
     host: "127.0.0.1",
     proxy: {
       "/version": "http://127.0.0.1:8080",
+      "/healthz": "http://127.0.0.1:8080",
+      "/readyz": "http://127.0.0.1:8080",
+      "/v1": "http://127.0.0.1:8080",
     },
   },
 });

@@ -9,6 +9,7 @@ from oak.adapters.catalogue import LocalCatalogue
 from oak.adapters.intake import LocalBriefIntake
 from oak.adapters.persistence import (
     FileWorkspaceRepository,
+    PostgreSQLCaseDirectory,
     PostgreSQLOperationStore,
     PostgreSQLOutboxStore,
     PostgreSQLReadinessProbe,
@@ -139,6 +140,13 @@ def create_persistent_control_plane() -> CommunityControlPlane:
             environment_id=environment_id,
         )
 
+    def case_directory_factory(tenant_id: str) -> PostgreSQLCaseDirectory:
+        return PostgreSQLCaseDirectory(
+            engine,
+            tenant_id=tenant_id,
+            environment_id=environment_id,
+        )
+
     return CommunityControlPlane(
         repository_factory,
         operation_service_factory,
@@ -148,6 +156,7 @@ def create_persistent_control_plane() -> CommunityControlPlane:
         LocalTargetProfile(registry),
         registry,
         outbox_store_factory,
+        case_directory_factory,
     )
 
 

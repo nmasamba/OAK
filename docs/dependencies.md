@@ -17,9 +17,11 @@ substitute for those locks.
 | SQLAlchemy 2.0 | PostgreSQL transaction and mapping toolkit | PostgreSQL persistence adapter only | MIT |
 | Alembic | Forward-only PostgreSQL migrations | migration tooling and API/worker startup | MIT |
 | Psycopg 3 with binary implementation | PostgreSQL DB-API driver and bundled local `libpq` | below SQLAlchemy in PostgreSQL processes only | LGPL-3.0-only; bundled libraries retain their terms |
-| React | Static status view | web only | MIT |
+| React | Architecture workspace UI | web only | MIT |
 | Vite | Web build tooling | web development | MIT |
 | TypeScript | Strict web type checking | web development | Apache-2.0 |
+| Playwright | Browser end-to-end harness | web development only | Apache-2.0 |
+| axe-core (via @axe-core/playwright) | Automated accessibility checks | web development only | MPL-2.0 |
 
 The core domain and compiler packages do not import interface or persistence frameworks.
 Development-only format, lint, type, test, audit, and SBOM tools are locked but do not ship as
@@ -56,6 +58,18 @@ Alembic revisions are forward-only. A dependency rollback reverts `pyproject.tom
 No dependency creates a hosted runtime requirement. PostgreSQL receives only the canonical
 control-plane metadata permitted by the data boundary; production/customer content remains
 excluded by default.
+
+## Sprint 4 web test tooling review
+
+The capability gap is real-browser verification of the workspace journey, failure
+recovery, and accessibility. Playwright (Apache-2.0, Microsoft-maintained) and axe-core
+(MPL-2.0, Deque-maintained, consumed unmodified through `@axe-core/playwright`) are
+development-only dependencies in the web workspace; neither ships in runtime artifacts or
+images. Neither package registers an install-time build hook, so the pnpm build allowlist
+is unchanged. Browser binaries are not vendored: `playwright install chromium` fetches the
+pinned build explicitly, and the suite itself needs only the local Compose stack. ADR-0011
+permits the reviewed MPL-2.0 component; axe-core remains replaceable behind the single
+`expectAccessible` helper in the end-to-end support module.
 
 The pnpm workspace permits an install-time build hook only for the lockfile-pinned `esbuild` package required by Vite. All other dependency build scripts remain blocked by default.
 
