@@ -322,6 +322,92 @@ textarea {
   line-height: 1.5;
 }
 
+.claim-fact {
+  border-color: #9cbf9f;
+  background: #e7f2e7;
+  color: #1e4a28;
+}
+
+.claim-correction {
+  border-color: #b3a3cd;
+  background: #efe9f7;
+  color: #40306b;
+}
+
+.claim-inference {
+  border-color: #d3b784;
+  background: #f9efdc;
+  color: #6b4d12;
+}
+
+.claim-default {
+  border-color: #93aec6;
+  background: #e6eef6;
+  color: #24445f;
+}
+
+.claim-unknown {
+  border-color: #cf9d9d;
+  background: #fbf1f0;
+  color: #6f2323;
+}
+
+.materiality-critical {
+  border-color: #cf9d9d;
+  background: #fbf1f0;
+  color: #6f2323;
+}
+
+.materiality-high {
+  border-color: #d3b784;
+  background: #f9efdc;
+  color: #6b4d12;
+}
+
+.pointer {
+  font-size: 0.8rem;
+  word-break: break-all;
+}
+
+.value {
+  margin: 0;
+  max-width: 18rem;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.8rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.question-list {
+  margin: 0;
+  padding: 0 0 0 1.2rem;
+  display: grid;
+  gap: 1.1rem;
+}
+
+fieldset {
+  margin: 0;
+  padding: 1rem 1.1rem;
+  border: 1px solid #d8dfd7;
+  border-radius: 0.7rem;
+  background: #fbfcfa;
+}
+
+legend {
+  padding: 0 0.4rem;
+  font-weight: 750;
+}
+
+.decision-options {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0.75rem 0;
+}
+
+.decision-option {
+  font-weight: 400;
+}
+
 .visually-hidden {
   position: absolute;
   width: 1px;

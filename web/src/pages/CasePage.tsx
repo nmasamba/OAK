@@ -183,11 +183,27 @@ export function CasePage({ caseId }: { readonly caseId: string }) {
         </div>
         {status === "needs_confirmation" && (
           <p className="hint">
-            This case needs its open questions answered. The confirmation review
-            arrives in a later milestone; until then, confirm through the CLI or
-            REST API and refresh.
+            This case needs its open questions answered.{" "}
+            <Link to={`/cases/${encodeURIComponent(caseId)}/confirm`}>
+              Answer the {openQuestions.length} ranked question
+              {openQuestions.length === 1 ? "" : "s"}
+            </Link>{" "}
+            after{" "}
+            <Link to={`/cases/${encodeURIComponent(caseId)}/review`}>
+              reviewing the interpreted claims
+            </Link>
+            .
           </p>
         )}
+        {caseDocument["intent_ref"] !== null &&
+          caseDocument["intent_ref"] !== undefined && (
+            <p className="hint">
+              <Link to={`/cases/${encodeURIComponent(caseId)}/review`}>
+                Review the brief interpretation
+              </Link>{" "}
+              to see which values are facts, inferences, defaults, or unknowns.
+            </p>
+          )}
       </section>
 
       {candidates !== null && candidates.length > 0 && (
