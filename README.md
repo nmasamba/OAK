@@ -2,7 +2,7 @@
 
 # OAK Community
 
-OAK Community is a local-first, compiler-shaped control plane for designing, evaluating, and planning AI systems. The current harness provides canonical contract validation, an offline `DesignCase`-to-plan journey, shared application services, a command-line entrypoint, a loopback-safe HTTP API, a minimal web status view, and local container orchestration.
+OAK Community is a local-first, compiler-shaped control plane for designing, evaluating, and planning AI systems. The current harness provides canonical contract validation, an offline `DesignCase`-to-plan journey, shared application services, a command-line entrypoint, a loopback-safe HTTP API, a browser architecture workspace, and local container orchestration.
 
 OAK does not proxy an installed application's inference traffic. The current harness is non-production and contains no target mutation path, hosted-provider requirement, customer credentials, or customer data.
 
@@ -11,10 +11,14 @@ OAK does not proxy an installed application's inference traffic. The current har
 The container path requires only Docker with Compose. Python, `uv`, Node.js, and `pnpm` are pinned inside the build images and do not need to be installed on the host:
 
 ```bash
-docker compose up -d postgres api web
+docker compose up -d postgres api worker web
 curl --fail http://127.0.0.1:8080/version
 docker compose down
 ```
+
+The worker is required for the asynchronous candidate-generation, evaluation, and
+compilation stages; without it those operations stay queued. The web workspace serves at
+`http://127.0.0.1:5173`.
 
 Local source development uses the repository toolchains:
 
@@ -69,6 +73,17 @@ cd /tmp/oak-demo
 ```
 
 `oak import` validates every indexed artifact and imports only into a new workspace. Repeating a mutation with the same normalized input and idempotency key returns its original result without adding a case version or audit event. See [local-design-case.md](docs/local-design-case.md) for storage and recovery, and [compiler-flow.md](docs/compiler-flow.md) for candidate, assurance, determinism, and plan safety.
+
+## Review in the browser
+
+With the Compose stack running, the workspace at `http://127.0.0.1:5173` completes the same
+journey without the CLI: create a case from a pasted brief, review every interpreted value
+with its provenance class (fact, inference, default, correction, unknown), answer the ranked
+questions, compare candidates with objective ranges and visible infeasibility reasons,
+record the selection and assurance plan, compile and review the bundle with its explicit
+plan/approval/apply separation, follow the audit timeline, and download the canonical
+export. The browser renders server-returned state and denials; lifecycle authority stays in
+the shared application services.
 
 The canonical schemas and public synthetic examples live in `schemas/` and `examples/`. See [development.md](docs/development.md) for command details and [architecture.md](docs/architecture.md) for the enforced boundaries.
 

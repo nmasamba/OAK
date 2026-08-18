@@ -21,6 +21,7 @@ CI and container builds are the reproducible builder boundary. They pin `uv` 0.1
 | `make test-integration` | Run local API integration tests |
 | `make test-e2e` | Run CLI/API user-visible smoke tests |
 | `make openapi-compatibility` | Reproduce OpenAPI/client output and reject local breaking changes |
+| `make web-e2e` | Run the Playwright browser journey and accessibility suite against the Compose stack |
 | `make build` | Build Python and web artifacts from bootstrapped dependencies without network |
 | `make sbom` | Generate a development dependency SBOM under ignored `sbom/` |
 | `make check` | Run the non-destructive repository gate |
@@ -89,3 +90,23 @@ See [the migration guide](../migrations/README.md) before a schema change. Stop 
 take a database backup before future forward migrations. Supported recovery restores into a
 clean database and then runs `oak-db-migrate`; `alembic downgrade` is intentionally not
 an OAK recovery mechanism.
+
+## Browser end-to-end
+
+The Playwright suite drives the web workspace at `http://127.0.0.1:5173` and expects the
+full Compose stack (`postgres`, `api`, `worker`, `web`) to be healthy. Install the pinned
+browser once after bootstrap:
+
+```bash
+pnpm --dir web exec playwright install chromium
+docker compose up -d postgres api worker web
+make web-e2e
+```
+
+The suite covers the complete reference journey with automated axe accessibility checks on
+every core screen, a denied stale-version transition with its recovery path, and an
+interrupted operation that is cancelled cooperatively; that last scenario stops and
+restarts the Compose `worker` service, so it requires Docker control and is skipped unless
+`OAK_E2E_DOCKER=1` (which `make web-e2e` sets). Override `OAK_WEB_BASE_URL` and
+`OAK_API_BASE_URL` to target other local origins. Browser binaries download from the
+Playwright CDN; everything else runs locally.
