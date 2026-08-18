@@ -131,6 +131,12 @@
   revocation, and dispatch requires both under the compiled verification policy. `oak-runner`
   independently verifies every security invariant before target access, journals each side
   effect in a hash chain, and returns bounded redacted evidence with a signed completion.
+- A multi-agent adversarial audit of the completed sprint produced 35 candidate findings,
+  independently refuted or confirmed; ten survived. Six were fixed, including a critical
+  signature-forgery bypass (verification used the key embedded in the document rather than a
+  pinned anchor key), a critical approved-image-digest bypass, and a high-severity gap where
+  a duplicate operation kind could execute without verification. The remaining four are
+  recorded as known limitations in the completed ExecPlan.
 - Sprint 5 verification: 22 new unit tests (signing lifecycle, journal integrity, adapter argv
   injection resistance), a 12-case adversarial integration suite proving tampered plans, wrong
   target fingerprints, expired leases, replayed nonces, untrusted signers, revoked approvals,

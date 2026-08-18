@@ -432,7 +432,15 @@ class ReleaseService:
             if not verify_signed_document(message):
                 rejected.append(message_id)
                 continue
+            if not _key_id_derives_from_key(message.get("signature")):
+                rejected.append(message_id)
+                continue
             if message["tenant_id"] != context.tenant_id:
+                rejected.append(message_id)
+                continue
+            if not self._is_dispatched_lease(message.get("lease_id")):
+                # A completion must reference a lease this control plane issued;
+                # self-signed messages cannot invent work that was never dispatched.
                 rejected.append(message_id)
                 continue
             if message["kind"] in {"completion", "evidence"}:
@@ -446,6 +454,23 @@ class ReleaseService:
             accepted=tuple(accepted),
             rejected=tuple(rejected),
         )
+
+    def _is_dispatched_lease(self, lease_id: Any) -> bool:
+        if not isinstance(lease_id, str) or not lease_id:
+            return False
+        case = self._repository.current_case()
+        if case is None:
+            return False
+        reference = case.get("extensions", {}).get("oak.community/last_dispatch_ref")
+        if not isinstance(reference, dict):
+            return False
+        try:
+            envelope = self._repository.read_json_artifact(
+                ArtifactReference.from_document(reference)
+            )
+        except OAKError:
+            return False
+        return str(envelope.get("lease", {}).get("lease_id")) == lease_id
 
     def _record_completion(
         self,
@@ -697,6 +722,24 @@ class ReleaseService:
                 }
             )
         )
+
+
+def _key_id_derives_from_key(signature: Any) -> bool:
+    """Reject a signature block whose key_id is decoupled from its public key."""
+
+    if not isinstance(signature, dict):
+        return False
+    public_key = signature.get("public_key_base64")
+    role = signature.get("role")
+    key_id = signature.get("key_id")
+    if not isinstance(public_key, str) or not isinstance(role, str):
+        return False
+    expected = content_digest(
+        canonical_json_bytes(
+            {"algorithm": "ed25519", "public_key_base64": public_key, "role": role}
+        )
+    )
+    return key_id == expected
 
 
 def _deterministic_nonce(*parts: str) -> str:

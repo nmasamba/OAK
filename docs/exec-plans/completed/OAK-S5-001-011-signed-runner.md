@@ -226,6 +226,55 @@ never-started containers removable by name; `docker compose` behavior is unchang
   digest-pinned, labelled, never-started container: a real, observable, fully reversible
   local mutation with no code execution inside the container.
 
+## Post-implementation audit
+
+A multi-agent adversarial audit ran against the completed sprint: four security lenses
+(signing/trust, verifier completeness, adapter execution safety, control-plane state)
+produced 35 candidate findings, each independently refuted or confirmed by a separate
+agent. Ten survived refutation. Six were fixed in this sprint; four are recorded below as
+known limitations.
+
+Fixed:
+
+- **Signature forgery through unauthenticated `key_id` (critical).** Verification used the
+  public key embedded in the document under inspection, while the trust check compared that
+  document's self-asserted `key_id` against the anchors. An attacker could sign with their
+  own key, embed their own public key, and claim a trusted identifier; both checks passed.
+  Trust anchors now hold public keys, verification uses the pinned key, and a key
+  identifier must derive from the key it names. Reproduced as an exploit before the fix and
+  covered by `tests/unit/test_runner_trust.py`.
+- **Approved image digest bypass (critical).** The container adapter used a digest embedded
+  in `image_reference` in preference to the approved `image_digest`, so an approval for one
+  image could run another. References carrying their own digest are now refused.
+- **Unverified operations could execute (high).** Verification kept one operation per kind
+  while execution re-derived its work list from the raw plan, so a duplicate kind would
+  execute unverified. Duplicate kinds are now rejected and execution consumes exactly the
+  verified tuple.
+- **Unenrolled runner completions (high).** Ingestion accepted any self-consistently signed
+  message. Messages must now carry a key identifier that derives from their key and
+  reference a lease this control plane actually dispatched.
+- **Mailbox wedging and path traversal (medium).** A malformed approval identifier raised
+  `IndexError` outside the fail-closed handler, and mailbox bookkeeping built paths from the
+  envelope's self-declared id on the denial path. Identifiers are validated, and the on-disk
+  directory name is authoritative.
+- **Missing plan and approval scoping (medium).** Plan expiry and status were never checked,
+  and approvals were not bound to the dispatch's tenant, environment, or case.
+
+Known limitations, deliberately not fixed in this sprint:
+
+- Revocation notices are unsigned and travel over a fail-open channel: deleting a notice
+  from the mailbox restores the approval's usability. Signing revocations and treating an
+  unreadable revocation directory as fail-closed belongs with the enterprise transport.
+- The runner's trust-anchor directory currently defaults to the same directory that holds
+  the control plane's private keys. They are separate concerns and should be separate paths
+  once the runner runs on a different host; only public `*.identity.json` files are read.
+- `default_executor` resolves `docker` through the inherited `PATH`; the hardened `os.defpath`
+  applies to the child environment only.
+- The image digest is not verified against what the container runtime actually resolved, and
+  no registry allowlist is enforced.
+- The signature block's own fields (`role`, `trust_level`) are outside the signed payload.
+  Anchor-based verification now makes a mismatch unusable, but the fields remain claims.
+
 ## Discoveries and follow-ups
 
 - `tests/e2e/test_cli.py::test_unimplemented_runner_fails_honestly` was replaced by tests

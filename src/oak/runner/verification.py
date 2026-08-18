@@ -244,6 +244,16 @@ def verify_dispatch(
         "OAK-RUNNER-TARGET",
         "plan fingerprint does not match this target",
     )
+    _check(
+        str(plan.get("status")) in {"draft", "signed", "approved"},
+        "OAK-RUNNER-PLAN-STATE",
+        "plan status is not dispatchable",
+    )
+    _check(
+        _parse_time(now) < _parse_time(str(plan["expires_at"])),
+        "OAK-RUNNER-PLAN-EXPIRED",
+        "plan has expired",
+    )
 
     # 5. Lease validity, nonce replay, and expiry.
     lease = envelope["lease"]
@@ -398,6 +408,14 @@ def _check_approval(
     now_time: datetime,
 ) -> None:
     _check(approval["revoked"] is False, "OAK-RUNNER-APPROVAL", "approval is revoked")
+    # The approval must be scoped to the same tenant, environment, and case as
+    # the dispatch it accompanies; otherwise an approval issued elsewhere counts.
+    for field in ("tenant_id", "environment", "case_id"):
+        _check(
+            approval[field] == envelope[field],
+            "OAK-RUNNER-APPROVAL",
+            f"approval {field} does not match the dispatch",
+        )
     _check(
         approval["id"] not in revoked_approval_ids,
         "OAK-RUNNER-APPROVAL",
