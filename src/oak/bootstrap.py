@@ -172,12 +172,22 @@ def load_steward_anchors() -> dict[str, str]:
 
 def create_extension_service() -> ExtensionService:
     registry = SchemaRegistry.from_directory(canonical_schema_directory())
+
+    def bundled_pack_ids() -> frozenset[str]:
+        store = LocalPolicyPackStore(
+            (canonical_policy_pack_directory(),),
+            registry,
+            nested_directories=(default_extensions_directory() / "active",),
+        )
+        return frozenset(str(pack["id"]) for pack in store.list_packs())
+
     return ExtensionService(
         registry,
         LocalExtensionStore(default_extensions_directory(), registry),
         BuiltinPolicyEngine,
         load_steward_anchors,
         __version__,
+        bundled_pack_ids,
     )
 
 
@@ -188,14 +198,17 @@ def load_steward_signer() -> LocalEd25519Signer:
 def create_policy_service(workspace: Path) -> PolicyService:
     registry = SchemaRegistry.from_directory(canonical_schema_directory())
     repository = FileWorkspaceRepository(workspace, registry)
-    pack_directories = (
-        canonical_policy_pack_directory(),
-        default_extensions_directory() / "active-packs",
-    )
     return PolicyService(
         repository,
         registry,
-        LocalPolicyPackStore(pack_directories, registry),
+        LocalPolicyPackStore(
+            (canonical_policy_pack_directory(),),
+            registry,
+            # Read each activated extension's verified pack in place rather than a
+            # materialized copy, so the pack that is evaluated is the pack that was
+            # digest-checked and signature-verified at activation.
+            nested_directories=(default_extensions_directory() / "active",),
+        ),
         policy_engine_loaders(),
     )
 

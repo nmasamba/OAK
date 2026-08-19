@@ -32,7 +32,6 @@ RESERVED_NAMES = frozenset({MANIFEST_NAME, REPORT_NAME, ACTIVATION_NAME})
 MAXIMUM_DOCUMENT_BYTES = 524_288
 MAXIMUM_PAYLOAD_BYTES = 4_194_304
 MAXIMUM_PAYLOAD_FILES = 64
-ACTIVE_PACKS_DIRECTORY = "active-packs"
 
 
 class LocalExtensionStore:
@@ -108,7 +107,7 @@ class LocalExtensionStore:
     def payload_names(self, entry: ExtensionEntry) -> tuple[str, ...]:
         directory = self._entry_directory(entry)
         names: list[str] = []
-        for path in sorted(directory.rglob("*")):
+        for path in directory.rglob("*"):
             if path.is_dir():
                 continue
             relative = path.relative_to(directory).as_posix()
@@ -117,7 +116,10 @@ class LocalExtensionStore:
             names.append(relative)
         if len(names) > MAXIMUM_PAYLOAD_FILES:
             raise OAKError("OAK-EXTENSION-PAYLOAD", "extension payload has too many files")
-        return tuple(names)
+        # Sort the POSIX strings, not the Paths: Path ordering compares parts, so
+        # "a/0.yaml" precedes "a-b.yaml" while the declared-path string sort the
+        # verifier compares against puts it after, falsely reporting tampering.
+        return tuple(sorted(names))
 
     def payload_bytes(self, entry: ExtensionEntry, name: str) -> bytes:
         self._check_component_path(name)
@@ -168,7 +170,6 @@ class LocalExtensionStore:
             state=ACTIVE,
             manifest=entry.manifest,
         )
-        self._materialize_pack(activated)
         return activated
 
     def deactivate(self, extension_id: str, version: str | None) -> ExtensionEntry:
@@ -180,8 +181,6 @@ class LocalExtensionStore:
         destination = self._root / QUARANTINED / directory_name
         if destination.exists():
             raise OAKError("OAK-EXTENSION-EXISTS", "a quarantined copy already exists")
-        pack_path = self._root / ACTIVE_PACKS_DIRECTORY / f"{entry.extension_id}.yaml"
-        pack_path.unlink(missing_ok=True)
         (source / ACTIVATION_NAME).unlink(missing_ok=True)
         os.replace(source, destination)
         return ExtensionEntry(
@@ -225,16 +224,6 @@ class LocalExtensionStore:
                 }
             )
         return sorted(listing, key=lambda item: str(item["path"]))
-
-    def _materialize_pack(self, entry: ExtensionEntry) -> None:
-        if str(entry.manifest.get("extension_class")) != "policy-pack":
-            return
-        pack_bytes = self.payload_bytes(entry, "pack.yaml")
-        packs_root = self._root / ACTIVE_PACKS_DIRECTORY
-        packs_root.mkdir(parents=True, exist_ok=True, mode=0o700)
-        target = packs_root / f"{entry.extension_id}.yaml"
-        target.write_bytes(pack_bytes)
-        os.chmod(target, 0o600)
 
     def _entry_directory(self, entry: ExtensionEntry) -> Path:
         return self._root / entry.state / self._directory_name(entry.extension_id, entry.version)
@@ -280,7 +269,7 @@ class LocalExtensionStore:
         # Documentation (*.md) travels with templates but is never governed
         # payload: it is not copied into the store, digested, or verified.
         names: list[str] = []
-        for path in sorted(source.rglob("*")):
+        for path in source.rglob("*"):
             if path.is_dir():
                 continue
             relative = path.relative_to(source).as_posix()
@@ -290,7 +279,7 @@ class LocalExtensionStore:
             names.append(relative)
         if len(names) > MAXIMUM_PAYLOAD_FILES:
             raise OAKError("OAK-EXTENSION-PAYLOAD", "extension payload has too many files")
-        return tuple(names)
+        return tuple(sorted(names))
 
     def _copy_bounded(self, source: Path, destination: Path) -> None:
         content = self._read_bounded(source, MAXIMUM_PAYLOAD_BYTES)

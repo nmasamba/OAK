@@ -128,7 +128,9 @@ def test_contributor_journey_sign_install_verify_activate(harness: Harness, tmp_
     listed = harness.service.list_extensions()
     assert listed[0]["state"] == "active"
 
-    pack_store = LocalPolicyPackStore((harness.store_root / "active-packs",), harness.registry)
+    pack_store = LocalPolicyPackStore(
+        (), harness.registry, nested_directories=(harness.store_root / "active",)
+    )
     contributed = pack_store.load("pack.contributed-baseline")
     assert contributed["id"] == "pack.contributed-baseline"
 
@@ -386,7 +388,9 @@ def test_only_one_version_of_an_extension_can_be_active(harness: Harness, tmp_pa
     harness.service.activate(
         "extension.contributed-baseline", "2.0.0", actor="local-user", occurred_at=NOW
     )
-    pack_store = LocalPolicyPackStore((harness.store_root / "active-packs",), harness.registry)
+    pack_store = LocalPolicyPackStore(
+        (), harness.registry, nested_directories=(harness.store_root / "active",)
+    )
     assert pack_store.load("pack.contributed-baseline")["id"] == "pack.contributed-baseline"
 
 
@@ -412,6 +416,59 @@ def test_alias_bearing_pack_payload_is_refused_not_activated(
     assert content["result"] == "fail"
     with pytest.raises(OAKError) as denial:
         harness.service.activate(
+            "extension.contributed-baseline", None, actor="local-user", occurred_at=NOW
+        )
+    assert denial.value.code == "OAK-EXTENSION-QUARANTINED"
+
+
+def test_subdirectory_payloads_are_not_falsely_reported_as_tampered(
+    harness: Harness, tmp_path: Path
+) -> None:
+    """Declared paths are string-sorted, so on-disk listing must be too.
+
+    Path ordering compares parts, placing "rules/a.yaml" before "rules-extra.yaml"
+    while the string sort the verifier compares against puts it after — a
+    correctly signed multi-file extension would then fail its digest check.
+    """
+
+    source = _pack_extension_source(tmp_path)
+    (source / "rules").mkdir()
+    (source / "rules" / "a.yaml").write_text("note: nested\n", encoding="utf-8")
+    (source / "rules-extra.yaml").write_text("note: sibling\n", encoding="utf-8")
+    harness.service.sign_source(source, harness.steward())
+    harness.service.install(source)
+
+    report = harness.service.verify("extension.contributed-baseline", None, occurred_at=NOW)
+    digest_check = next(check for check in report.checks if check["id"] == "payload-digest")
+    assert digest_check["result"] == "pass", digest_check["detail"]
+
+
+def test_colliding_pack_id_is_refused_at_the_gate(harness: Harness, tmp_path: Path) -> None:
+    """A duplicate pack id must not activate.
+
+    The bounded pack store treats a duplicate id as ambiguous and refuses the
+    whole listing, so a colliding extension would take down every policy read —
+    including packs that worked before it arrived.
+    """
+
+    service = ExtensionService(
+        harness.registry,
+        harness.store,
+        BuiltinPolicyEngine,
+        harness._anchors,
+        OAK_VERSION,
+        lambda: frozenset({"pack.contributed-baseline"}),
+    )
+    source = _pack_extension_source(tmp_path)
+    service.sign_source(source, harness.steward())
+    service.install(source)
+
+    report = service.verify("extension.contributed-baseline", None, occurred_at=NOW)
+    content = next(check for check in report.checks if check["id"] == "payload-content")
+    assert content["result"] == "fail"
+    assert "already available" in content["detail"]
+    with pytest.raises(OAKError) as denial:
+        service.activate(
             "extension.contributed-baseline", None, actor="local-user", occurred_at=NOW
         )
     assert denial.value.code == "OAK-EXTENSION-QUARANTINED"

@@ -61,12 +61,14 @@ class ExtensionService:
         engine_loader: Callable[[], PolicyEnginePort],
         anchor_loader: Callable[[], dict[str, str]],
         oak_version: str,
+        available_pack_ids: Callable[[], frozenset[str]] | None = None,
     ) -> None:
         self._registry = registry
         self._store = store
         self._engine_loader = engine_loader
         self._anchor_loader = anchor_loader
         self._oak_version = oak_version
+        self._available_pack_ids = available_pack_ids or (lambda: frozenset())
 
     def install(self, source: Path) -> ExtensionEntry:
         return self._store.install(source)
@@ -380,6 +382,17 @@ class ExtensionService:
             self._store.payload_bytes(entry, "pack.yaml").decode("utf-8")
         )
         self._registry.validate("policy-pack.schema.json", pack)
+        # A duplicate pack id makes the bounded pack store ambiguous, which would
+        # take down every policy read rather than just this pack. Refuse the
+        # colliding extension at the gate instead.
+        if str(pack["id"]) in self._available_pack_ids():
+            record(
+                "payload-content",
+                False,
+                f"Policy pack id {pack['id']} is already available; a duplicate id "
+                "would make every policy read ambiguous.",
+            )
+            return
         effective, reason = pack_effective_window(pack, at=occurred_at)
         if not effective:
             record("payload-content", False, f"Policy pack is not usable now: {reason}.")

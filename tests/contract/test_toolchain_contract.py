@@ -36,3 +36,16 @@ def test_ci_uv_drift_is_rejected(tmp_path: Path) -> None:
     )
 
     assert "uv version differs between CI and API container" in check(tmp_path)
+
+
+def test_status_reports_the_current_repository_version() -> None:
+    """STATUS.md's version claim must track the packaged version.
+
+    Nothing else compares them, so the header silently kept reporting the
+    previous sprint's version after a release bump.
+    """
+
+    root = Path(__file__).resolve().parents[2]
+    version = (root / "VERSION").read_text(encoding="utf-8").strip()
+    status = (root / "STATUS.md").read_text(encoding="utf-8")
+    assert f"- **Repository version:** `{version}`" in status

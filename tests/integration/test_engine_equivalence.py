@@ -7,7 +7,7 @@ from typing import Any
 import pytest
 import yaml
 
-from oak.adapters.policies import BuiltinPolicyEngine, LocalPolicyPackStore
+from oak.adapters.policies import BuiltinPolicyEngine
 from oak.adapters.policies.opa import OpaPolicyEngine
 from oak.contracts import SchemaRegistry
 from tests.runner_support import ROOT
@@ -169,7 +169,6 @@ def test_escaped_pointer_tokens_evaluate_identically() -> None:
 )
 def test_shipped_pack_fixtures_evaluate_identically(pack_path: Any) -> None:
     registry = SchemaRegistry.from_directory(ROOT / "schemas")
-    store = LocalPolicyPackStore((pack_path.parent,), registry)
     pack = yaml.safe_load(pack_path.read_text())
     registry.validate("policy-pack.schema.json", pack)
     builtin_engine = BuiltinPolicyEngine()
@@ -180,7 +179,6 @@ def test_shipped_pack_fixtures_evaluate_identically(pack_path: Any) -> None:
         opa = opa_engine.evaluate(pack, subject)
         assert builtin == opa, test["name"]
         assert builtin.outcome == test["expected_outcome"], test["name"]
-    del store
 
 
 def test_external_engine_divergence_fails_closed() -> None:

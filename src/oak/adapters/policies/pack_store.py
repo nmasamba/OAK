@@ -19,25 +19,39 @@ PACK_SCHEMA = "policy-pack.schema.json"
 class LocalPolicyPackStore:
     """Read schema-valid packs from explicit local directories, fail closed."""
 
-    def __init__(self, directories: tuple[Path, ...], registry: SchemaRegistry) -> None:
+    def __init__(
+        self,
+        directories: tuple[Path, ...],
+        registry: SchemaRegistry,
+        *,
+        nested_directories: tuple[Path, ...] = (),
+    ) -> None:
         self._directories = directories
+        # Each nested root holds one subdirectory per activated extension; the
+        # pack is read from the verified extension directory itself so there is
+        # no second copy that can drift away from what was signed and checked.
+        self._nested_directories = nested_directories
         self._registry = registry
 
     def list_packs(self) -> tuple[dict[str, Any], ...]:
         packs: dict[str, dict[str, Any]] = {}
-        count = 0
+        candidates: list[Path] = []
         for directory in self._directories:
             if not directory.is_dir() or directory.is_symlink():
                 continue
-            for path in sorted([*directory.glob("*.yaml"), *directory.glob("*.yml")]):
-                count += 1
-                if count > MAXIMUM_FILES:
-                    raise OAKError("OAK-POLICY-PACK-COUNT", "too many policy pack files")
-                document = self._load_document(path)
-                pack_id = str(document["id"])
-                if pack_id in packs:
-                    raise OAKError("OAK-POLICY-PACK-DUPLICATE", "policy pack ID is duplicated")
-                packs[pack_id] = document
+            candidates.extend(sorted([*directory.glob("*.yaml"), *directory.glob("*.yml")]))
+        for root in self._nested_directories:
+            if not root.is_dir() or root.is_symlink():
+                continue
+            candidates.extend(sorted(root.glob("*/pack.yaml")))
+        for count, path in enumerate(candidates, start=1):
+            if count > MAXIMUM_FILES:
+                raise OAKError("OAK-POLICY-PACK-COUNT", "too many policy pack files")
+            document = self._load_document(path)
+            pack_id = str(document["id"])
+            if pack_id in packs:
+                raise OAKError("OAK-POLICY-PACK-DUPLICATE", "policy pack ID is duplicated")
+            packs[pack_id] = document
         return tuple(packs[pack_id] for pack_id in sorted(packs))
 
     def load(self, pack_id: str) -> dict[str, Any]:

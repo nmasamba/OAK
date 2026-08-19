@@ -3,7 +3,7 @@
 # Build status
 
 - **Updated:** 2026-08-19
-- **Repository version:** `0.5.0.dev5`
+- **Repository version:** `0.6.0.dev6`
 - **Phase:** Sprint 6 in progress — policy and adapter SDK
 - **Completed plans:** `docs/exec-plans/completed/OAK-S0-001-009-walking-skeleton.md`, `docs/exec-plans/completed/OAK-S1-001-010-local-design-case.md`, `docs/exec-plans/completed/OAK-S2-001-011-candidate-planning.md`, `docs/exec-plans/completed/OAK-S3-001-009-persistent-rest-jobs.md`, `docs/exec-plans/completed/OAK-S4-001-009-web-workspace.md`, and `docs/exec-plans/completed/OAK-S5-001-011-signed-runner.md`
 - **Active plan:** `docs/exec-plans/active/OAK-S6-001-008-policy-adapter-sdk.md`
