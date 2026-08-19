@@ -71,6 +71,19 @@ never loads a private key. Keys are raw 32-byte Ed25519 seeds in a 0600 file und
 trust directory, labelled `development`; Community makes no production assurance claim. The
 `SigningPort` is the replacement seam if a KMS or hardware backend is introduced later.
 
+## Sprint 6 policy engine review
+
+The capability gap is an optional open policy evaluator behind the policy port. No Python
+dependency was added: the OPA adapter executes a locally installed `opa` binary (Open
+Policy Agent, Apache-2.0, CNCF-graduated) through a fixed allowlisted argument vector with
+`shell=False`, a sanitized environment, timeouts, and bounded output. The binary is never
+downloaded, bundled, or required: `oak policy evaluate` defaults to the deterministic
+built-in engine, engine selection is explicit, and a missing binary is a stable
+`OAK-POLICY-ENGINE-UNAVAILABLE` error. Generated Rego carries pack content only as
+JSON-encoded literals, and the engine-equivalence suite proves byte-identical canonical
+evaluations against the built-in engine whenever `opa` is present. The `PolicyEnginePort`
+is the replacement seam; removing the adapter removes the integration completely.
+
 ## Sprint 4 web test tooling review
 
 The capability gap is real-browser verification of the workspace journey, failure

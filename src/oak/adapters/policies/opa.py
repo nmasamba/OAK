@@ -127,7 +127,13 @@ class OpaPolicyEngine:
     def _run_opa(
         self, module: str, subject: dict[str, Any], *, expected_rules: int
     ) -> list[dict[str, Any]]:
-        stdin = json.dumps(subject, ensure_ascii=False, sort_keys=True).encode("utf-8")
+        stdin = json.dumps(
+            subject,
+            ensure_ascii=False,
+            allow_nan=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
         directory = Path(tempfile.mkdtemp(prefix="oak-opa-"))
         directory.chmod(0o700)
         module_path = directory / "pack.rego"
