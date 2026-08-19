@@ -24,6 +24,7 @@ from oak.application.operations import (
     OperationWorker,
     WorkerCycleResult,
 )
+from oak.application.policy import PolicyEvaluationResult, PolicyService
 from oak.application.release import IngestResult, ReleaseResult, ReleaseService
 from oak.application.system_information import SystemInformationService
 
@@ -44,6 +45,8 @@ __all__ = [
     "OperationSubmission",
     "OperationWorker",
     "PlanResult",
+    "PolicyEvaluationResult",
+    "PolicyService",
     "QuestionResult",
     "ReleaseResult",
     "ReleaseService",

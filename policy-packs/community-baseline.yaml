@@ -1,0 +1,119 @@
+# SPDX-License-Identifier: Apache-2.0
+description: Deterministic Community fixture policy for public, egress-free local
+  architectures. It demonstrates the governed pack lifecycle and is not legal advice.
+effective_from: '2026-08-01T00:00:00Z'
+evidence:
+  - checked_at: '2026-08-13T12:00:00Z'
+    confidence: 0.9
+    content_digest: sha256:7f9b6ef2ddbbe807b3413d95034bfaee5be62b23f0d661fd9be9931cc0e33cee
+    id: evidence.community-baseline-doctrine
+    source_type: official_guidance
+    title: OAK Community baseline architecture doctrine
+    uri: null
+    version: '1.0'
+expires_at: '2027-08-01T00:00:00Z'
+extensions: {}
+id: pack.community-baseline
+licence:
+  spdx_expression: Apache-2.0
+  terms_url: null
+name: Community baseline fixture policy
+owner: community-policy-steward
+review:
+  owner_review_status: approved
+  reviewed_at: '2026-08-14T09:00:00Z'
+  reviewed_by: community-policy-steward
+rules:
+  - description: Deny any architecture whose declared data classifications exceed public.
+    id: rule.public-data-only
+    obligations: []
+    outcome: deny
+    reason_code: POL-DATA-NOT-PUBLIC
+    when:
+      not:
+        operator: subset_of
+        pointer: /intent_spec/data/classifications
+        value:
+          - public
+  - description: Require human confirmation while the EU regulatory nexus is unrecorded,
+      possible, likely, or established but unconfirmed by the legal owner.
+    id: rule.eu-nexus-unconfirmed
+    obligations:
+      - Confirm the regulatory nexus facts with the accountable legal owner.
+    outcome: review_required
+    reason_code: POL-EU-NEXUS-UNCONFIRMED
+    when:
+      any:
+        - operator: absent
+          pointer: /intent_spec/regulatory_nexus/eu_nexus
+        - operator: in
+          pointer: /intent_spec/regulatory_nexus/eu_nexus
+          value:
+            - possible
+            - likely
+            - established
+  - description: Allow local candidates that keep the no-runtime-egress hard requirement.
+    id: rule.no-runtime-egress
+    obligations:
+      - Keep the deny-all egress policy in every rendered manifest.
+    outcome: allow
+    reason_code: POL-NO-EGRESS-OK
+    when:
+      operator: contains
+      pointer: /candidate/hard_requirements
+      value: no_runtime_egress
+schema_version: 0.1.0
+scope:
+  domains:
+    - architecture-baseline
+  jurisdictions:
+    - synthetic
+source_version: community-baseline-doctrine-1.0
+status: published
+tests:
+  - expected_outcome: deny
+    expected_reason_codes:
+      - POL-DATA-NOT-PUBLIC
+      - POL-NO-EGRESS-OK
+    name: non-public data is denied
+    subject:
+      candidate:
+        hard_requirements:
+          - no_runtime_egress
+      intent_spec:
+        data:
+          classifications:
+            - public
+            - internal
+        regulatory_nexus:
+          eu_nexus: none
+  - expected_outcome: review_required
+    expected_reason_codes:
+      - POL-EU-NEXUS-UNCONFIRMED
+      - POL-NO-EGRESS-OK
+    name: possible EU nexus requires review
+    subject:
+      candidate:
+        hard_requirements:
+          - no_runtime_egress
+      intent_spec:
+        data:
+          classifications:
+            - public
+        regulatory_nexus:
+          eu_nexus: possible
+  - expected_outcome: allow
+    expected_reason_codes:
+      - POL-NO-EGRESS-OK
+    name: public egress-free architecture with no EU nexus is allowed
+    subject:
+      candidate:
+        hard_requirements:
+          - no_runtime_egress
+      intent_spec:
+        data:
+          classifications:
+            - public
+        regulatory_nexus:
+          eu_nexus: none
+version: 1.0.0

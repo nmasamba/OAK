@@ -626,6 +626,8 @@ class FileWorkspaceRepository:
             for key, kind in (
                 ("oak.community/pattern_refs", "architecture_pattern"),
                 ("oak.community/evaluation_refs", "evaluation_result"),
+                ("oak.community/policy_pack_refs", "policy_pack"),
+                ("oak.community/policy_decision_refs", "policy_decision"),
             ):
                 for nested_reference in extension_refs.get(key, []):
                     self._require_indexed_reference(indexed, nested_reference, kind)

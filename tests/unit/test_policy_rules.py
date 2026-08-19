@@ -51,8 +51,15 @@ SUBJECT: dict[str, Any] = {
         ({"pointer": "/data/records", "operator": "exists"}, True),
         ({"pointer": "/data/missing", "operator": "absent"}, True),
         ({"pointer": "/tags", "operator": "contains", "value": "no_runtime_egress"}, True),
-        ({"pointer": "/tags", "operator": "subset_of", "value": ["local"]}, True),
-        ({"pointer": "/tags", "operator": "subset_of", "value": ["local", "cloud"]}, False),
+        ({"pointer": "/tags", "operator": "subset_of", "value": ["local"]}, False),
+        (
+            {
+                "pointer": "/tags",
+                "operator": "subset_of",
+                "value": ["local", "no_runtime_egress", "extra"],
+            },
+            True,
+        ),
         ({"pointer": "/nested/1/name", "operator": "equals", "value": "beta"}, True),
         ({"pointer": "/flag", "operator": "equals", "value": True}, True),
         ({"pointer": "/flag", "operator": "equals", "value": 1}, False),

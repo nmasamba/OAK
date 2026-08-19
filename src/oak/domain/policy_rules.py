@@ -77,6 +77,12 @@ def evaluate_pack_rules(rules: list[dict[str, Any]], subject: dict[str, Any]) ->
                 unknown=False,
             )
         )
+    return aggregate_evaluations(results)
+
+
+def aggregate_evaluations(results: list[RuleEvaluation]) -> PackEvaluation:
+    """The single aggregation every engine shares: deny > review_required > allow."""
+
     return PackEvaluation(
         outcome=_aggregate_outcome(results),
         rule_results=tuple(results),
@@ -197,14 +203,21 @@ def _evaluate_collection_operator(operator: str, resolved: Any, value: Any) -> b
         return any(_json_equal(item, value) for item in resolved)
     if not isinstance(value, list):
         return None
-    return all(any(_json_equal(item, member) for member in resolved) for item in value)
+    return all(any(_json_equal(item, member) for member in value) for item in resolved)
 
 
 def _json_equal(left: Any, right: Any) -> bool:
-    if isinstance(left, bool) is not isinstance(right, bool):
+    """JSON-typed equality: booleans never equal numbers, at any nesting depth."""
+
+    if isinstance(left, bool) or isinstance(right, bool):
+        return isinstance(left, bool) and isinstance(right, bool) and left == right
+    if isinstance(left, list) and isinstance(right, list):
+        return len(left) == len(right) and all(
+            _json_equal(a, b) for a, b in zip(left, right, strict=True)
+        )
+    if isinstance(left, (list, dict)) or isinstance(right, (list, dict)):
         return False
-    result = left == right
-    return bool(result)
+    return bool(left == right)
 
 
 def _comparable_numbers(left: Any, right: Any) -> bool:
@@ -225,7 +238,7 @@ def _resolve_pointer(subject: dict[str, Any], pointer: str) -> tuple[Any, bool]:
                 return None, False
             current = current[key]
         elif isinstance(current, list):
-            if not key.isdigit() or int(key) >= len(current):
+            if not (key.isascii() and key.isdigit()) or int(key) >= len(current):
                 return None, False
             current = current[int(key)]
         else:

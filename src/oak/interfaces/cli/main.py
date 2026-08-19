@@ -678,6 +678,69 @@ def gitops(
         _abort(error)
 
 
+@app.command()
+def policy(
+    action: Annotated[str, typer.Argument(help="evaluate or packs.")],
+    pack: Annotated[
+        str | None, typer.Option("--pack", help="Policy pack identifier to evaluate.")
+    ] = None,
+    engine: Annotated[
+        str,
+        typer.Option("--engine", help="Policy engine: builtin (default) or opa."),
+    ] = "builtin",
+    output: Annotated[
+        OutputFormat, typer.Option("--output", help="Output format.")
+    ] = OutputFormat.HUMAN,
+    idempotency_key: Annotated[
+        str | None,
+        typer.Option("--idempotency-key", help="Stable retry key; derived by default."),
+    ] = None,
+) -> None:
+    """Evaluate a governed policy pack into a canonical decision, or list packs."""
+
+    try:
+        from oak.bootstrap import create_policy_service
+
+        service = create_policy_service(FileWorkspaceRoot.discover(Path.cwd()))
+        if action == "packs":
+            packs = service.list_packs()
+            _emit(
+                {"packs": list(packs)},
+                output,
+                human="\n".join(
+                    f"{item['id']}@{item['version']} {item['status']}"
+                    f" effective {item['effective_from']}"
+                    for item in packs
+                )
+                or "No policy packs are available.",
+            )
+            return
+        if action != "evaluate":
+            raise OAKError("OAK-POLICY-ACTION", "policy action must be evaluate or packs")
+        if not pack:
+            raise OAKError("OAK-POLICY-PACK-REQUIRED", "--pack is required to evaluate")
+        current = _workspace_service().current().case
+        result = service.evaluate(
+            pack,
+            _context(
+                idempotency_key=idempotency_key,
+                expected_version=str(current["version"]),
+            ),
+            engine=engine,
+        )
+        _emit(
+            {"case": result.case, "decision": result.decision},
+            output,
+            human=(
+                f"Policy {pack} on {result.case['id']}@{result.case['version']}: "
+                f"{result.decision['outcome']}"
+                + (" (idempotent retry)" if result.duplicate else "")
+            ),
+        )
+    except (OAKError, ContractValidationError, OSError, RuntimeError, ValueError) as error:
+        _abort(error)
+
+
 def _release_service() -> ReleaseService:
     from oak.bootstrap import create_release_service
 

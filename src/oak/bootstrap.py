@@ -2,6 +2,7 @@
 """Composition root shared by local interfaces."""
 
 import os
+from collections.abc import Callable
 from pathlib import Path
 
 from oak import __version__
@@ -17,6 +18,7 @@ from oak.adapters.persistence import (
     PostgreSQLWorkspaceRepository,
     create_postgresql_engine,
 )
+from oak.adapters.policies import BuiltinPolicyEngine, LocalPolicyPackStore
 from oak.adapters.signing import LocalEd25519Signer, initialize_trust_directory
 from oak.adapters.targets import LocalTargetProfile
 from oak.application import (
@@ -26,6 +28,7 @@ from oak.application import (
     DesignCaseService,
     OperationService,
     OperationWorker,
+    PolicyService,
     ReleaseService,
     SystemInformationService,
 )
@@ -33,6 +36,7 @@ from oak.application.gitops import GitOpsRenderer
 from oak.compiler import DeterministicBriefInterpreter
 from oak.contracts import SchemaRegistry
 from oak.domain import SystemInformation
+from oak.ports.policy import PolicyEnginePort
 
 SUPPORTED_SCHEMA_VERSIONS = ("0.3.0", "0.4.0")
 
@@ -103,6 +107,57 @@ def create_candidate_planning_service(workspace: Path) -> CandidatePlanningServi
         LocalCatalogue(canonical_catalogue_directory(), registry),
         LocalTargetProfile(registry),
         registry,
+    )
+
+
+def canonical_policy_pack_directory() -> Path:
+    """Locate the bundled deterministic fixture policy packs offline."""
+
+    configured = os.getenv("OAK_POLICY_PACK_DIRECTORY")
+    candidates = [
+        Path(configured) if configured else None,
+        Path(__file__).resolve().parent / "community_policy_packs",
+        Path(__file__).resolve().parents[2] / "policy-packs",
+    ]
+    for candidate in candidates:
+        if candidate is not None and candidate.is_dir():
+            return candidate
+    raise RuntimeError("OAK Community policy packs are not installed")
+
+
+def default_extensions_directory() -> Path:
+    configured = os.getenv("OAK_EXTENSIONS_DIRECTORY")
+    if configured:
+        return Path(configured).absolute()
+    return Path.home() / ".oak" / "extensions"
+
+
+def policy_engine_loaders() -> dict[str, "Callable[[], PolicyEnginePort]"]:
+    """Registered policy engines; only the built-in engine is required."""
+
+    def load_builtin() -> PolicyEnginePort:
+        return BuiltinPolicyEngine()
+
+    def load_opa() -> PolicyEnginePort:
+        from oak.adapters.policies.opa import OpaPolicyEngine
+
+        return OpaPolicyEngine()
+
+    return {"builtin": load_builtin, "opa": load_opa}
+
+
+def create_policy_service(workspace: Path) -> PolicyService:
+    registry = SchemaRegistry.from_directory(canonical_schema_directory())
+    repository = FileWorkspaceRepository(workspace, registry)
+    pack_directories = (
+        canonical_policy_pack_directory(),
+        default_extensions_directory() / "active-packs",
+    )
+    return PolicyService(
+        repository,
+        registry,
+        LocalPolicyPackStore(pack_directories, registry),
+        policy_engine_loaders(),
     )
 
 
