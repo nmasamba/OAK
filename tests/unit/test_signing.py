@@ -18,7 +18,11 @@ from oak.domain import OAKError, canonical_json_bytes
 
 def test_initialize_creates_role_keys_with_private_permissions(tmp_path: Path) -> None:
     identities = initialize_trust_directory(tmp_path)
-    assert {identity.role for identity in identities} == {"plan-signer", "approver"}
+    assert {identity.role for identity in identities} == {
+        "plan-signer",
+        "approver",
+        "extension-steward",
+    }
     for identity in identities:
         assert identity.trust_level == "development"
         assert identity.algorithm == "ed25519"
