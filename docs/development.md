@@ -83,8 +83,25 @@ docker compose down
 
 Compose applies the forward baseline before starting API/worker, publishes API and web ports
 on loopback, and keeps PostgreSQL on the project network. The named artifact and PostgreSQL
-volumes survive normal teardown. The project does not start a runner or external model
-service. Use `docker compose down --volumes` only when intentionally deleting local state.
+volumes survive normal teardown. Compose does not start a runner or external model service;
+`oak-runner` is a separate outbound-only process an operator starts deliberately. Use `docker compose down --volumes` only when intentionally deleting local state.
+
+## Signed runner
+
+Signing, approval, dispatch, and the separate `oak-runner` process are documented in
+[signed-runner.md](signed-runner.md). The short form from a compiled workspace:
+
+```bash
+oak keys init
+oak sign
+oak approve dry_run
+oak dispatch inventory validate render plan verify
+OAK_RUNNER_MAILBOX="$HOME/.oak/mailbox" \
+  OAK_RUNNER_TRUST_ANCHORS="$HOME/.oak/trust" \
+  OAK_RUNNER_TARGET_PROFILE=examples/targets/local-fixture.yaml \
+  oak-runner run-once
+oak ingest --output json
+```
 
 See [the migration guide](../migrations/README.md) before a schema change. Stop writers and
 take a database backup before future forward migrations. Supported recovery restores into a

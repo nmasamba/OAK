@@ -16,6 +16,7 @@ substitute for those locks.
 | PyYAML | Public YAML example parsing | contracts | MIT |
 | SQLAlchemy 2.0 | PostgreSQL transaction and mapping toolkit | PostgreSQL persistence adapter only | MIT |
 | Alembic | Forward-only PostgreSQL migrations | migration tooling and API/worker startup | MIT |
+| cryptography (PyCA) | Ed25519 signing and verification | signing adapter and runner verification | Apache-2.0 OR BSD-3-Clause |
 | Psycopg 3 with binary implementation | PostgreSQL DB-API driver and bundled local `libpq` | below SQLAlchemy in PostgreSQL processes only | LGPL-3.0-only; bundled libraries retain their terms |
 | React | Architecture workspace UI | web only | MIT |
 | Vite | Web build tooling | web development | MIT |
@@ -58,6 +59,17 @@ Alembic revisions are forward-only. A dependency rollback reverts `pyproject.tom
 No dependency creates a hosted runtime requirement. PostgreSQL receives only the canonical
 control-plane metadata permitted by the data boundary; production/customer content remains
 excluded by default.
+
+## Sprint 5 signing review
+
+The capability gap is asymmetric signatures for plan, approval, and runner-message
+authenticity. Implementing Ed25519 by hand would be unsafe. `cryptography` is the PyCA
+reference implementation, dual-licensed Apache-2.0 OR BSD-3-Clause, and is used only through
+two narrow seams: `oak.adapters.signing` holds private keys and signs, while
+`oak.contracts.signatures` verifies. The runner imports the verification path alone and
+never loads a private key. Keys are raw 32-byte Ed25519 seeds in a 0600 file under a private
+trust directory, labelled `development`; Community makes no production assurance claim. The
+`SigningPort` is the replacement seam if a KMS or hardware backend is introduced later.
 
 ## Sprint 4 web test tooling review
 

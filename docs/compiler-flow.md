@@ -36,7 +36,7 @@ The emitted runner plan has status `draft`, an empty approval list, an explicit 
 
 The target profile is invocation data, not a description of the machine running OAK. Its digest changes the semantic manifest. An undersized or incompatible platform, a mismatched tenant, or missing planning capability is rejected before publication. The bundle retains the declared-versus-required capacity, platform, network, certificate, policy, and rollback preflight evidence; certificate transport is explicitly not applicable because this sprint opens no target connection.
 
-`deployment-bundle.json` includes human-review lifecycle procedures. Those strings are documentation, not executable input. The plan cannot be dispatched until later signing, approval, target-verification, and runner work exists.
+`deployment-bundle.json` includes human-review lifecycle procedures. Those strings are documentation, not executable input. The compiled plan is inert on its own: dispatch requires a separately signed envelope, a current digest and target bound approval, and independent runner verification. See [signed-runner.md](signed-runner.md).
 
 ## Determinism and portability
 
@@ -55,4 +55,4 @@ The entire workspace remains exportable through `oak export`. Import revalidates
 - Output directories must not exist. Canonical files are written to a temporary sibling and renamed only after all files are complete.
 - If output publication fails after the workspace commit, repeat the same command with the same input to retrieve the idempotent result and write a new output directory.
 
-No failure path requires target cleanup because Sprint 2 has no target-access path.
+Compilation itself still has no target-access path, so no compiler failure requires target cleanup; runner-side failures are journaled and use typed rollback or an explicit manual-recovery state.

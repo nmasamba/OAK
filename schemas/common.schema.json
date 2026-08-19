@@ -125,6 +125,19 @@
         "high": {"type": "number", "minimum": 0},
         "period": {"enum": ["one_off", "decision", "hour", "day", "month", "year"]}
       }
+    },
+    "signatureBlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role", "key_id", "algorithm", "public_key_base64", "trust_level", "signature_base64"],
+      "properties": {
+        "role": {"enum": ["plan-signer", "approver", "runner"]},
+        "key_id": {"$ref": "#/$defs/digest"},
+        "algorithm": {"const": "ed25519"},
+        "public_key_base64": {"type": "string", "minLength": 40, "maxLength": 60},
+        "trust_level": {"enum": ["development"]},
+        "signature_base64": {"type": "string", "minLength": 80, "maxLength": 100}
+      }
     }
   }
 }

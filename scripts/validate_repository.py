@@ -10,6 +10,7 @@ from oak.contracts import CanonicalDocument, SchemaRegistry, load_yaml_document
 
 ROOT = Path(__file__).resolve().parents[1]
 EXAMPLE_BY_SCHEMA = {
+    "approval.schema.json": "example-approval.yaml",
     "architecture-candidate.schema.json": "example-architecture-candidate.yaml",
     "architecture-decision.schema.json": "example-architecture-decision.yaml",
     "architecture-pattern.schema.json": "example-architecture-pattern.yaml",
@@ -26,8 +27,11 @@ EXAMPLE_BY_SCHEMA = {
     "evaluation-result.schema.json": "example-evaluation-result.yaml",
     "interpretation-proposal.schema.json": "example-interpretation-proposal.yaml",
     "obligation-control-mapping.schema.json": "example-obligation-control-mapping.yaml",
+    "plan-signature.schema.json": "example-plan-signature.yaml",
     "regulatory-nexus.schema.json": "example-regulatory-nexus.yaml",
     "regulatory-profile.schema.json": "example-eu-regulatory-profile.yaml",
+    "runner-envelope.schema.json": "example-runner-envelope.yaml",
+    "runner-message.schema.json": "example-runner-message.yaml",
     "runner-plan.schema.json": "example-runner-plan.yaml",
     "review-artifact.schema.json": "example-review-artifact.yaml",
     "source-record.schema.json": "example-source-record.yaml",

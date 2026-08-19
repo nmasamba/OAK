@@ -1,0 +1,62 @@
+# SPDX-License-Identifier: Apache-2.0
+approval_refs:
+- digest: sha256:9deb65b8788f41ff94a217842017db2f843954fc0eb46110835903908e5a265f
+  id: approval.dry-run.bundle.candidate-03.target.local-fixture
+  media_type: application/vnd.oak.approval+json
+  uri: null
+  version: 0.1.0
+bundle_ref:
+  digest: sha256:1e6ed65d77d6364eeaed5a745ba5c4985ae2b700dd85d7cf7f027bdf294a33fc
+  id: bundle.candidate-03.target.local-fixture
+  media_type: application/vnd.oak.deployment-bundle+json
+  uri: null
+  version: 0.1.0
+case_id: design-case.public-manual-qa
+environment: validation
+extensions: {}
+id: dispatch.bundle.candidate-03.target.local-fixture.1
+issued_at: '2026-08-18T18:02:00Z'
+kind: dispatch_envelope
+lease:
+  expires_at: '2026-08-18T18:07:00Z'
+  heartbeat_seconds: 30
+  issued_at: '2026-08-18T18:02:00Z'
+  lease_id: lease.dispatch.1
+  nonce: ca5e499b421c8aa70c8307d1ff9e003ed4d566af607fd0cae7664e3b447c3310
+plan_ref:
+  digest: sha256:64879f7d6b960a01909762d911a32d4582c20010c5641ee90278b644a9e3b525
+  id: runner-plan.bundle.candidate-03.target.local-fixture
+  media_type: application/vnd.oak.runner-plan+json
+  uri: null
+  version: 0.1.0
+plan_signature_ref:
+  digest: sha256:03426de55deb8e9c710af04ce4884e6eb452713e4ad7f1af338f72eba52d9f42
+  id: plan-signature.bundle.candidate-03.target.local-fixture
+  media_type: application/vnd.oak.plan-signature+json
+  uri: null
+  version: 0.1.0
+protocol_version: 0.1.0
+requested_kinds:
+- inventory
+- validate
+- render
+- plan
+- verify
+schema_version: 0.1.0
+signature:
+  algorithm: ed25519
+  key_id: sha256:f68e3a1195cc42265d9548925ad19fd8d9290f59d116a877d05be724a22ae03e
+  public_key_base64: F7JmyT+gkp0vor923DVvynlxipkA8FbKxHoE+BEI2RM=
+  role: plan-signer
+  signature_base64: khQ2j6Q0XXswL7Husimojk67r+2RiQAhHkdBvza1KyJvSAJuttmTgk+5ijHd3VhSYu1juf8IYvzCzlUSkk6oBA==
+  trust_level: development
+target_fingerprint: sha256:44863b03e9909b7100e05b02526909a346fd7455183f6619e0fe6198c89981e0
+target_id: target.local-fixture
+tenant_id: local
+verification_policy_ref:
+  digest: sha256:823412d1eacb67956220e532959f0104603057c88704863ca38e7cd188fda812
+  id: verification-policy.draft-local-review
+  media_type: application/vnd.oak.review-artifact+json
+  uri: null
+  version: 0.1.0
+version: 0.1.0

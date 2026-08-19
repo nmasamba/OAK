@@ -1,0 +1,30 @@
+# SPDX-License-Identifier: Apache-2.0
+target_profile_version: 0.2.0
+id: target.local-mutation-fixture
+status: non-production-local
+environment: validation
+tenant_id: local
+platform:
+  operating_system: linux
+  architecture: x86_64
+  accelerators: []
+  drivers: []
+  container_runtime: rootless-compatible OCI runtime
+capacity:
+  ram_gib: 32
+  storage_gib: 100
+network:
+  mode: isolated-no-egress
+  inbound_control_plane: false
+permissions:
+  mutation_allowed: true
+  allowed_operations: [inventory, validate, render, plan, verify, apply, rollback, destroy]
+execution:
+  mutation_acknowledgement: isolated-non-production-fixture-only
+  container_image_reference: postgres:17.6-alpine
+  container_image_digest: sha256:ef257d85f76e48da1c64832459b59fcaba1a4dac97bf5d7450c77753542eee94
+secrets:
+  allowed_references: []
+notes:
+  - Synthetic non-production target whose only permitted mutation is creating and
+    removing one labelled, network-isolated, never-started fixture container.

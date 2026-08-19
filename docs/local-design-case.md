@@ -30,4 +30,4 @@ Import never overwrites an initialized workspace. For local recovery, retain or 
 
 ## Current limits
 
-The adapter supports one current `DesignCase` per workspace and one local tenant label. It is not a multi-user server, an authorization service, or a production metadata store. There is no approval, signing, runner dispatch, secret resolution, subprocess execution, network provider, or target mutation in this workflow.
+The adapter supports one current `DesignCase` per workspace and one local tenant label. It is not a multi-user server, an authorization service, or a production metadata store. This offline design workflow performs no approval, signing, runner dispatch, secret resolution, subprocess execution, network provider, or target mutation in this workflow.

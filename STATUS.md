@@ -4,10 +4,10 @@
 
 - **Updated:** 2026-08-18
 - **Repository version:** `0.5.0.dev5`
-- **Phase:** Sprint 4 complete — architecture web workspace verified
-- **Completed plans:** `docs/exec-plans/completed/OAK-S0-001-009-walking-skeleton.md`, `docs/exec-plans/completed/OAK-S1-001-010-local-design-case.md`, `docs/exec-plans/completed/OAK-S2-001-011-candidate-planning.md`, `docs/exec-plans/completed/OAK-S3-001-009-persistent-rest-jobs.md`, and `docs/exec-plans/completed/OAK-S4-001-009-web-workspace.md`
-- **Active plan:** none — authoring the Sprint 5 signed typed runner ExecPlan is the next step
-- **Next task:** author and claim the Sprint 5 (`OAK-S5-001`–`OAK-S5-011`) ExecPlan;
+- **Phase:** Sprint 5 complete — signed typed runner and GitOps boundary verified
+- **Completed plans:** `docs/exec-plans/completed/OAK-S0-001-009-walking-skeleton.md`, `docs/exec-plans/completed/OAK-S1-001-010-local-design-case.md`, `docs/exec-plans/completed/OAK-S2-001-011-candidate-planning.md`, `docs/exec-plans/completed/OAK-S3-001-009-persistent-rest-jobs.md`, `docs/exec-plans/completed/OAK-S4-001-009-web-workspace.md`, and `docs/exec-plans/completed/OAK-S5-001-011-signed-runner.md`
+- **Active plan:** none — authoring the Sprint 6 policy and adapter SDK ExecPlan is the next step
+- **Next task:** author and claim the Sprint 6 (`OAK-S6-001`–`OAK-S6-008`) ExecPlan;
   CI compatibility wiring remains explicitly deferred by user direction
 
 ## Claimed work
@@ -62,6 +62,17 @@
 | `OAK-S4-007` | complete | Audit lineage timeline and downloadable bounded canonical export |
 | `OAK-S4-008` | complete | Keyboard focus management, semantic landmarks and labels, contrast, motionless UI, and automated axe checks on every core screen |
 | `OAK-S4-009` | complete | Compose-only Playwright journey with denied transition and cooperatively cancelled interrupted operation |
+| `OAK-S5-001` | complete | Versioned outbound-only runner protocol with identities, correlation IDs, nonces, and expiry |
+| `OAK-S5-002` | complete | Fail-closed pre-target verifier over protocol, digests, signatures, trust anchors, target, lease, approvals, adapters, and parameters |
+| `OAK-S5-003` | complete | Hash-chained append-only journal with before/after checkpoints, crash resume, cancellation, and manual-recovery states |
+| `OAK-S5-004` | complete | Local Ed25519 signing with per-role keys, explicit development trust marker, and separated signer/verifier code paths |
+| `OAK-S5-005` | complete | Bounded inventory adapter returning sanitized host capabilities with no file scraping or secret access |
+| `OAK-S5-006` | complete | Local container adapter with allowlisted argv, isolated never-started fixture container, and reversible apply |
+| `OAK-S5-007` | complete | Signed lease dispatch through the outbound-only mailbox where delivery never implies success |
+| `OAK-S5-008` | complete | Digest/target/action/expiry-bound signed approvals with revocation and adversarial denial coverage |
+| `OAK-S5-009` | complete | Typed rollback and destroy operations with verification and `manual_recovery_required` on unsafe failure |
+| `OAK-S5-010` | complete | Deterministic branch-ready GitOps files and patch description that promote nothing automatically |
+| `OAK-S5-011` | complete | Adversarial suite covering tamper, forgery, staleness, replay, revocation, wrong target, and injection |
 
 ## Verification evidence
 
@@ -115,6 +126,24 @@
 - A Sprint 0-era `oak-postgres-data` volume had been initialised under a different password;
   the empty database was recovered with `ALTER ROLE oak WITH PASSWORD` over the container's
   local trust socket rather than volume deletion, consistent with restore-forward recovery.
+- Sprint 5 delivered the signed typed runner and GitOps boundary. The compiled draft plan is
+  signed into an immutable envelope binding, approvals bind action/digest/target/expiry with
+  revocation, and dispatch requires both under the compiled verification policy. `oak-runner`
+  independently verifies every security invariant before target access, journals each side
+  effect in a hash chain, and returns bounded redacted evidence with a signed completion.
+- A multi-agent adversarial audit of the completed sprint produced 35 candidate findings,
+  independently refuted or confirmed; ten survived. Six were fixed, including a critical
+  signature-forgery bypass (verification used the key embedded in the document rather than a
+  pinned anchor key), a critical approved-image-digest bypass, and a high-severity gap where
+  a duplicate operation kind could execute without verification. The remaining four are
+  recorded as known limitations in the completed ExecPlan.
+- Sprint 5 verification: 22 new unit tests (signing lifecycle, journal integrity, adapter argv
+  injection resistance), a 12-case adversarial integration suite proving tampered plans, wrong
+  target fingerprints, expired leases, replayed nonces, untrusted signers, revoked approvals,
+  and forbidden execution fields are all denied before any adapter call, contract tests for
+  canonical-bytes agreement and the repository-wide execution-field ban, GitOps determinism
+  tests, and a three-case exit demonstration through the installed entrypoints including a
+  real Docker apply/verify/rollback cycle that left no fixture container behind.
 - Sprint 4 completed the architecture web workspace: brief/inference review with provenance
   classes, ranked-question confirmation, candidate comparison with objective ranges and
   visible infeasibility, decision/assurance display, bundle review with plan/approval/apply
@@ -137,4 +166,4 @@
 
 ## Safety boundary
 
-The current harness accepts bounded local architecture briefs, catalogue files, rationale, and target profiles and treats their content as untrusted data. It has no mandatory or real model-provider call, approval, signing, runner dispatch, secret resolution, target subprocess, target connection, or mutation behavior. The compiled plan is a draft review artifact whose target identity and declared capabilities are validated but never contacted. All committed fixtures are public or synthetic.
+The current harness accepts bounded local architecture briefs, catalogue files, rationale, and target profiles and treats their content as untrusted data. It has no mandatory or real model-provider call and no secret resolution. Signing, approval, runner dispatch, and target mutation now exist in explicitly local development form: keys are labelled `development`, the runner reaches only an isolated non-production fixture profile that opts in through an explicit acknowledgement, and the sole permitted mutation is creating and removing one network-isolated, never-started container through a fixed allowlisted argument vector. Every mutating operation requires a separately signed, current, digest and target bound approval that the runner verifies independently before any target access. A compiled plan is inert until it is signed, approved, and independently verified by the runner. All committed fixtures are public or synthetic.

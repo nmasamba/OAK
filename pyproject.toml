@@ -22,6 +22,7 @@ classifiers = [
 ]
 dependencies = [
   "alembic>=1.18,<2",
+    "cryptography>=44,<47",
   "fastapi>=0.115,<1",
   "jsonschema[format]>=4.23,<5",
   "psycopg[binary]>=3.3,<4",
@@ -37,7 +38,7 @@ oak = "oak.interfaces.cli.main:main"
 oak-api = "oak.interfaces.api.server:main"
 oak-db-migrate = "oak.interfaces.migrations:main"
 oak-worker = "oak.interfaces.worker:main"
-oak-runner = "oak.interfaces.placeholders:runner_main"
+oak-runner = "oak.runner.main:main"
 oak-mcp = "oak.interfaces.placeholders:mcp_main"
 
 [dependency-groups]

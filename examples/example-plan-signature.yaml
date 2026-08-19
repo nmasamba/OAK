@@ -1,0 +1,37 @@
+# SPDX-License-Identifier: Apache-2.0
+bundle_ref:
+  digest: sha256:1e6ed65d77d6364eeaed5a745ba5c4985ae2b700dd85d7cf7f027bdf294a33fc
+  id: bundle.candidate-03.target.local-fixture
+  media_type: application/vnd.oak.deployment-bundle+json
+  uri: null
+  version: 0.1.0
+case_id: design-case.public-manual-qa
+environment: validation
+extensions: {}
+id: plan-signature.bundle.candidate-03.target.local-fixture
+nonce: 1e04b8d518166d7547956c845093d731af8ac4d37ee5ea17206d0d03b3e6fe33
+plan_ref:
+  digest: sha256:64879f7d6b960a01909762d911a32d4582c20010c5641ee90278b644a9e3b525
+  id: runner-plan.bundle.candidate-03.target.local-fixture
+  media_type: application/vnd.oak.runner-plan+json
+  uri: null
+  version: 0.1.0
+schema_version: 0.1.0
+signature:
+  algorithm: ed25519
+  key_id: sha256:f68e3a1195cc42265d9548925ad19fd8d9290f59d116a877d05be724a22ae03e
+  public_key_base64: F7JmyT+gkp0vor923DVvynlxipkA8FbKxHoE+BEI2RM=
+  role: plan-signer
+  signature_base64: oG3XeruHMn5GH4CUDkitJS2EqWPPFQ6zZPKyddzkLnilQK1KKwe2R3M3UZoGNrKpkKybv84ODJT6lcOtBPbCAQ==
+  trust_level: development
+signed_at: '2026-08-18T18:00:00Z'
+target_fingerprint: sha256:44863b03e9909b7100e05b02526909a346fd7455183f6619e0fe6198c89981e0
+target_id: target.local-fixture
+tenant_id: local
+verification_policy_ref:
+  digest: sha256:823412d1eacb67956220e532959f0104603057c88704863ca38e7cd188fda812
+  id: verification-policy.draft-local-review
+  media_type: application/vnd.oak.review-artifact+json
+  uri: null
+  version: 0.1.0
+version: 0.1.0

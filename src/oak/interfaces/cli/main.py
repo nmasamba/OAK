@@ -17,7 +17,12 @@ from typing import Annotated, Any, NoReturn
 import typer
 import yaml
 
-from oak.application import CandidatePlanningService, CommandContext, DesignCaseService
+from oak.application import (
+    CandidatePlanningService,
+    CommandContext,
+    DesignCaseService,
+    ReleaseService,
+)
 from oak.bootstrap import (
     create_candidate_planning_service,
     create_design_case_service,
@@ -461,6 +466,222 @@ def serve(
     except ValueError as error:
         typer.echo(f"OAK-SAFE-BIND: {error}", err=True)
         raise typer.Exit(code=2) from error
+
+
+@app.command()
+def keys(
+    action: Annotated[str, typer.Argument(help="init or show.")],
+    output: Annotated[
+        OutputFormat, typer.Option("--output", help="Output format.")
+    ] = OutputFormat.HUMAN,
+) -> None:
+    """Create or inspect the local development signing identities."""
+
+    try:
+        from oak.bootstrap import initialize_local_trust
+
+        if action not in {"init", "show"}:
+            raise OAKError("OAK-KEYS-ACTION", "keys action must be init or show")
+        identities = initialize_local_trust()
+        _emit(
+            {"identities": list(identities)},
+            output,
+            human="\n".join(
+                f"{identity['role']}: {identity['key_id']} ({identity['trust_level']})"
+                for identity in identities
+            ),
+        )
+    except (OAKError, ContractValidationError, OSError, RuntimeError, ValueError) as error:
+        _abort(error)
+
+
+@app.command()
+def sign(
+    output: Annotated[
+        OutputFormat, typer.Option("--output", help="Output format.")
+    ] = OutputFormat.HUMAN,
+    idempotency_key: Annotated[
+        str | None,
+        typer.Option("--idempotency-key", help="Stable retry key; derived by default."),
+    ] = None,
+) -> None:
+    """Sign the compiled draft runner plan into an immutable envelope binding."""
+
+    try:
+        current = _workspace_service().current().case
+        result = _release_service().sign_plan(
+            _context(
+                idempotency_key=idempotency_key,
+                expected_version=str(current["version"]),
+            )
+        )
+        _emit(
+            {"case": result.case, "plan_signature": result.document},
+            output,
+            human=(
+                f"Signed plan for {result.case['id']}@{result.case['version']}"
+                + (" (idempotent retry)" if result.duplicate else "")
+            ),
+        )
+    except (OAKError, ContractValidationError, OSError, RuntimeError, ValueError) as error:
+        _abort(error)
+
+
+@app.command()
+def approve(
+    action: Annotated[str, typer.Argument(help="dry_run, apply, rollback, or destroy.")],
+    expires_at: Annotated[
+        str | None, typer.Option("--expires-at", help="RFC 3339 expiry; default 24 hours.")
+    ] = None,
+    output: Annotated[
+        OutputFormat, typer.Option("--output", help="Output format.")
+    ] = OutputFormat.HUMAN,
+    idempotency_key: Annotated[
+        str | None,
+        typer.Option("--idempotency-key", help="Stable retry key; derived by default."),
+    ] = None,
+) -> None:
+    """Record a digest, target, action, and expiry bound signed approval."""
+
+    try:
+        current = _workspace_service().current().case
+        result = _release_service().approve(
+            action,
+            _context(
+                idempotency_key=idempotency_key,
+                expected_version=str(current["version"]),
+            ),
+            expires_at=expires_at,
+        )
+        _emit(
+            {"case": result.case, "approval": result.document},
+            output,
+            human=(
+                f"Recorded {action} approval for {result.case['id']}"
+                + (" (idempotent retry)" if result.duplicate else "")
+            ),
+        )
+    except (OAKError, ContractValidationError, OSError, RuntimeError, ValueError) as error:
+        _abort(error)
+
+
+@app.command("revoke-approval")
+def revoke_approval(
+    action: Annotated[str, typer.Argument(help="dry_run, apply, rollback, or destroy.")],
+    reason: Annotated[str, typer.Option("--reason", help="Recorded revocation reason.")],
+    output: Annotated[
+        OutputFormat, typer.Option("--output", help="Output format.")
+    ] = OutputFormat.HUMAN,
+    idempotency_key: Annotated[
+        str | None,
+        typer.Option("--idempotency-key", help="Stable retry key; derived by default."),
+    ] = None,
+) -> None:
+    """Revoke a recorded approval and publish the revocation to the mailbox."""
+
+    try:
+        current = _workspace_service().current().case
+        result = _release_service().revoke_approval(
+            action,
+            reason,
+            _context(
+                idempotency_key=idempotency_key,
+                expected_version=str(current["version"]),
+            ),
+        )
+        _emit(
+            {"case": result.case, "approval": result.document},
+            output,
+            human=f"Revoked the {action} approval"
+            + (" (idempotent retry)" if result.duplicate else ""),
+        )
+    except (OAKError, ContractValidationError, OSError, RuntimeError, ValueError) as error:
+        _abort(error)
+
+
+@app.command()
+def dispatch(
+    kinds: Annotated[list[str], typer.Argument(help="Operation kinds to dispatch, in plan order.")],
+    output: Annotated[
+        OutputFormat, typer.Option("--output", help="Output format.")
+    ] = OutputFormat.HUMAN,
+    idempotency_key: Annotated[
+        str | None,
+        typer.Option("--idempotency-key", help="Stable retry key; derived by default."),
+    ] = None,
+) -> None:
+    """Issue the signed lease envelope for an outbound-only runner."""
+
+    try:
+        current = _workspace_service().current().case
+        result = _release_service().dispatch(
+            tuple(kinds),
+            _context(
+                idempotency_key=idempotency_key,
+                expected_version=str(current["version"]),
+            ),
+        )
+        _emit(
+            {"case": result.case, "envelope": result.document},
+            output,
+            human=(
+                f"Dispatched {', '.join(kinds)} as {result.document.get('id', 'duplicate')}"
+                + (" (idempotent retry)" if result.duplicate else "")
+            ),
+        )
+    except (OAKError, ContractValidationError, OSError, RuntimeError, ValueError) as error:
+        _abort(error)
+
+
+@app.command()
+def ingest(
+    output: Annotated[
+        OutputFormat, typer.Option("--output", help="Output format.")
+    ] = OutputFormat.HUMAN,
+) -> None:
+    """Ingest signed runner messages; delivery never implies success."""
+
+    try:
+        result = _release_service().ingest_runner_messages(
+            _context(idempotency_key="ingest-runner-messages", expected_version=None)
+        )
+        _emit(
+            {
+                "case": result.case,
+                "accepted": list(result.accepted),
+                "rejected": list(result.rejected),
+            },
+            output,
+            human=(f"Ingested {len(result.accepted)} message(s); rejected {len(result.rejected)}"),
+        )
+    except (OAKError, ContractValidationError, OSError, RuntimeError, ValueError) as error:
+        _abort(error)
+
+
+@app.command()
+def gitops(
+    output: Annotated[
+        Path | None, typer.Option("--output", help="New GitOps output directory.")
+    ] = None,
+) -> None:
+    """Render deterministic branch-ready files and a patch description."""
+
+    try:
+        if output is None:
+            raise OAKError("OAK-GITOPS-OUTPUT", "--output is required")
+        from oak.bootstrap import create_gitops_renderer
+
+        renderer = create_gitops_renderer(FileWorkspaceRoot.discover(Path.cwd()))
+        written = renderer.render(output.absolute())
+        typer.echo(f"Wrote {len(written)} file(s) to {output}")
+    except (OAKError, ContractValidationError, OSError, RuntimeError, ValueError) as error:
+        _abort(error)
+
+
+def _release_service() -> ReleaseService:
+    from oak.bootstrap import create_release_service
+
+    return create_release_service(FileWorkspaceRoot.discover(Path.cwd()))
 
 
 def _workspace_service() -> DesignCaseService:

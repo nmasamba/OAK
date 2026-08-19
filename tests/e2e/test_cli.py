@@ -60,17 +60,34 @@ def test_installed_cli_help_exposes_only_implemented_behavior() -> None:
         assert "No such command" in unavailable.stderr
 
 
-def test_unimplemented_runner_fails_honestly() -> None:
+def test_runner_requires_explicit_environment() -> None:
     result = subprocess.run(
-        [str(OAK_RUNNER)],
+        [str(OAK_RUNNER), "run-once"],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+        env={"PATH": os.environ.get("PATH", "")},
+    )
+
+    # The real runner refuses to act without its mailbox/trust/target environment.
+    assert result.returncode == 64
+    assert "OAK_RUNNER_MAILBOX is required" in result.stderr
+
+
+def test_runner_help_lists_only_verification_bound_commands() -> None:
+    result = subprocess.run(
+        [str(OAK_RUNNER), "--help"],
         cwd=ROOT,
         check=False,
         capture_output=True,
         text=True,
     )
 
-    assert result.returncode == 69
-    assert "not available" in result.stderr
+    assert result.returncode == 0
+    assert "run-once" in result.stdout and "status" in result.stdout
+    lowered = result.stdout.casefold()
+    assert "shell" not in lowered and "command" not in lowered.replace("commands", "")
 
 
 def test_offline_design_confirmation_retry_and_portable_round_trip(tmp_path: Path) -> None:

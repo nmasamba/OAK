@@ -24,6 +24,7 @@ from oak.application.operations import (
     OperationWorker,
     WorkerCycleResult,
 )
+from oak.application.release import IngestResult, ReleaseResult, ReleaseService
 from oak.application.system_information import SystemInformationService
 
 __all__ = [
@@ -38,11 +39,14 @@ __all__ = [
     "DesignCaseService",
     "DesignResult",
     "EvaluationResult",
+    "IngestResult",
     "OperationService",
     "OperationSubmission",
     "OperationWorker",
     "PlanResult",
     "QuestionResult",
+    "ReleaseResult",
+    "ReleaseService",
     "SelectionResult",
     "SystemInformationService",
     "WorkerCycleResult",
