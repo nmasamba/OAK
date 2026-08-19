@@ -5,6 +5,7 @@ from oak.ports.catalogue import CatalogueDocuments, CataloguePort
 from oak.ports.directory import CaseDirectoryPort
 from oak.ports.dispatch import DispatchTransport
 from oak.ports.events import OutboxLag, OutboxMessage, OutboxStore
+from oak.ports.extensions import ExtensionEntry, ExtensionStorePort
 from oak.ports.intake import BriefIntakePort
 from oak.ports.interpreter import ModelInterpreterPort, ProposalLimits
 from oak.ports.operations import (
@@ -14,6 +15,7 @@ from oak.ports.operations import (
     OperationSpec,
     OperationStore,
 )
+from oak.ports.policy import PolicyEnginePort, PolicyPackStorePort
 from oak.ports.readiness import ReadinessProbe
 from oak.ports.signing import SignerIdentity, SigningPort
 from oak.ports.target import TargetProfilePort
@@ -31,6 +33,8 @@ __all__ = [
     "CataloguePort",
     "DispatchTransport",
     "EnqueuedOperation",
+    "ExtensionEntry",
+    "ExtensionStorePort",
     "ModelInterpreterPort",
     "OperationLease",
     "OperationRecord",
@@ -39,6 +43,8 @@ __all__ = [
     "OutboxLag",
     "OutboxMessage",
     "OutboxStore",
+    "PolicyEnginePort",
+    "PolicyPackStorePort",
     "ProposalLimits",
     "ReadinessProbe",
     "SignerIdentity",

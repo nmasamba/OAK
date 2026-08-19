@@ -22,7 +22,7 @@ from oak.ports.signing import SignerIdentity
 
 ALGORITHM = "ed25519"
 TRUST_LEVEL = "development"
-SIGNING_ROLES = ("plan-signer", "approver")
+SIGNING_ROLES = ("plan-signer", "approver", "extension-steward")
 
 
 def initialize_trust_directory(trust_directory: Path) -> tuple[SignerIdentity, ...]:

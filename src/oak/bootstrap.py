@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Composition root shared by local interfaces."""
 
+import json
 import os
 from collections.abc import Callable
 from pathlib import Path
@@ -8,6 +9,7 @@ from pathlib import Path
 from oak import __version__
 from oak.adapters.catalogue import LocalCatalogue
 from oak.adapters.dispatch import FilesystemMailbox
+from oak.adapters.extensions import LocalExtensionStore
 from oak.adapters.intake import LocalBriefIntake
 from oak.adapters.persistence import (
     FileWorkspaceRepository,
@@ -26,6 +28,7 @@ from oak.application import (
     CommunityControlPlane,
     CommunityWorker,
     DesignCaseService,
+    ExtensionService,
     OperationService,
     OperationWorker,
     PolicyService,
@@ -144,6 +147,36 @@ def policy_engine_loaders() -> dict[str, "Callable[[], PolicyEnginePort]"]:
         return OpaPolicyEngine()
 
     return {"builtin": load_builtin, "opa": load_opa}
+
+
+def load_steward_anchors() -> dict[str, str]:
+    """Pinned extension-steward public keys from the local trust directory."""
+
+    identity_path = default_trust_directory() / "extension-steward.identity.json"
+    try:
+        document = json.loads(identity_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    key_id = document.get("key_id")
+    public_key = document.get("public_key_base64")
+    if isinstance(key_id, str) and isinstance(public_key, str):
+        return {key_id: public_key}
+    return {}
+
+
+def create_extension_service() -> ExtensionService:
+    registry = SchemaRegistry.from_directory(canonical_schema_directory())
+    return ExtensionService(
+        registry,
+        LocalExtensionStore(default_extensions_directory(), registry),
+        BuiltinPolicyEngine,
+        load_steward_anchors,
+        __version__,
+    )
+
+
+def load_steward_signer() -> LocalEd25519Signer:
+    return LocalEd25519Signer.load(default_trust_directory(), "extension-steward")
 
 
 def create_policy_service(workspace: Path) -> PolicyService:

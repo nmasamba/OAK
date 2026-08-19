@@ -741,6 +741,113 @@ def policy(
         _abort(error)
 
 
+@app.command()
+def extensions(
+    action: Annotated[
+        str,
+        typer.Argument(help="install, verify, activate, deactivate, list, sign, or capabilities."),
+    ],
+    target: Annotated[
+        str | None,
+        typer.Argument(help="Extension id, or a source directory for install/sign."),
+    ] = None,
+    version: Annotated[
+        str | None, typer.Option("--version", help="Installed extension version.")
+    ] = None,
+    output: Annotated[
+        OutputFormat, typer.Option("--output", help="Output format.")
+    ] = OutputFormat.HUMAN,
+) -> None:
+    """Manage governed extensions: quarantined on install, active only after verification."""
+
+    try:
+        from oak.bootstrap import create_extension_service, load_steward_signer
+
+        service = create_extension_service()
+        if action == "list":
+            entries = service.list_extensions()
+            _emit(
+                {"extensions": list(entries)},
+                output,
+                human="\n".join(
+                    f"{item['id']}@{item['version']} [{item['state']}] {item['extension_class']}"
+                    for item in entries
+                )
+                or "No extensions are installed.",
+            )
+            return
+        if action == "capabilities":
+            document = service.capabilities()
+            _emit(
+                document,
+                output,
+                human=json.dumps(document, ensure_ascii=False, indent=2, sort_keys=True),
+            )
+            return
+        if target is None:
+            raise OAKError("OAK-EXTENSION-TARGET", f"{action} requires a target argument")
+        if action == "install":
+            entry = service.install(Path(target))
+            _emit(
+                {"id": entry.extension_id, "version": entry.version, "state": entry.state},
+                output,
+                human=(
+                    f"Installed {entry.extension_id}@{entry.version} into quarantine; "
+                    "verify and activate it explicitly."
+                ),
+            )
+            return
+        if action == "sign":
+            manifest = service.sign_source(Path(target), load_steward_signer())
+            _emit(
+                {"manifest": manifest},
+                output,
+                human=(
+                    f"Signed {manifest['id']}@{manifest['version']} with the extension-steward key."
+                ),
+            )
+            return
+        if action == "verify":
+            report = service.verify(target, version, occurred_at=_now())
+            _emit(
+                report.to_document(),
+                output,
+                human="\n".join(
+                    f"{check['id']}: {check['result']} — {check['detail']}"
+                    for check in report.checks
+                )
+                + ("\nPASSED" if report.passed else "\nFAILED (stays quarantined)"),
+            )
+            return
+        if action == "activate":
+            activation = service.activate(
+                target,
+                version,
+                actor=os.getenv("OAK_ACTOR", "local-user"),
+                occurred_at=_now(),
+            )
+            _emit(
+                {"activation": activation},
+                output,
+                human=(
+                    f"Activated {activation['extension_id']}@"
+                    f"{activation['extension_version']} after full verification."
+                ),
+            )
+            return
+        if action == "deactivate":
+            entry = service.deactivate(target, version)
+            _emit(
+                {"id": entry.extension_id, "version": entry.version, "state": entry.state},
+                output,
+                human=f"Deactivated {entry.extension_id}@{entry.version}; it is quarantined.",
+            )
+            return
+        raise OAKError("OAK-EXTENSION-ACTION", "extensions action is not recognized")
+    except (OAKError, ContractValidationError, OSError, RuntimeError, ValueError) as error:
+        _abort(error)
+
+
 def _release_service() -> ReleaseService:
     from oak.bootstrap import create_release_service
 
