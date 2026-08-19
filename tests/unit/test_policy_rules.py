@@ -5,6 +5,7 @@ from typing import Any
 
 import pytest
 
+from oak.domain import OAKError
 from oak.domain.policy_rules import (
     MAXIMUM_CONDITION_DEPTH,
     UNKNOWN_REASON_CODE,
@@ -287,3 +288,25 @@ def test_degenerate_composites_are_undecidable_not_vacuously_true() -> None:
 
     nested = {"all": [{"pointer": "/flag", "operator": "exists"}, {"any": []}]}
     assert evaluate_pack_rules([_rule(when=nested, outcome="allow")], SUBJECT).outcome == "unknown"
+
+
+def test_offset_less_timestamps_raise_a_stable_code_not_a_type_error() -> None:
+    """No format checker is installed, so a naive timestamp is schema-valid.
+
+    Comparing it would raise TypeError outside every caller's handled exception
+    set and surface as a traceback rather than a stable error code.
+    """
+
+    naive = {
+        "status": "published",
+        "effective_from": "2026-08-01T00:00:00",
+        "expires_at": None,
+    }
+    with pytest.raises(OAKError) as error:
+        pack_effective_window(naive, at="2026-08-19T12:00:00Z")
+    assert error.value.code == "OAK-POLICY-TIME"
+
+    aware = dict(naive, effective_from="2026-08-01T00:00:00Z")
+    with pytest.raises(OAKError) as at_error:
+        pack_effective_window(aware, at="2026-08-19T12:00:00")
+    assert at_error.value.code == "OAK-POLICY-TIME"

@@ -19,6 +19,8 @@ from oak.ports.rendering import RenderedFile
 
 _NAME_PATTERN = re.compile(r"^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$")
 _IMAGE_PATTERN = re.compile(r"^[a-z0-9][A-Za-z0-9./_:@-]*@sha256:[a-f0-9]{64}$")
+_REPOSITORY_PATTERN = re.compile(r"^[a-z0-9][A-Za-z0-9./_:-]*$")
+_DIGEST_PATTERN = re.compile(r"^sha256:[a-f0-9]{64}$")
 
 
 class HelmKubernetesRenderer:
@@ -48,12 +50,7 @@ class HelmKubernetesRenderer:
                     "OAK-RENDER-COMPONENT",
                     "component manifest for the lock entry is not available",
                 )
-            image = str(component["artifact"]["reference"])
-            if not _IMAGE_PATTERN.fullmatch(image):
-                raise OAKError(
-                    "OAK-RENDER-IMAGE",
-                    "component image reference must be digest-pinned",
-                )
+            image = _pinned_image(component["artifact"])
             workloads.append((_safe_name(manifest_id.removeprefix("component.")), image))
 
         files: list[RenderedFile] = [
@@ -178,6 +175,32 @@ def _labels(bundle: dict[str, Any], identity: dict[str, str]) -> dict[str, str]:
         "oak.example/bundle-id": _safe_label(str(bundle["id"])),
         "oak.example/renderer": _safe_label(identity["id"]),
     }
+
+
+def _pinned_image(artifact: dict[str, Any]) -> str:
+    """Pin the workload image to the component's attested digest.
+
+    The attested ``artifact.digest`` is the authority, never a digest the
+    reference happens to carry: a reference embedding a different digest would
+    otherwise render an image the catalogue never attested.
+    """
+
+    reference = str(artifact["reference"])
+    digest = str(artifact["digest"])
+    if not _DIGEST_PATTERN.fullmatch(digest):
+        raise OAKError("OAK-RENDER-IMAGE", "component artifact digest is not a sha256 digest")
+    repository, separator, embedded = reference.partition("@")
+    if separator and embedded != digest:
+        raise OAKError(
+            "OAK-RENDER-IMAGE",
+            "component image reference carries a digest that is not the attested digest",
+        )
+    if not _REPOSITORY_PATTERN.fullmatch(repository):
+        raise OAKError("OAK-RENDER-IMAGE", "component image repository is unsafe")
+    pinned = f"{repository}@{digest}"
+    if not _IMAGE_PATTERN.fullmatch(pinned):  # pragma: no cover - guarded above
+        raise OAKError("OAK-RENDER-IMAGE", "pinned component image is malformed")
+    return pinned
 
 
 def _safe_name(value: str) -> str:

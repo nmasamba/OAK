@@ -253,6 +253,12 @@ def _resolve_pointer(subject: dict[str, Any], pointer: str) -> tuple[Any, bool]:
 
 def _timestamp(value: str) -> datetime:
     try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError as error:
         raise OAKError("OAK-POLICY-TIME", "policy timestamp is invalid") from error
+    if parsed.tzinfo is None:
+        # The schema declares date-time but no format checker is installed, so an
+        # offset-less timestamp reaches here. Comparing it would raise TypeError
+        # outside every caller's handled set; refuse with a stable code instead.
+        raise OAKError("OAK-POLICY-TIME", "policy timestamp must carry a UTC offset")
+    return parsed

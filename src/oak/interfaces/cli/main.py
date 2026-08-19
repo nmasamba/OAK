@@ -845,6 +845,13 @@ def extensions(
                 )
                 + ("\nPASSED" if report.passed else "\nFAILED (stays quarantined)"),
             )
+            if not report.passed:
+                # Exit non-zero so a script or CI job cannot read a failed
+                # supply-chain verification as success.
+                raise OAKError(
+                    "OAK-EXTENSION-QUARANTINED",
+                    "extension failed verification and stays quarantined",
+                )
             return
         if action == "activate":
             activation = service.activate(
