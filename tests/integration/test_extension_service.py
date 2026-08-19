@@ -346,3 +346,45 @@ def test_duplicate_install_is_refused(harness: Harness, tmp_path: Path) -> None:
     with pytest.raises(OAKError) as duplicate:
         harness.service.install(source)
     assert duplicate.value.code == "OAK-EXTENSION-EXISTS"
+
+
+def test_only_one_version_of_an_extension_can_be_active(harness: Harness, tmp_path: Path) -> None:
+    """A second active version would shadow the first in the id-keyed pack namespace.
+
+    Both versions materialize to ``active-packs/<extension id>.yaml``, so allowing
+    two would let one silently overwrite the other and let deactivating either
+    strand the survivor with no pack on the policy path.
+    """
+
+    first = _pack_extension_source(tmp_path / "v1")
+    harness.service.sign_source(first, harness.steward())
+    harness.service.install(first)
+    harness.service.activate(
+        "extension.contributed-baseline", "1.0.0", actor="local-user", occurred_at=NOW
+    )
+
+    second = _pack_extension_source(tmp_path / "v2")
+    manifest = yaml.safe_load((second / "extension.yaml").read_text())
+    manifest["version"] = "2.0.0"
+    (second / "extension.yaml").write_text(
+        yaml.safe_dump(manifest, sort_keys=True), encoding="utf-8"
+    )
+    harness.service.sign_source(second, harness.steward())
+    harness.service.install(second)
+
+    with pytest.raises(OAKError) as conflict:
+        harness.service.activate(
+            "extension.contributed-baseline", "2.0.0", actor="local-user", occurred_at=NOW
+        )
+    assert conflict.value.code == "OAK-EXTENSION-VERSION-ACTIVE"
+
+    states = {(item["version"], item["state"]) for item in harness.service.list_extensions()}
+    assert states == {("1.0.0", "active"), ("2.0.0", "quarantined")}
+
+    # The survivor keeps a usable pack once the prior version is deactivated.
+    harness.service.deactivate("extension.contributed-baseline", "1.0.0")
+    harness.service.activate(
+        "extension.contributed-baseline", "2.0.0", actor="local-user", occurred_at=NOW
+    )
+    pack_store = LocalPolicyPackStore((harness.store_root / "active-packs",), harness.registry)
+    assert pack_store.load("pack.contributed-baseline")["id"] == "pack.contributed-baseline"

@@ -140,6 +140,20 @@ class LocalExtensionStore:
         destination = self._root / ACTIVE / directory_name
         if destination.exists():
             raise OAKError("OAK-EXTENSION-EXISTS", "extension version is already active")
+        # The active namespace (and any materialized pack) is keyed by extension id,
+        # so a second active version would silently shadow the first and deactivating
+        # either would strand the other. Exactly one version is active at a time.
+        active = [
+            candidate
+            for candidate in self.list_entries()
+            if candidate.state == ACTIVE and candidate.extension_id == entry.extension_id
+        ]
+        if active:
+            raise OAKError(
+                "OAK-EXTENSION-VERSION-ACTIVE",
+                f"version {active[0].version} of this extension is already active; "
+                "deactivate it before activating another version",
+            )
         destination.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         activation_path = source / ACTIVATION_NAME
         activation_path.write_text(
