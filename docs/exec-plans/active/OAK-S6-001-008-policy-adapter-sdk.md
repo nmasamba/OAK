@@ -297,6 +297,14 @@ database change, no change to compiled artifacts.
   journey, explicit activation, quarantined unsigned/poisoned copies, both
   renderers, and capability discovery. Version bumped to `0.6.0.dev6` with
   regenerated OpenAPI passing the compatibility gate.
+- [x] 2026-08-19 Byte-stability verified directly rather than inferred: the reference
+  case was compiled on `main` and on this branch and the deployment-bundle,
+  runner-plan, semantic-manifest, and selected-candidate digests are identical
+  (`sha256:042313be…`, `sha256:5e0a65ba…`, `sha256:2ef34758…`, `sha256:576b0ca6…`),
+  and `candidate-03` remains the stable pick at case `0.1.7`.
+- [x] 2026-08-19 Full `make check` passed on the completed tree (verified by counting
+  `make: ***` lines, not exit code): 301 unit/contract, the integration suites, and
+  12 end-to-end tests including the new extension exit demonstration.
 
 ## Decisions
 
