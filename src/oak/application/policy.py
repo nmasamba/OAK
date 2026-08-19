@@ -99,6 +99,14 @@ class PolicyService:
         context = self._normalized_context(context, "policy-evaluate", input_digest)
         self._check_context(context)
         self._check_tenant(context)
+        # Whether the pack may be used at all is a precondition of the command, not
+        # part of its idempotent result. The derived idempotency key is a function of
+        # pack and subject with no time component, so checking after the duplicate
+        # short-circuit would replay a stale decision once the pack expired instead
+        # of refusing it.
+        effective, reason = pack_effective_window(pack, at=context.occurred_at)
+        if not effective:
+            raise OAKError(reason, "policy pack is not effective at evaluation time")
         duplicate = self._repository.idempotent_case(context.idempotency_key, input_digest)
         if duplicate is not None:
             return PolicyEvaluationResult(
@@ -106,9 +114,6 @@ class PolicyService:
                 decision=self._latest_decision(duplicate),
                 duplicate=True,
             )
-        effective, reason = pack_effective_window(pack, at=context.occurred_at)
-        if not effective:
-            raise OAKError(reason, "policy pack is not effective at evaluation time")
         engine_port = loader()
         evaluation = engine_port.evaluate(pack, subject)
         current = DesignCase.from_document(current_document)

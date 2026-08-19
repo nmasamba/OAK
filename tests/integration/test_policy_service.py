@@ -150,3 +150,26 @@ def test_embedded_pack_tests_pass_under_the_builtin_engine() -> None:
         evaluation = engine.evaluate(pack, test["subject"])
         assert evaluation.outcome == test["expected_outcome"], test["name"]
         assert list(evaluation.reasons) == sorted(test["expected_reason_codes"]), test["name"]
+
+
+def test_expired_pack_refuses_even_for_a_previously_evaluated_request(
+    compiled_case: Any, tmp_path: Path
+) -> None:
+    """Expiry must refuse, not replay a cached decision.
+
+    The derived idempotency key is a function of pack and subject with no time
+    component, so the same command re-run after the pack expires would otherwise
+    return the original decision and present a stale automated outcome as current.
+    """
+
+    service = _service(compiled_case)
+    key = "policy-expiry-replay-1"
+    first = service.evaluate(PACK_ID, compiled_case.context(key, _version(compiled_case)))
+    assert first.duplicate is False
+
+    expired = _service(
+        compiled_case, _pack_variant(tmp_path, {"expires_at": "2026-08-18T00:00:00Z"})
+    )
+    with pytest.raises(OAKError) as denial:
+        expired.evaluate(PACK_ID, compiled_case.context(key, _version(compiled_case)))
+    assert denial.value.code == "OAK-POLICY-PACK-EXPIRED"

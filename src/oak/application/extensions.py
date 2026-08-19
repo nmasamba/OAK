@@ -17,7 +17,7 @@ from typing import Any
 from oak.contracts import (
     ContractValidationError,
     SchemaRegistry,
-    load_yaml_document,
+    load_alias_free_yaml_document,
 )
 from oak.contracts.signatures import signed_payload_bytes, verify_signature
 from oak.domain import OAKError, canonical_json_bytes, content_digest
@@ -351,7 +351,7 @@ class ExtensionService:
             elif extension_class in {"component-manifest", "architecture-pattern"}:
                 schema = f"{extension_class}.schema.json"
                 for name in names:
-                    document = load_yaml_document(
+                    document = load_alias_free_yaml_document(
                         self._store.payload_bytes(entry, name).decode("utf-8")
                     )
                     self._registry.validate(schema, document)
@@ -376,7 +376,9 @@ class ExtensionService:
         if names != ("pack.yaml",):
             record("payload-content", False, "A policy-pack extension carries exactly pack.yaml.")
             return
-        pack = load_yaml_document(self._store.payload_bytes(entry, "pack.yaml").decode("utf-8"))
+        pack = load_alias_free_yaml_document(
+            self._store.payload_bytes(entry, "pack.yaml").decode("utf-8")
+        )
         self._registry.validate("policy-pack.schema.json", pack)
         effective, reason = pack_effective_window(pack, at=occurred_at)
         if not effective:
@@ -420,7 +422,7 @@ class ExtensionService:
                 f"A {label} extension carries exactly adapter.yaml.",
             )
             return
-        binding = load_yaml_document(
+        binding = load_alias_free_yaml_document(
             self._store.payload_bytes(entry, "adapter.yaml").decode("utf-8")
         )
         identifier = binding.get(key)

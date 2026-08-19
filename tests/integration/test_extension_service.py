@@ -388,3 +388,30 @@ def test_only_one_version_of_an_extension_can_be_active(harness: Harness, tmp_pa
     )
     pack_store = LocalPolicyPackStore((harness.store_root / "active-packs",), harness.registry)
     assert pack_store.load("pack.contributed-baseline")["id"] == "pack.contributed-baseline"
+
+
+def test_alias_bearing_pack_payload_is_refused_not_activated(
+    harness: Harness, tmp_path: Path
+) -> None:
+    """A payload using YAML anchors must fail verification, not activate.
+
+    Anchor expansion lets a small payload allocate an enormous one, and the
+    bounded pack store refuses aliases anyway — so a pack that activated here
+    would break every later policy read instead of being caught at the gate.
+    """
+
+    source = _pack_extension_source(tmp_path)
+    pack_text = (source / "pack.yaml").read_text()
+    pack_text += "\nextensions:\n  oak.community/anchor: &a [x, x]\n  oak.community/alias: *a\n"
+    (source / "pack.yaml").write_text(pack_text, encoding="utf-8")
+    harness.service.sign_source(source, harness.steward())
+    harness.service.install(source)
+
+    report = harness.service.verify("extension.contributed-baseline", None, occurred_at=NOW)
+    content = next(check for check in report.checks if check["id"] == "payload-content")
+    assert content["result"] == "fail"
+    with pytest.raises(OAKError) as denial:
+        harness.service.activate(
+            "extension.contributed-baseline", None, actor="local-user", occurred_at=NOW
+        )
+    assert denial.value.code == "OAK-EXTENSION-QUARANTINED"
