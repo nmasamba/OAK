@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: Apache-2.0
+compatibility:
+  maximum_oak_version: null
+  minimum_oak_version: 0.6.0
+description: Template architecture-pattern extension distributing provider-neutral
+  patterns with role capability requirements.
+extension_class: architecture-pattern
+extensions: {}
+id: extension.template-architecture-pattern
+licence:
+  spdx_expression: Apache-2.0
+  terms_url: null
+name: Template architecture pattern
+owner: your-name-or-team
+payload:
+  files:
+    - digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+      media_type: application/yaml
+      path: pattern.yaml
+  payload_digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+schema_version: 0.1.0
+sdk_interface_version: 1.0.0
+supply_chain:
+  provenance_status: absent
+  provenance_uri: null
+  sbom_status: absent
+  sbom_uri: null
+  signature_status: absent
+version: 0.1.0
