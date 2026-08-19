@@ -1,0 +1,105 @@
+# SPDX-License-Identifier: Apache-2.0
+description: Synthetic fixture policy for public, egress-free local architectures. It
+  is a demonstration pack, not legal advice.
+effective_from: '2026-08-01T00:00:00Z'
+evidence:
+  - checked_at: '2026-08-13T12:00:00Z'
+    confidence: 0.9
+    content_digest: sha256:7f9b6ef2ddbbe807b3413d95034bfaee5be62b23f0d661fd9be9931cc0e33cee
+    id: evidence.community-baseline-doctrine
+    source_type: official_guidance
+    title: OAK Community baseline architecture doctrine
+    uri: null
+    version: '1.0'
+expires_at: '2027-08-01T00:00:00Z'
+extensions: {}
+id: pack.example-baseline
+licence:
+  spdx_expression: Apache-2.0
+  terms_url: null
+name: Example community baseline policy
+owner: community-policy-steward
+review:
+  owner_review_status: approved
+  reviewed_at: '2026-08-14T09:00:00Z'
+  reviewed_by: community-policy-steward
+rules:
+  - description: Deny any architecture whose data classification is not public.
+    id: rule.public-data-only
+    obligations: []
+    outcome: deny
+    reason_code: POL-DATA-NOT-PUBLIC
+    when:
+      operator: not_equals
+      pointer: /intent_spec/data/classification
+      value: public
+  - description: Require human review when the regulatory nexus is not recorded.
+    id: rule.nexus-recorded
+    obligations:
+      - Record the regulatory nexus before deployment approval.
+    outcome: review_required
+    reason_code: POL-NEXUS-UNRECORDED
+    when:
+      operator: absent
+      pointer: /intent_spec/regulatory_nexus/entities
+  - description: Allow egress-free local deployments.
+    id: rule.no-runtime-egress
+    obligations:
+      - Keep the deny-all egress policy in every rendered manifest.
+    outcome: allow
+    reason_code: POL-NO-EGRESS-OK
+    when:
+      operator: contains
+      pointer: /candidate/hard_requirements
+      value: no_runtime_egress
+schema_version: 0.1.0
+scope:
+  domains:
+    - architecture-baseline
+  jurisdictions:
+    - synthetic
+source_version: community-baseline-doctrine-1.0
+status: published
+tests:
+  - expected_outcome: deny
+    expected_reason_codes:
+      - POL-DATA-NOT-PUBLIC
+      - POL-NO-EGRESS-OK
+    name: non-public data is denied
+    subject:
+      candidate:
+        hard_requirements:
+          - no_runtime_egress
+      intent_spec:
+        data:
+          classification: internal
+        regulatory_nexus:
+          entities:
+            - entity.example
+  - expected_outcome: review_required
+    expected_reason_codes:
+      - POL-NEXUS-UNRECORDED
+      - POL-NO-EGRESS-OK
+    name: missing nexus requires review
+    subject:
+      candidate:
+        hard_requirements:
+          - no_runtime_egress
+      intent_spec:
+        data:
+          classification: public
+  - expected_outcome: allow
+    expected_reason_codes:
+      - POL-NO-EGRESS-OK
+    name: public egress-free architecture is allowed
+    subject:
+      candidate:
+        hard_requirements:
+          - no_runtime_egress
+      intent_spec:
+        data:
+          classification: public
+        regulatory_nexus:
+          entities:
+            - entity.example
+version: 1.0.0

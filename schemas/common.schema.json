@@ -131,7 +131,7 @@
       "additionalProperties": false,
       "required": ["role", "key_id", "algorithm", "public_key_base64", "trust_level", "signature_base64"],
       "properties": {
-        "role": {"enum": ["plan-signer", "approver", "runner"]},
+        "role": {"enum": ["plan-signer", "approver", "runner", "extension-steward"]},
         "key_id": {"$ref": "#/$defs/digest"},
         "algorithm": {"const": "ed25519"},
         "public_key_base64": {"type": "string", "minLength": 40, "maxLength": 60},
