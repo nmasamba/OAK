@@ -258,6 +258,45 @@ database change, no change to compiled artifacts.
   compiler, catalogue, runner/signing, persistence/application, CLI, tests/tooling,
   docs). Created `claude/sprint-6-policy-adapter-sdk`, authored this plan, claimed
   `OAK-S6-001`–`008`.
+- [x] 2026-08-19 Milestone 1 complete. `oak.domain.extension_sdk` pins per-class
+  interface versions, renderer identities, and deterministic capability discovery;
+  `oak.domain.policy_rules` implements the bounded tri-state rule semantics where
+  unknown never satisfies a gate; the four new schemas, examples, workspace kinds,
+  `policy_evaluated` event, and `extension-steward` signature role registered.
+- [x] 2026-08-19 Milestone 2 complete. `PolicyEnginePort`/`PolicyPackStorePort`, the
+  built-in engine, the bounded pack store, the bundled `pack.community-baseline`
+  fixture, and `PolicyService` committing engine-neutral `policy_pack` +
+  `policy_decision` artifacts with audit lineage; `oak policy evaluate|packs`;
+  expired/future/unpublished packs refuse evaluation with stable codes; identical
+  inputs produce byte-identical decisions across fresh workspaces.
+- [x] 2026-08-19 Milestone 3 complete. The quarantined-by-default extension store
+  with authoritative directory identity, `ExtensionService` verification
+  (schema, payload digests, compatibility, licence, pinned-anchor steward
+  signature, class-specific payload checks incl. embedded pack tests), schema-valid
+  activation records, materialized active packs, and the full
+  `oak extensions` command set; tampered/unsigned/wrong-key/incompatible/poisoned/
+  expired fixtures all stay quarantined.
+- [x] 2026-08-19 Milestone 4 complete. The OPA adapter renders a deterministic
+  tri-state Rego module (pack content only as JSON literals), runs the allowlisted
+  `opa` binary with fixed argv/`shell=False`/sanitized env/bounds, and reuses the
+  shared domain aggregation; equality proven byte-for-byte against the built-in
+  engine over a 35-leaf operator corpus, composites, escaped pointers, and both
+  shipped packs with a locally installed opa 1.19.1; absence is a stable error.
+- [x] 2026-08-19 Milestone 5 complete. `DeploymentRendererPort` with the
+  local-manifests and Helm/Kubernetes renderers behind pinned identities,
+  `oak render`, byte-identical renders across fresh workspaces, digest-pinned
+  images, deny-all egress, and no workspace mutation.
+- [x] 2026-08-19 Milestone 6 complete. `tests/extension_kit` reusable checks,
+  schema-valid templates for all five extension classes, `docs/extension-sdk.md`,
+  and contract tests applying the kit to every shipped engine, pack, template, and
+  the container fixture adapter.
+- [x] 2026-08-19 Milestone 7 complete. Replacement proofs: builtin↔OPA canonical
+  decisions byte-identical through the service; renderer swap changes target
+  artifacts while the case digest, semantic manifest ref, and workspace revision
+  stay untouched. The installed-entrypoint exit demonstration covers the template
+  journey, explicit activation, quarantined unsigned/poisoned copies, both
+  renderers, and capability discovery. Version bumped to `0.6.0.dev6` with
+  regenerated OpenAPI passing the compatibility gate.
 
 ## Decisions
 
@@ -283,4 +322,16 @@ database change, no change to compiled artifacts.
 
 ## Discoveries and follow-ups
 
-- (running list; completed at closure)
+- `build_compiled_case` leaves the reference case at version `0.1.7` (the ExecPlan
+  drafts and older notes said `0.1.6`); the new suites read the current version
+  dynamically instead of hardcoding it.
+- The interpreted reference intent records `regulatory_nexus.eu_nexus: possible`
+  with `data.classifications: ["public"]`, so the bundled pack deterministically
+  produces `review_required` on the reference case — an honest fixture outcome
+  (legal facts unconfirmed → no automated approval).
+- Python's native `==` treats `[True] == [1]` as equal while Rego's typed equality
+  does not; `oak.domain.policy_rules._json_equal` now defines JSON-typed equality
+  recursively so both engines agree at any nesting depth.
+- Documentation files (`*.md`) inside an extension source directory are not
+  governed payload: they are excluded from digesting and never copied into the
+  store, so templates can ship READMEs without polluting supply-chain checks.

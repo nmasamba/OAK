@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "oak-community"
-version = "0.5.0.dev5"
+version = "0.6.0.dev6"
 description = "Local-first control plane for designing, evaluating, and planning AI systems"
 readme = "README.md"
 requires-python = ">=3.13,<3.14"

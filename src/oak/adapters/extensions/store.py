@@ -112,7 +112,7 @@ class LocalExtensionStore:
             if path.is_dir():
                 continue
             relative = path.relative_to(directory).as_posix()
-            if relative in RESERVED_NAMES:
+            if relative in RESERVED_NAMES or relative.endswith(".md"):
                 continue
             names.append(relative)
         if len(names) > MAXIMUM_PAYLOAD_FILES:
@@ -263,12 +263,14 @@ class LocalExtensionStore:
         return document
 
     def _source_payload_names(self, source: Path) -> tuple[str, ...]:
+        # Documentation (*.md) travels with templates but is never governed
+        # payload: it is not copied into the store, digested, or verified.
         names: list[str] = []
         for path in sorted(source.rglob("*")):
             if path.is_dir():
                 continue
             relative = path.relative_to(source).as_posix()
-            if relative in RESERVED_NAMES or relative.startswith("."):
+            if relative in RESERVED_NAMES or relative.startswith(".") or relative.endswith(".md"):
                 continue
             self._check_component_path(relative)
             names.append(relative)
