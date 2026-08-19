@@ -144,6 +144,11 @@ def _evaluate_condition(
 
 
 def _combine(values: list[bool | None], *, require_all: bool) -> bool | None:
+    if not values:
+        # A degenerate composite decides nothing. Never let vacuous truth become a
+        # match: the schema forbids empty branches, but the semantics must fail
+        # closed on their own rather than depending on upstream validation.
+        return None
     if require_all:
         if any(value is False for value in values):
             return False

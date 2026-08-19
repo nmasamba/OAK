@@ -220,6 +220,8 @@ class _RegoRenderer:
         if depth > MAXIMUM_CONDITION_DEPTH:
             return self._constant(node, truth=None)
         if "all" in condition:
+            if not condition["all"]:
+                return self._constant(node, truth=None)
             children = [self._node(item, depth=depth + 1) for item in condition["all"]]
             joined = "; ".join(f"n{child}_t" for child in children)
             self._lines.append(f"default n{node}_t := false")
@@ -229,6 +231,8 @@ class _RegoRenderer:
                 self._lines.append(f"n{node}_f if {{ n{child}_f }}")
             return node
         if "any" in condition:
+            if not condition["any"]:
+                return self._constant(node, truth=None)
             children = [self._node(item, depth=depth + 1) for item in condition["any"]]
             self._lines.append(f"default n{node}_t := false")
             for child in children:

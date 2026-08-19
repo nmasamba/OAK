@@ -269,3 +269,21 @@ def test_effective_window() -> None:
         False,
         "OAK-POLICY-PACK-STATUS",
     )
+
+
+def test_degenerate_composites_are_undecidable_not_vacuously_true() -> None:
+    """An empty branch must never become a match through vacuous truth.
+
+    The pack schema forbids empty ``all``/``any`` arrays, but the shared rule
+    semantics are the contract every engine and the contract test kit build on,
+    so the fail-closed property must hold without upstream validation.
+    """
+
+    for composite in ({"all": []}, {"any": []}):
+        result = evaluate_pack_rules([_rule(when=composite, outcome="allow")], SUBJECT)
+        assert result.outcome == "unknown"
+        assert result.rule_results[0].unknown is True
+        assert result.rule_results[0].matched is False
+
+    nested = {"all": [{"pointer": "/flag", "operator": "exists"}, {"any": []}]}
+    assert evaluate_pack_rules([_rule(when=nested, outcome="allow")], SUBJECT).outcome == "unknown"
