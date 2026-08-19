@@ -2,13 +2,13 @@
 
 # Build status
 
-- **Updated:** 2026-08-18
+- **Updated:** 2026-08-19
 - **Repository version:** `0.5.0.dev5`
-- **Phase:** Sprint 5 complete — signed typed runner and GitOps boundary verified
+- **Phase:** Sprint 6 in progress — policy and adapter SDK
 - **Completed plans:** `docs/exec-plans/completed/OAK-S0-001-009-walking-skeleton.md`, `docs/exec-plans/completed/OAK-S1-001-010-local-design-case.md`, `docs/exec-plans/completed/OAK-S2-001-011-candidate-planning.md`, `docs/exec-plans/completed/OAK-S3-001-009-persistent-rest-jobs.md`, `docs/exec-plans/completed/OAK-S4-001-009-web-workspace.md`, and `docs/exec-plans/completed/OAK-S5-001-011-signed-runner.md`
-- **Active plan:** none — authoring the Sprint 6 policy and adapter SDK ExecPlan is the next step
-- **Next task:** author and claim the Sprint 6 (`OAK-S6-001`–`OAK-S6-008`) ExecPlan;
-  CI compatibility wiring remains explicitly deferred by user direction
+- **Active plan:** `docs/exec-plans/active/OAK-S6-001-008-policy-adapter-sdk.md`
+- **Next task:** Sprint 6 Milestone 1 — SDK contracts, policy/extension schemas, and the
+  bounded rule engine; CI compatibility wiring remains explicitly deferred by user direction
 
 ## Claimed work
 
@@ -73,6 +73,14 @@
 | `OAK-S5-009` | complete | Typed rollback and destroy operations with verification and `manual_recovery_required` on unsafe failure |
 | `OAK-S5-010` | complete | Deterministic branch-ready GitOps files and patch description that promote nothing automatically |
 | `OAK-S5-011` | complete | Adversarial suite covering tamper, forgery, staleness, replay, revocation, wrong target, and injection |
+| `OAK-S6-001` | claimed | Versioned SDK contracts for the five extension classes with capability discovery |
+| `OAK-S6-002` | claimed | Schema-valid extension templates, fixtures, and a developer guide |
+| `OAK-S6-003` | claimed | Reusable contract test kit: determinism, compatibility, error mapping, licence/evidence, parameter validation, argv safety, rollback, offline |
+| `OAK-S6-004` | claimed | Effective-dated, scoped, signed policy-pack lifecycle with quarantine, activation, and stale refusal |
+| `OAK-S6-005` | claimed | Optional OPA evaluator behind the policy port with a byte-identical canonical decision to the built-in engine |
+| `OAK-S6-006` | claimed | Second deterministic deployment renderer (Helm/Kubernetes-shaped) behind the renderer port |
+| `OAK-S6-007` | claimed | Policy and deployment adapter replacement in the reference case with unchanged canonical lineage |
+| `OAK-S6-008` | claimed | Extension supply chain: manifest digest, compatibility, signature hooks, quarantine, explicit activation, no dynamic code |
 
 ## Verification evidence
 
