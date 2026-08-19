@@ -40,6 +40,15 @@ LEAF_CONDITIONS: list[dict[str, Any]] = [
     {"pointer": "/data/records", "operator": "less_or_equal", "value": 11},
     {"pointer": "/data/records", "operator": "greater_or_equal", "value": 13},
     {"pointer": "/data/records", "operator": "greater_or_equal", "value": 12.0},
+    # Integral floats whose digits end in zero: some OPA builds compare decimal
+    # literals by trimmed text, so 12 >= 90.0 and 12 == 120.0 wrongly hold there.
+    {"pointer": "/data/records", "operator": "greater_or_equal", "value": 90.0},
+    {"pointer": "/data/records", "operator": "greater_or_equal", "value": 120.0},
+    {"pointer": "/data/records", "operator": "less_or_equal", "value": 10.0},
+    {"pointer": "/data/records", "operator": "equals", "value": 120.0},
+    {"pointer": "/data/records", "operator": "equals", "value": 1200.0},
+    {"pointer": "/data/records", "operator": "not_equals", "value": 120.0},
+    {"pointer": "/data/records", "operator": "in", "value": [120.0, 90.0]},
     {"pointer": "/data/records", "operator": "exists"},
     {"pointer": "/data/missing", "operator": "exists"},
     {"pointer": "/data/missing", "operator": "absent"},
@@ -172,3 +181,38 @@ def test_shipped_pack_fixtures_evaluate_identically(pack_path: Any) -> None:
         assert builtin == opa, test["name"]
         assert builtin.outcome == test["expected_outcome"], test["name"]
     del store
+
+
+def test_external_engine_divergence_fails_closed() -> None:
+    """A disagreeing external engine must never publish a decision.
+
+    The built-in engine is the reference implementation. If the external engine
+    returns a different verdict — a version whose comparison semantics differ, a
+    translation defect, a tampered module — the adapter refuses rather than
+    emitting a canonical decision the offline engine would not produce.
+    """
+
+    from oak.adapters.policies.opa import CommandResult, OpaPolicyEngine
+    from oak.domain import OAKError
+
+    pack = {
+        "rules": [
+            {
+                "id": "rule.only",
+                "description": "d",
+                "outcome": "allow",
+                "reason_code": "POL-ONLY",
+                "obligations": [],
+                "when": {"pointer": "/data/missing", "operator": "exists"},
+            }
+        ]
+    }
+
+    def lying_executor(argv: tuple[str, ...], stdin: bytes, timeout: int) -> CommandResult:
+        # Claim the rule matched when the reference engine says it did not.
+        payload = '{"result":[{"expressions":[{"value":{"r0":{"t":true,"f":false}}}]}]}'
+        return CommandResult(returncode=0, stdout=payload, stderr="")
+
+    with pytest.raises(OAKError) as divergence:
+        OpaPolicyEngine(lying_executor).evaluate(pack, SUBJECT)
+    assert divergence.value.code == "OAK-POLICY-ENGINE-DIVERGED"

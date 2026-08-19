@@ -28,7 +28,30 @@ from oak.domain.policy_rules import (
     PackEvaluation,
     RuleEvaluation,
     aggregate_evaluations,
+    evaluate_pack_rules,
 )
+
+
+def _canonical_numbers(value: Any) -> Any:
+    """Render integral floats as integers before they reach Rego.
+
+    The domain treats 12 and 12.0 as the same JSON number, but some OPA builds
+    compare decimal literals by their trimmed text, so an integral float such as
+    ``90.0`` can spuriously equal ``9``. Emitting the integral form keeps the
+    generated module clear of that class of engine bug; the cross-check below is
+    what actually guarantees agreement.
+    """
+
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    if isinstance(value, list):
+        return [_canonical_numbers(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _canonical_numbers(item) for key, item in value.items()}
+    return value
+
 
 ALLOWLISTED_EXECUTABLES = frozenset({"opa"})
 MAXIMUM_OUTPUT_BYTES = 1_048_576
@@ -122,13 +145,26 @@ class OpaPolicyEngine:
                     unknown=unknown,
                 )
             )
-        return aggregate_evaluations(results)
+        evaluation = aggregate_evaluations(results)
+        # An external engine is never an independent oracle for a canonical
+        # decision. The built-in engine is the reference implementation, so any
+        # disagreement — an OPA version whose comparison semantics differ, a
+        # translation defect, a tampered module — fails closed and visibly rather
+        # than publishing a decision the offline engine would refuse.
+        reference = evaluate_pack_rules(rules, subject)
+        if evaluation != reference:
+            raise OAKError(
+                "OAK-POLICY-ENGINE-DIVERGED",
+                "the external policy engine disagreed with the built-in reference "
+                "engine; refusing to publish a decision",
+            )
+        return evaluation
 
     def _run_opa(
         self, module: str, subject: dict[str, Any], *, expected_rules: int
     ) -> list[dict[str, Any]]:
         stdin = json.dumps(
-            subject,
+            _canonical_numbers(subject),
             ensure_ascii=False,
             allow_nan=False,
             sort_keys=True,
@@ -259,7 +295,7 @@ class _RegoRenderer:
     def _leaf(self, node: int, condition: dict[str, Any]) -> int:
         operator = str(condition["operator"])
         has_value = "value" in condition
-        raw = condition.get("value")
+        raw = _canonical_numbers(condition.get("value"))
         value = json.dumps(raw, ensure_ascii=False, sort_keys=True)
         self._value_chain(node, str(condition["pointer"]))
         self._lines.append(f"default n{node}_t := false")
