@@ -10,8 +10,8 @@ All notable changes to OAK Community are recorded here.
 
 - Sprint 6 policy and adapter SDK for `OAK-S6-001` through `OAK-S6-008`: versioned extension
   interfaces for the five extension classes with deterministic capability discovery, a policy
-  port with a fail-closed built-in rule engine and an optional OPA adapter producing a
-  byte-identical canonical decision, a second deterministic Helm/Kubernetes deployment renderer
+  port with a fail-closed built-in rule engine and an optional OPA adapter that must agree
+  with the built-in reference engine or fail closed, a second deterministic Helm/Kubernetes deployment renderer
   behind a renderer port, and a governed extension supply chain with quarantine and explicit
   activation.
 - Canonical `policy-pack`, `policy-decision`, `extension-manifest`, and `extension-activation`
@@ -106,8 +106,9 @@ All notable changes to OAK Community are recorded here.
   authoritative identity.
 - The OPA adapter runs only the allowlisted `opa` binary through a fixed argument vector with
   `shell=False`, a sanitized environment, timeouts, and bounded output; pack content reaches
-  Rego only as JSON-encoded literals. The built-in engine remains the offline reference and
-  produces byte-identical decisions.
+  Rego only as JSON-encoded literals. The built-in engine is the reference implementation and
+  the external engine is never an independent oracle: any disagreement is refused with
+  `OAK-POLICY-ENGINE-DIVERGED` rather than published as a canonical decision.
 - Deployment renderers emit inert declarative files with digest-pinned images and deny-all
   egress defaults, contain no execution fields, write through an atomic path-safe writer, and
   cannot weaken runner verification, adapter allowlists, approval binding, or mutation gates.

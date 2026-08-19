@@ -7,7 +7,7 @@
 - Owner/agent: Claude
 - Started: 2026-08-19
 - Last updated: 2026-08-19
-- State: in progress
+- State: done
 - Claimed tasks: `OAK-S6-001`–`OAK-S6-008`
 
 ## Outcome
@@ -327,6 +327,99 @@ database change, no change to compiled artifacts.
 - 2026-08-19 The rule language lives in `oak.domain.policy_rules` (pure, leaf-safe) so the
   built-in adapter, pack self-tests during activation, and contract kits all share one
   semantics without new import edges.
+
+## Post-implementation audit
+
+Two audits ran against the completed sprint. A direct adversarial probe of the
+highest-risk classes found two defects; a multi-lens multi-agent audit (policy-engine
+semantics, extension supply chain, adapter execution safety, application integrity, and a
+repo-wide latent sweep, each finding independently refuted by a separate agent) produced 20
+candidates, which deduplicated to 14 distinct issues. Every finding was reproduced locally
+before it was accepted — the refuters confirmed all 20 without refuting any, so their
+verdicts were treated as claims to verify rather than conclusions.
+
+Fixed:
+
+- **An external policy engine could publish a decision the reference engine refuses
+  (critical).** OPA 1.19.1 compares some decimal literals by trimmed text, so `9 >= 90.0`
+  and `1 == 10.0` hold there. The adapter delegated every value comparison to Rego's native
+  operators and treated the result as authoritative, so a pack threshold written as an
+  integral float flipped canonical outcomes: built-in `unknown` became OPA `allow`, and a
+  matched `deny` was suppressed into an `allow` — both published as immutable canonical
+  decisions with a `policy_evaluated` audit event. The external engine is no longer an
+  independent oracle: the adapter recomputes the reference evaluation and fails closed with
+  `OAK-POLICY-ENGINE-DIVERGED` on any disagreement, which also covers engine versions,
+  translation defects, and tampered modules generally. Integral floats are additionally
+  rendered as integers. The equivalence corpus passed only because its single float
+  (`12.0`) happened to trim to itself; it now carries trailing-zero decimals.
+- **Vacuous truth defeated fail-closed evaluation (high).** An empty `all`/`any` branch
+  evaluated to true, so a rule whose condition decided nothing could still match and
+  contribute an automated `allow`; the generated Rego emitted an empty rule body for the
+  same input, so the engines also disagreed. The schema forbids empty branches, but the
+  shared semantics must hold without depending on upstream validation.
+- **An expired pack replayed a stale decision instead of refusing (high).** The
+  effective-window check ran after the idempotency short-circuit, and the derived key is a
+  function of pack and subject with no time component, so re-running the same evaluation
+  once the pack expired returned the original decision and presented a stale automated
+  outcome as current (TM-17). Pack usability is now checked first.
+- **The evaluated pack was not the verified pack (high).** Activation materialized a second
+  copy into `active-packs/` and the engine read that copy, which nothing re-verified against
+  the signed manifest. The copy is gone; the pack store reads each activated extension's
+  pack in place from the verified directory, so no drift is possible.
+- **Rendered images were pinned from the reference, not the attested digest (medium).** The
+  Helm renderer required a self-pinned reference but never consulted `artifact.digest`, so a
+  manifest whose reference embedded a different digest rendered an image the catalogue never
+  attested — the class Sprint 5 fixed in the container adapter. It now pins from the attested
+  digest and refuses a reference that disagrees.
+- **Extension payload YAML bypassed the anchor/alias guard (medium).** Payloads were parsed
+  without the guard applied to every other untrusted YAML input, so a payload could expand
+  during verification and an alias-bearing pack could activate only for the bounded pack
+  store to reject it afterwards and break every later policy read. Payload parsing now uses a
+  shared alias-free reader in `oak.contracts`.
+- **Two versions of one extension could be active at once (medium).** Both resolved to the
+  same id-keyed namespace, so one silently shadowed the other and deactivating either
+  stranded the survivor: the store still reported it active while its pack had vanished.
+- **A colliding pack id took down every policy read (medium).** A duplicate id made the
+  bounded store ambiguous and refused the whole listing, including packs that worked before
+  the collision arrived. Collisions are refused at verification.
+- **Payload listings sorted Paths while declared paths sorted strings (low).** The two
+  diverge once subdirectories exist (`rules/a.yaml` precedes `rules-extra.yaml` as Paths and
+  follows it as strings), falsely reporting a correctly signed multi-file extension as
+  tampered. Both listings now sort POSIX strings.
+- **A schema-valid offset-less timestamp raised `TypeError` (low).** No format checker is
+  installed, so the naive timestamp reached datetime comparison and surfaced as a traceback
+  outside every caller's handled set. It is now `OAK-POLICY-TIME`.
+- **`oak extensions verify` exited 0 on failure (low).** A script or CI job would have read a
+  failed supply-chain verification as success.
+- **Documentation and hygiene (low).** The component-manifest and architecture-pattern
+  templates implied activation feeds the compiler's catalogue; they now state the real
+  boundary. A test built a pack store only to `del` it. `STATUS.md` silently kept reporting
+  the previous sprint's version, now gated against `VERSION`.
+
+Addressed by the divergence guard rather than separately: non-canonical JSON Pointer array
+indices past ~19 digits can be read differently by Rego's number conversion. The built-in
+engine resolves them to `unknown`, and any disagreement now fails closed at the cross-check.
+
+Known limitations, deliberately not fixed in this sprint:
+
+- Activating a component-manifest or architecture-pattern extension governs and records the
+  payload but does not add it to the compiler's catalogue: `LocalCatalogue` reads only the
+  bundled `catalogue/` directory. Wiring activated catalogue extensions into compilation
+  changes the catalogue snapshot that every compiled artifact is digest-bound to, so it needs
+  a deliberate migration rather than a quiet extension of this sprint.
+- `templates/` and `docs/` are source-checkout artifacts and are not shipped in the wheel, so
+  the documented contributor journey starts from a checkout. Shipping contributor scaffolding
+  in the runtime package is a packaging decision, not a defect to patch silently.
+- The extension store trusts its own 0700 directory after activation. A local actor who can
+  write there can already write anywhere in the user's home; removing the materialized copy
+  closed the drift that did not require that access.
+- `jsonschema` runs without a format checker, so `format: date-time` is documentation rather
+  than validation. Timestamps now fail closed with a stable code, but enabling format
+  checking repo-wide is a cross-cutting contract change.
+- OPA is resolved through the inherited `PATH`, like `docker` in Sprint 5, and no minimum
+  OPA version is enforced — the divergence guard is what makes an unexpected version safe
+  rather than silently wrong.
+
 
 ## Discoveries and follow-ups
 
