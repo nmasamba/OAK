@@ -8,6 +8,7 @@ from pathlib import Path
 
 from oak import __version__
 from oak.adapters.catalogue import LocalCatalogue
+from oak.adapters.deployment import HelmKubernetesRenderer, LocalManifestRenderer
 from oak.adapters.dispatch import FilesystemMailbox
 from oak.adapters.extensions import LocalExtensionStore
 from oak.adapters.intake import LocalBriefIntake
@@ -36,9 +37,14 @@ from oak.application import (
     SystemInformationService,
 )
 from oak.application.gitops import GitOpsRenderer
+from oak.application.rendering import DeploymentRenderService
 from oak.compiler import DeterministicBriefInterpreter
 from oak.contracts import SchemaRegistry
 from oak.domain import SystemInformation
+from oak.domain.extension_sdk import (
+    HELM_KUBERNETES_RENDERER_ID,
+    LOCAL_MANIFEST_RENDERER_ID,
+)
 from oak.ports.policy import PolicyEnginePort
 
 SUPPORTED_SCHEMA_VERSIONS = ("0.3.0", "0.4.0")
@@ -191,6 +197,18 @@ def create_policy_service(workspace: Path) -> PolicyService:
         registry,
         LocalPolicyPackStore(pack_directories, registry),
         policy_engine_loaders(),
+    )
+
+
+def create_render_service(workspace: Path) -> DeploymentRenderService:
+    registry = SchemaRegistry.from_directory(canonical_schema_directory())
+    repository = FileWorkspaceRepository(workspace, registry)
+    return DeploymentRenderService(
+        repository,
+        {
+            LOCAL_MANIFEST_RENDERER_ID: LocalManifestRenderer(),
+            HELM_KUBERNETES_RENDERER_ID: HelmKubernetesRenderer(),
+        },
     )
 
 

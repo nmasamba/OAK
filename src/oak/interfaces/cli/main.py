@@ -742,6 +742,33 @@ def policy(
 
 
 @app.command()
+def render(
+    adapter: Annotated[
+        str,
+        typer.Option("--adapter", help="Registered deployment renderer identifier."),
+    ],
+    output: Annotated[
+        Path | None, typer.Option("--output", help="New render output directory.")
+    ] = None,
+) -> None:
+    """Render the compiled bundle through a deployment renderer; executes nothing."""
+
+    try:
+        if output is None:
+            raise OAKError("OAK-RENDER-OUTPUT", "--output is required")
+        from oak.bootstrap import create_render_service
+
+        service = create_render_service(FileWorkspaceRoot.discover(Path.cwd()))
+        written = service.render(adapter, output.absolute())
+        typer.echo(
+            f"Rendered {len(written)} file(s) to {output} with {adapter}; "
+            "no target action was invoked"
+        )
+    except (OAKError, ContractValidationError, OSError, RuntimeError, ValueError) as error:
+        _abort(error)
+
+
+@app.command()
 def extensions(
     action: Annotated[
         str,
