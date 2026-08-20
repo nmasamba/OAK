@@ -2,12 +2,12 @@
 
 # Build status
 
-- **Updated:** 2026-08-18
-- **Repository version:** `0.5.0.dev5`
-- **Phase:** Sprint 5 complete — signed typed runner and GitOps boundary verified
-- **Completed plans:** `docs/exec-plans/completed/OAK-S0-001-009-walking-skeleton.md`, `docs/exec-plans/completed/OAK-S1-001-010-local-design-case.md`, `docs/exec-plans/completed/OAK-S2-001-011-candidate-planning.md`, `docs/exec-plans/completed/OAK-S3-001-009-persistent-rest-jobs.md`, `docs/exec-plans/completed/OAK-S4-001-009-web-workspace.md`, and `docs/exec-plans/completed/OAK-S5-001-011-signed-runner.md`
-- **Active plan:** none — authoring the Sprint 6 policy and adapter SDK ExecPlan is the next step
-- **Next task:** author and claim the Sprint 6 (`OAK-S6-001`–`OAK-S6-008`) ExecPlan;
+- **Updated:** 2026-08-19
+- **Repository version:** `0.6.0.dev6`
+- **Phase:** Sprint 6 complete — policy and adapter SDK with governed extensions
+- **Completed plans:** `docs/exec-plans/completed/OAK-S0-001-009-walking-skeleton.md`, `docs/exec-plans/completed/OAK-S1-001-010-local-design-case.md`, `docs/exec-plans/completed/OAK-S2-001-011-candidate-planning.md`, `docs/exec-plans/completed/OAK-S3-001-009-persistent-rest-jobs.md`, `docs/exec-plans/completed/OAK-S4-001-009-web-workspace.md`, `docs/exec-plans/completed/OAK-S5-001-011-signed-runner.md`, and `docs/exec-plans/completed/OAK-S6-001-008-policy-adapter-sdk.md`
+- **Active plan:** none — Sprint 6 closed; Sprint 7 (MCP, portal and interface parity) is next
+- **Next task:** author and claim the Sprint 7 (`OAK-S7-001`–`OAK-S7-008`) ExecPlan;
   CI compatibility wiring remains explicitly deferred by user direction
 
 ## Claimed work
@@ -73,6 +73,14 @@
 | `OAK-S5-009` | complete | Typed rollback and destroy operations with verification and `manual_recovery_required` on unsafe failure |
 | `OAK-S5-010` | complete | Deterministic branch-ready GitOps files and patch description that promote nothing automatically |
 | `OAK-S5-011` | complete | Adversarial suite covering tamper, forgery, staleness, replay, revocation, wrong target, and injection |
+| `OAK-S6-001` | complete | Versioned SDK contracts for the five extension classes with capability discovery |
+| `OAK-S6-002` | complete | Schema-valid extension templates, fixtures, and a developer guide |
+| `OAK-S6-003` | complete | Reusable contract test kit: determinism, compatibility, error mapping, licence/evidence, parameter validation, argv safety, rollback, offline |
+| `OAK-S6-004` | complete | Effective-dated, scoped, signed policy-pack lifecycle with quarantine, activation, and stale refusal |
+| `OAK-S6-005` | complete | Optional OPA evaluator behind the policy port that must agree with the built-in reference engine or fail closed |
+| `OAK-S6-006` | complete | Second deterministic deployment renderer (Helm/Kubernetes-shaped) behind the renderer port |
+| `OAK-S6-007` | complete | Policy and deployment adapter replacement in the reference case with unchanged canonical lineage |
+| `OAK-S6-008` | complete | Extension supply chain: manifest digest, compatibility, signature hooks, quarantine, explicit activation, no dynamic code |
 
 ## Verification evidence
 
@@ -163,7 +171,30 @@
   covered 77 files, `make check` passed, and a Compose browser journey proved case
   creation, interpretation, in-browser candidate generation through a durable operation,
   the audit timeline, and stale-version conflict recovery through the web origin.
+- Sprint 6 delivered the policy and adapter SDK. Versioned interfaces cover the five
+  extension classes with deterministic capability discovery; a policy port evaluates
+  effective-dated, scoped, signed, self-tested packs into engine-neutral canonical
+  decisions; a second Helm/Kubernetes renderer proves the same plan contract behind a
+  renderer port without making Kubernetes required; and extensions are quarantined until
+  digest, compatibility, licence, pinned-anchor steward signature, and embedded tests pass
+  and an explicit local actor activates them.
+- Byte-stability was verified directly rather than inferred: the reference case compiled on
+  `main` and on the Sprint 6 branch produced identical deployment-bundle, runner-plan,
+  semantic-manifest, and selected-candidate digests, with `candidate-03` stable at case
+  `0.1.7`.
+- Sprint 6 verification: 304 unit/contract tests, the policy, extension, rendering,
+  equivalence and replacement integration suites, and the end-to-end extension exit
+  demonstration through installed entrypoints. The OPA legs run only where the optional
+  binary exists; the built-in engine is authoritative and offline.
+- Two audits ran against the completed sprint: a direct adversarial probe and a five-lens
+  multi-agent audit with independent per-finding refutation. Twenty candidates deduplicated
+  to fourteen distinct issues, every one reproduced locally before acceptance. Twelve were
+  fixed, including a critical case where the optional OPA engine published canonical
+  decisions the built-in reference engine refuses — a matched `deny` was suppressed into an
+  `allow` — because OPA 1.19.1 compares some decimal literals by trimmed text. The external
+  engine is no longer treated as an independent oracle. The remainder are recorded as known
+  limitations in the completed ExecPlan.
 
 ## Safety boundary
 
-The current harness accepts bounded local architecture briefs, catalogue files, rationale, and target profiles and treats their content as untrusted data. It has no mandatory or real model-provider call and no secret resolution. Signing, approval, runner dispatch, and target mutation now exist in explicitly local development form: keys are labelled `development`, the runner reaches only an isolated non-production fixture profile that opts in through an explicit acknowledgement, and the sole permitted mutation is creating and removing one network-isolated, never-started container through a fixed allowlisted argument vector. Every mutating operation requires a separately signed, current, digest and target bound approval that the runner verifies independently before any target access. A compiled plan is inert until it is signed, approved, and independently verified by the runner. All committed fixtures are public or synthetic.
+The current harness accepts bounded local architecture briefs, catalogue files, rationale, and target profiles and treats their content as untrusted data. It has no mandatory or real model-provider call and no secret resolution. Signing, approval, runner dispatch, and target mutation now exist in explicitly local development form: keys are labelled `development`, the runner reaches only an isolated non-production fixture profile that opts in through an explicit acknowledgement, and the sole permitted mutation is creating and removing one network-isolated, never-started container through a fixed allowlisted argument vector. Every mutating operation requires a separately signed, current, digest and target bound approval that the runner verifies independently before any target access. A compiled plan is inert until it is signed, approved, and independently verified by the runner. Governed extensions and policy packs are untrusted input: they are quarantined on install, verified against pinned local trust anchors, and never executed — an extension payload is data, and a deployment-adapter extension only binds configuration to an in-tree renderer identity. Policy evaluation is fail-closed, an undecidable condition can never yield an automated allow, and an optional external policy engine that disagrees with the built-in reference engine is refused rather than published. All committed fixtures are public or synthetic.

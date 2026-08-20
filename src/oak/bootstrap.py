@@ -1,12 +1,16 @@
 # SPDX-License-Identifier: Apache-2.0
 """Composition root shared by local interfaces."""
 
+import json
 import os
+from collections.abc import Callable
 from pathlib import Path
 
 from oak import __version__
 from oak.adapters.catalogue import LocalCatalogue
+from oak.adapters.deployment import HelmKubernetesRenderer, LocalManifestRenderer
 from oak.adapters.dispatch import FilesystemMailbox
+from oak.adapters.extensions import LocalExtensionStore
 from oak.adapters.intake import LocalBriefIntake
 from oak.adapters.persistence import (
     FileWorkspaceRepository,
@@ -17,6 +21,7 @@ from oak.adapters.persistence import (
     PostgreSQLWorkspaceRepository,
     create_postgresql_engine,
 )
+from oak.adapters.policies import BuiltinPolicyEngine, LocalPolicyPackStore
 from oak.adapters.signing import LocalEd25519Signer, initialize_trust_directory
 from oak.adapters.targets import LocalTargetProfile
 from oak.application import (
@@ -24,15 +29,23 @@ from oak.application import (
     CommunityControlPlane,
     CommunityWorker,
     DesignCaseService,
+    ExtensionService,
     OperationService,
     OperationWorker,
+    PolicyService,
     ReleaseService,
     SystemInformationService,
 )
 from oak.application.gitops import GitOpsRenderer
+from oak.application.rendering import DeploymentRenderService
 from oak.compiler import DeterministicBriefInterpreter
 from oak.contracts import SchemaRegistry
 from oak.domain import SystemInformation
+from oak.domain.extension_sdk import (
+    HELM_KUBERNETES_RENDERER_ID,
+    LOCAL_MANIFEST_RENDERER_ID,
+)
+from oak.ports.policy import PolicyEnginePort
 
 SUPPORTED_SCHEMA_VERSIONS = ("0.3.0", "0.4.0")
 
@@ -103,6 +116,112 @@ def create_candidate_planning_service(workspace: Path) -> CandidatePlanningServi
         LocalCatalogue(canonical_catalogue_directory(), registry),
         LocalTargetProfile(registry),
         registry,
+    )
+
+
+def canonical_policy_pack_directory() -> Path:
+    """Locate the bundled deterministic fixture policy packs offline."""
+
+    configured = os.getenv("OAK_POLICY_PACK_DIRECTORY")
+    candidates = [
+        Path(configured) if configured else None,
+        Path(__file__).resolve().parent / "community_policy_packs",
+        Path(__file__).resolve().parents[2] / "policy-packs",
+    ]
+    for candidate in candidates:
+        if candidate is not None and candidate.is_dir():
+            return candidate
+    raise RuntimeError("OAK Community policy packs are not installed")
+
+
+def default_extensions_directory() -> Path:
+    configured = os.getenv("OAK_EXTENSIONS_DIRECTORY")
+    if configured:
+        return Path(configured).absolute()
+    return Path.home() / ".oak" / "extensions"
+
+
+def policy_engine_loaders() -> dict[str, "Callable[[], PolicyEnginePort]"]:
+    """Registered policy engines; only the built-in engine is required."""
+
+    def load_builtin() -> PolicyEnginePort:
+        return BuiltinPolicyEngine()
+
+    def load_opa() -> PolicyEnginePort:
+        from oak.adapters.policies.opa import OpaPolicyEngine
+
+        return OpaPolicyEngine()
+
+    return {"builtin": load_builtin, "opa": load_opa}
+
+
+def load_steward_anchors() -> dict[str, str]:
+    """Pinned extension-steward public keys from the local trust directory."""
+
+    identity_path = default_trust_directory() / "extension-steward.identity.json"
+    try:
+        document = json.loads(identity_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    key_id = document.get("key_id")
+    public_key = document.get("public_key_base64")
+    if isinstance(key_id, str) and isinstance(public_key, str):
+        return {key_id: public_key}
+    return {}
+
+
+def create_extension_service() -> ExtensionService:
+    registry = SchemaRegistry.from_directory(canonical_schema_directory())
+
+    def bundled_pack_ids() -> frozenset[str]:
+        store = LocalPolicyPackStore(
+            (canonical_policy_pack_directory(),),
+            registry,
+            nested_directories=(default_extensions_directory() / "active",),
+        )
+        return frozenset(str(pack["id"]) for pack in store.list_packs())
+
+    return ExtensionService(
+        registry,
+        LocalExtensionStore(default_extensions_directory(), registry),
+        BuiltinPolicyEngine,
+        load_steward_anchors,
+        __version__,
+        bundled_pack_ids,
+    )
+
+
+def load_steward_signer() -> LocalEd25519Signer:
+    return LocalEd25519Signer.load(default_trust_directory(), "extension-steward")
+
+
+def create_policy_service(workspace: Path) -> PolicyService:
+    registry = SchemaRegistry.from_directory(canonical_schema_directory())
+    repository = FileWorkspaceRepository(workspace, registry)
+    return PolicyService(
+        repository,
+        registry,
+        LocalPolicyPackStore(
+            (canonical_policy_pack_directory(),),
+            registry,
+            # Read each activated extension's verified pack in place rather than a
+            # materialized copy, so the pack that is evaluated is the pack that was
+            # digest-checked and signature-verified at activation.
+            nested_directories=(default_extensions_directory() / "active",),
+        ),
+        policy_engine_loaders(),
+    )
+
+
+def create_render_service(workspace: Path) -> DeploymentRenderService:
+    registry = SchemaRegistry.from_directory(canonical_schema_directory())
+    repository = FileWorkspaceRepository(workspace, registry)
+    return DeploymentRenderService(
+        repository,
+        {
+            LOCAL_MANIFEST_RENDERER_ID: LocalManifestRenderer(),
+            HELM_KUBERNETES_RENDERER_ID: HelmKubernetesRenderer(),
+        },
     )
 
 

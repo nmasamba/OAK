@@ -1,0 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Bind one registered typed runner adapter identity from
+# oak.domain.runner_adapters; the runner re-verifies identity, digest,
+# parameter schema, and kind allowlists independently before target access.
+notes: Record why this adapter is configured for your environment.
+runner_adapter_id: adapter.local-container

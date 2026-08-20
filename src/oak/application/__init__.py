@@ -17,6 +17,7 @@ from oak.application.design_case import (
     DesignResult,
     QuestionResult,
 )
+from oak.application.extensions import ExtensionService, VerificationReport
 from oak.application.operations import (
     CommunityWorker,
     OperationService,
@@ -24,6 +25,7 @@ from oak.application.operations import (
     OperationWorker,
     WorkerCycleResult,
 )
+from oak.application.policy import PolicyEvaluationResult, PolicyService
 from oak.application.release import IngestResult, ReleaseResult, ReleaseService
 from oak.application.system_information import SystemInformationService
 
@@ -39,15 +41,19 @@ __all__ = [
     "DesignCaseService",
     "DesignResult",
     "EvaluationResult",
+    "ExtensionService",
     "IngestResult",
     "OperationService",
     "OperationSubmission",
     "OperationWorker",
     "PlanResult",
+    "PolicyEvaluationResult",
+    "PolicyService",
     "QuestionResult",
     "ReleaseResult",
     "ReleaseService",
     "SelectionResult",
     "SystemInformationService",
+    "VerificationReport",
     "WorkerCycleResult",
 ]

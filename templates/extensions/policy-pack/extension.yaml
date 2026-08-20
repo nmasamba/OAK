@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: Apache-2.0
+# Template: replace every "template" value, then run `oak extensions sign <dir>`
+# to recompute payload digests and attach the steward signature.
+compatibility:
+  maximum_oak_version: null
+  minimum_oak_version: 0.6.0
+description: Template policy-pack extension. Describe what the pack governs and
+  which decisions it can influence.
+extension_class: policy-pack
+extensions: {}
+id: extension.template-policy-pack
+licence:
+  spdx_expression: Apache-2.0
+  terms_url: null
+name: Template policy pack
+owner: your-name-or-team
+payload:
+  files:
+    - digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+      media_type: application/yaml
+      path: pack.yaml
+  payload_digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+schema_version: 0.1.0
+sdk_interface_version: 1.0.0
+supply_chain:
+  provenance_status: absent
+  provenance_uri: null
+  sbom_status: absent
+  sbom_uri: null
+  signature_status: absent
+version: 0.1.0

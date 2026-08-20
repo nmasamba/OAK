@@ -1,0 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Bind one registered in-tree renderer. `oak extensions capabilities` lists
+# the registered identities; unknown identifiers are refused.
+configuration:
+  notes: Optional renderer-specific configuration reviewed with this extension.
+renderer_id: renderer.helm-kubernetes

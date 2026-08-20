@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: Apache-2.0
+# Template: a deployment-adapter extension is explicit local configuration that
+# binds a registered in-tree renderer identity. Extensions never carry code.
+compatibility:
+  maximum_oak_version: null
+  minimum_oak_version: 0.6.0
+description: Template deployment-adapter extension binding the in-tree
+  Helm/Kubernetes renderer through explicit local configuration.
+extension_class: deployment-adapter
+extensions: {}
+id: extension.template-deployment-adapter
+licence:
+  spdx_expression: Apache-2.0
+  terms_url: null
+name: Template deployment adapter binding
+owner: your-name-or-team
+payload:
+  files:
+    - digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+      media_type: application/yaml
+      path: adapter.yaml
+  payload_digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+schema_version: 0.1.0
+sdk_interface_version: 1.0.0
+supply_chain:
+  provenance_status: absent
+  provenance_uri: null
+  sbom_status: absent
+  sbom_uri: null
+  signature_status: absent
+version: 0.1.0

@@ -678,6 +678,210 @@ def gitops(
         _abort(error)
 
 
+@app.command()
+def policy(
+    action: Annotated[str, typer.Argument(help="evaluate or packs.")],
+    pack: Annotated[
+        str | None, typer.Option("--pack", help="Policy pack identifier to evaluate.")
+    ] = None,
+    engine: Annotated[
+        str,
+        typer.Option("--engine", help="Policy engine: builtin (default) or opa."),
+    ] = "builtin",
+    output: Annotated[
+        OutputFormat, typer.Option("--output", help="Output format.")
+    ] = OutputFormat.HUMAN,
+    idempotency_key: Annotated[
+        str | None,
+        typer.Option("--idempotency-key", help="Stable retry key; derived by default."),
+    ] = None,
+) -> None:
+    """Evaluate a governed policy pack into a canonical decision, or list packs."""
+
+    try:
+        from oak.bootstrap import create_policy_service
+
+        service = create_policy_service(FileWorkspaceRoot.discover(Path.cwd()))
+        if action == "packs":
+            packs = service.list_packs()
+            _emit(
+                {"packs": list(packs)},
+                output,
+                human="\n".join(
+                    f"{item['id']}@{item['version']} {item['status']}"
+                    f" effective {item['effective_from']}"
+                    for item in packs
+                )
+                or "No policy packs are available.",
+            )
+            return
+        if action != "evaluate":
+            raise OAKError("OAK-POLICY-ACTION", "policy action must be evaluate or packs")
+        if not pack:
+            raise OAKError("OAK-POLICY-PACK-REQUIRED", "--pack is required to evaluate")
+        current = _workspace_service().current().case
+        result = service.evaluate(
+            pack,
+            _context(
+                idempotency_key=idempotency_key,
+                expected_version=str(current["version"]),
+            ),
+            engine=engine,
+        )
+        _emit(
+            {"case": result.case, "decision": result.decision},
+            output,
+            human=(
+                f"Policy {pack} on {result.case['id']}@{result.case['version']}: "
+                f"{result.decision['outcome']}"
+                + (" (idempotent retry)" if result.duplicate else "")
+            ),
+        )
+    except (OAKError, ContractValidationError, OSError, RuntimeError, ValueError) as error:
+        _abort(error)
+
+
+@app.command()
+def render(
+    adapter: Annotated[
+        str,
+        typer.Option("--adapter", help="Registered deployment renderer identifier."),
+    ],
+    output: Annotated[
+        Path | None, typer.Option("--output", help="New render output directory.")
+    ] = None,
+) -> None:
+    """Render the compiled bundle through a deployment renderer; executes nothing."""
+
+    try:
+        if output is None:
+            raise OAKError("OAK-RENDER-OUTPUT", "--output is required")
+        from oak.bootstrap import create_render_service
+
+        service = create_render_service(FileWorkspaceRoot.discover(Path.cwd()))
+        written = service.render(adapter, output.absolute())
+        typer.echo(
+            f"Rendered {len(written)} file(s) to {output} with {adapter}; "
+            "no target action was invoked"
+        )
+    except (OAKError, ContractValidationError, OSError, RuntimeError, ValueError) as error:
+        _abort(error)
+
+
+@app.command()
+def extensions(
+    action: Annotated[
+        str,
+        typer.Argument(help="install, verify, activate, deactivate, list, sign, or capabilities."),
+    ],
+    target: Annotated[
+        str | None,
+        typer.Argument(help="Extension id, or a source directory for install/sign."),
+    ] = None,
+    version: Annotated[
+        str | None, typer.Option("--version", help="Installed extension version.")
+    ] = None,
+    output: Annotated[
+        OutputFormat, typer.Option("--output", help="Output format.")
+    ] = OutputFormat.HUMAN,
+) -> None:
+    """Manage governed extensions: quarantined on install, active only after verification."""
+
+    try:
+        from oak.bootstrap import create_extension_service, load_steward_signer
+
+        service = create_extension_service()
+        if action == "list":
+            entries = service.list_extensions()
+            _emit(
+                {"extensions": list(entries)},
+                output,
+                human="\n".join(
+                    f"{item['id']}@{item['version']} [{item['state']}] {item['extension_class']}"
+                    for item in entries
+                )
+                or "No extensions are installed.",
+            )
+            return
+        if action == "capabilities":
+            document = service.capabilities()
+            _emit(
+                document,
+                output,
+                human=json.dumps(document, ensure_ascii=False, indent=2, sort_keys=True),
+            )
+            return
+        if target is None:
+            raise OAKError("OAK-EXTENSION-TARGET", f"{action} requires a target argument")
+        if action == "install":
+            entry = service.install(Path(target))
+            _emit(
+                {"id": entry.extension_id, "version": entry.version, "state": entry.state},
+                output,
+                human=(
+                    f"Installed {entry.extension_id}@{entry.version} into quarantine; "
+                    "verify and activate it explicitly."
+                ),
+            )
+            return
+        if action == "sign":
+            manifest = service.sign_source(Path(target), load_steward_signer())
+            _emit(
+                {"manifest": manifest},
+                output,
+                human=(
+                    f"Signed {manifest['id']}@{manifest['version']} with the extension-steward key."
+                ),
+            )
+            return
+        if action == "verify":
+            report = service.verify(target, version, occurred_at=_now())
+            _emit(
+                report.to_document(),
+                output,
+                human="\n".join(
+                    f"{check['id']}: {check['result']} — {check['detail']}"
+                    for check in report.checks
+                )
+                + ("\nPASSED" if report.passed else "\nFAILED (stays quarantined)"),
+            )
+            if not report.passed:
+                # Exit non-zero so a script or CI job cannot read a failed
+                # supply-chain verification as success.
+                raise OAKError(
+                    "OAK-EXTENSION-QUARANTINED",
+                    "extension failed verification and stays quarantined",
+                )
+            return
+        if action == "activate":
+            activation = service.activate(
+                target,
+                version,
+                actor=os.getenv("OAK_ACTOR", "local-user"),
+                occurred_at=_now(),
+            )
+            _emit(
+                {"activation": activation},
+                output,
+                human=(
+                    f"Activated {activation['extension_id']}@"
+                    f"{activation['extension_version']} after full verification."
+                ),
+            )
+            return
+        if action == "deactivate":
+            entry = service.deactivate(target, version)
+            _emit(
+                {"id": entry.extension_id, "version": entry.version, "state": entry.state},
+                output,
+                human=f"Deactivated {entry.extension_id}@{entry.version}; it is quarantined.",
+            )
+            return
+        raise OAKError("OAK-EXTENSION-ACTION", "extensions action is not recognized")
+    except (OAKError, ContractValidationError, OSError, RuntimeError, ValueError) as error:
+        _abort(error)
+
+
 def _release_service() -> ReleaseService:
     from oak.bootstrap import create_release_service
 

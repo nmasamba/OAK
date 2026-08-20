@@ -39,6 +39,8 @@ KIND_SCHEMA = {
     "approval": "approval.schema.json",
     "dispatch_envelope": "runner-envelope.schema.json",
     "runner_message": "runner-message.schema.json",
+    "policy_pack": "policy-pack.schema.json",
+    "policy_decision": "policy-decision.schema.json",
 }
 JSON_MEDIA_KIND = {
     "application/vnd.oak.source-record+json": "source_record",
@@ -60,6 +62,8 @@ JSON_MEDIA_KIND = {
     "application/vnd.oak.approval+json": "approval",
     "application/vnd.oak.runner-envelope+json": "dispatch_envelope",
     "application/vnd.oak.runner-message+json": "runner_message",
+    "application/vnd.oak.policy-pack+json": "policy_pack",
+    "application/vnd.oak.policy-decision+json": "policy_decision",
 }
 ReplaceFile = Callable[[Path, Path], None]
 
@@ -622,6 +626,8 @@ class FileWorkspaceRepository:
             for key, kind in (
                 ("oak.community/pattern_refs", "architecture_pattern"),
                 ("oak.community/evaluation_refs", "evaluation_result"),
+                ("oak.community/policy_pack_refs", "policy_pack"),
+                ("oak.community/policy_decision_refs", "policy_decision"),
             ):
                 for nested_reference in extension_refs.get(key, []):
                     self._require_indexed_reference(indexed, nested_reference, kind)

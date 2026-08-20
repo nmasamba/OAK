@@ -683,7 +683,7 @@ wheels = [
 
 [[package]]
 name = "oak-community"
-version = "0.5.0.dev5"
+version = "0.6.0.dev6"
 source = { editable = "." }
 dependencies = [
     { name = "alembic" },

@@ -1,0 +1,36 @@
+# SPDX-License-Identifier: Apache-2.0
+compatibility:
+  maximum_oak_version: null
+  minimum_oak_version: 0.6.0.dev6
+description: Example policy-pack extension distributing the synthetic community baseline
+  pack as governed data.
+extension_class: policy-pack
+extensions: {}
+id: extension.example-baseline-pack
+licence:
+  spdx_expression: Apache-2.0
+  terms_url: null
+name: Example baseline policy pack extension
+owner: community-policy-steward
+payload:
+  files:
+    - digest: sha256:9b1cd0798c2f18ac9c4a4ab97c72e11e26bbcbf20a7cb2ef94bbf655e295c00c
+      media_type: application/yaml
+      path: pack.yaml
+  payload_digest: sha256:1fdf2b1e0b5eb69dd5a8a4b3924c8acf9f6188d0c74b02deb64f61bbf68f95cd
+schema_version: 0.1.0
+sdk_interface_version: 1.0.0
+signature:
+  algorithm: ed25519
+  key_id: sha256:f68e3a1195cc42265d9548925ad19fd8d9290f59d116a877d05be724a22ae03e
+  public_key_base64: F7JmyT+gkp0vor923DVvynlxipkA8FbKxHoE+BEI2RM=
+  role: extension-steward
+  signature_base64: oG3XeruHMn5GH4CUDkitJS2EqWPPFQ6zZPKyddzkLnilQK1KKwe2R3M3UZoGNrKpkKybv84ODJT6lcOtBPbCAQ==
+  trust_level: development
+supply_chain:
+  provenance_status: absent
+  provenance_uri: null
+  sbom_status: absent
+  sbom_uri: null
+  signature_status: present_unverified
+version: 1.0.0

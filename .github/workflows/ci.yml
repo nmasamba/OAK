@@ -17,11 +17,11 @@ jobs:
         with:
           version: "0.10.8"
           enable-cache: true
+      - run: corepack enable
       - uses: actions/setup-node@v4
         with:
           node-version-file: .node-version
           cache: pnpm
-      - run: corepack enable
       - run: make bootstrap
       - run: make check
       - run: make build

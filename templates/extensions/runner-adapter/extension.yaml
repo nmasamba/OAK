@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: Apache-2.0
+# Runner adapters are in-tree code verified independently by the runner; this
+# extension class documents and configures one. Extensions never carry code.
+compatibility:
+  maximum_oak_version: null
+  minimum_oak_version: 0.6.0
+description: Template runner-adapter extension binding a registered typed runner
+  adapter identity for explicit local configuration and review.
+extension_class: runner-adapter
+extensions: {}
+id: extension.template-runner-adapter
+licence:
+  spdx_expression: Apache-2.0
+  terms_url: null
+name: Template runner adapter binding
+owner: your-name-or-team
+payload:
+  files:
+    - digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+      media_type: application/yaml
+      path: adapter.yaml
+  payload_digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+schema_version: 0.1.0
+sdk_interface_version: 1.0.0
+supply_chain:
+  provenance_status: absent
+  provenance_uri: null
+  sbom_status: absent
+  sbom_uri: null
+  signature_status: absent
+version: 0.1.0

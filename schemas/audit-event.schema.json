@@ -17,7 +17,7 @@
     },
     "case_id": {"$ref": "common.schema.json#/$defs/identifier"},
     "case_version": {"$ref": "common.schema.json#/$defs/semver"},
-    "event_type": {"enum": ["case_created", "brief_interpreted", "claims_confirmed", "workspace_imported", "candidates_generated", "candidate_evaluated", "candidate_selected", "assurance_planned", "bundle_compiled", "plan_signed", "approval_recorded", "approval_revoked", "plan_dispatched", "runner_completed", "runner_rolled_back", "runner_recovery_required"]},
+    "event_type": {"enum": ["case_created", "brief_interpreted", "claims_confirmed", "workspace_imported", "candidates_generated", "candidate_evaluated", "candidate_selected", "assurance_planned", "bundle_compiled", "plan_signed", "approval_recorded", "approval_revoked", "plan_dispatched", "runner_completed", "runner_rolled_back", "runner_recovery_required", "policy_evaluated"]},
     "actor": {"type": "string", "minLength": 1, "maxLength": 160},
     "tenant_id": {"type": "string", "minLength": 1, "maxLength": 160},
     "interface_origin": {"enum": ["web", "api", "cli", "mcp", "portal", "import"]},

@@ -100,3 +100,33 @@ def test_inventory_is_bounded_and_secret_free() -> None:
     }
     serialized = str(inventory).casefold()
     assert "password" not in serialized and "token" not in serialized
+
+
+def test_renderer_pins_images_to_the_attested_digest_not_the_reference() -> None:
+    """A reference carrying a different digest must never be rendered.
+
+    The attested ``artifact.digest`` is the authority; Sprint 5 fixed the same
+    class in the container adapter, where a reference-carried digest could run an
+    image the approval never covered.
+    """
+
+    from oak.adapters.deployment.helm_kubernetes import _pinned_image
+    from oak.domain import OAKError
+
+    good = "sha256:" + "b" * 64
+    assert _pinned_image({"reference": "registry.example.invalid/x", "digest": good}) == (
+        f"registry.example.invalid/x@{good}"
+    )
+    assert (
+        _pinned_image({"reference": f"registry.example.invalid/x@{good}", "digest": good})
+        == f"registry.example.invalid/x@{good}"
+    )
+
+    with pytest.raises(OAKError) as mismatch:
+        _pinned_image(
+            {
+                "reference": "registry.example.invalid/x@sha256:" + "c" * 64,
+                "digest": good,
+            }
+        )
+    assert mismatch.value.code == "OAK-RENDER-IMAGE"

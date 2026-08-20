@@ -103,3 +103,17 @@ def _validate_json_value(value: Any, active: set[int] | None = None) -> None:
         raise ValueError("canonical document numbers must be finite")
     if value is not None and not isinstance(value, (str, int, float, bool)):
         raise ValueError("canonical document contains a non-JSON value")
+
+
+def load_alias_free_yaml_document(source: str) -> dict[str, Any]:
+    """Load YAML that must not use anchors or aliases.
+
+    Untrusted YAML gets this reader: anchor expansion lets a small document
+    allocate an enormous one, and an alias-bearing document that parses here
+    would still be refused by every bounded loader downstream.
+    """
+
+    for token in yaml.scan(source):
+        if isinstance(token, (yaml.AliasToken, yaml.AnchorToken)):
+            raise ValueError("document must not use YAML anchors or aliases")
+    return load_yaml_document(source)

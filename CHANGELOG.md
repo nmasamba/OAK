@@ -8,6 +8,24 @@ All notable changes to OAK Community are recorded here.
 
 ### Added
 
+- Sprint 6 policy and adapter SDK for `OAK-S6-001` through `OAK-S6-008`: versioned extension
+  interfaces for the five extension classes with deterministic capability discovery, a policy
+  port with a fail-closed built-in rule engine and an optional OPA adapter that must agree
+  with the built-in reference engine or fail closed, a second deterministic Helm/Kubernetes deployment renderer
+  behind a renderer port, and a governed extension supply chain with quarantine and explicit
+  activation.
+- Canonical `policy-pack`, `policy-decision`, `extension-manifest`, and `extension-activation`
+  schemas; `policy_pack` and `policy_decision` workspace artifact kinds; an additive
+  `policy_evaluated` audit event whose canonical decision is engine-neutral; and an additive
+  `extension-steward` signing role.
+- `oak policy evaluate/packs` evaluating effective-dated, scoped, signed, tested policy packs
+  into engine-neutral decisions; `oak render` rendering the compiled bundle through a chosen
+  deployment adapter read-only; and `oak extensions install/verify/activate/deactivate/list/
+  sign/capabilities` quarantining every extension until digest, compatibility, licence,
+  pinned-anchor steward signature, and embedded tests pass and an explicit local actor
+  activates it.
+- A reusable extension contract test kit (`tests/extension_kit`), schema-valid templates for
+  every extension class, and a developer guide (`docs/extension-sdk.md`).
 - Sprint 5 signed typed runner and GitOps boundary for `OAK-S5-001` through `OAK-S5-011`:
   local Ed25519 signing with per-role development keys, immutable plan-signature binding,
   digest/target/action/expiry-bound signed approvals with revocation, outbound-only mailbox
@@ -76,6 +94,24 @@ All notable changes to OAK Community are recorded here.
 
 ### Security
 
+- Policy evaluation is fail-closed: an unresolved pointer or type mismatch is undecidable, the
+  rule reports unknown, and the pack outcome becomes unknown, so a stale or ambiguous pack can
+  never yield an automated allow. Stale, future, or unpublished packs refuse evaluation with
+  stable codes.
+- Extensions are quarantined by default and become usable only after schema, per-file and
+  aggregate payload-digest, compatibility, licence, and embedded-test checks pass and the
+  extension-steward signature verifies against a pinned local trust anchor; a key embedded in
+  the manifest is a claim, never an anchor. Extension payloads are governed data with no
+  dynamic import or downloaded code execution, and the on-disk directory name is the
+  authoritative identity.
+- The OPA adapter runs only the allowlisted `opa` binary through a fixed argument vector with
+  `shell=False`, a sanitized environment, timeouts, and bounded output; pack content reaches
+  Rego only as JSON-encoded literals. The built-in engine is the reference implementation and
+  the external engine is never an independent oracle: any disagreement is refused with
+  `OAK-POLICY-ENGINE-DIVERGED` rather than published as a canonical decision.
+- Deployment renderers emit inert declarative files with digest-pinned images and deny-all
+  egress defaults, contain no execution fields, write through an atomic path-safe writer, and
+  cannot weaken runner verification, adapter allowlists, approval binding, or mutation gates.
 - PostgreSQL uniqueness constraints and every repository, operation, outbox, artifact, and
   projection query include tenant/environment scope; cross-tenant REST requests return the
   same safe not-found shape as missing resources.

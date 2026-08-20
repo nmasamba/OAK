@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: Apache-2.0
+activated_at: '2026-08-19T12:30:00Z'
+activated_by: local-user
+extension_id: extension.example-baseline-pack
+extension_version: 1.0.0
+extensions: {}
+id: extension-activation.extension.example-baseline-pack.1.0.0
+manifest_digest: sha256:bd6c3f60cbe08e3af73c86b7d67d47f43cbeca1a29e6b3b6b98d2af0f9b96db1
+schema_version: 0.1.0
+verification:
+  checks:
+    - detail: Manifest validated against extension-manifest.schema.json.
+      id: manifest-schema
+      result: pass
+    - detail: Every payload file digest and the aggregate payload digest match.
+      id: payload-digest
+      result: pass
+    - detail: SDK interface 1.0.0 and OAK 0.6.0.dev6 satisfy the declared range.
+      id: compatibility
+      result: pass
+    - detail: Steward signature verified against the pinned local trust anchor.
+      id: signature
+      result: pass
+    - detail: All 3 embedded pack tests passed under the built-in engine.
+      id: embedded-tests
+      result: pass
+version: 0.1.0

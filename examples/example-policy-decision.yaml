@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: Apache-2.0
+case_id: design-case.public-manual-qa
+effective: true
+evaluated_at: '2026-08-19T12:00:00Z'
+extensions: {}
+id: policy-decision.pack.example-baseline.1.0.0.case-0.1.6
+obligations:
+  - Keep the deny-all egress policy in every rendered manifest.
+outcome: allow
+pack_ref:
+  digest: sha256:a3f1c0d94be7a6cb0c2fbcd1a9c3e5d7f24688b1a0d9e8c7b6a5f4e3d2c1b0a9
+  id: pack.example-baseline
+  media_type: application/vnd.oak.policy-pack+json
+  uri: null
+  version: 1.0.0
+reasons:
+  - POL-NO-EGRESS-OK
+rule_results:
+  - matched: false
+    obligations: []
+    outcome: deny
+    reason_code: POL-DATA-NOT-PUBLIC
+    rule_id: rule.public-data-only
+  - matched: false
+    obligations: []
+    outcome: review_required
+    reason_code: POL-NEXUS-UNRECORDED
+    rule_id: rule.nexus-recorded
+  - matched: true
+    obligations:
+      - Keep the deny-all egress policy in every rendered manifest.
+    outcome: allow
+    reason_code: POL-NO-EGRESS-OK
+    rule_id: rule.no-runtime-egress
+schema_version: 0.1.0
+status: evaluated
+subject_digest: sha256:0d0428d18b58b06c8be1e78bce33a4a19aaf80a5a1a1d4baa74e2b66eee9c3ae
+version: 0.1.0

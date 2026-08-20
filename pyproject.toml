@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "oak-community"
-version = "0.5.0.dev5"
+version = "0.6.0.dev6"
 description = "Local-first control plane for designing, evaluating, and planning AI systems"
 readme = "README.md"
 requires-python = ">=3.13,<3.14"
@@ -62,6 +62,7 @@ packages = ["src/oak"]
 "schemas" = "oak/canonical_schemas"
 "catalogue" = "oak/community_catalogue"
 "migrations" = "oak/migrations"
+"policy-packs" = "oak/community_policy_packs"
 
 [tool.pytest.ini_options]
 addopts = "--strict-config --strict-markers"

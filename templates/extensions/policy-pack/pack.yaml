@@ -1,0 +1,85 @@
+# SPDX-License-Identifier: Apache-2.0
+# Template pack: bounded declarative rules over the canonical policy subject
+# {case_id, intent_spec, candidate}. Unknown pointers fail closed to unknown.
+description: Template policy pack demonstrating one rule per outcome. Replace the
+  rules, evidence, and scope with your governed content.
+effective_from: '2026-08-01T00:00:00Z'
+evidence:
+  - checked_at: '2026-08-13T12:00:00Z'
+    confidence: 0.8
+    content_digest: null
+    id: evidence.template-source
+    source_type: official_guidance
+    title: Name the authoritative source this pack encodes
+    uri: null
+    version: '1.0'
+expires_at: null
+extensions: {}
+id: pack.template
+licence:
+  spdx_expression: Apache-2.0
+  terms_url: null
+name: Template pack
+owner: your-name-or-team
+review:
+  owner_review_status: approved
+  reviewed_at: '2026-08-14T09:00:00Z'
+  reviewed_by: your-name-or-team
+rules:
+  - description: Deny architectures whose declared data classifications exceed public.
+    id: rule.template-public-only
+    obligations: []
+    outcome: deny
+    reason_code: POL-TEMPLATE-DATA
+    when:
+      not:
+        operator: subset_of
+        pointer: /intent_spec/data/classifications
+        value:
+          - public
+  - description: Allow candidates that keep the no-runtime-egress hard requirement.
+    id: rule.template-no-egress
+    obligations:
+      - Keep the deny-all egress policy in rendered manifests.
+    outcome: allow
+    reason_code: POL-TEMPLATE-EGRESS
+    when:
+      operator: contains
+      pointer: /candidate/hard_requirements
+      value: no_runtime_egress
+schema_version: 0.1.0
+scope:
+  domains:
+    - template-domain
+  jurisdictions:
+    - synthetic
+source_version: template-source-1.0
+status: published
+tests:
+  - expected_outcome: deny
+    expected_reason_codes:
+      - POL-TEMPLATE-DATA
+      - POL-TEMPLATE-EGRESS
+    name: non-public data is denied
+    subject:
+      candidate:
+        hard_requirements:
+          - no_runtime_egress
+      intent_spec:
+        data:
+          classifications:
+            - public
+            - internal
+  - expected_outcome: allow
+    expected_reason_codes:
+      - POL-TEMPLATE-EGRESS
+    name: public egress-free architecture is allowed
+    subject:
+      candidate:
+        hard_requirements:
+          - no_runtime_egress
+      intent_spec:
+        data:
+          classifications:
+            - public
+version: 0.1.0

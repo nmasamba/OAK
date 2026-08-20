@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: Apache-2.0
+schema_version: 0.4.0
+id: pattern.fixture-baseline
+version: 0.1.0
+variant: simpler_baseline
+description: Synthetic non-generative cited-passage baseline.
+roles:
+  - id: role.retrieval
+    role: Deterministic retrieval
+    component_category: software
+    required_capability: lexical_retrieval
+    data_classifications: [public]
+edges: []
+component_requirements:
+  - role_id: role.retrieval
+    manifest_id: component.fixture-lexical-search
+    purpose: Retrieve cited passages
+    required: true
+hard_requirements: [local, no_runtime_egress]
+extensions: {}

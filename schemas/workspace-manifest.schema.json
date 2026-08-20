@@ -43,7 +43,7 @@
         "version": {"type": "string", "minLength": 1},
         "digest": {"$ref": "common.schema.json#/$defs/digest"},
         "media_type": {"type": "string", "minLength": 1},
-        "kind": {"enum": ["brief_source", "source_record", "system_intent", "design_case", "audit_event", "component_manifest", "catalogue_snapshot", "architecture_pattern", "evaluation_contract", "architecture_candidate", "evaluation_result", "architecture_decision", "assurance_plan", "deployment_bundle", "runner_plan", "review_artifact", "plan_signature", "approval", "dispatch_envelope", "runner_message"]},
+        "kind": {"enum": ["brief_source", "source_record", "system_intent", "design_case", "audit_event", "component_manifest", "catalogue_snapshot", "architecture_pattern", "evaluation_contract", "architecture_candidate", "evaluation_result", "architecture_decision", "assurance_plan", "deployment_bundle", "runner_plan", "review_artifact", "plan_signature", "approval", "dispatch_envelope", "runner_message", "policy_pack", "policy_decision"]},
         "size_bytes": {"type": "integer", "minimum": 0, "maximum": 8388608}
       }
     },
