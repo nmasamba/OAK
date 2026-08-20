@@ -2,7 +2,7 @@
 
 # Build status
 
-- **Updated:** 2026-08-19
+- **Updated:** 2026-08-20
 - **Repository version:** `0.6.0.dev6`
 - **Phase:** Sprint 6 complete — policy and adapter SDK with governed extensions
 - **Completed plans:** `docs/exec-plans/completed/OAK-S0-001-009-walking-skeleton.md`, `docs/exec-plans/completed/OAK-S1-001-010-local-design-case.md`, `docs/exec-plans/completed/OAK-S2-001-011-candidate-planning.md`, `docs/exec-plans/completed/OAK-S3-001-009-persistent-rest-jobs.md`, `docs/exec-plans/completed/OAK-S4-001-009-web-workspace.md`, `docs/exec-plans/completed/OAK-S5-001-011-signed-runner.md`, and `docs/exec-plans/completed/OAK-S6-001-008-policy-adapter-sdk.md`
@@ -87,7 +87,7 @@
 - `make bootstrap` completed from the committed lockfiles.
 - Sprint 0 `make check` passed: 30 unit/contract, 4 integration, and 4 end-to-end tests plus formatting, lint, boundary, hygiene, toolchain-consistency, type, generated-contract, and web-build gates.
 - The bootstrapped environment produced the Python source/wheel artifacts offline, and `make build` produced the production web bundle.
-- Python and web dependency audits reported no known vulnerabilities; `make sbom` produced an ignored development CycloneDX artifact.
+- Sprint 0 Python and web dependency audits reported no known vulnerabilities; `make sbom` produced an ignored development CycloneDX artifact.
 - The Compose exit demonstration made PostgreSQL, API, and web healthy; direct and web-proxied `/version` returned `0.4.0.dev3`; teardown left no project containers running.
 - Documentation policy scan found no prohibited product references. Git ignore checks cover agent instructions/state, local secrets, environments, build output, runtime data, editors, and operating-system metadata.
 - `make toolchain-check` proves that contributor compatibility, exact CI/container builders, package metadata, and documented versions agree; these implementation toolchains are explicitly independent of future target profiles.
@@ -99,7 +99,7 @@
 - `make build` produced `0.4.0.dev4` source and wheel artifacts plus the web bundle. A clean offline wheel environment resolved 25 bundled schemas, three component manifests, and four patterns, then completed the full case-to-plan/export journey at case `0.1.6` with seven audit events.
 - Two clean CLI workspaces produced byte-identical normalized semantic manifests. The selected target profile affected the digest and passed tenant, capacity, platform, network, and read-only capability checks; incompatible and undersized profiles were denied without state change.
 - The generated runner plan remained `draft`, unsigned, unapproved, and limited to five typed read-only operations; schema/runtime scans found no command, shell, executable, or argument-vector field and no target action occurred.
-- Current Python and web dependency audits reported no known vulnerabilities; `make sbom` regenerated the ignored reproducible CycloneDX development artifact.
+- Sprint 2 Python and web dependency audits reported no known vulnerabilities; `make sbom` regenerated the ignored reproducible CycloneDX development artifact.
 - Documentation policy scans found no prohibited product references, the Git diff contains no CI/CD changes, and Git ignore checks continue to hide agent instructions, state, transcripts, and caches.
 - Sprint 3 static verification passed repository validation, Python formatting/lint, modular
   boundaries, repository hygiene, strict mypy across 75 source files, generated OpenAPI/client
@@ -194,6 +194,24 @@
   `allow` — because OPA 1.19.1 compares some decimal literals by trimmed text. The external
   engine is no longer treated as an independent oracle. The remainder are recorded as known
   limitations in the completed ExecPlan.
+- 2026-08-20 dependency maintenance: `pip-audit` reported four `cryptography` 46.0.7
+  advisories — `GHSA-537c-gmf6-5ccf`, `PYSEC-2026-3552`, `PYSEC-2026-3553`, and
+  `PYSEC-2026-3554` — and no other locked Python or web package carried any advisory. None
+  of the four is reachable from OAK, which uses raw-bytes Ed25519 only and loads no X.509
+  chain, PKCS#7 structure, or serialized key; the pin moved to `cryptography>=50,<51` and
+  the lock to 50.0.0 anyway, because reachability is a property of today's call graph rather
+  than a durable control. A fixed-seed Ed25519 signature is byte-identical before and after,
+  so existing signed artifacts and trust anchors remain valid. `make check`, `make build`,
+  and `make audit` pass on the upgraded lock with no advisory suppressed; the recorded
+  review is in `docs/dependencies.md`.
+- 2026-08-20 the API container image was repaired. Sprint 6 force-included `policy-packs`
+  into the wheel without adding it to the image build context, so `uv sync --frozen` failed
+  inside the container and the image, and therefore the Compose stack, had been unbuildable
+  since that sprint merged. Neither `make build` nor CI could detect it, because the former
+  runs at the repository root and the latter builds no image. A `linux/amd64` image build
+  now succeeds, resolves a `manylinux_2_34_x86_64` wheel for `cryptography` 50.0.0 with no
+  Rust toolchain present, and runs `oak --version`; a contract test binds the force-include
+  list to the Dockerfile so the two cannot drift again.
 
 ## Safety boundary
 

@@ -83,3 +83,30 @@ def test_unknown_role_is_rejected(tmp_path: Path) -> None:
 def test_missing_key_reports_a_clear_error(tmp_path: Path) -> None:
     with pytest.raises(OAKError, match="signing key does not exist"):
         LocalEd25519Signer.load(tmp_path, "plan-signer")
+
+
+@pytest.mark.parametrize(
+    ("public_key_base64", "signature_base64"),
+    [
+        ("AAAA", "AAAA"),
+        ("!!!!", "AAAA"),
+        ("Zm9vYmFy", "!!!!"),
+    ],
+)
+def test_malformed_material_is_refused_without_raising(
+    public_key_base64: str, signature_base64: str
+) -> None:
+    """Verification is fail-closed: malformed material returns False, never raises.
+
+    The `except` clause in `oak.contracts.signatures` is the control that makes this
+    true, and it names concrete exception types. A dependency upgrade that changed
+    which type the raw-bytes loaders raise would turn a denial into an uncaught
+    crash at every call site, so the contract is pinned here rather than assumed.
+    """
+
+    assert not verify_signature(
+        algorithm="ed25519",
+        public_key_base64=public_key_base64,
+        message=b"message",
+        signature_base64=signature_base64,
+    )

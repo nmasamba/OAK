@@ -92,8 +92,23 @@ All notable changes to OAK Community are recorded here.
 - Repository hygiene rules that exclude agent state, secrets, build output, local runtime data, and editor files.
 - Separate local-source compatibility from exact CI/container builder pins, with an executable drift check across toolchain files, package metadata, images, CI, and documentation.
 
+### Fixed
+
+- The API container image could not be built. Sprint 6 force-included `policy-packs` into
+  the wheel but the image never copied that directory, so `uv sync --frozen` failed inside
+  the build with `Forced include not found`. `make build` cannot catch this because it runs
+  at the repository root where the directory exists, and CI does not build images. A
+  contract test now asserts every wheel force-include is copied into the image.
+
 ### Security
 
+- `cryptography` was upgraded from 46.0.7 to 50.0.0 after `pip-audit` reported four
+  advisories (`GHSA-537c-gmf6-5ccf`, `PYSEC-2026-3552`, `PYSEC-2026-3553`,
+  `PYSEC-2026-3554`) in the locked version. None is reachable from OAK, which uses
+  raw-bytes Ed25519 only and loads no X.509 chain, PKCS#7 structure, or serialized key; the
+  advisories were removed rather than suppressed, Ed25519 signature bytes are unchanged so
+  existing signed artifacts stay valid, and the pin `>=50,<51` keeps a future major behind
+  an explicit review.
 - Policy evaluation is fail-closed: an unresolved pointer or type mismatch is undecidable, the
   rule reports unknown, and the pack outcome becomes unknown, so a stale or ambiguous pack can
   never yield an automated allow. Stale, future, or unpublished packs refuse evaluation with

@@ -14,6 +14,7 @@ COPY pyproject.toml uv.lock README.md LICENSE VERSION ./
 COPY src ./src
 COPY schemas ./schemas
 COPY catalogue ./catalogue
+COPY policy-packs ./policy-packs
 COPY migrations ./migrations
 COPY alembic.ini ./alembic.ini
 RUN uv sync --frozen --no-dev --no-editable

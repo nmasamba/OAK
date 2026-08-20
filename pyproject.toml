@@ -22,7 +22,7 @@ classifiers = [
 ]
 dependencies = [
   "alembic>=1.18,<2",
-    "cryptography>=44,<47",
+  "cryptography>=50,<51",
   "fastapi>=0.115,<1",
   "jsonschema[format]>=4.23,<5",
   "psycopg[binary]>=3.3,<4",
