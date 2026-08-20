@@ -4,6 +4,8 @@
 
 Local source development uses Python 3.13.12, Node.js 24.18.0, `uv` 0.10.x, and `pnpm` 11.15.1. Dependencies are locked in `uv.lock` and `pnpm-lock.yaml`; those lockfiles do not pin the `uv` executable itself. Contributors use `.python-version` and `.node-version`, while `package.json` pins `pnpm`.
 
+macOS contributors need an arm64 Python 3.13.12 interpreter. From `cryptography` 49.0.0 the project no longer publishes macOS x86_64 wheels, so an Intel or Rosetta interpreter falls through to the source distribution and cannot build it without a Rust toolchain.
+
 CI and container builds are the reproducible builder boundary. They pin `uv` 0.10.8 and the exact Python and Node runtimes; container users need only Docker with Compose on the host. The source-development compatibility range exists for contributor convenience and is not a target-hardware contract. OAK compilation receives target capabilities through explicit invocation data, currently a bounded target profile. It never treats the control-plane host as the deployment target. A later target-side inventory adapter must preserve that boundary.
 
 ## Commands

@@ -99,3 +99,61 @@ permits the reviewed MPL-2.0 component; axe-core remains replaceable behind the 
 The pnpm workspace permits an install-time build hook only for the lockfile-pinned `esbuild` package required by Vite. All other dependency build scripts remain blocked by default.
 
 Container base images use readable version tags plus immutable manifest digests. Updating a base requires an explicit manifest edit, rebuild, and audit rather than an implicit tag move.
+
+## Maintenance reviews
+
+Reviews outside a sprint boundary are recorded here, newest first, under the same standard
+as a sprint dependency review.
+
+### 2026-08-20 cryptography 46.0.7 to 50.0.0
+
+`pip-audit` reported four advisories against the locked `cryptography` 46.0.7:
+`GHSA-537c-gmf6-5ccf` (statically linked OpenSSL in the published wheels, fixed in 48.0.1),
+`PYSEC-2026-3552` (PKCS#7 EnvelopedData Bleichenbacher oracle, fixed in 50.0.0),
+`PYSEC-2026-3553` / CVE-2026-69249 (X.509 chain-building denial of service, fixed in
+49.0.0), and `PYSEC-2026-3554` / CVE-2026-69248 (X.509 DNS name-constraint wildcard escape,
+fixed in 49.0.0). No other locked Python or web package carried an advisory.
+
+None of the four is reachable from OAK. `oak.adapters.signing`, `oak.runner.identity`, and
+`oak.contracts.signatures` use raw-bytes Ed25519 only — generate, seed load, raw public and
+private bytes, sign, and verify. OAK loads no X.509 certificate or chain, decrypts no PKCS#7
+structure, and calls no serialization or key-loading API. The upgrade was taken anyway:
+reachability is a property of today's call graph rather than a durable control, and this
+component is the trust root for plan signatures, approvals, runner envelopes, and
+extension-steward signatures. Only 50.0.0 clears all four; 48.0.1 clears one and 49.0.0
+clears three. No advisory was suppressed and no `pip-audit` ignore list was introduced.
+
+Verified from primary sources for 50.0.0: the licence expression remains
+`Apache-2.0 OR BSD-3-Clause`, so the inventory row above is unchanged; supported Python is
+3.9 to 3.14, covering the pinned 3.13.12; `cffi` is the only runtime requirement and the
+lock already carries `cffi` 2.1.1 with `pycparser` 3.0, both advisory-free and unmoved by
+this change; nothing else in `uv.lock` depends on `cryptography`, so the only edge is
+downward.
+
+Platform support narrowed. From 49.0.0 the project no longer publishes macOS x86_64 or
+32-bit Windows wheels. `manylinux2014`, `manylinux_2_28`, and `manylinux_2_34` wheels are
+published for x86_64 and aarch64, so `python:3.13.12-slim` resolves a wheel and the API
+image still needs no Rust toolchain. macOS contributors now require an arm64 interpreter;
+an Intel or Rosetta interpreter falls through to the source distribution and cannot build
+without Rust.
+
+Backwards-incompatible changes across 47.0.0 to 50.0.0 were reviewed against OAK's call
+graph and none is reached: binary elliptic curves, OpenSSL 1.1.x, LibreSSL below 4.1, and
+Python 3.8 support were removed; unsupported key loading now raises `UnsupportedAlgorithm`
+and `public_bytes`/`private_bytes` raise `TypeError` where they previously raised
+`ValueError`; ChaCha20 enforces RFC 7539 counter overflow; stricter X.509 and CRL parsing
+rejects mismatched signature algorithms; and finite-field Diffie-Hellman is deprecated. The
+two exception-type changes were checked explicitly, because `oak.contracts.signatures`
+returns `False` rather than raising and its `except` clause is a fail-closed control: the
+raw-bytes loaders it uses still raise `ValueError` on a wrong-length key, and
+`tests/unit/test_signing.py` now pins that behaviour.
+
+Ed25519 signatures are deterministic under RFC 8032 and are unchanged by this upgrade — a
+fixed-seed signature is byte-identical before and after — so existing signed artifacts,
+trust anchors, and canonical digests remain valid and no key rotation or re-signing is
+required.
+
+The replacement seam is unchanged: `SigningPort` for signing and `oak.contracts.signatures`
+for verification. Rollback is reverting `pyproject.toml` and `uv.lock` together and
+re-running `uv sync --frozen`, which restores 46.0.7 and returns `make audit` to a failing
+state, so it is a temporary measure only.
