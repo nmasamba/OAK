@@ -2,7 +2,7 @@
 
 # OAK Community
 
-OAK Community is a local-first, compiler-shaped control plane for designing, evaluating, and planning AI systems. The current harness provides canonical contract validation, an offline `DesignCase`-to-plan journey, shared application services, a command-line entrypoint, a loopback-safe HTTP API, a browser architecture workspace, and local container orchestration.
+OAK Community is a local-first, compiler-shaped control plane for designing, evaluating, and planning AI systems. The current harness provides canonical contract validation, an offline `DesignCase`-to-plan journey, shared application services, a command-line entrypoint, a loopback-safe HTTP API, a browser architecture workspace, local container orchestration, offline policy evaluation over governed packs, read-only deployment rendering, and a governed extension supply chain.
 
 OAK does not proxy an installed application's inference traffic. The current harness is non-production and contains no hosted-provider requirement, customer credentials, or customer data. The only target mutation it can perform is against an explicitly acknowledged local fixture profile, through a separately signed and approved typed plan.
 
@@ -26,7 +26,7 @@ Local source development uses the repository toolchains:
 - Python 3.13.12 from `.python-version`, which `uv` can provision when network access is available
 - Node.js 24.18.0 from `.node-version` and `pnpm` 11.15.1 from `package.json`
 
-These versions build OAK itself. They neither describe nor constrain the hardware or environment for a system that OAK will compile. Sprint 2 compilation receives target capabilities through an explicit validated target profile; later runner work may add a target-side inventory adapter.
+These versions build OAK itself. They neither describe nor constrain the hardware or environment for a system that OAK will compile. Sprint 2 compilation receives target capabilities through an explicit validated target profile; the Sprint 5 runner additionally provides a bounded target-side inventory adapter that returns sanitized host capabilities as evidence and never selects or weakens compile-time constraints.
 
 ## Bootstrap and verify
 
@@ -72,6 +72,39 @@ cd /tmp/oak-demo
 /path/to/OAKCommunity/.venv/bin/oak export --output ./case-export
 ```
 
+## Govern policy and render deployments
+
+A compiled case can be evaluated against a governed policy pack and rendered through a
+choice of deployment backend, both offline:
+
+```bash
+/path/to/OAKCommunity/.venv/bin/oak policy packs
+/path/to/OAKCommunity/.venv/bin/oak policy evaluate \
+  --pack pack.community-baseline --output json
+/path/to/OAKCommunity/.venv/bin/oak render \
+  --adapter renderer.helm-kubernetes --output ./rendered
+```
+
+Policy evaluation is fail-closed: an undecidable rule makes the whole decision `unknown`,
+so a stale or ambiguous pack never yields an automated allow. The built-in engine is the
+offline reference; an optional OPA engine (`--engine opa`) must agree with it or the
+evaluation is refused rather than published. A decision is a governed artifact recorded in
+the case lineage; it gates no transition yet.
+
+`oak render` writes declarative, digest-pinned files read-only and executes nothing —
+Kubernetes is not required. Contributors add policy packs and deployment backends as
+governed extensions, quarantined on install until digests, compatibility, licence, a pinned
+steward signature, and the pack's own tests all verify:
+
+```bash
+/path/to/OAKCommunity/.venv/bin/oak extensions install ./my-pack
+/path/to/OAKCommunity/.venv/bin/oak extensions verify extension.my-pack
+/path/to/OAKCommunity/.venv/bin/oak extensions activate extension.my-pack
+```
+
+See [extension-sdk.md](docs/extension-sdk.md) for the extension classes, the contract test
+kit, and templates for each.
+
 `oak import` validates every indexed artifact and imports only into a new workspace. Repeating a mutation with the same normalized input and idempotency key returns its original result without adding a case version or audit event. See [local-design-case.md](docs/local-design-case.md) for storage and recovery, and [compiler-flow.md](docs/compiler-flow.md) for candidate, assurance, determinism, and plan safety.
 
 ## Review in the browser
@@ -89,7 +122,7 @@ The canonical schemas and public synthetic examples live in `schemas/` and `exam
 
 ## Current limits
 
-Signing, approval, and runner execution exist only in local development form: keys are labelled `development`, the runner reaches only an isolated non-production fixture target, and the sole permitted mutation is creating and removing one network-isolated, never-started container. Enterprise authentication, remote runner transport, production targets, real secret resolution, and Git provider promotion are not implemented. The local file workspace is a reference persistence adapter, not a production metadata store. Progress is tracked in [STATUS.md](STATUS.md).
+Signing, approval, and runner execution exist only in local development form: keys are labelled `development`, the runner reaches only an isolated non-production fixture target, and the sole permitted mutation is creating and removing one network-isolated, never-started container. Enterprise authentication, remote runner transport, production targets, real secret resolution, and Git provider promotion are not implemented. The local file workspace is a reference persistence adapter, not a production metadata store. Policy decisions are recorded but gate no state transition, and activating a component-manifest or architecture-pattern extension governs the payload without yet adding it to the compiler's catalogue. The bundled policy pack is a synthetic fixture, not legal advice. Progress is tracked in [STATUS.md](STATUS.md).
 
 ## Licence
 

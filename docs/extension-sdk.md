@@ -60,8 +60,21 @@ Verification checks, all fail-closed:
   the **pinned** local trust anchor (`oak keys init` creates it; a key
   embedded in the manifest is a claim, never an anchor);
 - `payload-content` — class-specific: schema validity, registered binding
-  identities, and for policy packs the effective window plus every embedded
-  test under the built-in engine.
+  identities, and for policy packs the effective window, a pack id that does
+  not collide with an already-available pack, and every embedded test under
+  the built-in engine.
+
+Two further rules hold at activation. Exactly one version of an extension is
+active at a time: activating a second returns `OAK-EXTENSION-VERSION-ACTIVE`
+until the current one is deactivated, because the active namespace is keyed by
+extension id and a second version would shadow the first. And an activated
+pack is read in place from its verified directory rather than copied, so the
+pack that is evaluated is always the pack that was digest-checked and
+signature-verified.
+
+Payload YAML is parsed with the same bounded, alias-free reader as every other
+untrusted input, so a payload using anchors is refused at verification rather
+than activating and breaking later policy reads.
 
 ## Policy packs
 
@@ -79,19 +92,25 @@ Rules are declarative conditions over the canonical subject
   `exists`, `absent`, `contains`, `subset_of` (resolved value ⊆ rule value);
 - composites: `{all: [...]}`, `{any: [...]}`, `{not: ...}`.
 
-Evaluation is tri-state. An unresolved pointer or a type mismatch is
-*undecidable*, the rule reports `unknown`, and the pack outcome becomes
-`unknown` — an undecidable pack can never produce an automated allow
-(threat model TM-17). Matched rules aggregate as
+Evaluation is tri-state. An unresolved pointer, a type mismatch, or a
+degenerate composite (an empty `all`/`any`, which the schema forbids but the
+semantics refuse independently) is *undecidable*, the rule reports `unknown`,
+and the pack outcome becomes `unknown` — an undecidable pack can never produce
+an automated allow (threat model TM-17). Matched rules aggregate as
 `deny > review_required > allow`; no matched rule is also `unknown`.
 
 The canonical `policy-decision` document is engine-neutral: it binds the pack
 digest, subject digest, per-rule results, sorted reasons, and obligations,
 and never names the engine (the audit event records that). The built-in
-engine is the required offline reference; the OPA adapter
-(`--engine opa`, requires a locally installed `opa` binary) must produce
-byte-identical decisions, which `tests/integration/test_engine_equivalence.py`
-proves whenever the binary is present.
+engine is the required offline reference implementation and an external
+engine is never an independent oracle. The OPA adapter (`--engine opa`,
+requires a locally installed `opa` binary) recomputes the reference evaluation
+and refuses with `OAK-POLICY-ENGINE-DIVERGED` rather than publish a decision
+the built-in engine would not produce, so an engine version whose comparison
+semantics differ, a translation defect, or a tampered module fails closed and
+visibly. `tests/integration/test_engine_equivalence.py` proves the two agree
+byte-for-byte across the operator corpus and the shipped packs whenever the
+binary is present.
 
 ## Deployment renderers
 
@@ -132,6 +151,12 @@ never introduce executable payloads, widen argv, or bypass approvals.
 - `check_argv_injection_resistance` (with `INJECTION_PARAMETER_SETS`) and
   `check_typed_rollback` — typed runner adapters.
 
-The whole suite runs offline; the only network-adjacent behavior in this SDK
-is the optional local `opa` binary, and its absence is a stable error, never
-a skipped check.
+The kit itself runs fully offline: every check takes an injected port and
+none shells out. The only network-adjacent behavior in this SDK is the
+optional local `opa` binary. At runtime its absence is a stable
+`OAK-POLICY-ENGINE-UNAVAILABLE` error rather than a silent fallback — an
+explicitly requested engine never degrades to a different one. In the test
+suite the built-in engine's checks always run, while the cross-engine
+equivalence suite (`tests/integration/test_engine_equivalence.py`) is skipped
+when the binary is absent, since it has nothing to compare against; the
+built-in engine remains authoritative either way.

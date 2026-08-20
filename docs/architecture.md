@@ -28,7 +28,7 @@ runner -> runner-owned protocols and adapters
 - `oak.interfaces` maps transport requests to application requests and results. It does not write state directly.
 - `oak.runner` remains a separate package boundary and has no control-plane database or model dependency.
 
-Automated AST checks enforce these dependency directions and reject shell execution patterns outside the runner/deployment-adapter boundary.
+Automated AST checks enforce these dependency directions, reject `shell=True` anywhere in OAK source, and restrict `subprocess` imports to `oak.adapters` and `oak.runner`. Execution occurs only in the runner's typed container adapter and the optional OPA policy adapter, each through a fixed allowlisted argument vector.
 
 ## Current interface paths
 
@@ -113,6 +113,42 @@ sanitized environment, and bounded output; the executable allowlist is code, nev
 data. Evidence is category-filtered, size-capped, and redacted before it leaves the runner.
 Delivery of a dispatch is never success: only a signed, verified runner completion advances
 the case.
+
+## Governed extensions, policy, and rendering
+
+Policy evaluation, deployment rendering, and extension supply chain are three ports with
+interchangeable adapters, so a contributor adds a governed pack or a deployment backend
+without touching the compiler core.
+
+`PolicyEnginePort` evaluates an effective-dated, scoped, self-testing policy pack over a
+canonical subject. The rule language is data, never code, and the semantics live in
+`oak.domain.policy_rules`: an unresolved pointer, a type mismatch, or a degenerate
+composite is undecidable, and any undecidable rule makes the whole decision `unknown`, so a
+stale or ambiguous pack can never yield an automated allow. Aggregation is
+`deny > review_required > allow`. The built-in engine is the reference implementation and
+the only one the offline path requires. An optional OPA adapter translates the same rules
+into a generated tri-state Rego module executed through a fixed allowlisted argument vector,
+but it is never an independent oracle: the adapter recomputes the reference evaluation and
+refuses with `OAK-POLICY-ENGINE-DIVERGED` rather than publish a decision the built-in engine
+would not produce. Engine identity is audit metadata, never canonical content, so swapping
+engines cannot change a decision's bytes. A decision is an additive governed artifact and
+gates no state transition yet.
+
+`DeploymentRendererPort` renders a compiled bundle into declarative artifacts read-only.
+Two renderers ship — `renderer.local-manifests` and `renderer.helm-kubernetes` — with pinned
+identities, digest-pinned images, deny-all egress defaults, and no execution field anywhere
+in the output. Rendering never mutates the workspace, and Kubernetes is not a dependency:
+nothing executes helm or kubectl.
+
+`ExtensionStorePort` holds governed extensions, quarantined on install. Activation requires
+schema validity, per-file and aggregate payload digests, SDK and OAK compatibility, a
+declared licence, an `extension-steward` signature verified against a pinned local trust
+anchor, and, for a policy pack, its own embedded tests passing under the built-in engine.
+Exactly one version of an extension is active at a time, and the activated pack is read in
+place from the verified directory rather than a copy that could drift. Extension payloads
+are data: a deployment-adapter extension binds configuration to an in-tree renderer
+identity, runner adapters stay registered in code, and nothing is imported, downloaded, or
+executed.
 
 Enterprise authentication, remote runner transport, production targets, real secret
 resolution, and Git provider promotion remain deferred. Later work must preserve immutable
