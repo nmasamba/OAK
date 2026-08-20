@@ -7,9 +7,7 @@
 - **Phase:** Sprint 6 complete — policy and adapter SDK with governed extensions
 - **Completed plans:** `docs/exec-plans/completed/OAK-S0-001-009-walking-skeleton.md`, `docs/exec-plans/completed/OAK-S1-001-010-local-design-case.md`, `docs/exec-plans/completed/OAK-S2-001-011-candidate-planning.md`, `docs/exec-plans/completed/OAK-S3-001-009-persistent-rest-jobs.md`, `docs/exec-plans/completed/OAK-S4-001-009-web-workspace.md`, `docs/exec-plans/completed/OAK-S5-001-011-signed-runner.md`, and `docs/exec-plans/completed/OAK-S6-001-008-policy-adapter-sdk.md`
 - **Active plan:** none — Sprint 6 closed; Sprint 7 (MCP, portal and interface parity) is next
-- **Next task:** author and claim the Sprint 7 (`OAK-S7-001`–`OAK-S7-008`) ExecPlan.
-  The OpenAPI compatibility gate is enforced in CI through `make check`; no dedicated
-  `.github` step was added, and whether that closes `OAK-S3-008` is an owner decision
+- **Next task:** author and claim the Sprint 7 (`OAK-S7-001`–`OAK-S7-008`) ExecPlan
 
 ## Claimed work
 
@@ -52,7 +50,7 @@
 | `OAK-S3-005` | complete | Shared-service `/v1` DesignCase and candidate workflow with async compiler/evaluation stages |
 | `OAK-S3-006` | complete | Durable status/cancel, safe problems, idempotency, ETag/If-Match, and opaque pagination |
 | `OAK-S3-007` | complete | Bounded digest/media artifact reads and tenant-safe file/PostgreSQL/REST export/import |
-| `OAK-S3-008` | partial | Generated OpenAPI/client and breaking-change gate complete and enforced in CI through `make check`; no dedicated `.github` step was added, so the task is held open pending an owner decision |
+| `OAK-S3-008` | complete | Generated OpenAPI/client and breaking-change gate, enforced in CI through `make check` without a dedicated `.github` step |
 | `OAK-S3-009` | complete | Local actor/tenant binding, unsafe-bind guard, body limits, safe errors/readiness, and cross-tenant denials |
 | `OAK-S4-001` | complete | Routed workspace shell with case list/create/open over new additive list/audit endpoints, server-driven actions, durable operation polling, audit timeline, and stale-version conflict recovery |
 | `OAK-S4-002` | complete | Brief review with fact/inference/default/correction/unknown provenance classes, materiality, confidence, and confirmation lineage |
@@ -213,6 +211,12 @@
   now succeeds, resolves a `manylinux_2_34_x86_64` wheel for `cryptography` 50.0.0 with no
   Rust toolchain present, and runs `oak --version`; a contract test binds the force-include
   list to the Dockerfile so the two cannot drift again.
+- 2026-08-20 `OAK-S3-008` closed by owner decision. Sprint 3 deferred the CI-enforcement
+  clause because no `.github` change was authorized, and recorded the task as partial. The
+  gate is nonetheless enforced: `openapi-compatibility` is a prerequisite of `make check`,
+  which `.github/workflows/ci.yml` runs on every push and pull request, and that workflow
+  now passes. The deferred item was the dedicated workflow step, which remains unadded and
+  unnecessary.
 
 ## Safety boundary
 
