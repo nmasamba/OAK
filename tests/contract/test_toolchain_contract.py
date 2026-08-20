@@ -49,3 +49,29 @@ def test_status_reports_the_current_repository_version() -> None:
     version = (root / "VERSION").read_text(encoding="utf-8").strip()
     status = (root / "STATUS.md").read_text(encoding="utf-8")
     assert f"- **Repository version:** `{version}`" in status
+
+
+def test_wheel_force_includes_are_copied_into_the_api_image() -> None:
+    """Every force-included directory must reach the image build context.
+
+    `uv sync` builds the wheel inside the image, so a force-include that is not
+    COPYed fails the build with `Forced include not found`. Nothing else compares
+    the two lists, and `make build` cannot catch it because it runs at the repo
+    root where every directory already exists.
+    """
+
+    root = Path(__file__).resolve().parents[2]
+    pyproject = (root / "pyproject.toml").read_text(encoding="utf-8")
+    dockerfile = (root / "deploy" / "images" / "api.Dockerfile").read_text(encoding="utf-8")
+
+    block = pyproject.split("[tool.hatch.build.targets.wheel.force-include]")[1]
+    block = block.split("[", 1)[0]
+    sources = [
+        line.split("=")[0].strip().strip('"')
+        for line in block.splitlines()
+        if "=" in line and line.strip().startswith('"')
+    ]
+    assert sources, "no force-include entries were parsed"
+
+    missing = [name for name in sources if f"COPY {name} ./{name}" not in dockerfile]
+    assert not missing, f"force-included but never COPYed into the API image: {missing}"
