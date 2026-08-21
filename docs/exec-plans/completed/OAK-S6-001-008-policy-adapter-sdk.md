@@ -105,7 +105,7 @@ Hard invariants:
   (`DeploymentRendererPort`), `oak.adapters.deployment` with two renderers behind the
   same port — `renderer.local-manifests` (canonical JSON manifest set, the existing
   local/OCI-review shape) and `renderer.helm-kubernetes` (deterministic chart-shaped
-  Kubernetes YAML: Namespace/Deployment/Service/NetworkPolicy from the semantic manifest
+  Kubernetes YAML: Namespace/NetworkPolicy/Deployment from the semantic manifest
   and component lock, digest-pinned images, deny-all egress; nothing executes helm or
   kubectl). Recorded decision: Kubernetes render/plan chosen over OpenTofu per ADR-0005's
   "Kubernetes adapter second" and `OAK-FR-DEP-007`. New CLI `oak render` writes files
@@ -247,8 +247,8 @@ The extension store lives under `~/.oak/extensions` (override `OAK_EXTENSIONS_DI
 beside the existing trust and mailbox directories; deleting a quarantined entry is safe;
 deactivation reverses activation without deleting content, and activation records are
 plain auditable JSON. Losing the steward key invalidates extension signatures, which are
-re-signable from the payloads. Bundled fixture pack and templates ship in the wheel via
-the existing force-include mechanism. Rollback is branch revert; no migration, no
+re-signable from the payloads. The bundled fixture pack ships in the wheel via
+the existing force-include mechanism; `templates/` remains a source-checkout artifact. Rollback is branch revert; no migration, no
 database change, no change to compiled artifacts.
 
 ## Progress

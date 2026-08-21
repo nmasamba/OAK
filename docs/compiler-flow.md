@@ -32,7 +32,7 @@ Every mutation uses the file workspace’s expected version, idempotency record,
 
 ## Plan safety boundary
 
-The emitted runner plan has status `draft`, an empty approval list, an explicit `not_signed` marker, and only `inventory`, `validate`, `render`, `plan`, and `verify` operations. Parameters are recursively schema-checked against `command`, `shell`, `executable`, and `argv` fields. No operation may mutate the target, and compilation invokes no executable, network connection, secret resolver, runner, or target API.
+The emitted runner plan has status `draft`, an empty approval list, and an explicit `not_signed` marker. For a read-only target profile it contains only `inventory`, `validate`, `render`, `plan`, and `verify` operations; an acknowledged non-production mutation profile additionally receives typed `apply`, `rollback`, and `destroy` operations. Parameters are recursively schema-checked against `command`, `shell`, `executable`, and `argv` fields. No operation may mutate the target, and compilation invokes no executable, network connection, secret resolver, runner, or target API.
 
 The target profile is invocation data, not a description of the machine running OAK. Its digest changes the semantic manifest. An undersized or incompatible platform, a mismatched tenant, or missing planning capability is rejected before publication. The bundle retains the declared-versus-required capacity, platform, network, certificate, policy, and rollback preflight evidence; certificate transport is explicitly not applicable because this sprint opens no target connection.
 

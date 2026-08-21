@@ -68,8 +68,10 @@ All notable changes to OAK Community are recorded here.
 - DesignCase, candidate, Operation, artifact, export, and import REST resources with local
   actor/tenant binding, ETags, required idempotency keys, optimistic concurrency, safe problem
   details, deterministic opaque pagination, and bounded requests/artifacts.
-- Generated OpenAPI 3.1 and typed TypeScript client for the persistent workflow, plus a tested
-  local breaking-change gate. CI workflow enforcement remains explicitly deferred.
+- Generated OpenAPI 3.1 and typed TypeScript client for the persistent workflow, plus a breaking-change
+  gate (`make openapi-compatibility`) that regenerates the document and rejects
+  incompatible changes. The gate runs inside `make check`, which CI
+  executes on every push and pull request; no dedicated `.github` step was needed.
 - Sprint 2 offline compiler flow for `OAK-S2-001` through `OAK-S2-011`.
 - Governed synthetic catalogue snapshots and provider-neutral baseline, minimum, balanced, and high-assurance pattern contracts.
 - Deterministic hardware, deployment, security, licence, locality, and compatibility constraints with fail-closed unknown handling.

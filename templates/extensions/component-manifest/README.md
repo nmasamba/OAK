@@ -8,8 +8,9 @@
    `component-manifest.schema.json`.
 2. Edit `extension.yaml`, then `oak extensions sign`, `install`, `verify`,
    `activate`. Activation governs and records the manifest — schema, payload
-   digests, compatibility, licence, and steward signature — and the contract
-   test kit checks it against the same rules the bundled catalogue obeys.
+   digests, compatibility, licence, and steward signature — and the payload-content
+   check validates the document against `component-manifest.schema.json`, the same
+   schema the bundled catalogue's manifests obey.
 
 Scope note: activation does not yet add the manifest to the compiler's
 catalogue. `LocalCatalogue` reads only the bundled `catalogue/` directory, so

@@ -30,6 +30,14 @@ All schemas use JSON Schema Draft 2020-12. YAML examples are parsed to the equiv
 | `deployment-bundle.schema.json` | `DeploymentBundle` | `examples/example-deployment-bundle.yaml` |
 | `runner-plan.schema.json` | `RunnerPlan` typed execution plan | `examples/example-runner-plan.yaml` |
 | `change-proposal.schema.json` | `ChangeProposal` | `examples/example-change-proposal.yaml` |
+| `plan-signature.schema.json` | Signed binding over a compiled plan and bundle digest | `examples/example-plan-signature.yaml` |
+| `approval.schema.json` | Digest, target, action and expiry bound apply authorization | `examples/example-approval.yaml` |
+| `runner-envelope.schema.json` | Signed outbound dispatch envelope and lease | `examples/example-runner-envelope.yaml` |
+| `runner-message.schema.json` | Runner protocol message | `examples/example-runner-message.yaml` |
+| `policy-pack.schema.json` | Effective-dated, scoped, self-testing governed rule pack | `examples/example-policy-pack.yaml` |
+| `policy-decision.schema.json` | Engine-neutral canonical policy decision | `examples/example-policy-decision.yaml` |
+| `extension-manifest.schema.json` | Governed extension identity, payload digests and compatibility | `examples/example-extension-manifest.yaml` |
+| `extension-activation.schema.json` | Record of a verified, explicitly activated extension | `examples/example-extension-activation.yaml` |
 
 `common.schema.json` contains shared identifiers, evidence, provenance, constraints, approvals and artifact references.
 
