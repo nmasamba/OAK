@@ -102,14 +102,76 @@ def test_mcp_opaque_not_found_family_matches_the_rest_404_family() -> None:
         assert _error_status(OAKError(code, "probe")) != 404, code
 
 
+def _length_bounds(metadata: object) -> tuple[int | None, int | None]:
+    """Extract (minLength, maxLength) from annotated-types metadata."""
+
+    import annotated_types as at
+
+    minimum = maximum = None
+    for constraint in getattr(metadata, "metadata", metadata) or ():
+        if isinstance(constraint, at.MinLen):
+            minimum = constraint.min_length
+        if isinstance(constraint, at.MaxLen):
+            maximum = constraint.max_length
+    return minimum, maximum
+
+
+def _tool_property(tool_name: str, field: str) -> dict[str, object]:
+    definition = next(d for d in TOOL_DEFINITIONS if d.name == tool_name)
+    return definition.input_schema["properties"][field]
+
+
 def test_mcp_argument_bounds_mirror_the_rest_request_models() -> None:
+    import importlib
+    from typing import get_args
+
     from oak.interfaces.api import models
 
-    create = next(d for d in TOOL_DEFINITIONS if d.name == "oak_design_case_create")
-    properties = create.input_schema["properties"]
-    original_name = models.CreateDesignCaseRequest.model_fields["original_name"]
-    content = models.CreateDesignCaseRequest.model_fields["content"]
-    assert properties["original_name"]["maxLength"] == original_name.metadata[1].max_length
-    assert properties["content"]["maxLength"] == content.metadata[1].max_length
-    assert properties["idempotency_key"]["minLength"] == 16
-    assert properties["idempotency_key"]["maxLength"] == 240
+    app = importlib.import_module("oak.interfaces.api.app")
+
+    # Header-derived context bounds must equal the REST header source, checked
+    # against every tool that carries each field — not a hardcoded literal.
+    header_sources = {
+        "idempotency_key": app.IdempotencyHeader,
+        "expected_version": app.ExpectedVersionHeader,
+        "correlation_id": app.CorrelationHeader,
+    }
+    for field, annotation in header_sources.items():
+        rest_bounds = _length_bounds(get_args(annotation)[1])
+        for definition in TOOL_DEFINITIONS:
+            schema = definition.input_schema["properties"].get(field)
+            if schema is None:
+                continue
+            assert (schema.get("minLength"), schema.get("maxLength")) == rest_bounds, (
+                definition.name,
+                field,
+            )
+
+    # Request-body model bounds must equal the matching MCP tool argument bounds.
+    create = models.CreateDesignCaseRequest.model_fields
+    assert _length_bounds(create["original_name"]) == (
+        _tool_property("oak_design_case_create", "original_name").get("minLength"),
+        _tool_property("oak_design_case_create", "original_name").get("maxLength"),
+    )
+    assert _length_bounds(create["content"]) == (
+        _tool_property("oak_design_case_create", "content").get("minLength"),
+        _tool_property("oak_design_case_create", "content").get("maxLength"),
+    )
+
+    # Every identifier-shaped MCP argument must match the REST identifier bounds
+    # (case_id/candidate_id in the request models), including the minLength that
+    # a previous version of this test never referenced.
+    identifier_bounds = _length_bounds(models.EvaluateCandidateRequest.model_fields["case_id"])
+    for tool_name, field in (
+        ("oak_design_case_get", "case_id"),
+        ("oak_design_case_interpret", "case_id"),
+        ("oak_candidate_evaluate", "candidate_id"),
+        ("oak_assurance_plan_create", "candidate_id"),
+        ("oak_bundle_compile", "candidate_id"),
+        ("oak_operation_get", "operation_id"),
+    ):
+        schema = _tool_property(tool_name, field)
+        assert (schema.get("minLength"), schema.get("maxLength")) == identifier_bounds, (
+            tool_name,
+            field,
+        )

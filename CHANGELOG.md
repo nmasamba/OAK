@@ -127,9 +127,14 @@ All notable changes to OAK Community are recorded here.
   opaque cross-tenant denial as REST. Approval, signing, revocation, dispatch, secret
   resolution, policy override, and runner apply are absent from both new transports by
   construction and pinned out of the MCP tool registry by a capability-matrix contract test.
-- Remote CLI mode digest-verifies every document it writes locally against the case's
-  canonical references (refusing a tampered server response with `OAK-REMOTE-DIGEST`), sends
-  no secret values, derives idempotency keys from content digests, and fails closed with
+- Remote CLI mode checks every document it writes locally against the case references in the
+  same response, so a control plane that returns a document inconsistent with the case it
+  also reports (transport corruption or a buggy/version-skewed server) is refused with
+  `OAK-REMOTE-DIGEST`; because that reference is itself server-supplied, the check detects an
+  inconsistent server, not a fully malicious one, so remote mode still requires a trusted
+  control plane. A malformed or wrong-shape server response is refused with a stable
+  `OAK-REMOTE-PROTOCOL` code and exit 2 rather than a stack trace, remote mode sends no secret
+  values and derives idempotency keys from content digests, and it fails closed with
   `OAK-REMOTE-UNSUPPORTED` for local-only signing/approval/dispatch/keys/extensions/policy
   commands rather than acting on local state.
 - The signed webhook example is verified against a pinned committed publisher key, never the

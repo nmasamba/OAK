@@ -79,7 +79,11 @@ class MCPServer:
                     ),
                 )
                 continue
-            response = self.handle_frame(frame)
+            try:
+                response = self.handle_frame(frame)
+            except Exception:
+                # Defense in depth: no single frame may terminate the session.
+                response = self._error(None, INVALID_REQUEST, "request could not be processed")
             if response is not None:
                 self._write(writer, response)
 

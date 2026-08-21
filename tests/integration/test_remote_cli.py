@@ -327,3 +327,74 @@ def test_non_http_server_url_is_refused() -> None:
     result = _invoke("ftp://127.0.0.1/x", "questions", CASE_ID)
     assert result.exit_code == 2
     assert "OAK-REMOTE-SERVER" in _all_output(result)
+
+
+class _HostileServer:
+    """A server returning 200 with well-formed JSON of the wrong shape."""
+
+    def __init__(self) -> None:
+        import http.server
+
+        bodies = {
+            "case": json.dumps({"case": 5}).encode("utf-8"),
+            "export": json.dumps(
+                {"export_version": "0.1.0", "manifest": {"artifact_index": 7}, "objects": []}
+            ).encode("utf-8"),
+        }
+
+        class _Handler(http.server.BaseHTTPRequestHandler):
+            def log_message(self, *args: object) -> None:
+                return
+
+            def do_GET(self) -> None:
+                key = "export" if self.path.endswith("/export") else "case"
+                body = bodies[key]
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+        with socket.socket() as probe:
+            probe.bind(("127.0.0.1", 0))
+            self.port = probe.getsockname()[1]
+        self.server = http.server.HTTPServer(("127.0.0.1", self.port), _Handler)
+        self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+
+    @property
+    def url(self) -> str:
+        return f"http://127.0.0.1:{self.port}"
+
+    def __enter__(self) -> _HostileServer:
+        self.thread.start()
+        return self
+
+    def __exit__(self, *exc_info: object) -> None:
+        self.server.shutdown()
+        self.thread.join(timeout=10)
+
+
+def test_malformed_server_responses_are_stable_protocol_errors_not_crashes() -> None:
+    with _HostileServer() as hostile:
+        questions = _invoke(hostile.url, "questions", CASE_ID)
+        assert questions.exit_code == 2, questions.output
+        assert "OAK-REMOTE-PROTOCOL" in _all_output(questions)
+        assert "Traceback" not in _all_output(questions)
+
+    with _HostileServer() as hostile, _tmp_export_target() as export_target:
+        export = _invoke(hostile.url, "export", CASE_ID, "--output", export_target)
+        assert export.exit_code == 2, export.output
+        assert "OAK-REMOTE-PROTOCOL" in _all_output(export)
+        assert "Traceback" not in _all_output(export)
+
+
+def _tmp_export_target() -> Any:
+    import contextlib
+    import tempfile
+
+    @contextlib.contextmanager
+    def _target() -> Any:
+        with tempfile.TemporaryDirectory() as directory:
+            yield str(Path(directory) / "export-out")
+
+    return _target()

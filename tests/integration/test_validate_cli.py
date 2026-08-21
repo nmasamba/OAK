@@ -129,6 +129,64 @@ def test_the_committed_webhook_example_verifies_only_under_the_pinned_key(
     assert wrong_key.value.code == "OAK-VALIDATE-WEBHOOK-KEY"
 
 
+def test_an_execution_field_in_a_webhook_envelope_is_refused(tmp_path: Path) -> None:
+    # A publisher-signed envelope carrying an execution field inside its
+    # free-form extensions must be refused, even though the schema's extensions
+    # object permits arbitrary values.
+    import yaml
+
+    original = yaml.safe_load(WEBHOOK_EXAMPLE.read_text(encoding="utf-8"))
+    original["extensions"] = {"vendor.example/hook": {"argv": ["sh", "-c", "curl evil"]}}
+    poisoned = tmp_path / "poisoned.yaml"
+    poisoned.write_text(yaml.safe_dump(original), encoding="utf-8")
+    with pytest.raises(OAKError) as denial:
+        validate_webhook(poisoned, str(PUBLISHER_IDENTITY))
+    assert denial.value.code == "OAK-VALIDATE-EXECUTION-FIELD"
+
+
+def test_a_yaml_alias_bearing_webhook_envelope_is_refused(tmp_path: Path) -> None:
+    # Anchor expansion would let a tiny source allocate an enormous structure at
+    # parse time; the untrusted-YAML reader refuses anchors/aliases outright.
+    envelope = tmp_path / "aliased.yaml"
+    envelope.write_text(
+        "a: &a [x, x, x, x]\nb: &b [*a, *a, *a, *a]\ntop: [*b, *b, *b]\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(OAKError) as denial:
+        validate_webhook(envelope, str(PUBLISHER_IDENTITY))
+    assert denial.value.code == "OAK-VALIDATE-MALFORMED"
+
+
+def test_an_execution_field_in_an_export_object_is_refused(
+    compiled_workspace: Path, tmp_path: Path
+) -> None:
+    export_directory = tmp_path / "export"
+    create_design_case_service(compiled_workspace).export_to(export_directory)
+    # Poison one canonical object's free-form extensions with an execution field
+    # and repoint the manifest entry at the new digest so schema/lineage still
+    # pass; only the execution-field scan should catch it.
+    registry = SchemaRegistry.from_directory(ROOT / "schemas")
+    repository = FileWorkspaceRepository(compiled_workspace, registry)
+    case = repository.current_case()
+    assert case is not None
+    reference = case["assurance_plan_ref"]
+    document = repository.read_json_artifact(ArtifactReference.from_document(reference))
+    document.setdefault("extensions", {})["vendor.example/hook"] = {"command": "rm -rf /"}
+    poisoned_bytes = canonical_json_bytes(document)
+    from oak.domain import content_digest
+
+    poisoned_digest = content_digest(poisoned_bytes)
+    old_hex = str(reference["digest"]).removeprefix("sha256:")
+    new_hex = poisoned_digest.removeprefix("sha256:")
+    (export_directory / "objects" / "sha256" / new_hex).write_bytes(poisoned_bytes)
+    manifest_path = export_directory / "manifest.json"
+    manifest_text = manifest_path.read_text(encoding="utf-8")
+    manifest_path.write_text(manifest_text.replace(old_hex, new_hex), encoding="utf-8")
+    with pytest.raises(OAKError) as denial:
+        validate_export(export_directory)
+    assert denial.value.code == "OAK-VALIDATE-EXECUTION-FIELD"
+
+
 def test_cli_validate_exit_codes(compiled_workspace: Path, tmp_path: Path) -> None:
     export_directory = tmp_path / "export"
     create_design_case_service(compiled_workspace).export_to(export_directory)

@@ -329,6 +329,8 @@ class MCPToolExecutor:
 
         handler = self._handlers.get(name)
         if handler is None:
+            # Unknown-tool signal raised before the guarded call, so it can never
+            # be confused with an exception raised inside a handler.
             raise KeyError(name)
         self._validate_arguments(name, arguments)
         try:
@@ -343,7 +345,12 @@ class MCPToolExecutor:
                     "retriable": False,
                 }
             )
-        except (OSError, RecursionError, RuntimeError, ValueError):
+        except Exception:
+            # Any other handler failure (including a KeyError/TypeError while
+            # assembling a document from persisted state) becomes an in-band
+            # OAK-INTERNAL result rather than propagating: a handler KeyError must
+            # not be reported to the client as an unknown tool, and no exception
+            # may terminate the stdio session.
             return self._error_result(
                 {
                     "code": "OAK-INTERNAL",

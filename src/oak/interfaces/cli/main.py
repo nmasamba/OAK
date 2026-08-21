@@ -200,12 +200,15 @@ def _remote_design(
         content=content.decode("utf-8"),
         idempotency_key=remote_mode.derived_key("create", identity),
     )
+    # Both sub-calls derive their idempotency key from the same identity so a
+    # short user-supplied --idempotency-key cannot make create succeed and then
+    # make interpret fail the length check, leaving a half-applied journey.
     interpreted = remote.interpret(
-        str(created["case"]["id"]),
-        expected_version=str(created["case"]["version"]),
-        idempotency_key=idempotency_key or remote_mode.derived_key("interpret", identity),
+        str(remote_mode.require_field(created, "case", "id")),
+        expected_version=str(remote_mode.require_field(created, "case", "version")),
+        idempotency_key=remote_mode.derived_key("interpret", identity),
     )
-    case = interpreted["case"]
+    case = remote_mode.require_field(interpreted, "case")
     intent = interpreted.get("intent")
     if not isinstance(intent, dict):
         raise OAKError("OAK-INTENT-NOT-FOUND", "interpreted design has no intent artifact")
@@ -213,8 +216,10 @@ def _remote_design(
         intent,
         output,
         human=(
-            f"Design case {case['id']}@{case['version']} is "
-            f"{case['status']} with {len(case['unresolved_questions'])} questions"
+            f"Design case {remote_mode.require_field(case, 'id')}@"
+            f"{remote_mode.require_field(case, 'version')} is "
+            f"{remote_mode.require_field(case, 'status')} with "
+            f"{len(remote_mode.require_field(case, 'unresolved_questions'))} questions"
             + (" (idempotent retry)" if interpreted.get("duplicate") else "")
         ),
     )
@@ -234,15 +239,20 @@ def questions(
     try:
         remote = _remote()
         if remote is not None:
-            case = remote.get_case(_remote_case_id(design_case))["case"]
+            from oak.interfaces.cli import remote as remote_mode
+
+            case = remote_mode.require_field(remote.get_case(_remote_case_id(design_case)), "case")
+            questions = remote_mode.require_field(case, "unresolved_questions")
             document = {
-                "case_id": str(case["id"]),
-                "case_version": str(case["version"]),
-                "status": str(case["status"]),
-                "questions": list(case["unresolved_questions"]),
+                "case_id": str(remote_mode.require_field(case, "id")),
+                "case_version": str(remote_mode.require_field(case, "version")),
+                "status": str(remote_mode.require_field(case, "status")),
+                "questions": list(questions) if isinstance(questions, list) else [],
             }
             human = "\n".join(
-                f"{question['id']}: {question['question']} [{question['status']}]"
+                f"{remote_mode.require_field(question, 'id')}: "
+                f"{remote_mode.require_field(question, 'question')} "
+                f"[{remote_mode.require_field(question, 'status')}]"
                 for question in document["questions"]
             )
             _emit(document, output, human=human or "No open questions")
@@ -298,7 +308,7 @@ def confirm(
                     "confirm", remote_mode.document_identity(answers_document)
                 ),
             )
-            remote_case = result_document["case"]
+            remote_case = remote_mode.require_field(result_document, "case")
             _emit(
                 {
                     "case": remote_case,
@@ -307,8 +317,9 @@ def confirm(
                 },
                 output,
                 human=(
-                    f"Recorded {remote_case['id']}@{remote_case['version']} as "
-                    f"{remote_case['status']}"
+                    f"Recorded {remote_mode.require_field(remote_case, 'id')}@"
+                    f"{remote_mode.require_field(remote_case, 'version')} as "
+                    f"{remote_mode.require_field(remote_case, 'status')}"
                     + (" (idempotent retry)" if result_document.get("duplicate") else "")
                 ),
             )
@@ -369,15 +380,20 @@ def candidates(
                 idempotency_key=idempotency_key
                 or remote_mode.derived_key("candidates", f"{case_id}@{version}"),
             )
-            operation = remote.wait_for_operation(str(submission["operation_id"]))
-            document = operation["result"]
-            if not isinstance(document, dict) or "candidates" not in document:
-                raise OAKError("OAK-REMOTE-PROTOCOL", "remote operation result is invalid")
-            _emit(
-                document,
-                output,
-                human=_candidate_table(tuple(document["candidates"])),
+            operation = remote.wait_for_operation(
+                str(remote_mode.require_field(submission, "operation_id"))
             )
+            document = operation.get("result")
+            candidate_items = document.get("candidates") if isinstance(document, dict) else None
+            if not isinstance(document, dict) or not isinstance(candidate_items, list):
+                raise OAKError("OAK-REMOTE-PROTOCOL", "remote operation result is invalid")
+            try:
+                table = _candidate_table(tuple(candidate_items))
+            except (LookupError, TypeError) as error:
+                raise OAKError(
+                    "OAK-REMOTE-PROTOCOL", "remote candidate result is malformed"
+                ) from error
+            _emit(document, output, human=table)
             return
         current = _workspace_service().current().case
         if design_case is not None and design_case != current["id"]:
@@ -426,16 +442,18 @@ def evaluate(
                 idempotency_key=idempotency_key
                 or remote_mode.derived_key("evaluate", f"{case_id}@{version}:{candidate_id}"),
             )
-            operation = remote.wait_for_operation(str(submission["operation_id"]))
-            document = operation["result"]
+            operation = remote.wait_for_operation(
+                str(remote_mode.require_field(submission, "operation_id"))
+            )
+            document = operation.get("result")
             if not isinstance(document, dict) or "evaluation" not in document:
                 raise OAKError("OAK-REMOTE-PROTOCOL", "remote operation result is invalid")
             _emit(
                 document,
                 output,
                 human=(
-                    f"Evaluation {document['evaluation']['id']} is "
-                    f"{document['evaluation']['status']}"
+                    f"Evaluation {remote_mode.require_field(document, 'evaluation', 'id')} is "
+                    f"{remote_mode.require_field(document, 'evaluation', 'status')}"
                     + (" (idempotent retry)" if document.get("duplicate") else "")
                 ),
             )
@@ -504,7 +522,8 @@ def select(
                 document,
                 output,
                 human=(
-                    f"Selected {candidate_id} in {document['decision']['id']}"
+                    f"Selected {candidate_id} in "
+                    f"{remote_mode.require_field(document, 'decision', 'id')}"
                     + (" (idempotent retry)" if document.get("duplicate") else "")
                 ),
             )
@@ -565,15 +584,16 @@ def assure(
                 idempotency_key=idempotency_key
                 or remote_mode.derived_key("assure", f"{case_id}@{version}:{candidate_id}"),
             )
-            assurance_plan = document["assurance_plan"]
+            assurance_plan = remote_mode.require_field(document, "assurance_plan")
+            case = remote_mode.require_field(document, "case")
             remote_mode.verify_document_digest(
                 assurance_plan,
-                document["case"].get("assurance_plan_ref"),
+                case.get("assurance_plan_ref") if isinstance(case, dict) else None,
                 name="assurance-plan.json",
             )
             _write_output_directory(output, {"assurance-plan.json": assurance_plan})
             typer.echo(
-                f"Wrote {assurance_plan['id']} to {output}"
+                f"Wrote {remote_mode.require_field(assurance_plan, 'id')} to {output}"
                 + (" (idempotent retry)" if document.get("duplicate") else "")
             )
             return
@@ -676,12 +696,16 @@ def _remote_plan(
         idempotency_key=idempotency_key
         or remote_mode.derived_key("plan", f"{case_id}@{version}:{candidate_id}"),
     )
-    operation = remote.wait_for_operation(str(submission["operation_id"]))
-    document = operation["result"]
+    operation = remote.wait_for_operation(
+        str(remote_mode.require_field(submission, "operation_id"))
+    )
+    document = operation.get("result")
     if not isinstance(document, dict) or "deployment_bundle" not in document:
         raise OAKError("OAK-REMOTE-PROTOCOL", "remote operation result is invalid")
-    case = document["case"]
-    extensions = case.get("extensions", {})
+    case = remote_mode.require_field(document, "case")
+    extensions = case.get("extensions", {}) if isinstance(case, dict) else {}
+    if not isinstance(extensions, dict):
+        raise OAKError("OAK-REMOTE-PROTOCOL", "remote case extensions are invalid")
     references = {
         "architecture-decision.json": extensions.get("oak.community/selection_decision_ref"),
         "assurance-plan.json": case.get("assurance_plan_ref"),
@@ -690,18 +714,18 @@ def _remote_plan(
         "runner-plan.json": case.get("runner_plan_ref"),
     }
     files = {
-        "architecture-decision.json": document["decision"],
-        "assurance-plan.json": document["assurance_plan"],
-        "semantic-manifest.json": document["semantic_manifest"],
-        "deployment-bundle.json": document["deployment_bundle"],
-        "runner-plan.json": document["runner_plan"],
+        "architecture-decision.json": remote_mode.require_field(document, "decision"),
+        "assurance-plan.json": remote_mode.require_field(document, "assurance_plan"),
+        "semantic-manifest.json": remote_mode.require_field(document, "semantic_manifest"),
+        "deployment-bundle.json": remote_mode.require_field(document, "deployment_bundle"),
+        "runner-plan.json": remote_mode.require_field(document, "runner_plan"),
     }
     for name, file_document in files.items():
         remote_mode.verify_document_digest(file_document, references[name], name=name)
     _write_output_directory(output, files)
     typer.echo(
-        f"Compiled {document['deployment_bundle']['id']} to {output}; "
-        "no target action was invoked"
+        f"Compiled {remote_mode.require_field(files['deployment-bundle.json'], 'id')} "
+        f"to {output}; no target action was invoked"
         + (" (idempotent retry)" if document.get("duplicate") else "")
     )
 
@@ -725,8 +749,11 @@ def export_workspace(
             case_id = _remote_case_id(design_case)
             export_document = remote.export_case(case_id)
             remote_mode.write_export_directory(output, export_document)
-            reference = export_document["manifest"]["current_case_ref"]
-            typer.echo(f"Exported {reference['id']}@{reference['version']} to {output}")
+            reference = remote_mode.require_field(export_document, "manifest", "current_case_ref")
+            typer.echo(
+                f"Exported {remote_mode.require_field(reference, 'id')}@"
+                f"{remote_mode.require_field(reference, 'version')} to {output}"
+            )
             return
         service = _workspace_service()
         current = service.current().case
@@ -762,11 +789,14 @@ def import_workspace(
                     "import", remote_mode.document_identity(export_document)
                 ),
             )
-            case = result_document["case"]
+            case = remote_mode.require_field(result_document, "case")
             _emit(
                 {"case": case, "intent": result_document.get("intent")},
                 output,
-                human=f"Imported {case['id']}@{case['version']}",
+                human=(
+                    f"Imported {remote_mode.require_field(case, 'id')}@"
+                    f"{remote_mode.require_field(case, 'version')}"
+                ),
             )
             return
         root_path = directory.absolute()

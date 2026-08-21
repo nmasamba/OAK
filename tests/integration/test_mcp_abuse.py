@@ -318,6 +318,32 @@ def test_malformed_frames_never_dispatch_and_keep_the_session_alive() -> None:
     assert healthy is not None and healthy["result"] == {}
 
 
+def test_a_handler_internal_error_is_oak_internal_not_unknown_tool_or_a_crash() -> None:
+    # A control plane whose read raises a KeyError (e.g. malformed persisted
+    # state) must surface as an in-band OAK-INTERNAL result, never as
+    # OAK-TOOL-UNKNOWN and never as a session-killing exception.
+    class _BrokenControlPlane:
+        def get_design_case(self, case_id: str, *, tenant_id: str) -> Any:
+            raise KeyError("unresolved_questions")
+
+        def __getattr__(self, name: str) -> Any:
+            raise AssertionError(f"unexpected dispatch: {name}")
+
+    executor = MCPToolExecutor(
+        _BrokenControlPlane(),  # type: ignore[arg-type]
+        local_actor="local-user",
+        local_tenant="local",
+        clock=lambda: NOW,
+    )
+    server = MCPServer(executor, server_version="test")
+    client = MCPClient(server)
+    denial = client.call_error("oak_design_case_get", {"case_id": "design-case.example"})
+    assert denial["code"] == "OAK-INTERNAL"
+    # The session survives: a following ping still succeeds.
+    ping = server.handle_frame(b'{"jsonrpc": "2.0", "id": 99, "method": "ping"}')
+    assert ping is not None and ping["result"] == {}
+
+
 def test_a_denied_mutation_leaves_no_workspace_state(tmp_path: Path) -> None:
     control_plane, store = build_file_control_plane(tmp_path)
     from oak.interfaces.mcp.server import create_server

@@ -3,8 +3,12 @@
 
 The client is a bounded stdlib HTTP adapter. It adds no authority: every request
 carries the same actor/tenant/idempotency/expected-version context as local mode,
-problem responses are surfaced as the same stable ``OAKError`` codes, and every
-document written locally is digest-verified against its canonical reference.
+and problem responses are surfaced as the same stable ``OAKError`` codes. A
+wrong-shape server response is refused with ``OAK-REMOTE-PROTOCOL`` rather than a
+stack trace. Documents written locally are checked against the case references in
+the same response, which catches a corrupted or version-skewed server; because
+that reference is itself server-supplied, remote mode still trusts the control
+plane it is pointed at and is not a defence against a fully malicious server.
 """
 
 from __future__ import annotations
@@ -146,8 +150,7 @@ class RemoteClient:
         return self._request("GET", f"/v1/design-cases/{case_id}")
 
     def current_case_version(self, case_id: str) -> str:
-        case = self.get_case(case_id)["case"]
-        return str(case["version"])
+        return str(require_field(self.get_case(case_id), "case", "version"))
 
     def create_design_case(
         self, *, original_name: str, content: str, idempotency_key: str
@@ -308,6 +311,26 @@ class RemoteClient:
             time.sleep(OPERATION_POLL_SECONDS)
 
 
+# -- safe access to server-supplied documents --------------------------------
+
+
+def require_field(document: Any, *path: str) -> Any:
+    """Navigate a server response, refusing any missing or mistyped field.
+
+    A hostile or version-skewed control plane can return a 200 body of the
+    wrong shape; without this guard the caller's nested indexing would raise a
+    LookupError/TypeError that no command's except tuple catches, producing a
+    stack trace and exit 1 instead of a stable ``OAK-REMOTE-PROTOCOL`` code.
+    """
+
+    current = document
+    for key in path:
+        if not isinstance(current, dict) or key not in current:
+            raise OAKError("OAK-REMOTE-PROTOCOL", "remote response is missing an expected field")
+        current = current[key]
+    return current
+
+
 # -- derived idempotency keys ------------------------------------------------
 
 
@@ -369,7 +392,14 @@ def write_export_directory(destination: Path, export_document: dict[str, Any]) -
         if content_digest(content) != digest:
             raise OAKError("OAK-REMOTE-DIGEST", "remote export object digest does not match")
         decoded[digest] = content
-    indexed = {str(entry["digest"]) for entry in manifest.get("artifact_index", ())}
+    index = manifest.get("artifact_index")
+    if not isinstance(index, list):
+        raise OAKError("OAK-REMOTE-PROTOCOL", "remote export manifest index is invalid")
+    indexed: set[str] = set()
+    for entry in index:
+        if not isinstance(entry, dict) or not isinstance(entry.get("digest"), str):
+            raise OAKError("OAK-REMOTE-PROTOCOL", "remote export manifest entry is invalid")
+        indexed.add(str(entry["digest"]))
     if not indexed or not indexed.issubset(decoded):
         raise OAKError("OAK-REMOTE-PROTOCOL", "remote export objects are incomplete")
     absolute = destination.absolute()

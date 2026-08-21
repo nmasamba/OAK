@@ -8,15 +8,22 @@ Every check fails closed with a stable ``OAK-VALIDATE-*`` or import error code.
 from __future__ import annotations
 
 import os
+import re
 import stat
 import tempfile
 from pathlib import Path
 from typing import Any
 
 from oak.bootstrap import canonical_schema_directory, create_design_case_service
-from oak.contracts import SchemaRegistry, load_json_document, load_yaml_document
+from oak.contracts import (
+    SchemaRegistry,
+    load_alias_free_yaml_document,
+    load_json_document,
+)
 from oak.contracts.signatures import signed_payload_bytes, verify_signature
 from oak.domain import OAKError, canonical_json_bytes, content_digest
+
+DIGEST_HEX = re.compile(r"^sha256:([a-f0-9]{64})$")
 
 MAXIMUM_DOCUMENT_BYTES = 8_388_608
 FORBIDDEN_EXECUTION_KEYS = frozenset({"argv", "command", "executable", "shell", "shell_command"})
@@ -65,8 +72,15 @@ def _reject_execution_fields(value: Any, *, name: str) -> None:
 
 
 def validate_export(source: Path) -> dict[str, Any]:
-    """Import the export into a throwaway workspace, proving schema/digest/lineage."""
+    """Import the export into a throwaway workspace, proving schema/digest/lineage.
 
+    Every canonical object in the export is additionally scanned for prohibited
+    execution fields, so the invariant that no canonical document may carry a
+    ``command``/``shell``/``executable``/``argv`` field is enforced for exports
+    exactly as it is for bundles, even inside free-form ``extensions`` values.
+    """
+
+    _scan_export_objects_for_execution_fields(source.absolute())
     with tempfile.TemporaryDirectory(prefix="oak-validate-export-") as temporary:
         service = create_design_case_service(Path(temporary) / "workspace")
         service.import_from(source.absolute())
@@ -79,6 +93,44 @@ def validate_export(source: Path) -> dict[str, Any]:
         "case_version": str(case["version"]),
         "status": str(case["status"]),
     }
+
+
+def _scan_export_objects_for_execution_fields(source: Path) -> None:
+    """Reject a prohibited execution field in any canonical object of an export.
+
+    Reads the content-addressed object tree directly (no adapter dependency) so
+    the invariant is enforced even inside free-form ``extensions`` values, which
+    the workspace-manifest schema does not constrain.
+    """
+
+    if source.is_symlink() or not source.is_dir():
+        raise OAKError("OAK-VALIDATE-UNSAFE-PATH", "export must be a regular directory")
+    manifest_path = source / "manifest.json"
+    if manifest_path.is_symlink() or not manifest_path.is_file():
+        raise OAKError("OAK-VALIDATE-MALFORMED", "export manifest is missing")
+    try:
+        manifest = load_json_document(_read_bounded(manifest_path).decode("utf-8"))
+    except (UnicodeDecodeError, ValueError) as error:
+        raise OAKError("OAK-VALIDATE-MALFORMED", "export manifest is malformed") from error
+    index = manifest.get("artifact_index")
+    if not isinstance(index, list):
+        raise OAKError("OAK-VALIDATE-MALFORMED", "export manifest index is invalid")
+    for entry in index:
+        if not isinstance(entry, dict):
+            raise OAKError("OAK-VALIDATE-MALFORMED", "export manifest entry is invalid")
+        if not str(entry.get("media_type", "")).endswith("+json"):
+            continue
+        match = DIGEST_HEX.fullmatch(str(entry.get("digest", "")))
+        if match is None:
+            raise OAKError("OAK-VALIDATE-DIGEST", "export object digest is invalid")
+        object_path = source / "objects" / "sha256" / match.group(1)
+        try:
+            document = load_json_document(_read_bounded(object_path).decode("utf-8"))
+        except (UnicodeDecodeError, ValueError) as error:
+            raise OAKError(
+                "OAK-VALIDATE-MALFORMED", "an export object is not canonical JSON"
+            ) from error
+        _reject_execution_fields(document, name=str(entry.get("id", "object")))
 
 
 def validate_bundle(source: Path) -> dict[str, Any]:
@@ -151,13 +203,21 @@ def validate_webhook(path: Path, pinned_key: str) -> dict[str, Any]:
     content = _read_bounded(path)
     try:
         text = content.decode("utf-8")
+        # An untrusted envelope uses the alias-free reader: YAML anchor expansion
+        # would let a tiny source allocate an enormous structure at parse time,
+        # before any schema or signature check could reject it.
         envelope = (
-            load_json_document(text) if path.suffix.lower() == ".json" else load_yaml_document(text)
+            load_json_document(text)
+            if path.suffix.lower() == ".json"
+            else load_alias_free_yaml_document(text)
         )
     except (UnicodeDecodeError, ValueError) as error:
         raise OAKError("OAK-VALIDATE-MALFORMED", "webhook envelope is malformed") from error
     registry = SchemaRegistry.from_directory(canonical_schema_directory())
     registry.validate("webhook-envelope.schema.json", envelope)
+    # The envelope wraps a canonical audit event; enforce the execution-field ban
+    # uniformly, since the schema's free-form extensions do not constrain it.
+    _reject_execution_fields(envelope, name="webhook-envelope")
     signature = envelope["signature"]
     if signature["public_key_base64"] != public_key:
         raise OAKError(

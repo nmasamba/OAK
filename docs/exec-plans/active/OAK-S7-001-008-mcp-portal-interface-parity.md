@@ -305,12 +305,80 @@ surface; no migration, key rotation, or data change is involved.
 
 ## Post-implementation audit
 
-Pending. After implementation, a multi-agent adversarial audit of the sprint diff runs
-with independent per-finding refutation plus a repo-wide latent-issue sweep; every
-surviving finding is reproduced locally before acceptance. The highest-yield lens is
-authority: whether any MCP tool, remote CLI path, portal example, or webhook can reach a
-capability the interface contract forbids, directly or by chaining bounded calls. Findings
-and deliberate non-fixes will be recorded here.
+A six-lens multi-agent adversarial audit ran against the Sprint 7 source diff (MCP
+authority, remote-CLI parity/safety, validator/webhook signing, parsing/injection/limits,
+contracts/conformance/boundaries, and a repo-wide latent sweep). It produced 11 candidate
+findings; each was routed to an independent skeptic prompted to refute it by default. Two
+verifiers completed and CONFIRMED both of their findings; the remaining eight skeptics were
+interrupted by a session limit, so every candidate they would have judged was verified
+directly against the code by the owner instead. No candidate was accepted without local
+reproduction. The authority invariant held: no MCP tool, remote-CLI path, portal example,
+or webhook could reach a forbidden capability — every survivor was a robustness,
+input-safety, or conformance-honesty defect, not an authority bypass.
+
+Fixed:
+
+- **Untrusted-YAML anchor expansion in `oak validate webhook` (high).** `validate_webhook`
+  parsed the envelope with `load_yaml_document`, which permits YAML anchors/aliases; the
+  repo ships `load_alias_free_yaml_document` precisely because anchor expansion lets a tiny
+  source allocate an enormous structure at parse time, before any schema or signature check.
+  A CI/portal running the validator on a hostile ~255-byte envelope could be memory-pinned.
+  The validator now uses the alias-free reader.
+  (`tests/integration/test_validate_cli.py::test_a_yaml_alias_bearing_webhook_envelope_is_refused`)
+- **Wrong-shape server responses crashed the remote CLI (medium).** A hostile or
+  version-skewed control plane returning 200 with well-formed JSON of the wrong shape made
+  the remote command handlers raise `KeyError`/`TypeError`, which no command's except tuple
+  catches — a Python stack trace and exit 1 instead of the documented stable code and exit 2.
+  A `require_field` guard now navigates every server-supplied document and raises
+  `OAK-REMOTE-PROTOCOL` on any missing or mistyped field; `write_export_directory` type-checks
+  each manifest entry.
+  (`tests/integration/test_remote_cli.py::test_malformed_server_responses_are_stable_protocol_errors_not_crashes`)
+- **Execution-field ban was enforced inconsistently across validator kinds (medium).**
+  `validate_bundle` scanned for `command`/`shell`/`executable`/`argv`, but `validate_export`
+  and `validate_webhook` did not, and the canonical `extensions` object is
+  `additionalProperties: true`, so a byte-identical document rejected in a bundle passed as an
+  export or webhook. Both now scan every canonical object/envelope for execution fields.
+  (`test_an_execution_field_in_an_export_object_is_refused`,
+  `test_an_execution_field_in_a_webhook_envelope_is_refused`)
+- **A handler-internal error in the MCP server was mislabeled or fatal (medium).** A
+  `KeyError` raised inside a tool handler was caught by `_call_tool`'s unknown-tool
+  `except KeyError` and reported to the client as `OAK-TOOL-UNKNOWN`; a `TypeError` could
+  escape `serve()` and kill the stdio session. The handler except now catches every
+  non-domain exception as `OAK-INTERNAL`, and `serve()` guards each frame so no single frame
+  can terminate the session.
+  (`tests/integration/test_mcp_abuse.py::test_a_handler_internal_error_is_oak_internal_not_unknown_tool_or_a_crash`)
+- **The MCP/REST bounds-parity contract test was vacuous (medium).** It checked only the two
+  `create` fields and asserted the idempotency-key bounds against hardcoded literals, so a
+  future widening of any other MCP bound would pass unnoticed. It now cross-checks every
+  header-derived bound against the REST `app` header source and every identifier bound against
+  the REST request models; a mutation test confirms it fails when a bound diverges. (No live
+  divergence existed; every MCP bound was already equal-or-stricter.)
+- **Remote `design` forwarded a short idempotency key to its second sub-call (low).** The
+  create step derived its key but the interpret step forwarded a user `--idempotency-key`
+  verbatim, so a sub-16-character key made create succeed then interpret fail the length
+  check, leaving a half-applied journey. Both sub-calls now derive their key from the same
+  identity.
+
+Known limitations, deliberately not fixed in this sprint:
+
+- **Remote-mode integrity depends on trusting the control plane.** The document check compares
+  a returned document against a case reference from the *same* response, so it detects a
+  corrupted, buggy, or version-skewed server, not a fully malicious one that returns matching
+  (document, reference) pairs. Remote mode is for a control plane the operator trusts;
+  independent integrity would need a pinned out-of-band digest, which the REST surface does not
+  yet carry. Documented in the module docstring and CHANGELOG.
+- **`oak validate bundle` binds only the digest edges that exist in a detached bundle.** The
+  deployment-bundle → architecture-decision and runner-plan → deployment-bundle edges are
+  checked, but `assurance-plan.json` and `semantic-manifest.json` carry no digest edge into the
+  bundle spine, so a detached bundle directory could pair a genuine spine with a substituted
+  assurance plan or manifest and still validate. The real integrity binding is the signed
+  runner envelope and approval, a separate signed path; a review bundle is not a security
+  artifact. The validator's guarantees are scoped accordingly in `docs/interfaces.md`.
+- **The webhook envelope is an export/verification contract only.** Nothing dispatches
+  webhooks; delivery-side replay protection (dedup by `delivery_id`, gap detection by
+  `sequence`) is documented as a consumer obligation but unenforced by Community.
+- **The MCP server serves one stdio client per process** with no concurrent-session model;
+  concurrency-abuse coverage is process-level only.
 
 ## Discoveries and follow-ups
 
