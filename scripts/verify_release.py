@@ -45,14 +45,19 @@ def _digest(path: Path) -> str:
 
 
 def _parse(manifest_text: str) -> list[tuple[str, str]]:
-    """Parse coreutils checksum lines: `<64 hex><two spaces><name>`."""
+    """Parse coreutils checksum lines: `<64 hex><two spaces><name>`.
+
+    The manifest is untrusted input, not a trusted index: it arrives over the same
+    channel as the artifacts it describes, so every field is validated before use.
+    """
 
     entries: list[tuple[str, str]] = []
+    seen: set[str] = set()
     for number, line in enumerate(manifest_text.splitlines(), start=1):
         if not line.strip():
             continue
         expected, separator, name = line.partition("  ")
-        if not separator or len(expected) != 64 or not name.strip():
+        if not separator or len(expected) != 64:
             raise ValueError(f"{CHECKSUM_MANIFEST}: malformed entry on line {number}")
         try:
             int(expected, 16)
@@ -60,11 +65,26 @@ def _parse(manifest_text: str) -> list[tuple[str, str]]:
             raise ValueError(
                 f"{CHECKSUM_MANIFEST}: non-hexadecimal digest on line {number}"
             ) from error
-        # A manifest is untrusted input: a name that escapes the release directory
-        # would let a hostile manifest direct verification at an arbitrary file.
-        if Path(name).is_absolute() or ".." in Path(name).parts:
+
+        # Validate the name exactly as written, and never a normalized copy of it.
+        # Stripping first and validating afterwards is precisely how a padded name
+        # slips through: `<digest>` + the separator + ` /etc/passwd` is not absolute
+        # as written, and the stripped form is the one that would be opened.
+        if not name or name != name.strip():
+            raise ValueError(f"{CHECKSUM_MANIFEST}: entry name is empty or padded on line {number}")
+        if any(character in name for character in ("\x00", "\r")):
+            raise ValueError(f"{CHECKSUM_MANIFEST}: entry name is not printable on line {number}")
+        candidate = Path(name)
+        if candidate.is_absolute() or ".." in candidate.parts:
             raise ValueError(f"{CHECKSUM_MANIFEST}: entry escapes the release directory: {name}")
-        entries.append((expected, name.strip()))
+        if name == CHECKSUM_MANIFEST:
+            raise ValueError(f"{CHECKSUM_MANIFEST}: the manifest cannot verify itself")
+        if name in seen:
+            raise ValueError(f"{CHECKSUM_MANIFEST}: duplicate entry for {name}")
+        seen.add(name)
+        # `sha256sum -c` accepts either case; comparing case-sensitively would
+        # report a perfectly good artifact as tampered with.
+        entries.append((expected.lower(), name))
     if not entries:
         raise ValueError(f"{CHECKSUM_MANIFEST}: no entries")
     return entries
@@ -82,10 +102,16 @@ def verify(directory: Path) -> int:
         print(str(error), file=sys.stderr)
         return EXIT_MALFORMED
 
+    root = directory.resolve()
     failures: list[str] = []
     missing: list[str] = []
     for expected, name in entries:
-        artifact = directory / name
+        # Resolve before opening: a symlink placed inside the release directory is
+        # another way for a manifest to name something that is not in it.
+        artifact = (directory / name).resolve()
+        if not artifact.is_relative_to(root):
+            print(f"ESCAPES  {name}: resolves outside {root}", file=sys.stderr)
+            return EXIT_MALFORMED
         if not artifact.is_file():
             missing.append(name)
             continue
@@ -108,6 +134,18 @@ def verify(directory: Path) -> int:
             file=sys.stderr,
         )
         return EXIT_MISMATCH
+
+    covered = {name for _, name in entries}
+    unlisted = sorted(
+        path.name
+        for path in directory.iterdir()
+        if path.is_file() and path.name != CHECKSUM_MANIFEST and path.name not in covered
+    )
+    for name in unlisted:
+        print(
+            f"UNLISTED {name}: present but not covered by {CHECKSUM_MANIFEST}",
+            file=sys.stderr,
+        )
 
     print(f"\nverified {len(entries)} artifact(s) against {CHECKSUM_MANIFEST}")
     print(

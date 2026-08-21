@@ -30,6 +30,7 @@ NETWORK_MODULES = frozenset(
         "urllib.error",
         "socket",
         "socketserver",
+        "asyncio.streams",
         "ftplib",
         "smtplib",
         "telnetlib",
@@ -90,7 +91,11 @@ def test_the_egress_guard_itself_actually_blocks(no_egress: None) -> None:
 def test_the_reference_journey_completes_with_every_outbound_socket_broken(
     no_egress: None, tmp_path: Path
 ) -> None:
-    """Brief to signed dispatch, with the network unreachable."""
+    """Brief through plan compilation, with the network unreachable.
+
+    `build_compiled_case` ends at `bundle_compiled`; signing, approval and
+    dispatch are separate commands and are not exercised here.
+    """
 
     from tests.runner_support import build_compiled_case
 
@@ -124,6 +129,9 @@ def _imported_modules(path: Path) -> set[str]:
             imported.update(alias.name for alias in node.names)
         elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
             imported.add(node.module)
+            # `from urllib import request` binds a module, and recording only the
+            # package would let a new network client in without tripping this gate.
+            imported.update(f"{node.module}.{alias.name}" for alias in node.names)
     return imported
 
 

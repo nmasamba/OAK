@@ -40,7 +40,7 @@ documented flow uses it.
 
 ## Full index
 
-212 codes across 13 families.
+260 codes across 14 families.
 
 ### Workspace, artifacts and import/export (22)
 
@@ -88,26 +88,26 @@ documented flow uses it.
 | `OAK-CONFIRM-STATE` | claims can be confirmed only while the case needs confirmation | `src/oak/application/design_case.py:355` |
 | `OAK-CONFIRM-VALUE-MISMATCH` | confirmed value does not match the current canonical claim | `src/oak/application/design_case.py:613` |
 | `OAK-INTAKE-ALIAS` | YAML aliases and anchors are not accepted | `src/oak/adapters/intake/local_file.py:117` |
-| `OAK-INTAKE-COMPLEXITY` | structured brief is too complex | `src/oak/adapters/intake/local_file.py:164` |
-| `OAK-INTAKE-CYCLE` | structured brief contains a cycle | `src/oak/adapters/intake/local_file.py:168` |
+| `OAK-INTAKE-COMPLEXITY` | structured brief is too complex | `src/oak/adapters/intake/local_file.py:130` |
+| `OAK-INTAKE-CYCLE` | structured brief contains a cycle | `src/oak/adapters/intake/local_file.py:176` |
 | `OAK-INTAKE-EMPTY` | text brief has no usable content | `src/oak/compiler/interpretation.py:52` |
 | `OAK-INTAKE-ENCODING` | brief must be valid UTF-8 | `src/oak/adapters/intake/local_file.py:61` |
-| `OAK-INTAKE-IDENTITY` | structured brief requires string id, brief_version, and title | `src/oak/adapters/intake/local_file.py:135` |
-| `OAK-INTAKE-KEY-TYPE` | structured brief keys must be strings | `src/oak/adapters/intake/local_file.py:172` |
-| `OAK-INTAKE-MALFORMED` | structured brief is malformed | `src/oak/adapters/intake/local_file.py:124` |
-| `OAK-INTAKE-NUMBER` | structured brief numbers must be finite | `src/oak/adapters/intake/local_file.py:188` |
+| `OAK-INTAKE-IDENTITY` | structured brief requires string id, brief_version, and title | `src/oak/adapters/intake/local_file.py:143` |
+| `OAK-INTAKE-KEY-TYPE` | structured brief keys must be strings | `src/oak/adapters/intake/local_file.py:180` |
+| `OAK-INTAKE-MALFORMED` | structured brief is malformed | `src/oak/adapters/intake/local_file.py:132` |
+| `OAK-INTAKE-NUMBER` | structured brief numbers must be finite | `src/oak/adapters/intake/local_file.py:196` |
 | `OAK-INTAKE-READ` | brief could not be read | `src/oak/adapters/intake/local_file.py:89` |
 | `OAK-INTAKE-SIZE` | *dynamic message* | `src/oak/adapters/intake/local_file.py:101` |
 | `OAK-INTAKE-TYPE` | brief file type is not supported | `src/oak/adapters/intake/local_file.py:52` |
-| `OAK-INTAKE-UNICODE-CONTROL` | brief contains a prohibited control or formatting character | `src/oak/adapters/intake/local_file.py:150` |
+| `OAK-INTAKE-UNICODE-CONTROL` | brief contains a prohibited control or formatting character | `src/oak/adapters/intake/local_file.py:158` |
 | `OAK-INTAKE-UNICODE-PATH` | brief filename must use NFC Unicode | `src/oak/adapters/intake/local_file.py:49` |
 | `OAK-INTAKE-UNSAFE-PATH` | brief filename must not contain a path; brief must be a regular non-symlink file | `src/oak/adapters/intake/local_file.py:36` |
-| `OAK-INTAKE-VALUE-TYPE` | structured brief contains a non-JSON value | `src/oak/adapters/intake/local_file.py:190` |
+| `OAK-INTAKE-VALUE-TYPE` | structured brief contains a non-JSON value | `src/oak/adapters/intake/local_file.py:198` |
 | `OAK-INTENT-NOT-FOUND` | design case has no intent artifact; interpreted design has no intent artifact | `src/oak/application/design_case.py:504` |
 | `OAK-INTENT-PROVENANCE` | every populated scalar intent value must have exactly one provenance record | `src/oak/compiler/interpretation.py:606` |
 | `OAK-SOURCE-MISSING` | draft case has no source record; intent has no source record | `src/oak/application/design_case.py:225` |
 
-### Candidates, evaluation, selection and planning (21)
+### Candidates, evaluation, selection and planning (22)
 
 | Code | Meaning | First raise site |
 |---|---|---|
@@ -122,6 +122,7 @@ documented flow uses it.
 | `OAK-PLAN-CANDIDATE` | plan candidate is not selected | `src/oak/application/candidate_planning.py:429` |
 | `OAK-PLAN-INPUT` | --target and --output are required; target profile is malformed | `src/oak/interfaces/cli/main.py:644` |
 | `OAK-PLAN-STATE` | plan compilation requires assurance_planned state | `src/oak/application/candidate_planning.py:426` |
+| `OAK-PLAN-TARGET` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/cli/main.py:689` |
 | `OAK-SELECT-EVALUATION` | candidate evaluation must pass before selection | `src/oak/application/candidate_planning.py:296` |
 | `OAK-SELECT-INFEASIBLE` | an infeasible candidate cannot be selected | `src/oak/application/candidate_planning.py:292` |
 | `OAK-SELECT-RATIONALE` | --rationale-file is required; selection rationale is required and bounded | `src/oak/application/candidate_planning.py:268` |
@@ -133,10 +134,17 @@ documented flow uses it.
 | `OAK-TARGET-PATH` | target profile must be a regular file | `src/oak/adapters/targets/local_profile.py:24` |
 | `OAK-TARGET-TENANT` | target tenant does not match the command authority | `src/oak/application/candidate_planning.py:410` |
 
-### Catalogue (8)
+### Catalogue (15)
 
 | Code | Meaning | First raise site |
 |---|---|---|
+| `OAK-CAT-AVAILABILITY-BLOCKED` | *reason or mapping code; carries no fixed message* | `src/oak/compiler/catalogue.py:136` |
+| `OAK-CAT-EVIDENCE-FUTURE` | *reason or mapping code; carries no fixed message* | `src/oak/compiler/catalogue.py:153` |
+| `OAK-CAT-EVIDENCE-STALE` | *reason or mapping code; carries no fixed message* | `src/oak/compiler/catalogue.py:138` |
+| `OAK-CAT-EVIDENCE-UNDIGESTED` | *reason or mapping code; carries no fixed message* | `src/oak/compiler/catalogue.py:151` |
+| `OAK-CAT-KNOWN-VULNERABILITY` | *reason or mapping code; carries no fixed message* | `src/oak/compiler/catalogue.py:140` |
+| `OAK-CAT-STATUS-NOT-ELIGIBLE` | *reason or mapping code; carries no fixed message* | `src/oak/compiler/catalogue.py:134` |
+| `OAK-CAT-TRANSITIVE-LICENCE-UNRESOLVED` | *reason or mapping code; carries no fixed message* | `src/oak/compiler/catalogue.py:142` |
 | `OAK-CATALOGUE-COUNT` | catalogue contains too many documents | `src/oak/adapters/catalogue/local_catalogue.py:37` |
 | `OAK-CATALOGUE-DUPLICATE` | architecture pattern ID is duplicated; architecture pattern variant is duplicated; catalogue identities must be unique; and 1 more | `src/oak/adapters/catalogue/local_catalogue.py:53` |
 | `OAK-CATALOGUE-EMPTY` | catalogue requires manifests and patterns | `src/oak/adapters/catalogue/local_catalogue.py:28` |
@@ -146,7 +154,7 @@ documented flow uses it.
 | `OAK-CATALOGUE-PATTERN` | architecture edge references an unknown role; architecture pattern references a missing component manifest; architecture pattern roles are duplicated; and 2 more | `src/oak/compiler/catalogue.py:160` |
 | `OAK-CATALOGUE-TIME` | catalogue timestamp is invalid | `src/oak/compiler/catalogue.py:198` |
 
-### Policy (13)
+### Policy (17)
 
 | Code | Meaning | First raise site |
 |---|---|---|
@@ -157,10 +165,14 @@ documented flow uses it.
 | `OAK-POLICY-ENGINE-UNKNOWN` | policy engine is not registered | `src/oak/application/policy.py:79` |
 | `OAK-POLICY-PACK-COUNT` | too many policy pack files | `src/oak/adapters/policies/pack_store.py:49` |
 | `OAK-POLICY-PACK-DUPLICATE` | policy pack ID is duplicated | `src/oak/adapters/policies/pack_store.py:53` |
+| `OAK-POLICY-PACK-EFFECTIVE` | *reason or mapping code; carries no fixed message* | `src/oak/domain/policy_rules.py:105` |
+| `OAK-POLICY-PACK-EXPIRED` | *reason or mapping code; carries no fixed message* | `src/oak/domain/policy_rules.py:104` |
 | `OAK-POLICY-PACK-INVALID` | policy pack failed bounded validation; policy pack must not use YAML aliases; policy pack size is out of bounds | `src/oak/adapters/policies/pack_store.py:76` |
 | `OAK-POLICY-PACK-NOT-FOUND` | policy pack is not available | `src/oak/adapters/policies/pack_store.py:61` |
+| `OAK-POLICY-PACK-NOT-YET-EFFECTIVE` | *reason or mapping code; carries no fixed message* | `src/oak/domain/policy_rules.py:101` |
 | `OAK-POLICY-PACK-PATH` | policy pack must be a regular file; policy pack path must not be a symlink | `src/oak/adapters/policies/pack_store.py:66` |
 | `OAK-POLICY-PACK-REQUIRED` | --pack is required to evaluate | `src/oak/interfaces/cli/main.py:1171` |
+| `OAK-POLICY-PACK-STATUS` | *reason or mapping code; carries no fixed message* | `src/oak/domain/policy_rules.py:99` |
 | `OAK-POLICY-SUBJECT` | policy evaluation requires an interpreted intent | `src/oak/application/policy.py:184` |
 | `OAK-POLICY-TIME` | policy timestamp is invalid; policy timestamp must carry a UTC offset | `src/oak/domain/policy_rules.py:258` |
 
@@ -185,7 +197,7 @@ documented flow uses it.
 | `OAK-EXTENSION-VERSION` | version has no comparable numbers | `src/oak/application/extensions.py:469` |
 | `OAK-EXTENSION-VERSION-ACTIVE` | *dynamic message* | `src/oak/adapters/extensions/store.py:154` |
 
-### Runner, signing, approval and dispatch (23)
+### Runner, signing, approval and dispatch (43)
 
 | Code | Meaning | First raise site |
 |---|---|---|
@@ -203,14 +215,34 @@ documented flow uses it.
 | `OAK-DISPATCH-STATE` | dispatch requires a compiled bundle | `src/oak/application/release.py:322` |
 | `OAK-GITOPS-OUTPUT` | --output is required | `src/oak/interfaces/cli/main.py:1120` |
 | `OAK-KEYS-ACTION` | keys action must be init or show | `src/oak/interfaces/cli/main.py:927` |
+| `OAK-RUNNER-ADAPTER` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:317` |
 | `OAK-RUNNER-APPLY` | fixture container creation failed | `src/oak/runner/adapters.py:95` |
-| `OAK-RUNNER-CONFIG` | OAK_RUNNER_TARGET_PROFILE could not be read; OAK_RUNNER_TARGET_PROFILE is not a valid target profile; the runner home, mailbox or trust anchors are unreadable | `src/oak/runner/main.py:59` |
+| `OAK-RUNNER-APPROVAL` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:366` |
+| `OAK-RUNNER-ATTACHMENT` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:188` |
+| `OAK-RUNNER-CONFIG` | OAK_RUNNER_TARGET_PROFILE could not be read; OAK_RUNNER_TARGET_PROFILE is not a valid target profile; the runner home, mailbox or trust anchors are unreadable | `src/oak/runner/main.py:61` |
+| `OAK-RUNNER-DIGEST` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:497` |
 | `OAK-RUNNER-DRIFT` | target state digest drifted during execution | `src/oak/runner/execution.py:209` |
+| `OAK-RUNNER-ENVIRONMENT` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:233` |
 | `OAK-RUNNER-EXECUTABLE` | executable is not allowlisted (some dynamic) | `src/oak/runner/adapters.py:126` |
 | `OAK-RUNNER-KEY` | runner key length is invalid; runner key must be a private regular file | `src/oak/runner/identity.py:44` |
+| `OAK-RUNNER-LEASE` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:261` |
+| `OAK-RUNNER-NETWORK` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:352` |
 | `OAK-RUNNER-OPERATION` | operation kind is not supported | `src/oak/runner/execution.py:217` |
 | `OAK-RUNNER-PARAMETERS` | container name is not permitted; image digest is not permitted; image reference is not permitted; and 2 more | `src/oak/runner/adapters.py:135` |
+| `OAK-RUNNER-PLAN-EXPIRED` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:253` |
+| `OAK-RUNNER-PLAN-STATE` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:248` |
+| `OAK-RUNNER-POLICY` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:394` |
+| `OAK-RUNNER-PROTOCOL` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:166` |
+| `OAK-RUNNER-REPLAY` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:266` |
 | `OAK-RUNNER-ROLLBACK` | *dynamic message* | `src/oak/runner/adapters.py:121` |
+| `OAK-RUNNER-SCHEMA` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:506` |
+| `OAK-RUNNER-SECRETS` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:341` |
+| `OAK-RUNNER-SEPARATION` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:283` |
+| `OAK-RUNNER-SIGNATURE` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:109` |
+| `OAK-RUNNER-TARGET` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:218` |
+| `OAK-RUNNER-TARGET-CAPABILITY` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:360` |
+| `OAK-RUNNER-TENANT` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:228` |
+| `OAK-RUNNER-TRUST` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:112` |
 | `OAK-SIGN-STATE` | plan signing requires a compiled bundle | `src/oak/application/release.py:94` |
 
 ### Rendering and deployment (6)
@@ -238,6 +270,12 @@ documented flow uses it.
 | `OAK-REMOTE-UNAVAILABLE` | the remote control plane could not be reached | `src/oak/interfaces/cli/remote.py:108` |
 | `OAK-REMOTE-UNSUPPORTED` | init is local-only; a remote case is created by oak design; mcp serve is local-only; serve is local-only (some dynamic) | `src/oak/interfaces/cli/main.py:100` |
 
+### MCP (1)
+
+| Code | Meaning | First raise site |
+|---|---|---|
+| `OAK-TOOL-UNKNOWN` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/mcp/server.py:164` |
+
 ### Headless validation (11)
 
 | Code | Meaning | First raise site |
@@ -254,17 +292,18 @@ documented flow uses it.
 | `OAK-VALIDATE-WEBHOOK-KEY` | envelope key id does not derive from the pinned publisher key; envelope signer does not match the pinned publisher key | `src/oak/interfaces/cli/validate.py:223` |
 | `OAK-VALIDATE-WEBHOOK-SIGNATURE` | envelope signature does not verify under the pinned publisher key | `src/oak/interfaces/cli/validate.py:247` |
 
-### Durable operations and the outbox (22)
+### Durable operations and the outbox (24)
 
 | Code | Meaning | First raise site |
 |---|---|---|
 | `OAK-OPERATION-ATTEMPTS` | operation attempts must be between 1 and 10 | `src/oak/adapters/persistence/operations.py:550` |
+| `OAK-OPERATION-ATTEMPTS-EXHAUSTED` | *reason or mapping code; carries no fixed message* | `src/oak/adapters/persistence/operations.py:434` |
 | `OAK-OPERATION-CANCELLED` | the remote operation was cancelled | `src/oak/interfaces/cli/remote.py:302` |
 | `OAK-OPERATION-CONFLICT` | operation identity already exists | `src/oak/adapters/persistence/operations.py:103` |
 | `OAK-OPERATION-CORRUPT` | operation request is not an object | `src/oak/adapters/persistence/operations.py:496` |
 | `OAK-OPERATION-DOCUMENT` | operation candidate is invalid; operation document is invalid; operation request is invalid; and 1 more (some dynamic) | `src/oak/adapters/persistence/operations.py:561` |
 | `OAK-OPERATION-ERROR-CODE` | operation error code is invalid | `src/oak/adapters/persistence/operations.py:568` |
-| `OAK-OPERATION-FAILED` | the remote operation failed | `src/oak/interfaces/cli/remote.py:303` |
+| `OAK-OPERATION-FAILED` | the remote operation failed | `src/oak/application/operations.py:194` |
 | `OAK-OPERATION-KIND` | operation kind is not supported | `src/oak/application/control_plane.py:432` |
 | `OAK-OPERATION-LEASE` | heartbeat lease must extend into the future; operation lease must expire after claim time | `src/oak/adapters/persistence/operations.py:188` |
 | `OAK-OPERATION-LEASE-LOST` | operation lease is no longer current | `src/oak/adapters/persistence/operations.py:470` |
@@ -273,6 +312,7 @@ documented flow uses it.
 | `OAK-OPERATION-SCOPE` | operation workspace does not match its case | `src/oak/application/control_plane.py:420` |
 | `OAK-OPERATION-SIZE` | *dynamic message* | `src/oak/adapters/persistence/operations.py:563` |
 | `OAK-OPERATION-UNSAFE-FIELD` | operation request contains a prohibited execution field | `src/oak/application/operations.py:133` |
+| `OAK-OUTBOX-CONSUMER-FAILED` | *reason or mapping code; carries no fixed message* | `src/oak/application/operations.py:266` |
 | `OAK-OUTBOX-CORRUPT` | outbox payload is not an object | `src/oak/adapters/persistence/outbox.py:277` |
 | `OAK-OUTBOX-ERROR-CODE` | outbox error code is invalid | `src/oak/adapters/persistence/outbox.py:123` |
 | `OAK-OUTBOX-LEASE` | outbox lease must expire after claim time | `src/oak/adapters/persistence/outbox.py:48` |
@@ -281,28 +321,40 @@ documented flow uses it.
 | `OAK-OUTBOX-UNAVAILABLE` | outbox observation is unavailable | `src/oak/application/control_plane.py:389` |
 | `OAK-PROJECTION-NAME` | projection name is invalid | `src/oak/adapters/persistence/outbox.py:152` |
 
-### Concurrency, identity and requests (9)
+### Concurrency, identity and requests (11)
 
 | Code | Meaning | First raise site |
 |---|---|---|
-| `OAK-ACTOR-DENIED` | local actor is not authorized | `src/oak/interfaces/api/app.py:73` |
+| `OAK-ACTOR-DENIED` | local actor is not authorized | `src/oak/interfaces/api/app.py:214` |
 | `OAK-CORRELATION-ID` | correlation ID must contain at least 8 characters | `src/oak/application/candidate_planning.py:677` |
 | `OAK-DIRECTORY-UNAVAILABLE` | design-case directory is unavailable | `src/oak/application/control_plane.py:117` |
 | `OAK-EXPECTED-VERSION` | expected case version does not match current version (some dynamic) | `src/oak/adapters/persistence/file_workspace.py:469` |
 | `OAK-IDEMPOTENCY-CONFLICT` | idempotency key was already used for different input; idempotency key was already used for different operation input; import destination contains different canonical state | `src/oak/adapters/persistence/file_workspace.py:190` |
 | `OAK-IDEMPOTENCY-KEY` | cancellation idempotency key is invalid; idempotency key is required; idempotency key must contain at least 16 characters; and 1 more | `src/oak/adapters/persistence/operations.py:147` |
 | `OAK-PRECONDITION-INVALID` | expected version is required; weak entity tags are not accepted | `src/oak/interfaces/api/app.py:160` |
-| `OAK-TENANT-MISMATCH` | repository scope does not match workspace initialization; requested resource was not found; workspace tenant does not match command | `src/oak/adapters/persistence/postgresql.py:99` |
+| `OAK-REQUEST-INVALID` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/api/app.py:310` |
+| `OAK-REQUEST-SIZE` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/api/app.py:113` |
+| `OAK-TENANT-MISMATCH` | repository scope does not match workspace initialization; requested resource was not found; workspace tenant does not match command | `src/oak/adapters/persistence/postgresql.py:100` |
 | `OAK-TIME-INVALID` | timestamp must include a timezone; worker timestamp must include a timezone | `src/oak/adapters/persistence/postgresql.py:927` |
 
-### Everything else (19)
+### Everything else (30)
 
 | Code | Meaning | First raise site |
 |---|---|---|
 | `OAK-AUDIT-LINEAGE` | audit event does not extend the current head; audit event result does not match its case; audit result does not match its event; and 10 more | `src/oak/adapters/persistence/file_workspace.py:367` |
 | `OAK-AUDIT-SEQUENCE` | audit event sequence is not contiguous | `src/oak/adapters/persistence/file_workspace.py:364` |
+| `OAK-CONFIRM` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/cli/main.py:1388` |
+| `OAK-CONTRACT-INVALID` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/cli/main.py:1516` |
 | `OAK-CURSOR-INVALID` | pagination cursor is invalid | `src/oak/interfaces/api/app.py:183` |
 | `OAK-DEPENDENCY-MISSING` | case has no recorded policy decision; rendering requires a compiled bundle; rendering requires a semantic manifest; and 1 more (some dynamic) | `src/oak/application/candidate_planning.py:655` |
+| `OAK-HTTP-ERROR` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/api/app.py:319` |
+| `OAK-INPUT-INVALID` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/cli/main.py:1520` |
+| `OAK-INT-CONTRADICTION-PRODUCTION-DATA` | *reason or mapping code; carries no fixed message* | `src/oak/compiler/interpretation.py:395` |
+| `OAK-INT-INFEASIBLE-CAPACITY` | *reason or mapping code; carries no fixed message* | `src/oak/compiler/interpretation.py:411` |
+| `OAK-INT-MISSING-CRITICAL` | *reason or mapping code; carries no fixed message* | `src/oak/compiler/interpretation.py:373` |
+| `OAK-INT-UNKNOWN-DECLARED` | *reason or mapping code; carries no fixed message* | `src/oak/compiler/interpretation.py:309` |
+| `OAK-INTAKE` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/cli/main.py:196` |
+| `OAK-INTERNAL` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/api/app.py:341` |
 | `OAK-INTERPRET-BRIEF-TYPE` | brief unknowns must be a string array (some dynamic) | `src/oak/compiler/interpretation.py:277` |
 | `OAK-INTERPRET-STATE` | only a draft case can be interpreted | `src/oak/application/design_case.py:251` |
 | `OAK-INTERPRETER-INPUT-LIMIT` | proposal input exceeds its limit | `src/oak/adapters/models/fake_interpreter.py:28` |
@@ -311,7 +363,8 @@ documented flow uses it.
 | `OAK-INTERPRETER-SOURCE` | optional proposal is not bound to the requested source record | `src/oak/application/design_case.py:478` |
 | `OAK-INTERPRETER-UNAVAILABLE` | optional interpretation provider is unavailable | `src/oak/adapters/models/fake_interpreter.py:30` |
 | `OAK-JOURNAL-ENTRY` | journal entry type is not recognized | `src/oak/runner/journal.py:59` |
-| `OAK-JOURNAL-TAMPERED` | journal hash chain does not verify | `src/oak/runner/journal.py:101` |
+| `OAK-JOURNAL-TAMPERED` | journal hash chain does not verify (some dynamic) | `src/oak/runner/journal.py:103` |
+| `OAK-NOT-FOUND` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/api/app.py:319` |
 | `OAK-OUTPUT-EXISTS` | GitOps output directory already exists; output directory already exists; render output directory already exists | `src/oak/application/gitops.py:36` |
 | `OAK-REVOCATION-REASON` | revocation requires a reason | `src/oak/application/release.py:236` |
 | `OAK-SIGNING-KEY-INVALID` | signing key length is invalid; signing key must be a regular file | `src/oak/adapters/signing/local_ed25519.py:75` |

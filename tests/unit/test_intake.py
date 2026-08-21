@@ -116,3 +116,29 @@ def test_non_nfc_filename_is_rejected(tmp_path: Path) -> None:
         LocalBriefIntake().read(path)
 
     assert captured.value.code == "OAK-INTAKE-UNICODE-PATH"
+
+
+@pytest.mark.parametrize(
+    ("name", "payload"),
+    [
+        ("brief.json", b'{"a":' * 20000 + b"1" + b"}" * 20000),
+        ("brief.json", b"[" * 30000 + b"]" * 30000),
+        ("brief.yaml", ("a: " + "[" * 4000 + "]" * 4000).encode()),
+        ("brief.yaml", ("a: " + "{a: " * 3000 + "1" + "}" * 3000).encode()),
+    ],
+)
+def test_a_deeply_nested_brief_is_refused_rather_than_blowing_the_stack(
+    name: str, payload: bytes
+) -> None:
+    """The structure-depth bound ran after parsing, which is too late.
+
+    Both parsers are recursive, and `RecursionError` is a `RuntimeError` rather than a
+    `ValueError`, so it escaped intake's except clause entirely. A 120 KiB brief — well
+    inside the 256 KiB size limit — reached `create_design_case` as the very first
+    statement and blew the stack before any bound was applied.
+    """
+
+    with pytest.raises(OAKError) as refusal:
+        LocalBriefIntake().read_content(original_name=name, content=payload)
+
+    assert refusal.value.code == "OAK-INTAKE-COMPLEXITY"

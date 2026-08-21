@@ -87,4 +87,6 @@ clean:
 # would recreate, which is what a reproducibility check actually needs.
 clean-all:
 	rm -rf .venv node_modules web/node_modules web/dist web/test-results \
-		.mypy_cache .ruff_cache .pytest_cache dist sbom playwright-report
+		.mypy_cache .ruff_cache .pytest_cache dist sbom playwright-report \
+		.uv-cache ./-.uv-cache .oak
+	@echo "Run 'python scripts/check_clean_machine.py' to confirm nothing is left."

@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import platform
 import statistics
@@ -40,7 +41,9 @@ def _percentile(samples: list[float], fraction: float) -> float:
     if not samples:
         return 0.0
     ordered = sorted(samples)
-    index = max(0, min(len(ordered) - 1, round(fraction * len(ordered) + 0.5) - 1))
+    # `math.ceil`, not `round(x + 0.5)`: Python rounds halves to even, so the latter is
+    # off by one at some sample counts and would not be the method the docstring names.
+    index = max(0, min(len(ordered) - 1, math.ceil(fraction * len(ordered)) - 1))
     return ordered[index]
 
 
@@ -115,8 +118,10 @@ def measure_reference_compiler(repetitions: int) -> dict[str, Any]:
             samples.append(time.perf_counter() - start)
     return {
         "description": (
-            "One full reference case: intake, interpretation, confirmation, candidate "
-            "generation, evaluation, selection, assurance, compilation, signing and dispatch."
+            "One full reference case through build_compiled_case: intake, interpretation, "
+            "confirmation, candidate generation, evaluation, selection, assurance and plan "
+            "compilation, ending at bundle_compiled. Signing, approval and dispatch are "
+            "separate commands and are NOT included in this figure."
         ),
         "requirement": "OAK-NFR-PERF-001 (three variants within 120 s)",
         **_summary(samples),

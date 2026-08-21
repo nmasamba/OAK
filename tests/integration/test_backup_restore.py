@@ -273,10 +273,23 @@ def test_a_clean_database_migrates_to_head_and_verifies_empty(
 
     empty_root = tmp_path / "artifacts"
     empty_root.mkdir()
-    result = _verify("--database-url", restored_database_url, "--artifact-root", str(empty_root))
 
-    assert result.returncode == EXIT_OK, result.stderr
-    assert "no indexed artifacts" in result.stdout
+    # A freshly migrated database holds nothing, and the verifier treats "nothing to
+    # verify" as a failure by default — because after a *restore* that is a failed
+    # restore, not a clean one, and the two must not look the same to an operator using
+    # this as a gate. A fresh install is the case that opts in.
+    refused = _verify("--database-url", restored_database_url, "--artifact-root", str(empty_root))
+    assert refused.returncode == EXIT_CORRUPT
+    assert "NOTHING VERIFIED" in refused.stderr
+
+    allowed = _verify(
+        "--database-url",
+        restored_database_url,
+        "--artifact-root",
+        str(empty_root),
+        "--allow-empty",
+    )
+    assert allowed.returncode == EXIT_OK, allowed.stderr
 
 
 def test_a_postgresql_deployment_restored_without_its_artifact_root_is_detected(

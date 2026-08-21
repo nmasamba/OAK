@@ -35,7 +35,9 @@ def _now() -> str:
 def _environment_path(name: str, default: str | None = None) -> Path:
     value = os.getenv(name, default)
     if not value:
-        print(f"{name} is required", file=sys.stderr)
+        # `CODE: message` on stderr is the documented diagnostic contract for every
+        # entrypoint; this path used to emit a bare sentence with no code.
+        print(f"OAK-RUNNER-CONFIG: {name} is required", file=sys.stderr)
         raise SystemExit(64)
     return Path(value).absolute()
 
@@ -79,7 +81,13 @@ def run_once(*, cancellation_requested: bool = False) -> int:
     processed_any = False
     for dispatch_id, envelope, attachments in mailbox.pending_dispatches():
         # dispatch_id comes from the filesystem, never from the unverified envelope.
-        correlation = str(envelope.get("lease", {}).get("lease_id", dispatch_id) or dispatch_id)
+        # The lease block is untrusted and unvalidated at this point — the schema check
+        # happens inside `verify_dispatch`, below — so its *shape* cannot be assumed
+        # either. An envelope carrying `"lease": null` used to raise AttributeError here,
+        # outside the try, killing the runner before it could deny anything.
+        lease = envelope.get("lease")
+        lease_id = lease.get("lease_id") if isinstance(lease, dict) else None
+        correlation = str(lease_id or dispatch_id) if isinstance(lease_id, str) else dispatch_id
         try:
             verified = verify_dispatch(
                 envelope=envelope,
@@ -168,17 +176,31 @@ def status() -> int:
     report: dict[str, Any] = {"journals": []}
     for path in journals:
         journal = RunnerJournal(path)
+        # A corrupt or truncated journal is precisely the condition `status` exists to
+        # report, and it used to be the condition that killed it: `verify_chain` caught
+        # only OAKError, so a malformed line raised JSONDecodeError (a ValueError), and
+        # `entries()` below was outside any guard at all. An operator inspecting a
+        # damaged runner got a traceback instead of the word "tampered".
         try:
             journal.verify_chain()
             chain = "verified"
         except OAKError:
             chain = "tampered"
+        except (ValueError, OSError):
+            chain = "unreadable"
+        try:
+            entries = len(journal.entries())
+            manual_recovery = journal.requires_manual_recovery()
+        except (OAKError, ValueError, OSError):
+            entries = 0
+            manual_recovery = True
+            chain = "unreadable"
         report["journals"].append(
             {
                 "dispatch": path.stem,
-                "entries": len(journal.entries()),
+                "entries": entries,
                 "chain": chain,
-                "manual_recovery_required": journal.requires_manual_recovery(),
+                "manual_recovery_required": manual_recovery,
             }
         )
     print(json.dumps(report, indent=2, sort_keys=True))

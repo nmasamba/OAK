@@ -51,7 +51,7 @@ schemas, catalogue entries or policy packs.
 
 | Variable | Default | Meaning | Safety-relevant |
 |---|---|---|---|
-| `OAK_SCHEMA_DIRECTORY` | packaged `oak/canonical_schemas`, then the source `schemas/` | Canonical JSON Schema directory | Yes |
+| `OAK_SCHEMA_DIRECTORY` | packaged `oak/canonical_schemas`, then the source `schemas/` | Canonical JSON Schema directory. **Also read by the runner** (`src/oak/runner/schemas.py`), where it selects the schema set every dispatch is verified against | Yes |
 | `OAK_CATALOGUE_DIRECTORY` | packaged `oak/community_catalogue`, then the source `catalogue/` | Component catalogue snapshot directory | Yes |
 | `OAK_POLICY_PACK_DIRECTORY` | packaged `oak/community_policy_packs`, then the source `policy-packs/` | Governed policy-pack directory | Yes |
 | `OAK_EXTENSIONS_DIRECTORY` | `~/.oak/extensions` | Extension quarantine and activation store | Yes |
@@ -65,8 +65,13 @@ schemas, catalogue entries or policy packs.
 
 ## Runner (`oak-runner`)
 
-The runner is a separate trust domain and reads its own variables. It never reads the
-control plane's.
+The runner is a separate trust domain and has its own variables — but it is **not** true
+that it reads none of the control plane's. `src/oak/runner/schemas.py` reads
+**`OAK_SCHEMA_DIRECTORY`**, and that registry is what validates the target profile and,
+through `verify_dispatch`, the envelope, lease, approval and signature documents. Pointing
+it at a directory you do not control replaces the schema set the runner verifies against:
+a target profile the runner would refuse can be made acceptable. Scope it deliberately
+when you harden a runner environment. Recorded as `RR-033`.
 
 | Variable | Default | Meaning | Safety-relevant |
 |---|---|---|---|

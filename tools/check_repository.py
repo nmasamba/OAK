@@ -86,7 +86,12 @@ def _is_governance_mirror(relative: Path) -> bool:
 
 
 def _assurance_claims(relative: Path, text: str) -> list[str]:
-    """Report unqualified assurance claims in one markdown document."""
+    """Report unqualified assurance claims in one markdown document.
+
+    Matching is line-scoped, which is a real limit: a claim split across a line break in
+    this hard-wrapped corpus is not seen. The gate is a regression guard for a property
+    that review established, not a replacement for review.
+    """
 
     lines = text.splitlines()
     failures: list[str] = []

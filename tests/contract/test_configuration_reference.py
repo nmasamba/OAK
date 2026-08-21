@@ -73,3 +73,37 @@ def test_the_safety_relevant_variables_are_marked_as_such() -> None:
     ):
         row = next(line for line in text.splitlines() if line.startswith(f"| `{name}`"))
         assert row.rstrip().endswith("| Yes |"), f"{name} must be marked safety-relevant"
+
+
+def test_every_error_code_the_source_mentions_is_in_the_reference() -> None:
+    """The reference claims completeness; enforce it rather than trusting the generator.
+
+    The first version of the generator walked only `OAKError("CODE", ...)` call sites,
+    so 55 codes never reached the document — eligibility reasons that are returned
+    rather than raised, codes passed as a `code=` argument, and the HTTP and CLI mapping
+    codes. On REST and MCP the message of a not-found error is opaqued, which leaves the
+    code as the operator's only signal, so an absent code is a real supportability hole.
+    """
+
+    from scripts.generate_error_reference import source_codes
+
+    reference = (ROOT / "docs" / "error-codes.md").read_text(encoding="utf-8")
+    _, _, index = reference.partition("## Full index")
+    documented = set(re.findall(r"^\| `(OAK-[A-Z0-9-]+)`", index, re.M))
+
+    undocumented = sorted(source_codes() - documented)
+
+    assert not undocumented, (
+        "these codes are mentioned by the source but absent from docs/error-codes.md: "
+        f"{undocumented}"
+    )
+
+
+def test_the_error_reference_is_not_stale() -> None:
+    from scripts.generate_error_reference import render
+
+    current = (ROOT / "docs" / "error-codes.md").read_text(encoding="utf-8")
+
+    assert current == render(), (
+        "docs/error-codes.md is stale; run python scripts/generate_error_reference.py"
+    )

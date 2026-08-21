@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import re
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -26,6 +27,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "src" / "oak"
 REFERENCE = ROOT / "docs" / "error-codes.md"
+CODE_LITERAL = re.compile(r'"(OAK-[A-Z0-9-]+)"')
+REQUIREMENT_ID = re.compile(r"^OAK-(?:FR|NFR)-")
 
 # Families are matched in order; the first prefix that matches wins, so more specific
 # prefixes come first. The catch-all keeps a new code visible rather than dropped.
@@ -166,14 +169,42 @@ documented flow uses it.
 """
 
 
+def source_codes() -> set[str]:
+    """Every `OAK-*` identifier the source mentions, excluding requirement IDs.
+
+    Requirement identifiers (`OAK-FR-*`, `OAK-NFR-*`) share the prefix but are
+    traceability references to the governance repository, not error codes.
+    """
+
+    found: set[str] = set()
+    for path in _source_files():
+        found.update(CODE_LITERAL.findall(path.read_text(encoding="utf-8")))
+    return {code for code in found if not REQUIREMENT_ID.match(code)}
+
+
+def _source_files() -> list[Path]:
+    return [path for path in sorted(SOURCE.rglob("*.py")) if "__pycache__" not in path.parts]
+
+
 def _codes() -> dict[str, dict[str, object]]:
-    """Every OAKError code raised in the source, with its site and message forms."""
+    """Every `OAK-*` code the source can surface, with its site and message forms.
+
+    Two passes, because raise sites are not the whole story. The AST pass finds
+    `OAKError("CODE", "message")` and recovers the message text. A second literal pass
+    catches every other code the source can surface — eligibility reasons like
+    `OAK-CAT-EVIDENCE-STALE` that are returned rather than raised, codes passed as a
+    `code=` argument, and the HTTP and CLI mapping codes. Leaving those out made the
+    reference's own completeness claim false for 55 codes.
+    """
 
     found: dict[str, dict[str, object]] = {}
-    for path in sorted(SOURCE.rglob("*.py")):
-        if "__pycache__" in path.parts:
-            continue
-        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+
+    def entry_for(code: str) -> dict[str, object]:
+        return found.setdefault(code, {"sites": [], "messages": set(), "dynamic": False})
+
+    for path in _source_files():
+        text = path.read_text(encoding="utf-8")
+        tree = ast.parse(text, filename=str(path))
         for node in ast.walk(tree):
             if not isinstance(node, ast.Call):
                 continue
@@ -183,11 +214,7 @@ def _codes() -> dict[str, dict[str, object]]:
             first = node.args[0]
             if not (isinstance(first, ast.Constant) and isinstance(first.value, str)):
                 continue
-            code = first.value
-            entry = found.setdefault(
-                code,
-                {"sites": [], "messages": set(), "dynamic": False},
-            )
+            entry = entry_for(first.value)
             sites = entry["sites"]
             assert isinstance(sites, list)
             sites.append(f"{path.relative_to(ROOT)}:{node.lineno}")
@@ -199,6 +226,16 @@ def _codes() -> dict[str, dict[str, object]]:
                     messages.add(message.value)
                 else:
                     entry["dynamic"] = True
+
+        for number, line in enumerate(text.splitlines(), start=1):
+            for code in CODE_LITERAL.findall(line):
+                if REQUIREMENT_ID.match(code):
+                    continue
+                entry = entry_for(code)
+                sites = entry["sites"]
+                assert isinstance(sites, list)
+                sites.append(f"{path.relative_to(ROOT)}:{number}")
+
     return found
 
 
@@ -236,6 +273,10 @@ def render() -> str:
             sites = sorted(str(site) for site in raw_sites)
             if not messages and entry["dynamic"]:
                 meaning = "*dynamic message*"
+            elif not messages:
+                # Surfaced without a literal message: an eligibility reason, a mapping
+                # target, or a code passed in as an argument.
+                meaning = "*reason or mapping code; carries no fixed message*"
             elif len(messages) == 1 and not entry["dynamic"]:
                 meaning = messages[0]
             else:

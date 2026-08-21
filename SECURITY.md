@@ -68,6 +68,11 @@ runner sandbox review — was performed by the project itself. Nothing in this r
 should be read as third-party assurance, certification, or an audit in the sense that word <!-- assurance-claim-reviewed: this sentence denies the claim -->
 carries in a compliance context.
 
+A build gate rejects unqualified assurance vocabulary in documentation. It matches one
+line at a time, so a claim that happens to fall across a line break in this hard-wrapped
+corpus would pass it; it is a regression guard for a property review established, not a
+substitute for review.
+
 What does exist, and is checkable:
 
 - [docs/security/threat-coverage.md](docs/security/threat-coverage.md) — every threat id

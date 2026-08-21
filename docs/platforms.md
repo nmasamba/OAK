@@ -28,24 +28,34 @@ the build images so the host needs none of them.
 
 ## Platform matrix
 
-"Verified" means the path was exercised on that platform during Sprint 8 release hardening and
-the evidence is in [release/0.7.0/](release/0.7.0/). "Expected" means every dependency
-publishes a wheel or image for the platform but nobody ran it; treat it as unsupported until
-someone does and records it.
+"Verified" means the path was actually exercised on that platform during the `0.7.0` release
+rehearsal, with the evidence in [release/0.7.0/clean-room.md](release/0.7.0/clean-room.md).
+"Expected" means every dependency publishes a wheel or image for the platform but nobody ran
+it end to end; treat it as unsupported until someone does and records it. A row is downgraded
+to "Expected" rather than argued up — the Linux x86_64 control-plane row is Expected because
+CI provisions no database and never starts Compose, so nothing has ever run that combination.
 
 | OS | Architecture | CLI only | Control plane | Signed runner | Notes |
 |---|---|---|---|---|---|
-| macOS 11+ | arm64 (Apple silicon) | Verified | Verified | Verified | The development and rehearsal platform |
+| macOS 11+ | arm64 (Apple silicon) | Verified | Verified | Verified | The development and rehearsal platform. All three paths exercised by `make check` and the release rehearsal |
 | macOS | x86_64 (Intel) | **Not supported** | **Not supported** | **Not supported** | `cryptography` ≥ 49 publishes no macOS x86_64 wheel and there is no vendored Rust toolchain, so dependency installation fails outright. This includes a Rosetta interpreter on Apple silicon |
-| Linux (glibc) | x86_64 | Verified | Verified | Expected | glibc ≥ 2.17. CI runs this row on `ubuntu-latest` |
-| Linux (glibc) | aarch64 | Expected | Expected | Expected | glibc ≥ 2.28. `psycopg-binary` publishes `manylinux_2_27`/`manylinux_2_28` aarch64 wheels only, so the control-plane row has a higher floor than x86_64 |
+| Linux (glibc) | x86_64 | Verified | Expected | Expected | **glibc ≥ 2.24**, set by `greenlet` (`manylinux_2_24_x86_64`), which SQLAlchemy requires on this architecture; `cryptography` and `psycopg-binary` would allow 2.17. CI runs `make check` on `ubuntu-latest`, and the rehearsal ran the reference CLI journey inside the `linux/amd64` image (Debian 13, glibc 2.41). The control-plane row is *not* verified here: CI provisions no database and never starts Compose (`RR-014`, `RR-019`) |
+| Linux (glibc) | aarch64 | Verified | Verified | Expected | **glibc ≥ 2.27**, set by `psycopg-binary` (`manylinux_2_27_aarch64`); `greenlet` allows 2.24. The Compose stack — API, worker, migrations, web — runs as Linux aarch64 containers on the rehearsal machine and was exercised end to end, including a backup and restore of both state stores. The control-plane row therefore has a higher glibc floor than x86_64 |
 | Linux (musl, e.g. Alpine) | x86_64, aarch64 | Expected | Expected | Expected | musl 1.2 wheels exist for both native dependencies |
 | Linux (glibc) | armv7l (32-bit ARM) | Expected | **Not supported** | Expected | `cryptography` publishes a `manylinux_2_31_armv7l` wheel but `psycopg-binary` publishes no armv7l wheel **and no sdist**, so there is no server path at any build cost |
 | Windows | any | **Not supported** | **Not supported** | **Not supported** | `src/oak/adapters/persistence/file_workspace.py` imports `fcntl` at module scope for workspace locking. The import fails on Windows before anything else runs. WSL2 is Linux and follows the Linux rows |
 
-The glibc floors above are not guesses: they are read from the wheel tags in `uv.lock`, which
-is the file that actually decides what installs. `psycopg-binary` 3.3.4 ships **no source
-distribution**, so an unlisted platform is a hard cliff rather than a slow source build.
+The glibc floors above are not guesses: they are read from the wheel tags in `uv.lock`,
+which is the file that actually decides what installs. They are **wheel-availability**
+floors — the point below which a supported install stops being a download.
+
+Two of the native dependencies behave very differently below their floor:
+
+- `greenlet` 3.5.5 ships an sdist, so an older glibc can still work if you have a C
+  toolchain. Slow, unsupported, but possible.
+- `psycopg-binary` 3.3.4 ships **no source distribution at all**. Below its floor, or on
+  an architecture it does not publish for, there is no server path at any build cost.
+  That is why 32-bit ARM has no control-plane row rather than a slow one.
 
 ## Prerequisites
 
@@ -128,6 +138,11 @@ target workload** — the system OAK designed for you. It is read-only, it execu
 it has no relationship to deploying OAK itself.
 
 ## What is not tested where
+
+The toolchain pins are declarations checked against each other, never against the binary
+actually running: `make toolchain-check` will not notice that you are on a different Node.
+The `0.7.0` rehearsal built on Node 22.17.1 against a 24.18.0 pin and every gate passed
+(`RR-034`).
 
 CI (`.github/workflows/ci.yml`) runs `ubuntu-latest` x86_64 only. It has no macOS job, no
 arm64 job, and it builds no container image. The macOS arm64 rows in the table above are

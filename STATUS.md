@@ -2,13 +2,14 @@
 
 # Build status
 
-- **Updated:** 2026-08-21
+- **Updated:** 2026-08-22
 - **Repository version:** `0.7.0`
-- **Phase:** Sprint 8 in progress — Community release hardening
-- **Completed plans:** `docs/exec-plans/completed/OAK-S0-001-009-walking-skeleton.md`, `docs/exec-plans/completed/OAK-S1-001-010-local-design-case.md`, `docs/exec-plans/completed/OAK-S2-001-011-candidate-planning.md`, `docs/exec-plans/completed/OAK-S3-001-009-persistent-rest-jobs.md`, `docs/exec-plans/completed/OAK-S4-001-009-web-workspace.md`, `docs/exec-plans/completed/OAK-S5-001-011-signed-runner.md`, `docs/exec-plans/completed/OAK-S6-001-008-policy-adapter-sdk.md`, and `docs/exec-plans/completed/OAK-S7-001-008-mcp-portal-interface-parity.md`
-- **Active plan:** `docs/exec-plans/active/OAK-S8-001-009-community-release-hardening.md`
-- **Next task:** `OAK-S8-001`–`OAK-S8-009` (Community release hardening); the release
-  decision (`OAK-S8-009`) requires named human approval and is not agent-completable
+- **Phase:** Sprint 8 complete — Community release hardening; `0.7.0` is a candidate awaiting named approval
+- **Completed plans:** `docs/exec-plans/completed/OAK-S0-001-009-walking-skeleton.md`, `docs/exec-plans/completed/OAK-S1-001-010-local-design-case.md`, `docs/exec-plans/completed/OAK-S2-001-011-candidate-planning.md`, `docs/exec-plans/completed/OAK-S3-001-009-persistent-rest-jobs.md`, `docs/exec-plans/completed/OAK-S4-001-009-web-workspace.md`, `docs/exec-plans/completed/OAK-S5-001-011-signed-runner.md`, `docs/exec-plans/completed/OAK-S6-001-008-policy-adapter-sdk.md`, `docs/exec-plans/completed/OAK-S7-001-008-mcp-portal-interface-parity.md`, and `docs/exec-plans/completed/OAK-S8-001-009-community-release-hardening.md`
+- **Active plan:** none — Sprint 8 closed
+- **Next task:** named maintainer, security and licence approval of the `0.7.0` release
+  candidate, recorded in `docs/release/0.7.0/release-decision.md`. `OAK-S8-009` is not
+  agent-completable and was not self-approved
 
 ## Claimed work
 
@@ -89,15 +90,15 @@
 | `OAK-S7-006` | complete | Signed `webhook-envelope` contract with a pinned-key example and a headless `oak validate export/bundle/webhook` checker suitable for CI and portals |
 | `OAK-S7-007` | complete | MCP abuse suite: injection inertness, oversized/unbounded/deep frames, confused deputy, stale version, tenant crossover, tool/method escalation, execution fields |
 | `OAK-S7-008` | complete | `docs/interfaces.md` interface setup, permission model, capability matrix, and explicit unavailable operations |
-| `OAK-S8-001` | in progress | Clean install matrix across supported platforms and install paths |
-| `OAK-S8-002` | in progress | Rehearsed upgrade, backup/restore, export/import and stated downgrade limits |
-| `OAK-S8-003` | in progress | Threat-model coverage index, scans, secret/log and runner review, residual-risk register |
-| `OAK-S8-004` | in progress | Reproducible artifacts with SBOM, licence inventory, checksums and tested verification |
-| `OAK-S8-005` | in progress | Provenance-stamped performance and soak measurements |
-| `OAK-S8-006` | in progress | Operator documentation from install through uninstall |
-| `OAK-S8-007` | in progress | Contributor documentation and the release process |
-| `OAK-S8-008` | in progress | Clean-room release-candidate rehearsal with archived evidence |
-| `OAK-S8-009` | in progress | Release decision preparation; named human approval outstanding |
+| `OAK-S8-001` | complete | Clean install matrix across supported platforms and install paths |
+| `OAK-S8-002` | complete | Rehearsed upgrade, backup/restore, export/import and stated downgrade limits |
+| `OAK-S8-003` | complete | Threat-model coverage index, scans, secret/log and runner review, residual-risk register |
+| `OAK-S8-004` | complete | Reproducible artifacts with SBOM, licence inventory, checksums and tested verification |
+| `OAK-S8-005` | complete | Provenance-stamped performance and soak measurements |
+| `OAK-S8-006` | complete | Operator documentation from install through uninstall |
+| `OAK-S8-007` | complete | Contributor documentation and the release process |
+| `OAK-S8-008` | complete | Clean-room release-candidate rehearsal with archived evidence |
+| `OAK-S8-009` | blocked | Evidence, P0 proposal and known limitations prepared; named maintainer, security and licence approval outstanding |
 
 ## Verification evidence
 
@@ -303,7 +304,7 @@
   generated inventory now shows LGPL-3.0 Psycopg as the only copyleft entry.
 - Security review produced `docs/security/threat-coverage.md` (all nineteen threat ids mapped
   to tests: 8 direct, 9 partial, 2 structural, 0 uncovered, every cited test verified to
-  exist), `docs/security/residual-risk.md` (31 stable-id entries), and `SECURITY.md`. **No
+  exist), `docs/security/residual-risk.md` (34 stable-id entries), and `SECURITY.md`. **No
   external security review was commissioned**, and a build gate now fails on unqualified
   assurance vocabulary — it caught three of its own author's sentences on first run.
 - Four confidentiality defects were found and fixed, each reproduced before the fix:
@@ -328,9 +329,9 @@
   creates a scratch PostgreSQL database, migrates it to head, and proves that a database
   restored without its artifact root is detected — the half-restore the previous
   `pg_dump`-only documentation would have produced.
-- Performance was measured with provenance rather than asserted: reference compiler 8.21 s
-  median against a 120 s requirement, interactive read p95 30.2 ms against 500 ms, and
-  workspace manifest reads growing from 3.6 ms at zero indexed artifacts to 263.9 ms at 43
+- Performance was measured with provenance rather than asserted: reference compiler 8.75 s
+  median against a 120 s requirement, interactive read p95 31.9 ms against 500 ms, and
+  workspace manifest reads growing from 4.0 ms at zero indexed artifacts to 281.2 ms at 43
   with no compaction anywhere (`RR-030`). Four measurements are published as *not measured*
   with the reason.
 - Operator and contributor documentation now covers install through uninstall, every `OAK_*`

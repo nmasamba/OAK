@@ -40,6 +40,13 @@ def _available() -> set[str]:
 
 
 def test_every_cited_adr_resolves_to_a_file_in_this_repository() -> None:
+    """Resolution only, not disambiguation.
+
+    The implementation and architecture series share a number space, so this cannot
+    tell which series a bare `ADR-00NN` meant — only that some file answers to it.
+    `docs/adr/README.md` tells authors to cite with a link for exactly that reason.
+    """
+
     available = _available()
     unresolved: dict[str, list[str]] = {}
     for path in _shipped_documents():

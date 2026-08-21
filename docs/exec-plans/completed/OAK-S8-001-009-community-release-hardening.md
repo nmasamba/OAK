@@ -7,7 +7,7 @@
 - Owner/agent: Claude
 - Started: 2026-08-21
 - Last updated: 2026-08-21
-- State: in progress
+- State: done (except `OAK-S8-009`, which requires named human approval)
 - Claimed tasks: `OAK-S8-001`–`OAK-S8-009`
 
 ## Outcome
@@ -294,7 +294,7 @@ and re-running `uv lock`.
   whose manifest carries an unknown `schema_version`.
 - [x] 2026-08-21 M5 security review and residual risk: `docs/security/threat-coverage.md`
   (all nineteen threat ids mapped to tests, 8 direct / 9 partial / 2 structural / 0 none,
-  every cited test verified to exist), `docs/security/residual-risk.md` (31 stable-id
+  every cited test verified to exist), `docs/security/residual-risk.md` (34 stable-id
   entries, severities scored for the shipped configuration, owners explicitly unassigned),
   `SECURITY.md`, an assurance-claim gate in `tools/check_repository.py` with a documented
   escape for denials, and `tests/integration/test_offline_boundary.py` which runs the whole
@@ -303,9 +303,9 @@ and re-running `uv lock`.
   validation diagnostics echoing the rejected value, SQLAlchemy bound parameters reaching
   uvicorn's error log, and tracebacks from `oak-runner` and `oak-db-migrate`.
 - [x] 2026-08-21 M6 performance: `scripts/benchmark.py` with a machine-readable provenance
-  header and `docs/performance.md`. Reference compiler 8.21 s median against a 120 s
-  requirement; interactive read p95 30.2 ms (case) and 54.2 ms (audit) against 500 ms;
-  workspace manifest reads 3.6 ms at zero artifacts and 263.9 ms at 43. Four measurements
+  header and `docs/performance.md`. Reference compiler 8.75 s median against a 120 s
+  requirement; interactive read p95 31.9 ms (case) and 58.3 ms (audit) against 500 ms;
+  workspace manifest reads 4.0 ms at zero artifacts and 281.2 ms at 43. Four measurements
   are reported as *not measured*, with the reason, rather than omitted.
 - [x] 2026-08-21 M7 operator documentation: `docs/operations.md`, `docs/configuration.md`
   (all 25 `OAK_*` variables, pinned to the source by a contract test that fails in both
@@ -355,8 +355,149 @@ and re-running `uv lock`.
 
 ## Post-implementation audit
 
-Not started. This section stays empty until the audit runs.
+A seven-lens multi-agent adversarial audit ran against the Sprint 8 diff — release
+integrity, honesty, defects in the new Python, operator documentation verbatim, contracts
+and boundaries, security-fix regression, and a repo-wide latent sweep — followed by an
+independent skeptic per finding, prompted to refute by default.
+
+It raised **34 candidates**. Twenty were routed to skeptics; **eleven survived**
+refutation and nine were refuted (three as not-a-defect, six as already-covered or
+over-scoped). The remaining fourteen exceeded the verification cap and were verified by
+hand instead. **Every finding acted on below was reproduced locally first**, and several
+were not: the "corrupt journal crashes `status`" claim only reproduced once the journal
+was placed at the real path, and the "malformed dispatch envelope" claim only reproduced
+for `"lease": null` specifically, not for the shapes the reporter first tried.
+
+No authority bypass was found. Every real defect was a robustness, integrity-of-evidence
+or honesty failure — which, for a sprint whose entire deliverable is evidence, is the
+category that matters most.
+
+### Fixed
+
+- **The release verifier's containment guard was defeated by one extra space (high).**
+  `_parse` applied the traversal check to the raw name field and then stored
+  `name.strip()`. A manifest line with three spaces instead of two — `<digest>` +
+  separator + ` /etc/hosts` — is not absolute *as written*, so the guard passed, and the
+  stripped form is what got opened. The verifier printed `OK /etc/hosts` and exited 0
+  while the actual artifacts were never hashed. `sha256sum -c` refuses the same manifest.
+  The guard now validates the name exactly as written, refuses padding, NUL, CR,
+  self-reference and duplicates, and re-checks containment after `resolve()` so a symlink
+  inside the directory cannot escape either.
+  (`tests/integration/test_release_verification.py`)
+- **The runner's verification-policy enforcement was dead code (high).**
+  `verify_dispatch` read `policy.get("body", policy)`, and no compiled verification policy
+  has ever carried a `body` key — the clauses live under `content` — so the lookup always
+  returned the wrapper, the comparison was always against `None`, and the guard could not
+  fire for any plan the compiler produces. It was also the only attachment admitted
+  without a schema check. Both are fixed; the clause that refuses a policy contradicting
+  signing or approval is now reachable. What is *not* fixed is recorded as `RR-032`.
+- **Untrusted brief content blew the stack (medium).** The structure-depth bound runs
+  after parsing, and `RecursionError` is a `RuntimeError` rather than a `ValueError`, so
+  it escaped intake's except clause entirely. A 120 KiB brief of `{"a":{"a":{…` — well
+  inside the 256 KiB size limit — reached `create_design_case` as its first statement and
+  raised an uncaught `RecursionError`. Both parsers are recursive; both are now guarded,
+  and the refusal reuses the depth guard's own `OAK-INTAKE-COMPLEXITY`.
+- **`oak-runner status` crashed on exactly the condition it exists to report (medium).**
+  A corrupt or truncated journal raised `JSONDecodeError`, and a wrong-shaped line raised
+  `TypeError` — neither an `OAKError`, and `entries()` sat outside any guard. `run_once`
+  calls `verify_chain()` unguarded too, so a damaged journal wedged the runner as well as
+  the command meant to diagnose it. Malformed lines are now `OAK-JOURNAL-TAMPERED` and
+  `status` reports `unreadable`.
+- **A hostile mailbox envelope killed the runner before it could deny anything (medium).**
+  The correlation id was derived from `envelope["lease"]["lease_id"]` before the schema
+  check and outside the try, so `"lease": null` raised `AttributeError`.
+- **The error-code reference was incomplete while claiming completeness (medium).** The
+  generator walked only `OAKError("CODE", …)` call sites, so 55 codes never reached the
+  document — eligibility reasons that are returned rather than raised, codes passed as a
+  `code=` argument, and the HTTP and CLI mapping codes. On REST and MCP a not-found
+  message is opaqued, which leaves the code as the operator's only signal. Now 260 codes,
+  with a test that fails if the source mentions one the document does not.
+- **The uninstall procedure and the clean-machine checker named images Compose never
+  creates (medium).** Compose names images `<project>-<service>`; both looked only for
+  `<org>/<name>`, so every built image survived an uninstall and the checker still said
+  "clean". The checker also under-reported directory sizes by up to 46% and reported
+  `~/.oak` a fourth time alongside its own three children.
+- **The published performance figure described work it did not measure (medium).**
+  `build_compiled_case` ends at `bundle_compiled`; the description claimed it covered
+  signing and dispatch. Corrected in `docs/performance.md`, the JSON, the threat-coverage
+  index and the offline-boundary test's own docstring.
+- **The restore-verification step could not be run on the deployment it documented
+  (low).** In Compose, `OAK_DATABASE_URL` and `OAK_ARTIFACT_ROOT` name a host and a path
+  *inside* the containers. The runbook now carries the port-publish and volume-copy
+  sequence the rehearsal actually used.
+- **The runner reads a control-plane variable, and the configuration reference said it
+  never does (high, honesty).** `OAK_SCHEMA_DIRECTORY` selects the schema registry the
+  runner verifies every dispatch against; an operator hardening a runner environment had
+  been told not to bother scoping it. Corrected, and recorded as `RR-033`.
+- **The whole shipped product surface was filed under "Unreleased" (medium).** Sprints 0–7
+  sat under `## Unreleased` *below* the `0.7.0` heading, so everything that ships read as
+  pending.
+- **Three cells of the platform matrix contradicted the lockfile they cite (low).** The
+  x86_64 glibc floor is 2.24, set by `greenlet`, not 2.17; the aarch64 floor is 2.27, set
+  by `psycopg-binary`. The distinction that matters is now stated too: `greenlet` ships an
+  sdist, `psycopg-binary` ships none.
+- **A valid uppercase-hex manifest was reported as a mismatch (low).** `sha256sum -c`
+  accepts either case; OAK told the verifier their good artifact was tampered with — the
+  worst possible false alarm from an integrity tool.
+- Also fixed: two malformed rows in the threat-coverage table; TM-08 downgraded from
+  `direct` to `partial` because the time-of-use half is unenforced; the runtime closure
+  installed without hash verification; the egress pin missing `from <package> import
+  <module>`; `verify_deployment` passing silently when it verified nothing; the backup
+  table omitting the runner's own private key; and `oak-runner`'s missing-variable path
+  emitting no error code.
+
+### Recorded rather than fixed
+
+- `RR-032` — the compiled verification policy's `mutation_allowed` and
+  `allowed_operation_kinds` clauses are still unenforced. Enforcing them as written would
+  deny the mutation path this release ships, because the compiled content is a hard-coded
+  constant identical for read-only and mutation targets; correcting the constant shifts
+  every bundle digest. That is a deliberate migration, not a release-week edit. Mutation
+  remains gated by the target profile and a pinned-anchor approval, so this is a missing
+  defence-in-depth layer, not an authority bypass.
+- `RR-033` — `OAK_SCHEMA_DIRECTORY` crosses the runner's trust boundary.
+- `RR-034` — the toolchain pins are never checked against the running binaries; the
+  rehearsal itself built on Node 22.17.1 against a 24.18.0 pin with every gate green.
+- The assurance-claim gate is line-scoped, so a claim split across a line break in this
+  hard-wrapped corpus passes it. Stated where the gate is described rather than left to be
+  discovered.
+- The two ADR series share a number space, so a bare `ADR-00NN` citation is ambiguous. The
+  contract test checks that a citation *resolves*; it cannot check which series was meant.
+  `docs/adr/README.md` now tells authors to cite with a link.
+
+### Not reproduced
+
+Reported but did not hold up when driven directly: the release workflow's tag trigger
+"never checked against VERSION" (it is a rehearsal trigger that publishes nothing);
+`_percentile` "not nearest-rank" (it is); and `make clean-all` "leaving what the checker
+flags" (it did, and was fixed before the finding was judged, which the skeptic then read
+as not-a-defect).
 
 ## Discoveries and follow-ups
 
-To be recorded as they are found.
+- **The Compose quickstart silently served a three-day-old build.** `docker compose up -d`
+  reuses an existing image rather than rebuilding when the source changes, so the release
+  rehearsal's stack came up reporting `0.5.0.dev5`. `curl /version` was the only thing that
+  revealed it. This is the single most likely way a user's first impression of `0.7.0` is
+  actually of something else.
+- **`build_compiled_case` ends at `bundle_compiled`, not at a signed dispatch**, despite
+  the module docstring saying otherwise ("a compiled case advanced to a signed dispatch").
+  That docstring is what led the performance description astray. Worth correcting in a
+  later sprint; left alone here because it is Sprint 5 code and the sprint's own claims
+  have been corrected instead.
+- **`migrations/env.py` reads `OAK_DATABASE_URL` directly and ignores the `sqlalchemy.url`
+  config option** that `oak-db-migrate` sets. Harmless because the entrypoint sets both,
+  but anyone invoking `alembic` directly must export the variable. Documented in the
+  operations runbook.
+- **The reference case has 43 indexed artifacts and manifest reads cost 281 ms at that
+  depth.** Two data points cannot distinguish linear from super-linear growth. A third
+  point would need a workspace builder that produces arbitrary revision depth, which does
+  not exist; worth building before anyone claims a supported workspace size.
+- **`docs/traceability.md` in the governance repository cites evidence fixtures
+  (`security-*`, `poison-*`, `licence-*`, `reg-*`, `EV-SEC`, `EV-TEN`, `EV-LIC`, `EV-DEP`)
+  that exist nowhere in the implementation.** Not touched by this sprint, but it points at
+  named security evidence a reader cannot find, which undermines the map exactly where it
+  matters most.
+- **The full suite takes roughly eleven minutes**, most of it rebuilding the same compiled
+  fixture. A session-scoped template would remove most of that; the same observation was
+  recorded in Sprint 5 and remains true.

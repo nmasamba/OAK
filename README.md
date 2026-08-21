@@ -11,10 +11,16 @@ OAK does not proxy an installed application's inference traffic. The current har
 The container path requires only Docker with Compose. Python, `uv`, Node.js, and `pnpm` are pinned inside the build images and do not need to be installed on the host:
 
 ```bash
-docker compose up -d postgres api worker web
+docker compose up -d --build postgres migrate api worker web
 curl --fail http://127.0.0.1:8080/version
 docker compose down
 ```
+
+**`--build` is not optional after the first run.** `docker compose up -d` reuses an image
+if one already exists with that name and does not rebuild when the source changes, so
+without it the stack silently serves whatever you built last. This was found by running the
+`0.7.0` release rehearsal: the stack came up reporting `0.5.0.dev5` from a three-day-old
+image. `curl /version` is the check that catches it.
 
 The worker is required for the asynchronous candidate-generation, evaluation, and
 compilation stages; without it those operations stay queued. The web workspace serves at

@@ -34,6 +34,26 @@ carry a header saying so. A contract test
 (`tests/contract/test_adr_references.py`) fails if a shipped document cites an ADR that
 does not resolve to a file here.
 
+## Citing an ADR
+
+**The two series share a number space, so a bare number is ambiguous.** `ADR-0002` is
+"release versioning" here and "modular monolith" in the governance repository. Cite with a
+link, not a number:
+
+Link the number to its file rather than writing the number alone. From a document in
+`docs/`, the two targets are:
+
+| Series | Path to link to |
+|---|---|
+| Implementation | `adr/0002-release-versioning.md` |
+| Architecture | `adr/architecture/0012-control-plane-distributions.md` |
+
+`tests/contract/test_adr_references.py` checks that every cited number *resolves to a
+file*; it cannot tell which series a bare number meant. The completed exec plans under
+`docs/exec-plans/` predate the mirror and cite the governance series by bare number — they
+are historical records and are excluded from the check for that reason, but a bare
+`ADR-0002` in one of them means the governance ADR, not this repository's.
+
 ## Writing a new one
 
 Implementation decisions go in this directory with the next number in the implementation

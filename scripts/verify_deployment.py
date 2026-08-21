@@ -136,7 +136,7 @@ def verify_database(database_url: str, artifact_root: Path) -> tuple[int, list[F
     return len(rows), findings
 
 
-def _report(checked: int, findings: list[Finding], subject: str) -> int:
+def _report(checked: int, findings: list[Finding], subject: str, *, allow_empty: bool) -> int:
     for finding in findings:
         print(f"CORRUPT  {finding.artifact}: {finding.problem}", file=sys.stderr)
     if findings:
@@ -148,8 +148,16 @@ def _report(checked: int, findings: list[Finding], subject: str) -> int:
         )
         return EXIT_CORRUPT
     if checked == 0:
-        print(f"{subject} holds no indexed artifacts; nothing to verify.")
-        return EXIT_OK
+        # Loud, because "nothing to verify" and "everything verified" must never look
+        # the same to an operator running this as a post-restore gate: a restore that
+        # produced an empty metadata store would otherwise pass.
+        print(
+            f"NOTHING VERIFIED: {subject} holds no indexed artifacts. If this is a "
+            "restore, that is a failed restore, not a clean one — compare the count "
+            "against the deployment you backed up.",
+            file=sys.stderr,
+        )
+        return EXIT_OK if allow_empty else EXIT_CORRUPT
     print(
         f"verified {checked} indexed artifact(s) in {subject}: every object present, "
         "correctly sized, and digest-matching."
@@ -162,6 +170,11 @@ def main() -> int:
     parser.add_argument("--workspace", type=Path, help="path to a file-mode workspace root")
     parser.add_argument("--database-url", help="SQLAlchemy URL of the control-plane database")
     parser.add_argument("--artifact-root", type=Path, help="artifact root ($OAK_ARTIFACT_ROOT)")
+    parser.add_argument(
+        "--allow-empty",
+        action="store_true",
+        help="succeed when there is nothing to verify (a fresh install, not a restore)",
+    )
     arguments = parser.parse_args()
 
     if arguments.workspace and (arguments.database_url or arguments.artifact_root):
@@ -188,7 +201,7 @@ def main() -> int:
         print(f"could not read the deployment: {type(error).__name__}: {error}", file=sys.stderr)
         return EXIT_UNREADABLE
 
-    return _report(checked, findings, subject)
+    return _report(checked, findings, subject, allow_empty=arguments.allow_empty)
 
 
 if __name__ == "__main__":

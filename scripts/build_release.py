@@ -101,6 +101,9 @@ def _build_into(destination: Path) -> dict[str, str]:
 def _export_runtime_closure(destination: Path) -> Path:
     """Write the locked runtime closure — no development groups, no project."""
 
+    # Hashes are kept: `uv pip install -r` verifies them, so the environment the SBOM
+    # and licence inventory describe is the locked one rather than whatever the index
+    # served at build time.
     requirements = destination / "requirements-release.txt"
     exported = _run(
         [
@@ -108,7 +111,6 @@ def _export_runtime_closure(destination: Path) -> Path:
             "export",
             "--no-default-groups",
             "--no-emit-project",
-            "--no-hashes",
             "--format",
             "requirements-txt",
         ]
@@ -223,11 +225,12 @@ def _locked_runtime_names(requirements: Path) -> set[str]:
     names: set[str] = set()
     for line in requirements.read_text(encoding="utf-8").splitlines():
         stripped = line.strip()
-        if not stripped or stripped.startswith(("#", "-")):
+        # A hashed export continues each requirement over several `--hash=` lines.
+        if not stripped or stripped.startswith(("#", "-", "\\")):
             continue
         name, separator, _ = stripped.partition("==")
         if separator:
-            names.add(name.strip().lower().replace("_", "-"))
+            names.add(name.strip().lower().replace("_", "-").rstrip("\\").strip())
     return names
 
 

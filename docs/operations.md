@@ -25,9 +25,14 @@ Pick one of the three paths in [platforms.md](platforms.md#install-paths). The c
 path is the shortest:
 
 ```bash
-docker compose up -d postgres migrate api worker web
+docker compose up -d --build postgres migrate api worker web
 curl --fail http://127.0.0.1:8080/version
 ```
+
+**Always pass `--build`, and always check `/version`.** `docker compose up -d` reuses an
+existing image rather than rebuilding when the source changes. During the `0.7.0` rehearsal
+the stack came up serving `0.5.0.dev5` from a three-day-old image without any warning;
+`/version` is what caught it, and it is the only thing that would have.
 
 The worker is not optional if you intend to use the API: candidate generation,
 evaluation and compilation are durable operations, and without a worker they stay
@@ -103,6 +108,7 @@ directory that is not in either.
 | Signing keys and trust anchors | `$OAK_TRUST_DIRECTORY` (default `~/.oak/trust`) | A **separate**, protected copy |
 | Outbound dispatch mailbox | `$OAK_DISPATCH_MAILBOX` (default `~/.oak/mailbox`) | A filesystem copy, if leases are in flight |
 | Extension quarantine and activations | `$OAK_EXTENSIONS_DIRECTORY` (default `~/.oak/extensions`) | A filesystem copy |
+| Runner identity, journal and consumed nonces | `$OAK_RUNNER_HOME` (default `~/.oak/runner`) | A **separate**, protected copy — it holds the runner's own Ed25519 private key |
 
 > **A `pg_dump` alone is not a backup.** Artifact bytes are read *only* from the artifact
 > root; the JSONB copy in `artifact_versions.canonical_document` is never read back at
@@ -148,7 +154,7 @@ docker compose up -d --wait postgres                      # --wait: initdb must 
 docker compose exec -T postgres pg_restore -U oak -d oak --clean --if-exists < oak-metadata.dump
 docker run --rm -v oak-community_oak-artifacts:/artifacts -v "$PWD":/backup alpine \
   tar xzf /backup/oak-artifacts.tar.gz -C /artifacts
-docker compose up -d migrate api worker web
+docker compose up -d --build migrate api worker web
 ```
 
 `--wait` matters: `docker compose up -d` returns as soon as the container starts, and the
@@ -161,24 +167,48 @@ after initialisation — `POSTGRES_DB` creates it — so there is no `createdb` 
 carries `alembic_version` at the current revision it is a no-op, which is the intended
 restore-forward behaviour.
 
-Then **verify the restore rather than assuming it**:
+Then **verify the restore rather than assuming it**.
+
+On a Compose deployment neither `OAK_DATABASE_URL` nor `OAK_ARTIFACT_ROOT` is reachable
+from your shell: they name `postgres:5432` and `/var/lib/oak/artifacts` *inside* the
+containers. Publish the database port and copy the artifact volume out first — this is the
+sequence the `0.7.0` rehearsal actually ran:
 
 ```bash
+cat > compose.override.yaml <<'YML'
+services:
+  postgres:
+    ports:
+      - "127.0.0.1:15432:5432"
+YML
+docker compose up -d --wait postgres
+
+mkdir -p /tmp/oak-restored-root
+docker run --rm -v oak-community_oak-artifacts:/artifacts -v /tmp/oak-restored-root:/out \
+  alpine cp -R /artifacts/sha256 /out/
+
 python scripts/verify_deployment.py \
-  --database-url "$OAK_DATABASE_URL" \
-  --artifact-root "$OAK_ARTIFACT_ROOT"
+  --database-url "postgresql+psycopg://oak:oak-local-only@127.0.0.1:15432/oak" \
+  --artifact-root /tmp/oak-restored-root
 ```
 
-It walks every row of `artifact_versions`, re-reads each object from the artifact root
-and re-checks its size and SHA-256. Exit `0` means the two stores agree; exit `2` names
-each artifact that does not resolve. For a file workspace:
+For a non-Compose deployment, where both values already name paths and hosts you can
+reach, the two arguments are simply `$OAK_DATABASE_URL` and `$OAK_ARTIFACT_ROOT`.
+
+For a file workspace:
 
 ```bash
 python scripts/verify_deployment.py --workspace /path/to/workspace
 ```
 
-The tool is read-only and detects missing objects, truncated objects and
-same-length-different-content substitution.
+It walks every row of `artifact_versions`, re-reads each object from the artifact root and
+re-checks its size and SHA-256. Exit `0` means the two stores agree; exit `2` names each
+artifact that does not resolve. It is read-only, and it detects missing objects, truncated
+objects and same-length-different-content substitution.
+
+**Compare the count against what you backed up.** "Verified 0 artifacts" after a restore is
+a failed restore, not a clean one, so the tool treats an empty index as a failure and says
+so loudly. Pass `--allow-empty` only when you genuinely expect nothing — a fresh install.
 
 ---
 
@@ -301,7 +331,10 @@ your private keys and several gigabytes of cache behind.
 # 1. Containers, volumes (your data), networks and images
 docker compose down --volumes --remove-orphans
 docker volume rm -f oak-community_oak-postgres-data oak-community_oak-artifacts 2>/dev/null || true
-docker image rm -f oak-community/api:0.7.0 oak-community/web:0.7.0 2>/dev/null || true
+# Compose names its images `<project>-<service>`; a hand-built or release-workflow
+# image uses `<org>/<name>`. Both exist in practice, so remove both.
+docker image rm -f $(docker image ls -q 'oak-community-*') 2>/dev/null || true
+docker image rm -f $(docker image ls -q 'oak-community/*') 2>/dev/null || true
 docker rm -f $(docker ps -aq --filter "label=oak.fixture=true") 2>/dev/null || true
 
 # 2. Home-directory state: PRIVATE KEYS, mailbox, extensions, runner journals
