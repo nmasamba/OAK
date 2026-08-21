@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Repository hygiene, documentation policy, and secret-pattern checks."""
+"""Repository hygiene, documentation policy, assurance-claim, and secret-pattern checks."""
 
 import re
 import subprocess
@@ -12,6 +12,30 @@ DOCUMENT_PATTERNS = (
     re.compile(r"\bOAK[\s-]+Enterprise\b", re.IGNORECASE),
     re.compile(r"\bOAK[\s-]+Cloud\b", re.IGNORECASE),
 )
+# Vocabulary that asserts assurance OAK Community does not have. The corpus was honest
+# before this gate existed; the gate makes it stay honest under edits and under future
+# contributors who do not know the history. A release that says "production-ready" or
+# "independently audited" is making a claim no accountable human has stood behind.
+#
+# An occurrence can be permitted by putting `<!-- assurance-claim-reviewed: why -->` on the
+# same line or the line above. Use it for a sentence that *denies* the claim — the escape
+# exists so that documenting what OAK is not stays possible.
+ASSURANCE_PATTERNS = (
+    re.compile(r"\bproduction[\s-]ready\b", re.IGNORECASE),
+    re.compile(r"\benterprise[\s-]grade\b", re.IGNORECASE),
+    re.compile(r"\bbattle[\s-]tested\b", re.IGNORECASE),
+    re.compile(r"\b(?:bank|military)[\s-]grade\b", re.IGNORECASE),
+    re.compile(r"\bunhackable\b", re.IGNORECASE),
+    re.compile(r"\bsecure[\s-]by[\s-]default\b", re.IGNORECASE),
+    re.compile(r"\b(?:SOC[\s-]?2|ISO[\s-]?27001|FedRAMP|HIPAA[\s-]compliant)\b"),
+    re.compile(r"\bpenetration[\s-]test", re.IGNORECASE),
+    re.compile(r"\b(?:externally|independently|third[\s-]party)[\s-]audited\b", re.IGNORECASE),
+    re.compile(r"\bthird[\s-]party\s+(?:audit|assurance|review)\b", re.IGNORECASE),
+    re.compile(r"\bcertified\b", re.IGNORECASE),
+    re.compile(r"\bformally[\s-]verified\b", re.IGNORECASE),
+)
+ASSURANCE_ESCAPE = "<!-- assurance-claim-reviewed:"
+
 SECRET_PATTERNS = (
     re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"),
     re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
@@ -39,9 +63,28 @@ def _check_patterns() -> list[str]:
             for pattern in DOCUMENT_PATTERNS:
                 if pattern.search(text):
                     failures.append(f"{relative}: prohibited product reference")
+            failures.extend(_assurance_claims(relative, text))
         for pattern in SECRET_PATTERNS:
             if pattern.search(text):
                 failures.append(f"{relative}: possible committed secret")
+    return failures
+
+
+def _assurance_claims(relative: Path, text: str) -> list[str]:
+    """Report unqualified assurance claims in one markdown document."""
+
+    lines = text.splitlines()
+    failures: list[str] = []
+    for number, line in enumerate(lines, start=1):
+        previous = lines[number - 2] if number >= 2 else ""
+        if ASSURANCE_ESCAPE in line or ASSURANCE_ESCAPE in previous:
+            continue
+        for pattern in ASSURANCE_PATTERNS:
+            match = pattern.search(line)
+            if match:
+                failures.append(
+                    f"{relative}:{number}: unqualified assurance claim {match.group(0)!r}"
+                )
     return failures
 
 

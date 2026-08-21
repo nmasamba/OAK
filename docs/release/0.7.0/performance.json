@@ -1,0 +1,107 @@
+{
+  "measurements": {
+    "api_reads": {
+      "caveat": "One case, no concurrency, one client. Read cost is history-dependent - pagination slices in Python after loading and the audit endpoint reads every audit artifact - so a workspace with many cases and deep history will be slower. Treat this as a floor, not a service level. The design-case list endpoint is not measured: it needs the PostgreSQL case directory, which file mode does not provide.",
+      "description": "Sequential single-client reads over loopback HTTP against a file-backed control plane holding one interpreted reference case.",
+      "design_case_audit": {
+        "max_ms": 62.81,
+        "median_ms": 50.66,
+        "min_ms": 50.32,
+        "p95_ms": 54.2,
+        "p99_ms": 58.42,
+        "samples": 200
+      },
+      "design_case_read": {
+        "max_ms": 35.78,
+        "median_ms": 27.23,
+        "min_ms": 26.99,
+        "p95_ms": 30.23,
+        "p99_ms": 33.18,
+        "samples": 200
+      },
+      "requirement": "OAK-NFR-PERF-002 (p95 interactive read within 500 ms)",
+      "version_endpoint": {
+        "max_ms": 0.76,
+        "median_ms": 0.54,
+        "min_ms": 0.51,
+        "p95_ms": 0.58,
+        "p99_ms": 0.68,
+        "samples": 200
+      }
+    },
+    "not_measured": {
+      "bounded_runner_operation": "The read-only five-operation runner plan is exercised end to end by tests/e2e/test_runner_journey.py. Its wall-clock cost is dominated by Docker availability on the host, so a figure here would measure the daemon.",
+      "concurrent_api_load": "No load driver exists. The p95 above is sequential and single-client.",
+      "outbox_drain_rate": "Requires a Compose stack with the worker stopped and restarted mid-burst. Not automated; /v1/system/outbox-lag exposes the point-in-time snapshot an operator samples manually."
+    },
+    "operation_restart": {
+      "note": "Lease re-claim timing is exercised by tests/integration/test_operations.py::test_operation_lease_expiry_retry_backoff_and_terminal_failure, which drives the clock deterministically rather than sleeping. A wall-clock figure here would measure the test's fake clock.",
+      "status": "store constructed",
+      "store": "PostgreSQLOperationStore"
+    },
+    "reference_compiler": {
+      "description": "One full reference case: intake, interpretation, confirmation, candidate generation, evaluation, selection, assurance, compilation, signing and dispatch.",
+      "max_ms": 8229.73,
+      "median_ms": 8208.61,
+      "min_ms": 8127.27,
+      "p95_ms": 8229.73,
+      "p99_ms": 8229.73,
+      "requirement": "OAK-NFR-PERF-001 (three variants within 120 s)",
+      "samples": 3
+    },
+    "workspace_growth": {
+      "description": "Manifest read latency at two workspace depths: freshly initialised, and after the full reference journey. Nothing in OAK deletes history, so this only grows.",
+      "points": [
+        {
+          "indexed_artifacts": 0,
+          "manifest_read": {
+            "max_ms": 3.83,
+            "median_ms": 3.61,
+            "min_ms": 3.56,
+            "p95_ms": 3.72,
+            "p99_ms": 3.83,
+            "samples": 25
+          }
+        },
+        {
+          "indexed_artifacts": 43,
+          "manifest_read": {
+            "max_ms": 275.62,
+            "median_ms": 263.89,
+            "min_ms": 261.75,
+            "p95_ms": 269.88,
+            "p99_ms": 275.62,
+            "samples": 25
+          }
+        }
+      ]
+    }
+  },
+  "provenance": {
+    "artifact_version": "0.7.0",
+    "caveats": [
+      "Measured on one developer machine, not a controlled environment.",
+      "No warm-up isolation from operating-system caching or CPU scaling.",
+      "These are observations, not a service level objective."
+    ],
+    "hardware": {
+      "architecture": "arm64",
+      "cpu_count": 10,
+      "operating_system": "darwin",
+      "ram_gib": 64.0,
+      "storage_gib": 1858.2
+    },
+    "source_commit": "79719980d2bc933acb5d9b4b24d144e4ccb400da",
+    "source_tree_dirty": true,
+    "toolchain": {
+      "implementation": "CPython",
+      "platform": "macOS-26.3.1-arm64-arm-64bit-Mach-O",
+      "python": "3.13.12"
+    },
+    "workload": {
+      "catalogue_component_manifests": 3,
+      "persistence": "file workspace",
+      "reference_brief": "examples/briefs/public-manual-qa.yaml"
+    }
+  }
+}
