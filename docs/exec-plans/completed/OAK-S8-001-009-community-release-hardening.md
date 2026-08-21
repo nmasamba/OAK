@@ -7,7 +7,7 @@
 - Owner/agent: Claude
 - Started: 2026-08-21
 - Last updated: 2026-08-21
-- State: done (except `OAK-S8-009`, which requires named human approval)
+- State: done; `OAK-S8-009` decided by the owner on 2026-08-22
 - Claimed tasks: `OAK-S8-001`–`OAK-S8-009`
 
 ## Outcome
@@ -322,6 +322,17 @@ and re-running `uv lock`.
   boundary between the distributions.
 
 ## Decisions
+
+- 2026-08-22 **`0.7.0` approved by `nmasamba` in all three roles** (maintainer, security,
+  licence) after review, recorded in `docs/release/0.7.0/release-decision.md`. The agent
+  that prepared the evidence did not sign it. Two conditions travel with the approval and
+  are not discharged by it: `RR-035` (no container scan; images' OS packages unassessed) is
+  accepted with base-image digest pinning as the weaker control it is, and `RR-001` and
+  `RR-003` are accepted as non-blocking **for a local-first developer release only** —
+  both become P0 before any release permitting a runner off the operator's machine. All
+  three roles being held by one person is stated in the record, because it means the
+  security and licence judgements were not independent of the maintainer judgement.
+
 
 - 2026-08-21 **The release version is `0.7.0`, not `0.1.0`** (owner decision). `sprints.md`
   names the release target `0.1.0`, but `VERSION` and `pyproject.toml` are `0.6.0.dev6` and PEP

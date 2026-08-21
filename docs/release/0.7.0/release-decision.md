@@ -2,11 +2,11 @@
 
 # Release decision record — OAK Community 0.7.0
 
-**Status: awaiting named human approval. This release is not approved.**
+**Status: approved by `nmasamba` on 2026-08-22, all three roles.**
 
-This document assembles the evidence a maintainer needs to decide, and reserves the places
-where accountable people sign. It does not, and cannot, contain that decision. The person
-or agent who prepared the evidence is not in a position to approve it.
+This document assembles the evidence a maintainer needed to decide, and records who signed.
+The person or agent who prepared the evidence was not in a position to approve it, and did
+not: the approval below was given by the repository owner after review.
 
 ## What is being decided
 
@@ -125,9 +125,27 @@ signature.
 
 | Role | Approving that | Name | Date |
 |---|---|---|---|
-| Maintainer | The release is functionally what it claims to be, and the evidence above is sufficient | *(unassigned)* | |
-| Security | The residual-risk register is complete and correctly scoped, and the P0 proposal above is accepted or amended | *(unassigned)* | |
-| Licence | The Apache-2.0 declaration and the generated third-party inventory are correct, including the LGPL-3.0 Psycopg entry | *(unassigned)* | |
+| Maintainer | The release is functionally what it claims to be, and the evidence above is sufficient | `nmasamba` | 2026-08-22 |
+| Security | The residual-risk register is complete and correctly scoped, and the P0 proposal above is accepted or amended | `nmasamba` | 2026-08-22 |
+| Licence | The Apache-2.0 declaration and the generated third-party inventory are correct, including the LGPL-3.0 Psycopg entry | `nmasamba` | 2026-08-22 |
 
-Until all three are filled in, `0.7.0` is a candidate, not a release. The tag should not be
-pushed and `STATUS.md` should continue to show `OAK-S8-009` as incomplete.
+> **All three roles are held by one person.** That is a normal situation for a project this
+> size, and it is recorded here rather than left to be inferred, because it means the
+> security and licence judgements were **not independent** of the maintainer judgement. A
+> reader weighing this release should read the three signatures as one person's decision,
+> not as three separate reviews that happened to agree.
+
+### What was accepted
+
+- `RR-035`, that no container scan was performed and the OS packages in the shipped images
+  are unassessed, with the base-image digest pinning accepted as the weaker control it is.
+- The P0 proposal as written: `RR-001` (unsigned, fail-open revocation) and `RR-003` (the
+  resolved image digest is never verified) are accepted as non-blocking **for this release
+  only**, on the scoping argument above. **Both become P0 before any release that permits a
+  runner off the operator's machine, or a target that is not the fixture profile.** That
+  condition travels with the approval; it is not discharged by it.
+- The full residual-risk register as published, and the absence of any external review.
+
+Approval covers `0.7.0` as a local-first developer release. It is **not** a Gate 2/3
+deployment approval, and it does not authorise publication: where these artifacts go, if
+anywhere, remains a separate decision.

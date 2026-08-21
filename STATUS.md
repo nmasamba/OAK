@@ -4,12 +4,13 @@
 
 - **Updated:** 2026-08-22
 - **Repository version:** `0.7.0`
-- **Phase:** Sprint 8 complete — Community release hardening; `0.7.0` is a candidate awaiting named approval
+- **Phase:** Sprint 8 complete — Community release hardening; `0.7.0` approved as a local-first developer release
 - **Completed plans:** `docs/exec-plans/completed/OAK-S0-001-009-walking-skeleton.md`, `docs/exec-plans/completed/OAK-S1-001-010-local-design-case.md`, `docs/exec-plans/completed/OAK-S2-001-011-candidate-planning.md`, `docs/exec-plans/completed/OAK-S3-001-009-persistent-rest-jobs.md`, `docs/exec-plans/completed/OAK-S4-001-009-web-workspace.md`, `docs/exec-plans/completed/OAK-S5-001-011-signed-runner.md`, `docs/exec-plans/completed/OAK-S6-001-008-policy-adapter-sdk.md`, `docs/exec-plans/completed/OAK-S7-001-008-mcp-portal-interface-parity.md`, and `docs/exec-plans/completed/OAK-S8-001-009-community-release-hardening.md`
 - **Active plan:** none — Sprint 8 closed
-- **Next task:** named maintainer, security and licence approval of the `0.7.0` release
-  candidate, recorded in `docs/release/0.7.0/release-decision.md`. `OAK-S8-009` is not
-  agent-completable and was not self-approved
+- **Next task:** post-`0.7.0` work. The release was approved by `nmasamba` on 2026-08-22 in
+  all three roles (`docs/release/0.7.0/release-decision.md`); nothing is published, and no
+  tag is pushed. The approval carries a condition: `RR-001` and `RR-003` become P0 before
+  any release that permits a runner off the operator's machine
 
 ## Claimed work
 
@@ -98,7 +99,7 @@
 | `OAK-S8-006` | complete | Operator documentation from install through uninstall |
 | `OAK-S8-007` | complete | Contributor documentation and the release process |
 | `OAK-S8-008` | complete | Clean-room release-candidate rehearsal with archived evidence |
-| `OAK-S8-009` | blocked | Evidence, P0 proposal and known limitations prepared; named maintainer, security and licence approval outstanding |
+| `OAK-S8-009` | complete | Evidence, P0 proposal and known limitations published; approved by `nmasamba` in all three roles, 2026-08-22, with RR-001/RR-003 accepted only for a local-first release |
 
 ## Verification evidence
 
@@ -346,11 +347,14 @@
   login the release preparation would not perform). Base images are digest-pinned, which is
   not the same assurance. Recorded as `RR-035` and raised in its own section of the release
   decision so a maintainer sees it before signing.
-- `OAK-S8-009` is **not complete**. The evidence pack, the P0 blocker proposal and the
-  published known-limitations statement are prepared in
-  `docs/release/0.7.0/release-decision.md`; three named humans — maintainer, security and
-  licence — must sign before `0.7.0` is a release rather than a candidate. It was not
-  self-approved.
+- `OAK-S8-009` was decided by a human, not by the agent that prepared it. `nmasamba`
+  approved `0.7.0` on 2026-08-22 in all three roles — maintainer, security and licence —
+  after review. All three roles being held by one person is recorded in the decision record
+  itself, because it means the security and licence judgements were not independent of the
+  maintainer judgement. The approval accepts `RR-035` (images unscanned) and accepts
+  `RR-001` and `RR-003` as non-blocking **for a local-first developer release only**; both
+  become P0 before any release permitting a runner off the operator's machine. Approval is
+  not a Gate 2/3 deployment approval and does not authorise publication.
 
 ## Safety boundary
 
