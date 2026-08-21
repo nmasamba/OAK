@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: Apache-2.0
+# Backstage API entity for a locally running OAK Community control plane.
+# Registered alongside catalog-info.yaml; nothing in the OAK core imports it,
+# and it points only at the committed OpenAPI contract.
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: oak-community-api
+  title: OAK Community control-plane API
+  description: >-
+    Local design and planning control plane. The committed OpenAPI document is
+    the contract; approval, runner dispatch, and secret resolution are not
+    reachable through this API.
+  tags:
+    - oak
+    - architecture
+  links:
+    - url: http://127.0.0.1:8080/version
+      title: Version
+    - url: http://127.0.0.1:5173/
+      title: OAK web workspace
+spec:
+  type: openapi
+  lifecycle: experimental
+  owner: group:default/platform-team
+  definition:
+    $text: https://github.com/nmasamba/OAK/blob/main/openapi/oak.openapi.json

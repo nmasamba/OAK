@@ -100,6 +100,32 @@ The pnpm workspace permits an install-time build hook only for the lockfile-pinn
 
 Container base images use readable version tags plus immutable manifest digests. Updating a base requires an explicit manifest edit, rebuild, and audit rather than an implicit tag move.
 
+## Sprint 7 interface review
+
+The capability gap is a Model Context Protocol server and a remote CLI transport. No Python
+dependency was added for either.
+
+The MCP server implements the stdio transport in-tree over the standard library. Community
+exposes only `initialize`, `ping`, `tools/list` and `tools/call` on newline-delimited stdio;
+the reference `mcp` SDK would have added five runtime dependencies (`httpx`, `httpx-sse`,
+`sse-starlette`, `pydantic-settings`, `python-multipart`) to support HTTP and SSE transports
+that Community does not offer, enlarging the supply chain and the audit surface of the one
+interface whose whole purpose is boundedness. Supported protocol revisions are pinned in
+`SUPPORTED_PROTOCOL_VERSIONS` and governed by [compatibility.md](compatibility.md); the
+replacement seam is `oak.interfaces.mcp`, and adopting the SDK later would not change the
+tool contract. Revisit if Community needs HTTP transports or the resources/prompts/sampling
+capabilities.
+
+The remote CLI client uses `urllib.request` from the standard library with explicit timeouts
+and bounded reads rather than adding a runtime HTTP dependency. One bounded request per
+command against a local control plane does not justify enlarging the released dependency set;
+`httpx` remains a development-only dependency used by the API test suites. The replacement
+seam is `oak.interfaces.cli.remote.RemoteClient`.
+
+Webhook envelope verification reuses the existing `cryptography` Ed25519 primitives and the
+in-tree `oak.contracts.signatures` verifier; no new signing or HTTP-server dependency was
+introduced, and Community ships no webhook dispatcher.
+
 ## Maintenance reviews
 
 Reviews outside a sprint boundary are recorded here, newest first, under the same standard

@@ -51,10 +51,14 @@ def test_the_backstage_wiring_references_no_privileged_operation() -> None:
 
 
 def test_the_backstage_yaml_examples_parse_and_carry_no_credentials() -> None:
-    for name in ("catalog-info.yaml", "template.yaml", "app-config.oak.yaml"):
+    names = ("catalog-info.yaml", "catalog-api.yaml", "template.yaml", "app-config.oak.yaml")
+    for name in names:
         text = (BACKSTAGE / name).read_text(encoding="utf-8")
-        for document in yaml.safe_load_all(text):
-            assert isinstance(document, dict), name
+        documents = [document for document in yaml.safe_load_all(text) if document is not None]
+        # Single-document files only: the governance validator rejects multi-document
+        # YAML anywhere in the tree.
+        assert len(documents) == 1, name
+        assert isinstance(documents[0], dict), name
         lowered = text.casefold()
         for needle in ("password", "secret:", "token:", "authorization"):
             assert needle not in lowered, (name, needle)

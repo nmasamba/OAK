@@ -112,15 +112,15 @@ prohibition).
 | List questions | ○ | ○ | ○ | ○ | ○ |
 | Confirm claims | ● | ● | ● | ● | ● |
 | Generate candidates | ● | ● | ● | ● | ● |
-| List candidates | ○ | ○ | ○ | ○ | ○ |
+| List candidates | ● | ● | ○ | ○ | ○ |
 | Evaluate candidate | ● | ● | ● | ● | ● |
 | Select candidate | ● | ● | ● | — | ● |
 | Create assurance plan | ● | ● | ● | ● | ● |
 | Compile bundle | ● | ● | ● | ● | ● |
-| Read operation progress | ○ | ○ | ○ | ○ | ○ |
+| Read operation progress | — | — | ○ | ○ | ○ |
 | Cancel operation | — | — | ● | — | ● |
 | Export / import case | ● | ● | ● | — | ○ |
-| Read audit / artifacts | ○ | — | ○ | — | ○ |
+| Read audit / artifacts | — | — | ○ | — | ○ |
 | Validate export/bundle/webhook | ● | — | — | — | — |
 | Sign plan | ● | ✕ | — | ✕ | — |
 | Approve / revoke approval | ● | ✕ | — | ✕ | — |
@@ -138,6 +138,20 @@ Notes:
 - The MCP tool set is exactly the ten interface-contract tools plus the
   read-only `oak_operation_get` progress query. A contract test pins this set;
   a new tool cannot appear without failing it.
+- The CLI has no separate candidate-list command: `oak candidates` generates and
+  displays them, converging on the existing set when retried with the same
+  idempotency key, so that cell is marked available rather than read-only. REST,
+  MCP, and the web workspace each expose a distinct read.
+- Questions have no REST path of their own. Every interface derives them from the
+  `unresolved_questions` field of the case read, which is why the question set is
+  identical across all four interfaces in the conformance suite.
+- Durable operations exist only in the persistent (PostgreSQL) control plane. Local
+  CLI file mode runs the compiler stages synchronously and has no operation to read
+  or cancel; remote CLI polls the operation internally for its asynchronous commands
+  and exposes no standalone operation command.
+- The CLI reads audit events and artifacts through `oak export`, which emits the full
+  canonical set; there is no separate audit or artifact command. The web workspace
+  can download a canonical export but cannot import one.
 - `oak validate` is a server-free read-only checker (export, bundle, webhook)
   intended for CI and portals. It checks schema validity, digest integrity, and
   the execution-field ban across all three kinds. For a compiled bundle it

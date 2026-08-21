@@ -12,7 +12,8 @@ compilation, signing, approval — stays inside OAK's own interfaces.
 
 | File | Purpose |
 |---|---|
-| `catalog-info.yaml` | An `API` entity over the committed OpenAPI contract and a `Component` whose card reads case/gate state through documented `GET` paths |
+| `catalog-info.yaml` | The `Component` entity whose card reads case/gate state through documented `GET` paths |
+| `catalog-api.yaml` | The `API` entity over the committed OpenAPI contract |
 | `template.yaml` | A Software Template creating a draft design case through `POST /v1/design-cases` with an explicit idempotency key |
 | `app-config.oak.yaml` | The proxy fragment that forwards only the documented command headers to a loopback OAK API |
 
@@ -21,7 +22,7 @@ compilation, signing, approval — stays inside OAK's own interfaces.
 1. Run the OAK stack locally (`docker compose up -d postgres migrate api worker web`
    or `uv run oak-api` with a migrated database).
 2. Merge `app-config.oak.yaml` into your Backstage app config.
-3. Register `catalog-info.yaml` and `template.yaml` in the catalogue.
+3. Register `catalog-info.yaml`, `catalog-api.yaml`, and `template.yaml` in the catalogue.
 4. The template step uses the community `http:backstage:request` scaffolder
    action; install that optional backend module or replace the step with your
    own HTTP action.
