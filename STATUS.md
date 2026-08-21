@@ -4,10 +4,10 @@
 
 - **Updated:** 2026-08-21
 - **Repository version:** `0.6.0.dev6`
-- **Phase:** Sprint 7 in progress — MCP, portal and interface parity
-- **Completed plans:** `docs/exec-plans/completed/OAK-S0-001-009-walking-skeleton.md`, `docs/exec-plans/completed/OAK-S1-001-010-local-design-case.md`, `docs/exec-plans/completed/OAK-S2-001-011-candidate-planning.md`, `docs/exec-plans/completed/OAK-S3-001-009-persistent-rest-jobs.md`, `docs/exec-plans/completed/OAK-S4-001-009-web-workspace.md`, `docs/exec-plans/completed/OAK-S5-001-011-signed-runner.md`, and `docs/exec-plans/completed/OAK-S6-001-008-policy-adapter-sdk.md`
-- **Active plan:** `docs/exec-plans/active/OAK-S7-001-008-mcp-portal-interface-parity.md`
-- **Next task:** implement `OAK-S7-001` (bounded MCP server)
+- **Phase:** Sprint 7 complete — MCP, portal and interface parity
+- **Completed plans:** `docs/exec-plans/completed/OAK-S0-001-009-walking-skeleton.md`, `docs/exec-plans/completed/OAK-S1-001-010-local-design-case.md`, `docs/exec-plans/completed/OAK-S2-001-011-candidate-planning.md`, `docs/exec-plans/completed/OAK-S3-001-009-persistent-rest-jobs.md`, `docs/exec-plans/completed/OAK-S4-001-009-web-workspace.md`, `docs/exec-plans/completed/OAK-S5-001-011-signed-runner.md`, `docs/exec-plans/completed/OAK-S6-001-008-policy-adapter-sdk.md`, and `docs/exec-plans/completed/OAK-S7-001-008-mcp-portal-interface-parity.md`
+- **Active plan:** none — Sprint 7 closed; Sprint 8 (Community release hardening) is next
+- **Next task:** author and claim the Sprint 8 (`OAK-S8-001`–`OAK-S8-009`) ExecPlan
 
 ## Claimed work
 
@@ -225,7 +225,40 @@
   which `.github/workflows/ci.yml` runs on every push and pull request, and that workflow
   now passes. The deferred item was the dedicated workflow step, which remains unadded and
   unnecessary.
+- Sprint 7 delivered MCP, portal, and interface parity. A bounded stdio MCP server exposes
+  the ten interface-contract tools plus a read-only operation-progress query with closed
+  schemas that mirror the REST bounds; it has no approval, signing, dispatch, secret,
+  policy-override, file, or command tool, and a capability-matrix contract test pins the
+  registry. The CLI gained a remote (`--server`) mode over the `/v1` surface with stable
+  output and exit codes, digest-checked local writes, and fail-closed refusal of the
+  local-only signing/approval/dispatch/keys/extensions/policy commands. A canonical
+  `webhook-envelope` schema, a pinned-key signed example, and a server-free
+  `oak validate export/bundle/webhook` checker support CI and portals; Backstage starters use
+  only documented REST behavior. `docs/compatibility.md` and `docs/interfaces.md` publish the
+  compatibility policy and the permission/capability matrix.
+- Sprint 7 verification: full `make check` green (verified by counting `make: ***` lines, not
+  exit code) — 335 unit/contract, 126 integration with 4 gated skips against the pinned
+  PostgreSQL 17.6, and 16 end-to-end tests, plus validate/format/lint/boundary/type/
+  generated-OpenAPI-compatibility/web-build gates. The OpenAPI contract and its compatibility
+  baseline are unchanged (Sprint 7 added no REST path). Byte-stability was verified directly:
+  the reference case compiled on `main` and on the Sprint 7 branch produced identical
+  deployment-bundle, runner-plan, semantic-manifest, and selected-candidate digests, with the
+  case stable at `0.1.7`. A four-interface conformance suite (file CLI, remote CLI, REST, MCP)
+  matched candidate/bundle/semantic digests, denial codes, idempotent retries, and audit
+  outcomes.
+- A six-lens multi-agent adversarial audit ran against the Sprint 7 diff with independent
+  per-finding refutation and a repo-wide latent sweep. Eleven candidates were raised; two
+  independent skeptics confirmed their findings and the remaining eight candidates were
+  verified directly against the code after the skeptics hit a session limit, each reproduced
+  before acceptance. The authority invariant held — no MCP tool, remote-CLI path, portal
+  example, or webhook could reach a forbidden capability. Six real defects were fixed
+  (untrusted-YAML anchor expansion in the webhook validator; wrong-shape server responses
+  crashing the remote CLI instead of a stable code; the execution-field ban being enforced
+  only for bundles and not exports/webhooks; an MCP handler error mislabeled as unknown-tool
+  or crashing the session; a vacuous MCP/REST bounds-parity test; and a remote-`design`
+  idempotency-key inconsistency). Four scoped limitations are recorded in the completed
+  ExecPlan.
 
 ## Safety boundary
 
-The current harness accepts bounded local architecture briefs, catalogue files, rationale, and target profiles and treats their content as untrusted data. It has no mandatory or real model-provider call and no secret resolution. Signing, approval, runner dispatch, and target mutation now exist in explicitly local development form: keys are labelled `development`, the runner reaches only an isolated non-production fixture profile that opts in through an explicit acknowledgement, and the sole permitted mutation is creating and removing one network-isolated, never-started container through a fixed allowlisted argument vector. Every mutating operation requires a separately signed, current, digest and target bound approval that the runner verifies independently before any target access. A compiled plan is inert until it is signed, approved, and independently verified by the runner. Governed extensions and policy packs are untrusted input: they are quarantined on install, verified against pinned local trust anchors, and never executed — an extension payload is data, and a deployment-adapter extension only binds configuration to an in-tree renderer identity. Policy evaluation is fail-closed, an undecidable condition can never yield an automated allow, and an optional external policy engine that disagrees with the built-in reference engine is refused rather than published. All committed fixtures are public or synthetic.
+The current harness accepts bounded local architecture briefs, catalogue files, rationale, and target profiles and treats their content as untrusted data. It has no mandatory or real model-provider call and no secret resolution. Signing, approval, runner dispatch, and target mutation now exist in explicitly local development form: keys are labelled `development`, the runner reaches only an isolated non-production fixture profile that opts in through an explicit acknowledgement, and the sole permitted mutation is creating and removing one network-isolated, never-started container through a fixed allowlisted argument vector. Every mutating operation requires a separately signed, current, digest and target bound approval that the runner verifies independently before any target access. A compiled plan is inert until it is signed, approved, and independently verified by the runner. Governed extensions and policy packs are untrusted input: they are quarantined on install, verified against pinned local trust anchors, and never executed — an extension payload is data, and a deployment-adapter extension only binds configuration to an in-tree renderer identity. Policy evaluation is fail-closed, an undecidable condition can never yield an automated allow, and an optional external policy engine that disagrees with the built-in reference engine is refused rather than published. The bounded MCP server and the CLI's remote mode are additional transports onto the same application services and grant no authority: the MCP surface is design/read only with no approval, signing, dispatch, secret, policy-override, file, or command tool, and remote mode refuses the local-only signing and runner commands rather than acting on local state. Remote mode trusts the control plane it is pointed at; a wrong-shape response is refused with a stable code rather than crashing. Signed webhook envelopes and compiled review bundles are verified against pinned keys and existing digest edges only, and are not themselves execution authority. All committed fixtures are public or synthetic, and the committed webhook publisher key is public material whose private half was discarded.

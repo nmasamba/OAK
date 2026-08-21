@@ -7,7 +7,7 @@
 - Owner/agent: Claude
 - Started: 2026-08-21
 - Last updated: 2026-08-21
-- State: in progress
+- State: done
 - Claimed tasks: `OAK-S7-001`–`OAK-S7-008`
 
 ## Outcome
@@ -262,6 +262,18 @@ surface; no migration, key rotation, or data change is involved.
   non-tool method is refused, a forbidden execution field in a target profile is refused
   with no operation enqueued, malformed frames keep the session alive, and a denied
   mutation leaves no workspace or operation state. Runs db-free in `make test-integration`.
+- [x] 2026-08-21 M7 documentation and closure: `docs/interfaces.md` (setup, permission model,
+  capability matrix, unavailable operations), `docs/compatibility.md`, and
+  development/architecture/README updates; CHANGELOG and STATUS updated; e2e entrypoint tests
+  for `oak-mcp` and `oak validate`. Full `make check` green (verified by counting `make: ***`
+  lines: 0) — 335 unit/contract, 126 integration (+4 gated skips) against pinned PostgreSQL
+  17.6, 16 e2e, plus every static gate; the OpenAPI contract and baseline are unchanged.
+  Byte-stability verified directly against `main` (identical deployment-bundle, runner-plan,
+  semantic-manifest, selected-candidate digests, case `0.1.7`).
+- [x] 2026-08-21 Adversarial audit and remediation: six-lens multi-agent audit with
+  independent per-finding refutation plus owner verification of every candidate; six real
+  defects fixed and four scoped limitations recorded (see Post-implementation audit). Full
+  `make check` re-run green after the fixes; byte-stability re-verified unchanged.
 
 ## Decisions
 
