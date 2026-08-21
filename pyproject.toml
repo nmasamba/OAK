@@ -39,7 +39,7 @@ oak-api = "oak.interfaces.api.server:main"
 oak-db-migrate = "oak.interfaces.migrations:main"
 oak-worker = "oak.interfaces.worker:main"
 oak-runner = "oak.runner.main:main"
-oak-mcp = "oak.interfaces.placeholders:mcp_main"
+oak-mcp = "oak.interfaces.mcp.server:main"
 
 [dependency-groups]
 dev = [

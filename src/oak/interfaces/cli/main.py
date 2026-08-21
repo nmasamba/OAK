@@ -468,6 +468,23 @@ def serve(
         raise typer.Exit(code=2) from error
 
 
+mcp_app = typer.Typer(
+    name="mcp",
+    help="Bounded typed Model Context Protocol interface.",
+    no_args_is_help=True,
+)
+app.add_typer(mcp_app, name="mcp")
+
+
+@mcp_app.command("serve")
+def mcp_serve() -> None:
+    """Serve the bounded design/read MCP tool set on stdio."""
+
+    from oak.interfaces.mcp.server import main as run_mcp_server
+
+    run_mcp_server()
+
+
 @app.command()
 def keys(
     action: Annotated[str, typer.Argument(help="init or show.")],

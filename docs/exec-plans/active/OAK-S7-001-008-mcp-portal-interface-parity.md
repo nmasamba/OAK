@@ -207,6 +207,14 @@ surface; no migration, key rotation, or data change is involved.
 
 - [x] 2026-08-21 ExecPlan authored; tasks claimed in `STATUS.md`; branch
   `claude/sprint-7-mcp-portal-interface-parity` created from `origin/main` at `91485c1`.
+- [x] 2026-08-21 M1 MCP server core: `oak.interfaces.mcp` with bounded stdio JSON-RPC
+  framing (1 MiB frame limit enforced during read), the eleven-tool registry with closed
+  schemas mirroring REST bounds, local actor/tenant authority, `oak-mcp` and
+  `oak mcp serve` entrypoints, placeholders module deleted. 15 protocol unit tests, 6
+  capability-matrix contract tests, and a db-free integration journey over real frames
+  (create → interpret → confirm → generate → evaluate → out-of-band select → assure →
+  compile, ending `bundle_compiled` at case `0.1.7`) all pass; full unit/contract suite is
+  329 passed and strict mypy covers 112 files.
 
 ## Decisions
 
