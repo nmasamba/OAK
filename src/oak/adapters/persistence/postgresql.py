@@ -42,9 +42,17 @@ MAXIMUM_EXPORT_BYTES = 67_108_864
 
 
 def create_postgresql_engine(database_url: str) -> Engine:
-    """Create the replaceable synchronous SQLAlchemy boundary used by API and worker."""
+    """Create the replaceable synchronous SQLAlchemy boundary used by API and worker.
 
-    return create_engine(database_url, pool_pre_ping=True)
+    `hide_parameters=True` is a confidentiality control, not a preference. Canonical
+    documents — including the user's brief text — are bound as statement parameters, and
+    SQLAlchemy's default embeds bound values in `StatementError` messages. The API's own
+    handler returns a safe 500 without reading the exception, but Starlette re-raises
+    afterwards and uvicorn's error logger writes the whole traceback to stderr, which
+    under Compose is the container log. That is the TM-10 log-leak path.
+    """
+
+    return create_engine(database_url, pool_pre_ping=True, hide_parameters=True)
 
 
 class PostgreSQLReadinessProbe:

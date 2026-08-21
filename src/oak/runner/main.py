@@ -16,6 +16,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+import yaml
+
 from oak.contracts import load_yaml_document
 from oak.domain import OAKError
 from oak.runner.execution import execute_dispatch
@@ -45,12 +47,33 @@ def run_once(*, cancellation_requested: bool = False) -> int:
     target_path = _environment_path("OAK_RUNNER_TARGET_PROFILE")
     runner_id = os.getenv("OAK_RUNNER_ID", "runner.local-fixture-runner")
 
+    # Configuration failures must arrive as a stable code, not a traceback. An
+    # unreadable profile used to raise OSError and a malformed one ContractValidationError
+    # (a ValueError); `main` catches only OAKError, so both escaped as a Python traceback
+    # that disclosed absolute paths and profile fragments on an operator's terminal.
     registry = load_registry()
-    target_document = load_yaml_document(target_path.read_text(encoding="utf-8"))
-    registry.validate("target-profile.schema.json", target_document)
-    identity = RunnerIdentity.load_or_create(home, runner_id)
-    mailbox = RunnerMailbox(mailbox_root, home)
-    anchors = TrustAnchors.from_directory(trust_directory)
+    try:
+        target_document = load_yaml_document(target_path.read_text(encoding="utf-8"))
+        registry.validate("target-profile.schema.json", target_document)
+    except OSError as error:
+        raise OAKError(
+            "OAK-RUNNER-CONFIG", "OAK_RUNNER_TARGET_PROFILE could not be read"
+        ) from error
+    # `yaml.YAMLError` is not a `ValueError`; the same pair is caught at every other
+    # untrusted-YAML boundary in the codebase (local_file.py, local_profile.py,
+    # local_catalogue.py, cli/main.py). The runner was the one that missed it.
+    except (ValueError, yaml.YAMLError) as error:
+        raise OAKError(
+            "OAK-RUNNER-CONFIG", "OAK_RUNNER_TARGET_PROFILE is not a valid target profile"
+        ) from error
+    try:
+        identity = RunnerIdentity.load_or_create(home, runner_id)
+        mailbox = RunnerMailbox(mailbox_root, home)
+        anchors = TrustAnchors.from_directory(trust_directory)
+    except OSError as error:
+        raise OAKError(
+            "OAK-RUNNER-CONFIG", "the runner home, mailbox or trust anchors are unreadable"
+        ) from error
     now = _now()
 
     processed_any = False
