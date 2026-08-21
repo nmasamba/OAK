@@ -41,6 +41,7 @@ EXAMPLE_BY_SCHEMA = {
     "source-record.schema.json": "example-source-record.yaml",
     "system-intent.schema.json": "example-intent.yaml",
     "target-profile.schema.json": "targets/local-fixture.yaml",
+    "webhook-envelope.schema.json": "example-webhook-envelope.yaml",
     "workspace-manifest.schema.json": "example-workspace-manifest.yaml",
 }
 

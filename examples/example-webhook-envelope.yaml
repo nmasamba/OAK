@@ -1,0 +1,48 @@
+# SPDX-License-Identifier: Apache-2.0
+schema_version: 0.1.0
+id: webhook.design-case.public-manual-qa.1
+version: 0.1.0
+delivery_id: delivery.9b98c930bef7e4461f3bbea76b81f839
+case_id: design-case.public-manual-qa
+tenant_id: local
+sequence: 1
+published_at: '2026-08-21T12:00:00Z'
+event:
+  schema_version: 0.4.0
+  id: audit.design-case.public-manual-qa.1
+  sequence: 1
+  previous_event_digest: null
+  case_id: design-case.public-manual-qa
+  case_version: 0.1.0
+  event_type: brief_interpreted
+  actor: local-user
+  tenant_id: local
+  interface_origin: cli
+  correlation_id: correlation-public-manual-qa
+  idempotency_key: design-public-manual-qa-0001
+  input_digest: sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+  occurred_at: '2026-08-17T10:01:00Z'
+  result:
+    case_id: design-case.public-manual-qa
+    case_version: 0.1.0
+    intent_ref:
+      id: intent.public-manual-qa
+      version: 0.1.0
+      digest: sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      uri: null
+      media_type: application/vnd.oak.system-intent+json
+    source_record_ref:
+      id: source.public-manual-qa
+      version: 0.1.0
+      digest: sha256:1111111111111111111111111111111111111111111111111111111111111111
+      uri: null
+      media_type: application/vnd.oak.source-record+json
+  extensions: {}
+extensions: {}
+signature:
+  role: webhook-publisher
+  key_id: sha256:2397fa6840bd1fa312968ce9eb9b7f65e26115098f77e63fe1aaf94920ee3e31
+  algorithm: ed25519
+  public_key_base64: QtGEe07UCpenJw1j8QiNpxUeMMZLuCNAEN0BC+CRMZE=
+  trust_level: development
+  signature_base64: JYOxXjhhoYH397L+GmTjWOjN9i+Tdm8qn+JbL2UScVE7bmMA7ndva/zKY0HrXz5URmsfAl5OPPxhDnsjOnEmAw==

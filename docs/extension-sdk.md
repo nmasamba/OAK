@@ -124,7 +124,8 @@ files. Two renderers ship in-tree behind pinned identities in
   Kubernetes render (ADR-0005's recorded second backend; Kubernetes stays
   optional and nothing executes helm or kubectl).
 
-`oak render --adapter <id> --output <dir>` writes files read-only: swapping
+`oak render --adapter <id> --output <dir>` renders into a new directory and is read-only
+with respect to the case: swapping
 renderers changes target artifacts only — the case, its digests, and its
 decision lineage are untouched. A new backend is contributed as reviewed
 source implementing the port plus a registered identity, and must pass the

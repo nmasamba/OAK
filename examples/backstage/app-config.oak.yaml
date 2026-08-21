@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: Apache-2.0
+# Backstage app-config fragment: proxy a locally running OAK Community API so
+# catalogue cards and the template can call documented REST paths. The proxy
+# forwards the command headers OAK requires and nothing else; there is no
+# credential because Community's local mode has none — do not expose this
+# proxy beyond a local development portal.
+proxy:
+  endpoints:
+    '/oak':
+      target: http://127.0.0.1:8080
+      changeOrigin: false
+      allowedMethods: ['GET', 'POST']
+      allowedHeaders:
+        - Idempotency-Key
+        - If-Match
+        - X-Correlation-ID

@@ -8,6 +8,21 @@ All notable changes to OAK Community are recorded here.
 
 ### Added
 
+- Sprint 7 MCP, portal, and interface parity for `OAK-S7-001` through `OAK-S7-008`: a bounded
+  typed MCP server (`oak-mcp`, `oak mcp serve`) exposing the ten interface-contract tools plus
+  a read-only `oak_operation_get` progress query over newline-delimited JSON-RPC 2.0 stdio,
+  with closed schemas mirroring the REST bounds and no generic command, file, secret, policy,
+  approval, signing, or runner-dispatch tool; a remote CLI mode (`--server`/`OAK_SERVER`)
+  mapping the design journey onto REST with stable output and exit semantics; a public
+  compatibility policy (`docs/compatibility.md`) for schemas, REST/OpenAPI, CLI, MCP, and the
+  runner protocol; a four-interface conformance suite; Backstage and generic-portal starters;
+  a signed webhook example with a headless `oak validate export|bundle|webhook` checker; and
+  an interface/permission/capability reference (`docs/interfaces.md`).
+- Canonical `webhook-envelope` schema wrapping one audit event with a detached
+  Ed25519 signature for portal and CI consumers, verified against a pinned publisher key.
+- Root CLI `--server` option, `--case` selectors on `evaluate`/`select`/`assure`/`plan`, and
+  the `oak validate` and `oak mcp serve` commands; the Sprint 0 `oak-mcp` placeholder is
+  replaced by the real server and the dead worker/runner placeholder siblings are removed.
 - Sprint 6 policy and adapter SDK for `OAK-S6-001` through `OAK-S6-008`: versioned extension
   interfaces for the five extension classes with deterministic capability discovery, a policy
   port with a fail-closed built-in rule engine and an optional OPA adapter that must agree
@@ -104,6 +119,29 @@ All notable changes to OAK Community are recorded here.
 
 ### Security
 
+- The MCP server and remote CLI are transports that add no authority: MCP frames are
+  size-bounded during read (including newline-free floods), an adversarially deep frame is a
+  clean parse error rather than a `RecursionError` crash, tool schemas are closed and mirror
+  the REST bounds, the four execution-field names remain impossible in any canonical document,
+  and the claimed actor/tenant are verified against the bound local identity with the same
+  opaque cross-tenant denial as REST. Approval, signing, revocation, dispatch, secret
+  resolution, policy override, and runner apply are absent from both new transports by
+  construction and pinned out of the MCP tool registry by a capability-matrix contract test.
+- Remote CLI mode checks every document it writes locally against the case references in the
+  same response, so a control plane that returns a document inconsistent with the case it
+  also reports (transport corruption or a buggy/version-skewed server) is refused with
+  `OAK-REMOTE-DIGEST`; because that reference is itself server-supplied, the check detects an
+  inconsistent server, not a fully malicious one, so remote mode still requires a trusted
+  control plane. A malformed or wrong-shape server response is refused with a stable
+  `OAK-REMOTE-PROTOCOL` code and exit 2 rather than a stack trace, remote mode sends no secret
+  values and derives idempotency keys from content digests, and it fails closed with
+  `OAK-REMOTE-UNSUPPORTED` for local-only signing/approval/dispatch/keys/extensions/policy
+  commands rather than acting on local state.
+- The signed webhook example is verified against a pinned committed publisher key, never the
+  key embedded in the envelope; the signing private key was discarded and no private key is
+  committed. `oak validate` is read-only, opens files with `O_NOFOLLOW`, parses untrusted YAML with the
+  alias-free reader, and refuses any export object, bundle document, or webhook envelope
+  carrying a `command`/`shell`/`executable`/`argv` field.
 - `cryptography` was upgraded from 46.0.7 to 50.0.0 after `pip-audit` reported four
   advisories (`GHSA-537c-gmf6-5ccf`, `PYSEC-2026-3552`, `PYSEC-2026-3553`,
   `PYSEC-2026-3554`) in the locked version. None is reachable from OAK, which uses

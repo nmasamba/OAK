@@ -12,10 +12,13 @@ import unicodedata
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
-from typing import Annotated, Any, NoReturn
+from typing import TYPE_CHECKING, Annotated, Any, NoReturn
 
 import typer
 import yaml
+
+if TYPE_CHECKING:
+    from oak.interfaces.cli.remote import RemoteClient
 
 from oak.application import (
     CandidatePlanningService,
@@ -54,6 +57,9 @@ def _version_callback(value: bool) -> None:
         raise typer.Exit()
 
 
+_REMOTE_SERVER: str | None = None
+
+
 @app.callback()
 def root(
     version: Annotated[
@@ -65,8 +71,45 @@ def root(
             help="Show the OAK Community version and exit.",
         ),
     ] = False,
+    server: Annotated[
+        str | None,
+        typer.Option(
+            "--server",
+            envvar="OAK_SERVER",
+            help="Remote control-plane URL; run this command over REST instead of the "
+            "local workspace.",
+        ),
+    ] = None,
 ) -> None:
     """OAK Community command group."""
+
+    global _REMOTE_SERVER
+    _REMOTE_SERVER = server
+
+
+def _remote() -> "RemoteClient | None":
+    if _REMOTE_SERVER is None:
+        return None
+    from oak.interfaces.cli.remote import RemoteClient
+
+    return RemoteClient(_REMOTE_SERVER, actor=os.getenv("OAK_ACTOR"))
+
+
+def _require_local(command: str) -> None:
+    if _REMOTE_SERVER is not None:
+        raise OAKError(
+            "OAK-REMOTE-UNSUPPORTED",
+            f"{command} is local-only and is not available in remote mode",
+        )
+
+
+def _remote_case_id(design_case: str | None) -> str:
+    if design_case is None:
+        raise OAKError(
+            "OAK-REMOTE-CASE-REQUIRED",
+            "remote mode requires an explicit design-case identifier",
+        )
+    return design_case
 
 
 @app.command("init")
@@ -79,6 +122,11 @@ def init_workspace(
     """Initialize an atomic local OAK workspace."""
 
     try:
+        if _REMOTE_SERVER is not None:
+            raise OAKError(
+                "OAK-REMOTE-UNSUPPORTED",
+                "init is local-only; a remote case is created by oak design",
+            )
         root_path = directory.absolute()
         workspace_id = _workspace_id(root_path)
         create_design_case_service(root_path).initialize(
@@ -113,6 +161,10 @@ def design(
     """Ingest and deterministically interpret a local brief."""
 
     try:
+        remote = _remote()
+        if remote is not None:
+            _remote_design(remote, brief, idempotency_key, output)
+            return
         service = _workspace_service()
         result = service.design(
             brief,
@@ -133,6 +185,46 @@ def design(
         _abort(error)
 
 
+def _remote_design(
+    remote: "RemoteClient",
+    brief: Path,
+    idempotency_key: str | None,
+    output: OutputFormat,
+) -> None:
+    from oak.interfaces.cli import remote as remote_mode
+
+    content = _read_bounded_file(brief, prefix="OAK-INTAKE", maximum_bytes=262_144)
+    identity = idempotency_key or remote_mode.content_identity(content)
+    created = remote.create_design_case(
+        original_name=brief.name,
+        content=content.decode("utf-8"),
+        idempotency_key=remote_mode.derived_key("create", identity),
+    )
+    # Both sub-calls derive their idempotency key from the same identity so a
+    # short user-supplied --idempotency-key cannot make create succeed and then
+    # make interpret fail the length check, leaving a half-applied journey.
+    interpreted = remote.interpret(
+        str(remote_mode.require_field(created, "case", "id")),
+        expected_version=str(remote_mode.require_field(created, "case", "version")),
+        idempotency_key=remote_mode.derived_key("interpret", identity),
+    )
+    case = remote_mode.require_field(interpreted, "case")
+    intent = interpreted.get("intent")
+    if not isinstance(intent, dict):
+        raise OAKError("OAK-INTENT-NOT-FOUND", "interpreted design has no intent artifact")
+    _emit(
+        intent,
+        output,
+        human=(
+            f"Design case {remote_mode.require_field(case, 'id')}@"
+            f"{remote_mode.require_field(case, 'version')} is "
+            f"{remote_mode.require_field(case, 'status')} with "
+            f"{len(remote_mode.require_field(case, 'unresolved_questions'))} questions"
+            + (" (idempotent retry)" if interpreted.get("duplicate") else "")
+        ),
+    )
+
+
 @app.command()
 def questions(
     design_case: Annotated[
@@ -145,6 +237,26 @@ def questions(
     """List the current deterministic clarification questions."""
 
     try:
+        remote = _remote()
+        if remote is not None:
+            from oak.interfaces.cli import remote as remote_mode
+
+            case = remote_mode.require_field(remote.get_case(_remote_case_id(design_case)), "case")
+            questions = remote_mode.require_field(case, "unresolved_questions")
+            document = {
+                "case_id": str(remote_mode.require_field(case, "id")),
+                "case_version": str(remote_mode.require_field(case, "version")),
+                "status": str(remote_mode.require_field(case, "status")),
+                "questions": list(questions) if isinstance(questions, list) else [],
+            }
+            human = "\n".join(
+                f"{remote_mode.require_field(question, 'id')}: "
+                f"{remote_mode.require_field(question, 'question')} "
+                f"[{remote_mode.require_field(question, 'status')}]"
+                for question in document["questions"]
+            )
+            _emit(document, output, human=human or "No open questions")
+            return
         result = _workspace_service().questions()
         if design_case is not None and design_case != result.case_id:
             raise OAKError("OAK-CASE-NOT-FOUND", "requested design case is not current")
@@ -181,6 +293,37 @@ def confirm(
     try:
         if answers is None:
             raise OAKError("OAK-CONFIRM-ANSWERS", "--answers is required")
+        remote = _remote()
+        if remote is not None:
+            from oak.interfaces.cli import remote as remote_mode
+
+            case_id = _remote_case_id(design_case)
+            answers_document = _load_answers(answers)
+            result_document = remote.confirm(
+                case_id,
+                answers_document,
+                expected_version=remote.current_case_version(case_id),
+                idempotency_key=idempotency_key
+                or remote_mode.derived_key(
+                    "confirm", remote_mode.document_identity(answers_document)
+                ),
+            )
+            remote_case = remote_mode.require_field(result_document, "case")
+            _emit(
+                {
+                    "case": remote_case,
+                    "intent": result_document.get("intent"),
+                    "duplicate": result_document.get("duplicate", False),
+                },
+                output,
+                human=(
+                    f"Recorded {remote_mode.require_field(remote_case, 'id')}@"
+                    f"{remote_mode.require_field(remote_case, 'version')} as "
+                    f"{remote_mode.require_field(remote_case, 'status')}"
+                    + (" (idempotent retry)" if result_document.get("duplicate") else "")
+                ),
+            )
+            return
         service = _workspace_service()
         current = service.current().case
         if design_case is not None and design_case != current["id"]:
@@ -225,6 +368,33 @@ def candidates(
     """Generate and compare deterministic architecture candidates."""
 
     try:
+        remote = _remote()
+        if remote is not None:
+            from oak.interfaces.cli import remote as remote_mode
+
+            case_id = _remote_case_id(design_case)
+            version = remote.current_case_version(case_id)
+            submission = remote.generate_candidates(
+                case_id,
+                expected_version=version,
+                idempotency_key=idempotency_key
+                or remote_mode.derived_key("candidates", f"{case_id}@{version}"),
+            )
+            operation = remote.wait_for_operation(
+                str(remote_mode.require_field(submission, "operation_id"))
+            )
+            document = operation.get("result")
+            candidate_items = document.get("candidates") if isinstance(document, dict) else None
+            if not isinstance(document, dict) or not isinstance(candidate_items, list):
+                raise OAKError("OAK-REMOTE-PROTOCOL", "remote operation result is invalid")
+            try:
+                table = _candidate_table(tuple(candidate_items))
+            except (LookupError, TypeError) as error:
+                raise OAKError(
+                    "OAK-REMOTE-PROTOCOL", "remote candidate result is malformed"
+                ) from error
+            _emit(document, output, human=table)
+            return
         current = _workspace_service().current().case
         if design_case is not None and design_case != current["id"]:
             raise OAKError("OAK-CASE-NOT-FOUND", "requested design case is not current")
@@ -244,6 +414,10 @@ def candidates(
 @app.command()
 def evaluate(
     candidate_id: Annotated[str, typer.Argument(help="Candidate identifier.")],
+    design_case: Annotated[
+        str | None,
+        typer.Option("--case", help="Design-case identifier; required in remote mode."),
+    ] = None,
     output: Annotated[
         OutputFormat, typer.Option("--output", help="Output format.")
     ] = OutputFormat.HUMAN,
@@ -255,7 +429,38 @@ def evaluate(
     """Run the deterministic reference evaluation contract."""
 
     try:
+        remote = _remote()
+        if remote is not None:
+            from oak.interfaces.cli import remote as remote_mode
+
+            case_id = _remote_case_id(design_case)
+            version = remote.current_case_version(case_id)
+            submission = remote.evaluate_candidate(
+                candidate_id,
+                case_id=case_id,
+                expected_version=version,
+                idempotency_key=idempotency_key
+                or remote_mode.derived_key("evaluate", f"{case_id}@{version}:{candidate_id}"),
+            )
+            operation = remote.wait_for_operation(
+                str(remote_mode.require_field(submission, "operation_id"))
+            )
+            document = operation.get("result")
+            if not isinstance(document, dict) or "evaluation" not in document:
+                raise OAKError("OAK-REMOTE-PROTOCOL", "remote operation result is invalid")
+            _emit(
+                document,
+                output,
+                human=(
+                    f"Evaluation {remote_mode.require_field(document, 'evaluation', 'id')} is "
+                    f"{remote_mode.require_field(document, 'evaluation', 'status')}"
+                    + (" (idempotent retry)" if document.get("duplicate") else "")
+                ),
+            )
+            return
         current = _workspace_service().current().case
+        if design_case is not None and design_case != current["id"]:
+            raise OAKError("OAK-CASE-NOT-FOUND", "requested design case is not current")
         result = _planning_service().evaluate(
             candidate_id,
             _context(
@@ -281,6 +486,10 @@ def select(
     rationale_file: Annotated[
         Path | None, typer.Option("--rationale-file", help="Bounded UTF-8 rationale file.")
     ] = None,
+    design_case: Annotated[
+        str | None,
+        typer.Option("--case", help="Design-case identifier; required in remote mode."),
+    ] = None,
     output: Annotated[
         OutputFormat, typer.Option("--output", help="Output format.")
     ] = OutputFormat.HUMAN,
@@ -294,7 +503,34 @@ def select(
     try:
         if rationale_file is None:
             raise OAKError("OAK-SELECT-RATIONALE", "--rationale-file is required")
+        remote = _remote()
+        if remote is not None:
+            from oak.interfaces.cli import remote as remote_mode
+
+            case_id = _remote_case_id(design_case)
+            rationale = _load_bounded_text(rationale_file, code="OAK-SELECT-RATIONALE")
+            version = remote.current_case_version(case_id)
+            document = remote.select_candidate(
+                case_id,
+                candidate_id=candidate_id,
+                rationale=rationale,
+                expected_version=version,
+                idempotency_key=idempotency_key
+                or remote_mode.derived_key("select", f"{case_id}@{version}:{candidate_id}"),
+            )
+            _emit(
+                document,
+                output,
+                human=(
+                    f"Selected {candidate_id} in "
+                    f"{remote_mode.require_field(document, 'decision', 'id')}"
+                    + (" (idempotent retry)" if document.get("duplicate") else "")
+                ),
+            )
+            return
         current = _workspace_service().current().case
+        if design_case is not None and design_case != current["id"]:
+            raise OAKError("OAK-CASE-NOT-FOUND", "requested design case is not current")
         result = _planning_service().select(
             candidate_id,
             _load_bounded_text(rationale_file, code="OAK-SELECT-RATIONALE"),
@@ -321,6 +557,10 @@ def assure(
     output: Annotated[
         Path | None, typer.Option("--output", help="New assurance output directory.")
     ] = None,
+    design_case: Annotated[
+        str | None,
+        typer.Option("--case", help="Design-case identifier; required in remote mode."),
+    ] = None,
     idempotency_key: Annotated[
         str | None,
         typer.Option("--idempotency-key", help="Stable retry key; derived by default."),
@@ -331,7 +571,35 @@ def assure(
     try:
         if output is None:
             raise OAKError("OAK-ASSURE-OUTPUT", "--output is required")
+        remote = _remote()
+        if remote is not None:
+            from oak.interfaces.cli import remote as remote_mode
+
+            case_id = _remote_case_id(design_case)
+            version = remote.current_case_version(case_id)
+            document = remote.create_assurance_plan(
+                case_id,
+                candidate_id=candidate_id,
+                expected_version=version,
+                idempotency_key=idempotency_key
+                or remote_mode.derived_key("assure", f"{case_id}@{version}:{candidate_id}"),
+            )
+            assurance_plan = remote_mode.require_field(document, "assurance_plan")
+            case = remote_mode.require_field(document, "case")
+            remote_mode.verify_document_digest(
+                assurance_plan,
+                case.get("assurance_plan_ref") if isinstance(case, dict) else None,
+                name="assurance-plan.json",
+            )
+            _write_output_directory(output, {"assurance-plan.json": assurance_plan})
+            typer.echo(
+                f"Wrote {remote_mode.require_field(assurance_plan, 'id')} to {output}"
+                + (" (idempotent retry)" if document.get("duplicate") else "")
+            )
+            return
         current = _workspace_service().current().case
+        if design_case is not None and design_case != current["id"]:
+            raise OAKError("OAK-CASE-NOT-FOUND", "requested design case is not current")
         result = _planning_service().assure(
             candidate_id,
             _context(
@@ -360,6 +628,10 @@ def plan(
     output: Annotated[
         Path | None, typer.Option("--output", help="New compiled review directory.")
     ] = None,
+    design_case: Annotated[
+        str | None,
+        typer.Option("--case", help="Design-case identifier; required in remote mode."),
+    ] = None,
     idempotency_key: Annotated[
         str | None,
         typer.Option("--idempotency-key", help="Stable retry key; derived by default."),
@@ -370,7 +642,13 @@ def plan(
     try:
         if target is None or output is None:
             raise OAKError("OAK-PLAN-INPUT", "--target and --output are required")
+        remote = _remote()
+        if remote is not None:
+            _remote_plan(remote, candidate_id, target, output, design_case, idempotency_key)
+            return
         current = _workspace_service().current().case
+        if design_case is not None and design_case != current["id"]:
+            raise OAKError("OAK-CASE-NOT-FOUND", "requested design case is not current")
         result = _planning_service().plan(
             candidate_id,
             target,
@@ -397,6 +675,61 @@ def plan(
         _abort(error)
 
 
+def _remote_plan(
+    remote: "RemoteClient",
+    candidate_id: str,
+    target: Path,
+    output: Path,
+    design_case: str | None,
+    idempotency_key: str | None,
+) -> None:
+    from oak.interfaces.cli import remote as remote_mode
+
+    case_id = _remote_case_id(design_case)
+    target_document = _load_bounded_mapping(target, prefix="OAK-PLAN-TARGET")
+    version = remote.current_case_version(case_id)
+    submission = remote.compile_bundle(
+        case_id,
+        candidate_id=candidate_id,
+        target=target_document,
+        expected_version=version,
+        idempotency_key=idempotency_key
+        or remote_mode.derived_key("plan", f"{case_id}@{version}:{candidate_id}"),
+    )
+    operation = remote.wait_for_operation(
+        str(remote_mode.require_field(submission, "operation_id"))
+    )
+    document = operation.get("result")
+    if not isinstance(document, dict) or "deployment_bundle" not in document:
+        raise OAKError("OAK-REMOTE-PROTOCOL", "remote operation result is invalid")
+    case = remote_mode.require_field(document, "case")
+    extensions = case.get("extensions", {}) if isinstance(case, dict) else {}
+    if not isinstance(extensions, dict):
+        raise OAKError("OAK-REMOTE-PROTOCOL", "remote case extensions are invalid")
+    references = {
+        "architecture-decision.json": extensions.get("oak.community/selection_decision_ref"),
+        "assurance-plan.json": case.get("assurance_plan_ref"),
+        "semantic-manifest.json": extensions.get("oak.community/semantic_manifest_ref"),
+        "deployment-bundle.json": case.get("deployment_bundle_ref"),
+        "runner-plan.json": case.get("runner_plan_ref"),
+    }
+    files = {
+        "architecture-decision.json": remote_mode.require_field(document, "decision"),
+        "assurance-plan.json": remote_mode.require_field(document, "assurance_plan"),
+        "semantic-manifest.json": remote_mode.require_field(document, "semantic_manifest"),
+        "deployment-bundle.json": remote_mode.require_field(document, "deployment_bundle"),
+        "runner-plan.json": remote_mode.require_field(document, "runner_plan"),
+    }
+    for name, file_document in files.items():
+        remote_mode.verify_document_digest(file_document, references[name], name=name)
+    _write_output_directory(output, files)
+    typer.echo(
+        f"Compiled {remote_mode.require_field(files['deployment-bundle.json'], 'id')} "
+        f"to {output}; no target action was invoked"
+        + (" (idempotent retry)" if document.get("duplicate") else "")
+    )
+
+
 @app.command("export")
 def export_workspace(
     design_case: Annotated[
@@ -409,6 +742,19 @@ def export_workspace(
     try:
         if output is None:
             raise OAKError("OAK-EXPORT-OUTPUT", "--output is required")
+        remote = _remote()
+        if remote is not None:
+            from oak.interfaces.cli import remote as remote_mode
+
+            case_id = _remote_case_id(design_case)
+            export_document = remote.export_case(case_id)
+            remote_mode.write_export_directory(output, export_document)
+            reference = remote_mode.require_field(export_document, "manifest", "current_case_ref")
+            typer.echo(
+                f"Exported {remote_mode.require_field(reference, 'id')}@"
+                f"{remote_mode.require_field(reference, 'version')} to {output}"
+            )
+            return
         service = _workspace_service()
         current = service.current().case
         if design_case is not None and design_case != current["id"]:
@@ -432,6 +778,27 @@ def import_workspace(
     """Import a validated export into a new local workspace."""
 
     try:
+        remote = _remote()
+        if remote is not None:
+            from oak.interfaces.cli import remote as remote_mode
+
+            export_document = remote_mode.read_export_directory(source)
+            result_document = remote.import_case(
+                export_document,
+                idempotency_key=remote_mode.derived_key(
+                    "import", remote_mode.document_identity(export_document)
+                ),
+            )
+            case = remote_mode.require_field(result_document, "case")
+            _emit(
+                {"case": case, "intent": result_document.get("intent")},
+                output,
+                human=(
+                    f"Imported {remote_mode.require_field(case, 'id')}@"
+                    f"{remote_mode.require_field(case, 'version')}"
+                ),
+            )
+            return
         root_path = directory.absolute()
         service = create_design_case_service(root_path)
         service.import_from(source.absolute())
@@ -459,6 +826,9 @@ def serve(
 ) -> None:
     """Serve the read-only local API harness."""
 
+    if _REMOTE_SERVER is not None:
+        _abort(OAKError("OAK-REMOTE-UNSUPPORTED", "serve is local-only"))
+
     from oak.interfaces.api.server import run_server
 
     try:
@@ -466,6 +836,78 @@ def serve(
     except ValueError as error:
         typer.echo(f"OAK-SAFE-BIND: {error}", err=True)
         raise typer.Exit(code=2) from error
+
+
+@app.command()
+def validate(
+    kind: Annotated[str, typer.Argument(help="export, bundle, or webhook.")],
+    source: Annotated[Path, typer.Argument(help="Export directory, bundle directory, or file.")],
+    public_key: Annotated[
+        str | None,
+        typer.Option(
+            "--public-key",
+            help="Pinned publisher key for webhook verification: a base64 value or the "
+            "path of a publisher identity JSON document.",
+        ),
+    ] = None,
+    output: Annotated[
+        OutputFormat, typer.Option("--output", help="Output format.")
+    ] = OutputFormat.HUMAN,
+) -> None:
+    """Validate exported cases, compiled bundles, or signed webhooks without a server."""
+
+    try:
+        _require_local("validate")
+        from oak.interfaces.cli import validate as validation
+
+        if kind == "export":
+            document = validation.validate_export(source)
+            human = (
+                f"Export is valid: {document['case_id']}@{document['case_version']} "
+                f"({document['status']})"
+            )
+        elif kind == "bundle":
+            document = validation.validate_bundle(source)
+            human = (
+                f"Bundle is valid: {document['bundle_id']} with inert draft plan "
+                f"{document['runner_plan_id']}"
+            )
+        elif kind == "webhook":
+            if not public_key:
+                raise OAKError(
+                    "OAK-VALIDATE-KEY-REQUIRED",
+                    "--public-key is required to verify a webhook envelope",
+                )
+            document = validation.validate_webhook(source, public_key)
+            human = (
+                f"Webhook is valid: {document['delivery_id']} for {document['case_id']} "
+                f"({document['event_type']})"
+            )
+        else:
+            raise OAKError("OAK-VALIDATE-KIND", "validate kind must be export, bundle, or webhook")
+        _emit(document, output, human=human)
+    except (OAKError, ContractValidationError, OSError, RuntimeError, ValueError) as error:
+        _abort(error)
+
+
+mcp_app = typer.Typer(
+    name="mcp",
+    help="Bounded typed Model Context Protocol interface.",
+    no_args_is_help=True,
+)
+app.add_typer(mcp_app, name="mcp")
+
+
+@mcp_app.command("serve")
+def mcp_serve() -> None:
+    """Serve the bounded design/read MCP tool set on stdio."""
+
+    if _REMOTE_SERVER is not None:
+        _abort(OAKError("OAK-REMOTE-UNSUPPORTED", "mcp serve is local-only"))
+
+    from oak.interfaces.mcp.server import main as run_mcp_server
+
+    run_mcp_server()
 
 
 @app.command()
@@ -478,6 +920,7 @@ def keys(
     """Create or inspect the local development signing identities."""
 
     try:
+        _require_local("keys")
         from oak.bootstrap import initialize_local_trust
 
         if action not in {"init", "show"}:
@@ -508,6 +951,7 @@ def sign(
     """Sign the compiled draft runner plan into an immutable envelope binding."""
 
     try:
+        _require_local("sign")
         current = _workspace_service().current().case
         result = _release_service().sign_plan(
             _context(
@@ -544,6 +988,7 @@ def approve(
     """Record a digest, target, action, and expiry bound signed approval."""
 
     try:
+        _require_local("approve")
         current = _workspace_service().current().case
         result = _release_service().approve(
             action,
@@ -580,6 +1025,7 @@ def revoke_approval(
     """Revoke a recorded approval and publish the revocation to the mailbox."""
 
     try:
+        _require_local("revoke-approval")
         current = _workspace_service().current().case
         result = _release_service().revoke_approval(
             action,
@@ -613,6 +1059,7 @@ def dispatch(
     """Issue the signed lease envelope for an outbound-only runner."""
 
     try:
+        _require_local("dispatch")
         current = _workspace_service().current().case
         result = _release_service().dispatch(
             tuple(kinds),
@@ -642,6 +1089,7 @@ def ingest(
     """Ingest signed runner messages; delivery never implies success."""
 
     try:
+        _require_local("ingest")
         result = _release_service().ingest_runner_messages(
             _context(idempotency_key="ingest-runner-messages", expected_version=None)
         )
@@ -667,6 +1115,7 @@ def gitops(
     """Render deterministic branch-ready files and a patch description."""
 
     try:
+        _require_local("gitops")
         if output is None:
             raise OAKError("OAK-GITOPS-OUTPUT", "--output is required")
         from oak.bootstrap import create_gitops_renderer
@@ -699,6 +1148,7 @@ def policy(
     """Evaluate a governed policy pack into a canonical decision, or list packs."""
 
     try:
+        _require_local("policy")
         from oak.bootstrap import create_policy_service
 
         service = create_policy_service(FileWorkspaceRoot.discover(Path.cwd()))
@@ -754,6 +1204,7 @@ def render(
     """Render the compiled bundle through a deployment renderer; executes nothing."""
 
     try:
+        _require_local("render")
         if output is None:
             raise OAKError("OAK-RENDER-OUTPUT", "--output is required")
         from oak.bootstrap import create_render_service
@@ -788,6 +1239,7 @@ def extensions(
     """Manage governed extensions: quarantined on install, active only after verification."""
 
     try:
+        _require_local("extensions")
         from oak.bootstrap import create_extension_service, load_steward_signer
 
         service = create_extension_service()
@@ -933,21 +1385,25 @@ def _workspace_id(directory: Path) -> str:
 
 
 def _load_answers(path: Path) -> dict[str, Any]:
+    return _load_bounded_mapping(path, prefix="OAK-CONFIRM")
+
+
+def _load_bounded_mapping(path: Path, *, prefix: str) -> dict[str, Any]:
     absolute = path.absolute()
     if absolute.is_symlink() or not absolute.is_file():
-        raise OAKError("OAK-CONFIRM-UNSAFE-PATH", "answers must be a regular non-symlink file")
+        raise OAKError(f"{prefix}-UNSAFE-PATH", "input must be a regular non-symlink file")
     if absolute.suffix.lower() not in {".yaml", ".yml", ".json"}:
-        raise OAKError("OAK-CONFIRM-TYPE", "answers must be YAML or JSON")
-    content = _read_bounded_answers(absolute)
+        raise OAKError(f"{prefix}-TYPE", "input must be YAML or JSON")
+    content = _read_bounded_file(absolute, prefix=prefix, maximum_bytes=65_536)
     try:
         text = content.decode("utf-8")
     except UnicodeDecodeError as error:
-        raise OAKError("OAK-CONFIRM-ENCODING", "answers must be valid UTF-8") from error
+        raise OAKError(f"{prefix}-ENCODING", "input must be valid UTF-8") from error
     if any(
         unicodedata.category(character) in {"Cc", "Cf"} and character not in {"\n", "\r", "\t"}
         for character in text
     ):
-        raise OAKError("OAK-CONFIRM-CONTROL", "answers contain disallowed control characters")
+        raise OAKError(f"{prefix}-CONTROL", "input contains disallowed control characters")
     try:
         if absolute.suffix.lower() == ".json":
             return load_json_document(text)
@@ -955,27 +1411,30 @@ def _load_answers(path: Path) -> dict[str, Any]:
         if any(
             isinstance(token, (yaml.tokens.AliasToken, yaml.tokens.AnchorToken)) for token in tokens
         ):
-            raise OAKError("OAK-CONFIRM-ALIAS", "answer aliases and anchors are not accepted")
+            raise OAKError(f"{prefix}-ALIAS", "aliases and anchors are not accepted")
         return load_yaml_document(text)
     except (ValueError, yaml.YAMLError, ContractValidationError) as error:
-        raise OAKError("OAK-CONFIRM-MALFORMED", "answers are malformed") from error
+        raise OAKError(f"{prefix}-MALFORMED", "input is malformed") from error
 
 
-def _read_bounded_answers(path: Path) -> bytes:
+def _read_bounded_file(path: Path, *, prefix: str, maximum_bytes: int) -> bytes:
+    absolute = path.absolute()
+    if absolute.is_symlink() or not absolute.is_file():
+        raise OAKError(f"{prefix}-UNSAFE-PATH", "input must be a regular non-symlink file")
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
     try:
-        descriptor = os.open(path, flags)
+        descriptor = os.open(absolute, flags)
     except OSError as error:
-        raise OAKError("OAK-CONFIRM-UNSAFE-PATH", "answers could not be opened safely") from error
+        raise OAKError(f"{prefix}-UNSAFE-PATH", "input could not be opened safely") from error
     with os.fdopen(descriptor, "rb") as stream:
         details = os.fstat(stream.fileno())
         if not stat.S_ISREG(details.st_mode):
-            raise OAKError("OAK-CONFIRM-UNSAFE-PATH", "answers must be a regular file")
-        if details.st_size < 1 or details.st_size > 65_536:
-            raise OAKError("OAK-CONFIRM-SIZE", "answers must contain 1 to 65536 bytes")
-        content = stream.read(65_537)
-    if not content or len(content) > 65_536:
-        raise OAKError("OAK-CONFIRM-SIZE", "answers must contain 1 to 65536 bytes")
+            raise OAKError(f"{prefix}-UNSAFE-PATH", "input must be a regular file")
+        if details.st_size < 1 or details.st_size > maximum_bytes:
+            raise OAKError(f"{prefix}-SIZE", f"input must contain 1 to {maximum_bytes} bytes")
+        content = stream.read(maximum_bytes + 1)
+    if not content or len(content) > maximum_bytes:
+        raise OAKError(f"{prefix}-SIZE", f"input must contain 1 to {maximum_bytes} bytes")
     return content
 
 

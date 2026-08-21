@@ -2,7 +2,7 @@
 
 # OAK Community
 
-OAK Community is a local-first, compiler-shaped control plane for designing, evaluating, and planning AI systems. The current harness provides canonical contract validation, an offline `DesignCase`-to-plan journey, shared application services, a command-line entrypoint, a loopback-safe HTTP API, a browser architecture workspace, local container orchestration, offline policy evaluation over governed packs, read-only deployment rendering, and a governed extension supply chain.
+OAK Community is a local-first, compiler-shaped control plane for designing, evaluating, and planning AI systems. The current harness provides canonical contract validation, an offline `DesignCase`-to-plan journey, shared application services, a command-line entrypoint, a loopback-safe HTTP API, a browser architecture workspace, local container orchestration, offline policy evaluation over governed packs, read-only deployment rendering, a governed extension supply chain, a bounded MCP server for authorized agents, a remote CLI mode over the same REST surface, and portal/CI integration through signed event envelopes and a server-free validator.
 
 OAK does not proxy an installed application's inference traffic. The current harness is non-production and contains no hosted-provider requirement, customer credentials, or customer data. The only target mutation it can perform is against an explicitly acknowledged local fixture profile, through a separately signed and approved typed plan.
 
@@ -118,11 +118,38 @@ plan/approval/apply separation, follow the audit timeline, and download the cano
 export. The browser renders server-returned state and denials; lifecycle authority stays in
 the shared application services.
 
+## Use it from an agent, a remote CLI, or a portal
+
+The same workflow is reachable through a bounded MCP server for authorized
+engineering agents, through the CLI in remote mode against a running API, and
+through developer portals over REST plus signed webhooks — none of which gains
+deployment authority:
+
+```bash
+# Bounded MCP server on stdio (needs OAK_DATABASE_URL, like the API)
+oak mcp serve
+
+# The same CLI, driven against a remote control plane
+oak --server http://127.0.0.1:8080 questions design-case.public-manual-qa
+
+# Server-free validation for CI and portals
+oak validate bundle ./bundle/
+oak validate webhook examples/example-webhook-envelope.yaml \
+  --public-key examples/portal/webhook-publisher.identity.json
+```
+
+See [interfaces.md](docs/interfaces.md) for setup, the permission model, the
+capability matrix, and the operations deliberately unavailable in Community, and
+[compatibility.md](docs/compatibility.md) for the versioning and deprecation
+policy across every public surface. Backstage and generic-portal starters live
+in [examples/backstage/](examples/backstage/README.md) and
+[examples/portal/](examples/portal/README.md).
+
 The canonical schemas and public synthetic examples live in `schemas/` and `examples/`. See [development.md](docs/development.md) for command details and [architecture.md](docs/architecture.md) for the enforced boundaries.
 
 ## Current limits
 
-Signing, approval, and runner execution exist only in local development form: keys are labelled `development`, the runner reaches only an isolated non-production fixture target, and the sole permitted mutation is creating and removing one network-isolated, never-started container. Enterprise authentication, remote runner transport, production targets, real secret resolution, and Git provider promotion are not implemented. The local file workspace is a reference persistence adapter, not a production metadata store. Policy decisions are recorded but gate no state transition, and activating a component-manifest or architecture-pattern extension governs the payload without yet adding it to the compiler's catalogue. The bundled policy pack is a synthetic fixture, not legal advice. Progress is tracked in [STATUS.md](STATUS.md).
+Signing, approval, and runner execution exist only in local development form: keys are labelled `development`, the runner reaches only an isolated non-production fixture target, and the sole permitted mutation is creating and removing one network-isolated, never-started container. Enterprise authentication, remote runner transport, production targets, real secret resolution, and Git provider promotion are not implemented. The local file workspace is a reference persistence adapter, not a production metadata store. Policy decisions are recorded but gate no state transition, and activating a component-manifest or architecture-pattern extension governs the payload without yet adding it to the compiler's catalogue. The bundled policy pack is a synthetic fixture, not legal advice. The MCP server serves one stdio client per process and exposes no approval, signing, dispatch, secret, policy-override, file, or command tool; remote CLI mode trusts the control plane it is pointed at and refuses the local-only signing and runner commands; and Community ships the signed webhook envelope contract and validator but no webhook dispatcher. Progress is tracked in [STATUS.md](STATUS.md).
 
 ## Licence
 

@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: Apache-2.0
+# Backstage Component entity for a locally running OAK Community control plane.
+# This is an example for a portal operator's catalogue; nothing in the OAK core
+# imports or depends on it, and it uses only documented REST behavior.
+# The companion API entity lives in catalog-api.yaml.
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: oak-community-control-plane
+  title: OAK Community control plane
+  description: >-
+    Compiles confirmed architecture briefs into candidates, decisions,
+    assurance plans, and inert signed-plan bundles.
+  annotations:
+    # A portal card can read case and gate state with these documented reads:
+    #   GET {proxy}/oak/v1/design-cases                     - tenant case list
+    #   GET {proxy}/oak/v1/design-cases/{case_id}           - status and references
+    #   GET {proxy}/oak/v1/design-cases/{case_id}/audit     - gate/event timeline
+    #   GET {proxy}/oak/v1/operations/{operation_id}        - operation progress
+    oak.example/proxy-path: /oak
+  tags:
+    - oak
+  links:
+    - url: http://127.0.0.1:5173/
+      title: Open the architecture workspace
+spec:
+  type: service
+  lifecycle: experimental
+  owner: group:default/platform-team
+  providesApis:
+    - oak-community-api
