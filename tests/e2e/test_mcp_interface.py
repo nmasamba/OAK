@@ -111,14 +111,45 @@ def test_installed_validate_verifies_the_signed_webhook_example() -> None:
     assert "OAK-VALIDATE-WEBHOOK-KEY" in (tampered.stdout + tampered.stderr)
 
 
-def test_installed_cli_help_exposes_mcp_and_validate() -> None:
-    result = subprocess.run(
-        [str(OAK), "--help"],
+def _oak(*arguments: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [str(OAK), *arguments],
         cwd=ROOT,
         capture_output=True,
         text=True,
+        env={**os.environ, "NO_PROXY": "*", "no_proxy": "*"},
         timeout=30,
     )
-    assert "mcp" in result.stdout
-    assert "validate" in result.stdout
-    assert "--server" in result.stdout
+
+
+def test_installed_cli_exposes_the_sprint_7_surface() -> None:
+    """Assert the surface behaves, not how the help renderer paints it.
+
+    Scraping `oak --help` couples the test to Rich's terminal-width and styling
+    decisions, which differ between a developer machine and CI. Invoking the
+    surface proves the same thing more strongly: the option and subcommands are
+    registered, parsed, and routed.
+    """
+
+    # The mcp and validate subcommands exist and are invocable.
+    assert _oak("mcp", "--help").returncode == 0
+    assert _oak("validate", "--help").returncode == 0
+
+    # `validate` rejects an unknown kind with the stable code rather than a crash.
+    unknown_kind = _oak("validate", "everything", str(ROOT))
+    assert unknown_kind.returncode == 2
+    assert "OAK-VALIDATE-KIND" in unknown_kind.stdout + unknown_kind.stderr
+
+    # The root --server option is registered and routes into remote mode: a
+    # local-only command must refuse rather than acting on local state.
+    refused = _oak("--server", "http://127.0.0.1:9", "keys", "show")
+    assert refused.returncode == 2
+    assert "OAK-REMOTE-UNSUPPORTED" in refused.stdout + refused.stderr
+
+    # A remote-capable command reaches the transport and fails closed when the
+    # server is unreachable, proving --server is parsed rather than ignored.
+    unreachable = _oak(
+        "--server", "http://127.0.0.1:9", "questions", "design-case.public-manual-qa"
+    )
+    assert unreachable.returncode == 2
+    assert "OAK-REMOTE-UNAVAILABLE" in unreachable.stdout + unreachable.stderr
