@@ -82,7 +82,8 @@ no resources, prompts, or sampling.
 - **Actor and tenant.** Community runs a single documented local actor
   (`OAK_LOCAL_ACTOR`, default `local-user`) and tenant (`OAK_LOCAL_TENANT`,
   default `local`). REST binds them from `X-OAK-Actor`/`X-OAK-Tenant` headers;
-  MCP binds them from optional `actor`/`tenant_id` tool arguments; the local CLI
+  MCP binds them from `actor`/`tenant_id` tool arguments, which are optional on
+  every tool except `oak_claims_confirm`, where a named `actor` is required; the local CLI
   reads `OAK_ACTOR`. A request that names a different tenant receives an opaque
   not-found denial (no existence leak); a request that names a different actor
   receives `OAK-ACTOR-DENIED`. `interface_origin` is set by the transport
@@ -121,7 +122,9 @@ prohibition).
 | Cancel operation | — | — | ● | — | ● |
 | Export / import case | ● | ● | ● | — | ○ |
 | Read audit / artifacts | — | — | ○ | — | ○ |
-| Validate export/bundle/webhook | ● | — | — | — | — |
+| Render deployment artifacts | ● | ✕ | — | ✕ | — |
+| Render GitOps files | ● | ✕ | — | ✕ | — |
+| Validate export/bundle/webhook | ● | ✕ | — | — | — |
 | Sign plan | ● | ✕ | — | ✕ | — |
 | Approve / revoke approval | ● | ✕ | — | ✕ | — |
 | Dispatch runner / ingest | ● | ✕ | — | ✕ | — |
@@ -132,9 +135,9 @@ prohibition).
 
 Notes:
 
-- The signing/approval/dispatch/keys/extensions/policy group is **local-only**.
-  In remote mode these commands fail closed with `OAK-REMOTE-UNSUPPORTED` rather
-  than acting on local state; they are never reachable over REST or MCP.
+- The **local-only** commands are `init`, `serve`, `mcp serve`, `keys`, `sign`, `approve`, `revoke-approval`, `dispatch`, `ingest`, `gitops`, `policy`, `render`, `extensions` and `validate`.
+  With `--server` set they fail closed with `OAK-REMOTE-UNSUPPORTED` rather than
+  acting on local state, and none of them is reachable over REST or MCP.
 - The MCP tool set is exactly the ten interface-contract tools plus the
   read-only `oak_operation_get` progress query. A contract test pins this set;
   a new tool cannot appear without failing it.

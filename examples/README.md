@@ -26,9 +26,10 @@ The executable Sprint 2 fixture uses `candidate-00` as the simpler baseline and 
   must apply. Verify an envelope with
   `oak validate webhook example-webhook-envelope.yaml --public-key portal/webhook-publisher.identity.json`;
   Community ships no webhook dispatcher.
-- `backstage/` holds a developer-portal starter — a catalogue entity over the committed
-  OpenAPI contract, a software template that creates a draft design case, and the proxy
-  fragment that forwards only the documented command headers. It uses documented REST
+- `backstage/` holds a developer-portal starter — a `Component` catalogue entity whose card
+  reads case and gate state, a companion `API` entity over the committed OpenAPI contract, a
+  software template that creates a draft design case, and the proxy fragment that forwards
+  only the documented command headers. It uses documented REST
   behavior and links only; a contract test pins every referenced path to
   `openapi/oak.openapi.json`, no Backstage type appears in the core, and no portal
   integration can create an approved state.

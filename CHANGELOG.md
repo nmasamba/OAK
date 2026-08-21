@@ -139,8 +139,9 @@ All notable changes to OAK Community are recorded here.
   commands rather than acting on local state.
 - The signed webhook example is verified against a pinned committed publisher key, never the
   key embedded in the envelope; the signing private key was discarded and no private key is
-  committed. `oak validate` is read-only, opens bundle files with `O_NOFOLLOW`, and refuses
-  any bundle document carrying an execution field.
+  committed. `oak validate` is read-only, opens files with `O_NOFOLLOW`, parses untrusted YAML with the
+  alias-free reader, and refuses any export object, bundle document, or webhook envelope
+  carrying a `command`/`shell`/`executable`/`argv` field.
 - `cryptography` was upgraded from 46.0.7 to 50.0.0 after `pip-audit` reported four
   advisories (`GHSA-537c-gmf6-5ccf`, `PYSEC-2026-3552`, `PYSEC-2026-3553`,
   `PYSEC-2026-3554`) in the locked version. None is reachable from OAK, which uses

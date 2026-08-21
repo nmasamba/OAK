@@ -25,7 +25,7 @@ approval and envelope signatures share one identity.
 ## Local journey
 
 ```bash
-oak keys init                       # create development plan-signer and approver keys
+oak keys init                       # create the development plan-signer, approver and extension-steward keys
 oak sign                            # bind the compiled plan digest into a signed document
 oak approve dry_run                 # read-only authorization; add apply/rollback as needed
 oak dispatch inventory validate render plan verify
