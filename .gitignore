@@ -86,6 +86,9 @@ site/
 *.egg-info/
 *.egg
 .uv-cache/
+# A mis-quoted UV_CACHE_DIR once produced this sibling; it is not covered by the
+# pattern above and reached both the sdist and the image build context.
+-.uv-cache/
 
 # JavaScript and web tooling
 node_modules/

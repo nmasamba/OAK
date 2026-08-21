@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "oak-community"
-version = "0.6.0.dev6"
+version = "0.7.0"
 description = "Local-first control plane for designing, evaluating, and planning AI systems"
 readme = "README.md"
 requires-python = ">=3.13,<3.14"
@@ -24,7 +24,7 @@ dependencies = [
   "alembic>=1.18,<2",
   "cryptography>=50,<51",
   "fastapi>=0.115,<1",
-  "jsonschema[format]>=4.23,<5",
+  "jsonschema>=4.23,<5",
   "psycopg[binary]>=3.3,<4",
   "pydantic>=2.10,<3",
   "pyyaml>=6.0,<7",
@@ -53,6 +53,31 @@ dev = [
   "ruff>=0.11,<1",
   "types-jsonschema>=4.23,<5",
   "types-pyyaml>=6.0,<7",
+]
+
+[tool.hatch.build]
+# Byte-reproducible artifacts are a release contract, not an upstream default we inherit.
+# `make release` builds twice and compares digests; see docs/release-process.md.
+reproducible = true
+
+[tool.hatch.build.targets.sdist]
+# Explicit rather than inherited from .gitignore: a cache directory the ignore rules
+# happened to miss shipped inside the 0.6.0.dev6 sdist, which makes the sdist digest a
+# function of the build machine instead of the source tree.
+exclude = [
+  "/.venv",
+  "/.uv-cache",
+  "/-.uv-cache",
+  "/.pnpm-store",
+  "/.mypy_cache",
+  "/.ruff_cache",
+  "/.pytest_cache",
+  "/node_modules",
+  "/web/node_modules",
+  "/web/dist",
+  "/web/test-results",
+  "/dist",
+  "/sbom",
 ]
 
 [tool.hatch.build.targets.wheel]

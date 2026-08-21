@@ -12,7 +12,7 @@ substitute for those locks.
 | FastAPI | OpenAPI HTTP adapter | interfaces only | MIT |
 | Typer | CLI adapter | interfaces only | BSD-3-Clause |
 | Uvicorn | Local ASGI process | interface entrypoint | BSD-3-Clause |
-| jsonschema | Canonical JSON Schema validation | contracts | MIT |
+| jsonschema | Canonical JSON Schema validation | contracts | MIT (no extras; see the 2026-08-21 review) |
 | PyYAML | Public YAML example parsing | contracts | MIT |
 | SQLAlchemy 2.0 | PostgreSQL transaction and mapping toolkit | PostgreSQL persistence adapter only | MIT |
 | Alembic | Forward-only PostgreSQL migrations | migration tooling and API/worker startup | MIT |
@@ -130,6 +130,42 @@ introduced, and Community ships no webhook dispatcher.
 
 Reviews outside a sprint boundary are recorded here, newest first, under the same standard
 as a sprint dependency review.
+
+### 2026-08-21 jsonschema `format` extra removed
+
+The `jsonschema[format]` extra was dropped from `pyproject.toml` in favour of plain
+`jsonschema`. The extra was never load bearing: nothing in `src/` constructs a
+`FormatChecker` or passes `format_checker=` to a validator, so `format` keywords in the
+canonical schemas have always been annotation rather than validation — the behaviour
+`docs/interfaces.md` and the Sprint 7 limitations already record.
+
+What the extra did do was place eight packages in the runtime dependency closure of the
+distribution, one of which is `rfc3987` 1.3.8, licensed **GPL-3.0-or-later**. OAK Community
+is Apache-2.0. ADR-0011 permits a contextually reviewed OSI-approved copyleft dependency and
+requires its independent terms to be recorded — as was done for Psycopg's LGPL — but this one
+was neither reviewed nor recorded: the inventory above listed jsonschema as simply "MIT". A
+release licence inventory would have had to either disclose an undiscussed GPL transitive or
+misstate the closure.
+
+`jsonschema[format-nongpl]` was considered and rejected. It swaps `rfc3987` for
+`rfc3987-syntax` and resolves the licence question, but it keeps eight unused runtime
+packages in order to preserve a capability that nothing enables. Enabling format checking was
+also rejected: tightening validation so previously accepted documents are refused is a
+breaking change for producers under `docs/compatibility.md`, and a release-hardening sprint is
+the wrong place to make one.
+
+Effect on the closure, measured with `uv export --no-default-groups`: 37 runtime packages,
+down from 45. `fqdn`, `isoduration`, `jsonpointer`, `rfc3339-validator`, `rfc3987`,
+`uri-template`, and `webcolors` all leave; `idna` stays because `anyio` requires it.
+`rfc3987-syntax` and `rfc3986-validator` remain in `uv.lock` and in the development
+environment because `cyclonedx-python-lib` — the SBOM generator, a development dependency —
+itself depends on `jsonschema[format-nongpl]`. They are not runtime requirements of the
+released wheel.
+
+Rollback is restoring the extra in `pyproject.toml` and re-running `uv lock`. No canonical
+document, digest, or schema changes: the reference case remains byte-stable, verified
+directly. Should format validation ever be wanted, it must arrive as a deliberate,
+changelog-announced tightening with `format-nongpl`, never with `format`.
 
 ### 2026-08-20 cryptography 46.0.7 to 50.0.0
 

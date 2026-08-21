@@ -3,11 +3,12 @@
 # Build status
 
 - **Updated:** 2026-08-21
-- **Repository version:** `0.6.0.dev6`
-- **Phase:** Sprint 7 complete — MCP, portal and interface parity
+- **Repository version:** `0.7.0`
+- **Phase:** Sprint 8 in progress — Community release hardening
 - **Completed plans:** `docs/exec-plans/completed/OAK-S0-001-009-walking-skeleton.md`, `docs/exec-plans/completed/OAK-S1-001-010-local-design-case.md`, `docs/exec-plans/completed/OAK-S2-001-011-candidate-planning.md`, `docs/exec-plans/completed/OAK-S3-001-009-persistent-rest-jobs.md`, `docs/exec-plans/completed/OAK-S4-001-009-web-workspace.md`, `docs/exec-plans/completed/OAK-S5-001-011-signed-runner.md`, `docs/exec-plans/completed/OAK-S6-001-008-policy-adapter-sdk.md`, and `docs/exec-plans/completed/OAK-S7-001-008-mcp-portal-interface-parity.md`
-- **Active plan:** none — Sprint 7 closed; Sprint 8 (Community release hardening) is next
-- **Next task:** author and claim the Sprint 8 (`OAK-S8-001`–`OAK-S8-009`) ExecPlan
+- **Active plan:** `docs/exec-plans/active/OAK-S8-001-009-community-release-hardening.md`
+- **Next task:** `OAK-S8-001`–`OAK-S8-009` (Community release hardening); the release
+  decision (`OAK-S8-009`) requires named human approval and is not agent-completable
 
 ## Claimed work
 
@@ -88,6 +89,15 @@
 | `OAK-S7-006` | complete | Signed `webhook-envelope` contract with a pinned-key example and a headless `oak validate export/bundle/webhook` checker suitable for CI and portals |
 | `OAK-S7-007` | complete | MCP abuse suite: injection inertness, oversized/unbounded/deep frames, confused deputy, stale version, tenant crossover, tool/method escalation, execution fields |
 | `OAK-S7-008` | complete | `docs/interfaces.md` interface setup, permission model, capability matrix, and explicit unavailable operations |
+| `OAK-S8-001` | in progress | Clean install matrix across supported platforms and install paths |
+| `OAK-S8-002` | in progress | Rehearsed upgrade, backup/restore, export/import and stated downgrade limits |
+| `OAK-S8-003` | in progress | Threat-model coverage index, scans, secret/log and runner review, residual-risk register |
+| `OAK-S8-004` | in progress | Reproducible artifacts with SBOM, licence inventory, checksums and tested verification |
+| `OAK-S8-005` | in progress | Provenance-stamped performance and soak measurements |
+| `OAK-S8-006` | in progress | Operator documentation from install through uninstall |
+| `OAK-S8-007` | in progress | Contributor documentation and the release process |
+| `OAK-S8-008` | in progress | Clean-room release-candidate rehearsal with archived evidence |
+| `OAK-S8-009` | in progress | Release decision preparation; named human approval outstanding |
 
 ## Verification evidence
 

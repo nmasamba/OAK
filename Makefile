@@ -4,7 +4,7 @@ UV_CACHE_DIR ?= .uv-cache
 UV := UV_CACHE_DIR=$(UV_CACHE_DIR) uv
 PNPM := pnpm
 
-.PHONY: bootstrap lock toolchain-check validate format format-check lint typecheck test test-integration test-e2e openapi-compatibility web-build web-e2e build check audit sbom clean
+.PHONY: bootstrap lock toolchain-check validate format format-check lint typecheck test test-integration test-e2e openapi-compatibility web-build web-e2e build check audit sbom release verify-release clean clean-all
 
 bootstrap:
 	$(UV) sync --frozen
@@ -72,5 +72,19 @@ sbom:
 	mkdir -p sbom
 	$(UV) run cyclonedx-py environment --output-reproducible --output-format JSON --output-file sbom/python.cdx.json .venv
 
+# Release artifacts plus the evidence that describes them. Unlike `sbom`, which scans
+# the development virtualenv, this scans the released runtime closure.
+release:
+	$(UV) run python scripts/build_release.py
+
+verify-release:
+	$(UV) run python scripts/verify_release.py dist/release
+
 clean:
 	$(UV) cache clean
+
+# `clean` only empties the uv cache. This removes everything a from-scratch rebuild
+# would recreate, which is what a reproducibility check actually needs.
+clean-all:
+	rm -rf .venv node_modules web/node_modules web/dist web/test-results \
+		.mypy_cache .ruff_cache .pytest_cache dist sbom playwright-report

@@ -3,6 +3,7 @@
 
 import json
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -68,12 +69,15 @@ def validate_contracts() -> None:
 
 def main() -> int:
     validate_contracts()
+    # `sys.executable`, not a bare "python": on a clean Debian/Ubuntu host there is no
+    # `python` on PATH, and inside a clean-room rehearsal outside the locked environment a
+    # bare name resolves to whatever interpreter happens to be first.
     subprocess.run(
-        ["python", "scripts/generate_openapi.py", "--check"],
+        [sys.executable, "scripts/generate_openapi.py", "--check"],
         cwd=ROOT,
         check=True,
     )
-    subprocess.run(["python", "tools/check_repository.py"], cwd=ROOT, check=True)
+    subprocess.run([sys.executable, "tools/check_repository.py"], cwd=ROOT, check=True)
     return 0
 
 
