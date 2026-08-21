@@ -215,6 +215,16 @@ surface; no migration, key rotation, or data change is involved.
   (create → interpret → confirm → generate → evaluate → out-of-band select → assure →
   compile, ending `bundle_compiled` at case `0.1.7`) all pass; full unit/contract suite is
   329 passed and strict mypy covers 112 files.
+- [x] 2026-08-21 M2 remote CLI mode: root `--server`/`OAK_SERVER` routing, stdlib urllib
+  client with problem-details mapping onto existing exit codes, deterministic derived
+  idempotency keys, bounded operation polling (`OAK_REMOTE_TIMEOUT`), digest verification
+  of every remotely fetched document written locally, export/import directory parity, and
+  fail-closed `OAK-REMOTE-UNSUPPORTED` refusal for the eleven local-only command groups.
+  Integration suite drives the real CLI against a live loopback uvicorn server backed by a
+  file-mode control plane: full journey to `0.1.7`, remote export imported locally with
+  identical bundle digest, idempotent confirm replay, state denials, and unreachable/
+  non-http server refusals. Full db-free `make`-equivalent suites pass (329 unit/contract,
+  85 integration + 20 gated skips, mypy 113 files).
 
 ## Decisions
 

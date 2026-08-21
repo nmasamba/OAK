@@ -8,6 +8,7 @@ operation store, so MCP behavior is tested end-to-end without PostgreSQL.
 from __future__ import annotations
 
 import json
+import threading
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
@@ -29,15 +30,25 @@ LATER = "2026-08-21T12:01:00Z"
 
 
 class MemoryOperationStore:
-    """Deterministic in-memory ``OperationStore`` for database-free tests."""
+    """Deterministic in-memory ``OperationStore`` for database-free tests.
+
+    A lock serializes record access so a background drain thread can play the
+    worker role while an in-process HTTP server submits and polls operations.
+    """
 
     def __init__(self) -> None:
         self.records: dict[str, OperationRecord] = {}
+        self._lock = threading.RLock()
 
     def idempotent(self, spec: OperationSpec) -> OperationRecord | None:
-        return self.records.get(spec.operation_id)
+        with self._lock:
+            return self.records.get(spec.operation_id)
 
     def enqueue(self, spec: OperationSpec) -> EnqueuedOperation:
+        with self._lock:
+            return self._enqueue(spec)
+
+    def _enqueue(self, spec: OperationSpec) -> EnqueuedOperation:
         existing = self.records.get(spec.operation_id)
         if existing is not None:
             return EnqueuedOperation(existing, duplicate=True)
@@ -72,12 +83,31 @@ class MemoryOperationStore:
         return EnqueuedOperation(record, duplicate=False)
 
     def get(self, operation_id: str) -> OperationRecord:
-        record = self.records.get(operation_id)
-        if record is None:
-            raise OAKError("OAK-OPERATION-NOT-FOUND", "operation was not found")
-        return record
+        with self._lock:
+            record = self.records.get(operation_id)
+            if record is None:
+                raise OAKError("OAK-OPERATION-NOT-FOUND", "operation was not found")
+            return record
 
     def cancel(
+        self,
+        operation_id: str,
+        *,
+        actor: str,
+        idempotency_key: str,
+        correlation_id: str,
+        requested_at: str,
+    ) -> OperationRecord:
+        with self._lock:
+            return self._cancel(
+                operation_id,
+                actor=actor,
+                idempotency_key=idempotency_key,
+                correlation_id=correlation_id,
+                requested_at=requested_at,
+            )
+
+    def _cancel(
         self,
         operation_id: str,
         *,
@@ -101,6 +131,10 @@ class MemoryOperationStore:
         return updated
 
     def claim(self, *, worker_id: str, now: str, lease_expires_at: str) -> OperationLease | None:
+        with self._lock:
+            return self._claim(worker_id=worker_id, now=now, lease_expires_at=lease_expires_at)
+
+    def _claim(self, *, worker_id: str, now: str, lease_expires_at: str) -> OperationLease | None:
         for operation_id, record in sorted(self.records.items()):
             if record.state == "queued" and record.next_attempt_at <= now:
                 updated = replace(
@@ -118,11 +152,23 @@ class MemoryOperationStore:
     def heartbeat(
         self, lease: OperationLease, *, now: str, lease_expires_at: str
     ) -> OperationLease:
+        with self._lock:
+            return self._heartbeat(lease, now=now, lease_expires_at=lease_expires_at)
+
+    def _heartbeat(
+        self, lease: OperationLease, *, now: str, lease_expires_at: str
+    ) -> OperationLease:
         record = replace(self.get(lease.operation.operation_id), lease_expires_at=lease_expires_at)
         self.records[record.operation_id] = record
         return OperationLease(record, lease.worker_id, lease_expires_at)
 
     def checkpoint(
+        self, lease: OperationLease, *, checkpoint: dict[str, Any], recorded_at: str
+    ) -> OperationRecord:
+        with self._lock:
+            return self._checkpoint(lease, checkpoint=checkpoint, recorded_at=recorded_at)
+
+    def _checkpoint(
         self, lease: OperationLease, *, checkpoint: dict[str, Any], recorded_at: str
     ) -> OperationRecord:
         record = replace(
@@ -134,6 +180,12 @@ class MemoryOperationStore:
         return record
 
     def succeed(
+        self, lease: OperationLease, *, result: dict[str, Any], completed_at: str
+    ) -> OperationRecord:
+        with self._lock:
+            return self._succeed(lease, result=result, completed_at=completed_at)
+
+    def _succeed(
         self, lease: OperationLease, *, result: dict[str, Any], completed_at: str
     ) -> OperationRecord:
         record = replace(
@@ -149,6 +201,24 @@ class MemoryOperationStore:
         return record
 
     def fail(
+        self,
+        lease: OperationLease,
+        *,
+        error_code: str,
+        retriable: bool,
+        failed_at: str,
+        retry_at: str,
+    ) -> OperationRecord:
+        with self._lock:
+            return self._fail(
+                lease,
+                error_code=error_code,
+                retriable=retriable,
+                failed_at=failed_at,
+                retry_at=retry_at,
+            )
+
+    def _fail(
         self,
         lease: OperationLease,
         *,
@@ -173,6 +243,12 @@ class MemoryOperationStore:
         return record
 
     def acknowledge_cancellation(
+        self, lease: OperationLease, *, cancelled_at: str
+    ) -> OperationRecord:
+        with self._lock:
+            return self._acknowledge_cancellation(lease, cancelled_at=cancelled_at)
+
+    def _acknowledge_cancellation(
         self, lease: OperationLease, *, cancelled_at: str
     ) -> OperationRecord:
         record = replace(
