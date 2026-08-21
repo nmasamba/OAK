@@ -87,5 +87,5 @@ control plane's.
 
 | Variable | Default | Meaning | Safety-relevant |
 |---|---|---|---|
-| `OAK_TEST_DATABASE_URL` | *(none)* | Enables the PostgreSQL-gated integration suites. **Unset, those suites skip silently and a green run is not evidence they ran.** See [contributing.md](contributing.md) | No |
+| `OAK_TEST_DATABASE_URL` | *(none)* | Enables the PostgreSQL-gated integration suites. **Unset, those suites skip silently and a green run is not evidence they ran.** See [CONTRIBUTING.md](../CONTRIBUTING.md) | No |
 | `OAK_E2E_DOCKER` | *(none)* | Set by `make web-e2e` to enable the Compose-backed browser journey | No |

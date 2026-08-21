@@ -27,8 +27,30 @@ CI and container builds are the reproducible builder boundary. They pin `uv` 0.1
 | `make build` | Build Python and web artifacts from bootstrapped dependencies without network |
 | `make sbom` | Generate a development dependency SBOM under ignored `sbom/` |
 | `make check` | Run the non-destructive repository gate |
+| `make release` | Build the release artifacts, SBOM, licence inventory and checksums; see [release-process.md](release-process.md) |
+| `make verify-release` | Verify a release directory against its `SHA256SUMS` |
+| `make clean` | Empty the `uv` cache |
+| `make clean-all` | Remove every build artifact, virtual environment and cache in the tree |
 
-The bootstrap step may use the public package registries. After dependencies are installed, `make check` requires no hosted service, credentials, model provider, database, or public network.
+The bootstrap step may use the public package registries. After dependencies are installed, `make check` requires no hosted service, credentials, model provider, database, or public network. It does require `git`: `tools/check_repository.py` shells out to `git check-ignore`.
+
+**`make check` reports success wrongly when backgrounded.** Verify it by counting `make: ***` lines in its output rather than by its exit code.
+
+**The PostgreSQL-gated integration suites skip silently.** Around twenty integration tests need `OAK_TEST_DATABASE_URL`, and a skip is indistinguishable from a pass in the summary line. `compose.yaml` publishes no host port for PostgreSQL, so run them like this:
+
+```bash
+cat > compose.override.yaml <<'YML'
+services:
+  postgres:
+    ports:
+      - "127.0.0.1:15432:5432"
+YML
+docker compose up -d postgres
+export OAK_TEST_DATABASE_URL=postgresql+psycopg://oak:oak-local-only@127.0.0.1:15432/oak
+make test-integration
+```
+
+CI never sets it, so a green CI run is not evidence those suites ran. Recorded as `RR-019` in [security/residual-risk.md](security/residual-risk.md).
 
 ## Local DesignCase workflow
 

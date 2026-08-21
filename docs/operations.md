@@ -121,6 +121,10 @@ docker run --rm -v oak-community_oak-artifacts:/artifacts -v "$PWD":/backup alpi
 docker compose start api worker
 ```
 
+Take the two in that order and without writers running. They are separate stores with no
+shared transaction, so a backup taken while the API is serving can capture an artifact the
+database does not yet index, or the reverse.
+
 Back up `~/.oak/trust` separately and treat it as a credential store. Losing it does not
 corrupt any stored case; it means previously signed envelopes can no longer be re-signed
 by the same identity, and anything pinned to those anchors must be re-pinned.
@@ -137,16 +141,25 @@ carry your keys. It is the portability path, not the recovery path.
 Restore-forward. Never downgrade.
 
 ```bash
-docker compose down                                    # stop everything
-docker volume rm oak-community_oak-postgres-data       # start from a clean database
-docker volume rm oak-community_oak-artifacts
-docker compose up -d postgres
-docker compose exec -T postgres createdb -U oak oak 2>/dev/null || true
+docker compose down                                       # stop everything
+docker volume rm -f oak-community_oak-postgres-data       # start from a clean database
+docker volume rm -f oak-community_oak-artifacts
+docker compose up -d --wait postgres                      # --wait: initdb must finish first
 docker compose exec -T postgres pg_restore -U oak -d oak --clean --if-exists < oak-metadata.dump
 docker run --rm -v oak-community_oak-artifacts:/artifacts -v "$PWD":/backup alpine \
   tar xzf /backup/oak-artifacts.tar.gz -C /artifacts
 docker compose up -d migrate api worker web
 ```
+
+`--wait` matters: `docker compose up -d` returns as soon as the container starts, and the
+PostgreSQL entrypoint is still running `initdb` at that point, so an immediate `pg_restore`
+fails with "the database system is starting up". The database named `oak` already exists
+after initialisation — `POSTGRES_DB` creates it — so there is no `createdb` step, and
+`--clean --if-exists` will print harmless notices about objects that were not there to drop.
+
+`docker compose up -d migrate ...` re-runs `oak-db-migrate`. Against a dump that already
+carries `alembic_version` at the current revision it is a no-op, which is the intended
+restore-forward behaviour.
 
 Then **verify the restore rather than assuming it**:
 

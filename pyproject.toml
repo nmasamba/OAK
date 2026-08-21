@@ -107,6 +107,9 @@ select = ["E", "F", "I", "N", "UP", "B", "A", "C4", "SIM", "RUF"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["S101"]
+# The generator embeds the reference document's markdown preamble as a string literal.
+# Reflowing prose to fit a code line limit would corrupt the tables it renders.
+"scripts/generate_error_reference.py" = ["E501"]
 
 [tool.mypy]
 python_version = "3.13"

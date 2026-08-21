@@ -211,7 +211,7 @@ class CommunityControlPlane:
             None,
         )
         if entry is None:
-            raise OAKError("OAK-WORKSPACE-NOT-FOUND", "artifact was not found")
+            raise OAKError("OAK-ARTIFACT-NOT-FOUND", "artifact was not found")
         reference = ArtifactReference(
             id=artifact_id,
             version=version,

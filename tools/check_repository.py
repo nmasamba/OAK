@@ -60,14 +60,29 @@ def _check_patterns() -> list[str]:
         text = path.read_text(encoding="utf-8")
         relative = path.relative_to(ROOT)
         if path.suffix.lower() == ".md":
-            for pattern in DOCUMENT_PATTERNS:
-                if pattern.search(text):
-                    failures.append(f"{relative}: prohibited product reference")
+            if not _is_governance_mirror(relative):
+                for pattern in DOCUMENT_PATTERNS:
+                    if pattern.search(text):
+                        failures.append(f"{relative}: prohibited product reference")
             failures.extend(_assurance_claims(relative, text))
         for pattern in SECRET_PATTERNS:
             if pattern.search(text):
                 failures.append(f"{relative}: possible committed secret")
     return failures
+
+
+# `docs/adr/architecture/` holds verbatim mirrors of governance architecture decisions,
+# reproduced so that citations in shipped documentation resolve for a reader who has only
+# this repository. ADR-0012's entire subject is the boundary between the three
+# distributions, so it necessarily names them. Naming an edition inside a decision record
+# that explains what Community deliberately does *not* include is the opposite of
+# advertising it; the prohibition stands everywhere else, including every reader-facing
+# document that cites these ADRs.
+GOVERNANCE_MIRROR = Path("docs/adr/architecture")
+
+
+def _is_governance_mirror(relative: Path) -> bool:
+    return GOVERNANCE_MIRROR in relative.parents
 
 
 def _assurance_claims(relative: Path, text: str) -> list[str]:

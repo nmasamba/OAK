@@ -278,6 +278,72 @@
   idempotency-key inconsistency). Four scoped limitations are recorded in the completed
   ExecPlan.
 
+- Sprint 8 delivered Community release hardening for the `0.7.0` candidate. The version
+  contradiction was resolved first: `sprints.md` targeted `0.1.0` while the repository was at
+  `0.6.0.dev6`, and PEP 440 sorts `0.1.0` *below* that, so the release is `0.7.0`
+  (ADR-0002). `VERSION`, `pyproject.toml`, `package.json`, `web/package.json`, `STATUS.md`
+  and the generated OpenAPI `info.version` are now bound together by `make toolchain-check`
+  with drift tests; `package.json` had silently sat at `0.5.0-dev.5`.
+- Byte-stability was verified directly rather than inferred: the reference case compiled
+  before any change and after every milestone produced identical deployment-bundle,
+  runner-plan, semantic-manifest and selected-candidate digests, stable at case `0.1.7`. The
+  repository version is not embedded in any canonical document — `minimum_oak_version` and
+  `generator_version` are hardcoded literals — which was checked rather than assumed.
+- `make release` builds the sdist and wheel twice and refuses to finish unless the digests
+  match, installs the wheel into a clean environment holding only the locked runtime closure,
+  and runs it from a working directory outside the checkout to prove the packaged schemas,
+  catalogue and policy packs resolve. It emits an SBOM of the *released* closure stamped with
+  the artifact digests, a generated licence inventory, and `SHA256SUMS`. `make verify-release`
+  is a dependency-free consumer-side verifier whose refusal paths are tested against tampered,
+  equal-length-substituted, missing, empty, malformed and path-escaping input.
+- The runtime dependency closure shrank from 45 packages to 37 by dropping the unused
+  `jsonschema[format]` extra, which had placed `rfc3987` 1.3.8 (GPL-3.0-or-later) in the
+  runtime closure of this Apache-2.0 distribution while `docs/dependencies.md` recorded
+  jsonschema as "MIT". Nothing constructs a `FormatChecker`, so no behaviour changed. The
+  generated inventory now shows LGPL-3.0 Psycopg as the only copyleft entry.
+- Security review produced `docs/security/threat-coverage.md` (all nineteen threat ids mapped
+  to tests: 8 direct, 9 partial, 2 structural, 0 uncovered, every cited test verified to
+  exist), `docs/security/residual-risk.md` (31 stable-id entries), and `SECURITY.md`. **No
+  external security review was commissioned**, and a build gate now fails on unqualified
+  assurance vocabulary — it caught three of its own author's sentences on first run.
+- Four confidentiality defects were found and fixed, each reproduced before the fix:
+  canonical and MCP validation diagnostics echoed the value that failed validation (the REST
+  layer already dropped it, so the transports disagreed); SQLAlchemy bound statement
+  parameters — which carry brief text — reached uvicorn's error log, since `access_log=False`
+  does not suppress `uvicorn.error`; and `oak-runner` and `oak-db-migrate` answered
+  misconfiguration with tracebacks disclosing absolute paths, profile fragments and the
+  database host and user.
+- Two stable-code defects were fixed. A malformed `If-Match` returned `OAK-EXPECTED-VERSION`,
+  which maps to HTTP 409 and CLI exit 4 — both meaning "re-read and retry" — so an automated
+  retry loop on a weak entity tag would spin forever; it is now `OAK-PRECONDITION-INVALID`. An
+  artifact lookup miss returned `OAK-WORKSPACE-NOT-FOUND` on surfaces that opaque the message,
+  making the code the only signal and pointing an operator at a storage failure that had not
+  happened; it is now `OAK-ARTIFACT-NOT-FOUND`.
+- The no-egress claim moved from a grep to a gate: the reference journey and an
+  export/reimport now run with every outbound socket path patched to raise, a
+  guard-the-guard test proves the fixture is not vacuous, and an AST check pins the set of
+  modules permitted to import a network client to the remote CLI alone.
+- Backup and restore are measured rather than declared. `scripts/verify_deployment.py` walks
+  the artifact index and re-verifies every object; `tests/integration/test_backup_restore.py`
+  creates a scratch PostgreSQL database, migrates it to head, and proves that a database
+  restored without its artifact root is detected — the half-restore the previous
+  `pg_dump`-only documentation would have produced.
+- Performance was measured with provenance rather than asserted: reference compiler 8.21 s
+  median against a 120 s requirement, interactive read p95 30.2 ms against 500 ms, and
+  workspace manifest reads growing from 3.6 ms at zero indexed artifacts to 263.9 ms at 43
+  with no compaction anywhere (`RR-030`). Four measurements are published as *not measured*
+  with the reason.
+- Operator and contributor documentation now covers install through uninstall, every `OAK_*`
+  variable (pinned to the source by a contract test), every `OAK-*` code (generated; 245 of
+  267 were previously undocumented), the supported platform matrix with architecture and
+  glibc floors read from the lockfile, and the six architecture ADRs that shipped documents
+  cite, mirrored so their citations resolve outside the governance repository.
+- `OAK-S8-009` is **not complete**. The evidence pack, the P0 blocker proposal and the
+  published known-limitations statement are prepared in
+  `docs/release/0.7.0/release-decision.md`; three named humans — maintainer, security and
+  licence — must sign before `0.7.0` is a release rather than a candidate. It was not
+  self-approved.
+
 ## Safety boundary
 
 The current harness accepts bounded local architecture briefs, catalogue files, rationale, and target profiles and treats their content as untrusted data. It has no mandatory or real model-provider call and no secret resolution. Signing, approval, runner dispatch, and target mutation now exist in explicitly local development form: keys are labelled `development`, the runner reaches only an isolated non-production fixture profile that opts in through an explicit acknowledgement, and the sole permitted mutation is creating and removing one network-isolated, never-started container through a fixed allowlisted argument vector. Every mutating operation requires a separately signed, current, digest and target bound approval that the runner verifies independently before any target access. A compiled plan is inert until it is signed, approved, and independently verified by the runner. Governed extensions and policy packs are untrusted input: they are quarantined on install, verified against pinned local trust anchors, and never executed — an extension payload is data, and a deployment-adapter extension only binds configuration to an in-tree renderer identity. Policy evaluation is fail-closed, an undecidable condition can never yield an automated allow, and an optional external policy engine that disagrees with the built-in reference engine is refused rather than published. The bounded MCP server and the CLI's remote mode are additional transports onto the same application services and grant no authority: the MCP surface is design/read only with no approval, signing, dispatch, secret, policy-override, file, or command tool, and remote mode refuses the local-only signing and runner commands rather than acting on local state. Remote mode trusts the control plane it is pointed at; a wrong-shape response is refused with a stable code rather than crashing. Signed webhook envelopes and compiled review bundles are verified against pinned keys and existing digest edges only, and are not themselves execution authority. All committed fixtures are public or synthetic, and the committed webhook publisher key is public material whose private half was discarded.

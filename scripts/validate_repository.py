@@ -77,6 +77,11 @@ def main() -> int:
         cwd=ROOT,
         check=True,
     )
+    subprocess.run(
+        [sys.executable, "scripts/generate_error_reference.py", "--check"],
+        cwd=ROOT,
+        check=True,
+    )
     subprocess.run([sys.executable, "tools/check_repository.py"], cwd=ROOT, check=True)
     return 0
 

@@ -43,6 +43,7 @@ NOT_FOUND_CODES = frozenset(
         "OAK-CANDIDATE-NOT-FOUND",
         "OAK-OPERATION-NOT-FOUND",
         "OAK-WORKSPACE-NOT-FOUND",
+        "OAK-ARTIFACT-NOT-FOUND",
         "OAK-TENANT-MISMATCH",
     }
 )

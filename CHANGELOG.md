@@ -4,6 +4,112 @@
 
 All notable changes to OAK Community are recorded here.
 
+## 0.7.0 — 2026-08-21
+
+The first OAK Community release. A **local-first developer release**: no production or
+customer readiness claim, and no external security review was commissioned for it.
+
+### Versioning
+
+- **The release is `0.7.0`, not `0.1.0`.** The sprint backlog named the first release
+  `0.1.0`, but the repository had reached `0.6.0.dev6` and PEP 440 sorts `0.1.0` *below*
+  that, so a resolver accepting pre-releases would have preferred a development build over
+  the release. Recorded in [ADR-0002](docs/adr/0002-release-versioning.md);
+  `docs/compatibility.md` moves its deprecation threshold from `0.1.0` to `0.7.0`. The
+  `0.<sprint>.0.dev<n>` development scheme is retired.
+- `VERSION`, `pyproject.toml`, `package.json`, `web/package.json`, `STATUS.md` and the
+  generated OpenAPI `info.version` are now bound together by `make toolchain-check`.
+  `package.json` had silently sat at `0.5.0-dev.5` while the distribution was `0.6.0.dev6`.
+- **No canonical digest changed.** `minimum_oak_version` and `generator_version` are
+  hardcoded literals rather than the repository version; byte-stability of the reference
+  case was verified directly against the previous mainline.
+
+### Added
+
+- **Release engineering.** `make release` builds the sdist and wheel twice and fails if the
+  digests differ, installs the wheel into a clean environment holding only the locked runtime
+  closure, and runs it from outside the checkout to prove the packaged schemas, catalogue and
+  policy packs resolve. It emits an SBOM of the *released* runtime closure bound to the
+  artifact digests, a generated third-party licence inventory, and `SHA256SUMS`.
+  `make verify-release` is a dependency-free consumer-side verifier.
+- **`.github/workflows/release.yml`**, triggered by tag or manual dispatch, running
+  `make check` before `make release` and separately building the API and web images. The
+  `check` job in `ci.yml` is untouched.
+- **Operator documentation**: [operations.md](docs/operations.md) (install through
+  uninstall), [platforms.md](docs/platforms.md) (supported matrix with architecture and
+  glibc floors read from the lockfile), [configuration.md](docs/configuration.md) (every
+  `OAK_*` variable, pinned to the source by a contract test), and
+  [error-codes.md](docs/error-codes.md) (generated; 245 of 267 codes were previously
+  undocumented).
+- **Security record**: [SECURITY.md](SECURITY.md),
+  [threat-coverage.md](docs/security/threat-coverage.md) mapping all nineteen threat ids to
+  the tests that exercise them, and [residual-risk.md](docs/security/residual-risk.md) with
+  31 stable-id entries. A build gate now rejects unqualified assurance vocabulary.
+- **Measurements**: [performance.md](docs/performance.md) and a provenance-stamped
+  `scripts/benchmark.py`. Reference compiler 8.21 s median against a 120 s requirement;
+  interactive read p95 30 ms against 500 ms; workspace manifest reads grow from 3.6 ms at
+  zero artifacts to 263.9 ms at 43, with no compaction anywhere (`RR-030`).
+- **Operator tooling**: `scripts/verify_deployment.py` re-verifies every indexed artifact
+  against the artifact store so a restore is measured rather than declared, and
+  `scripts/check_clean_machine.py` makes uninstall verifiable.
+- **Contributor documentation**: [CONTRIBUTING.md](CONTRIBUTING.md), a documentation index,
+  and the six architecture ADRs that shipped documents cite are now mirrored into
+  `docs/adr/architecture/` so their citations resolve for a reader outside the governance
+  repository.
+- `make clean-all`, which removes what `make clean` never did.
+
+### Fixed
+
+- **Diagnostics no longer echo the value that failed validation.** `jsonschema` interpolates
+  the offending value into most of its messages, so `ContractValidationError` — whose own
+  docstring called it payload-safe — and the MCP tool-argument error both returned it to the
+  caller, where an MCP frame lands in an agent transcript. The REST layer already dropped it,
+  so the two transports disagreed on what a refusal discloses.
+- **Bound statement parameters no longer reach the logs.** Canonical documents, including
+  brief text, are SQLAlchemy statement parameters, and the default `hide_parameters=False`
+  put them into `StatementError` messages that uvicorn's error logger writes to stderr —
+  the container log under Compose. `access_log=False` does not suppress `uvicorn.error`.
+  The concrete TM-10 log-leak path.
+- **`oak-runner` and `oak-db-migrate` answer misconfiguration with a stable code**, not a
+  traceback disclosing absolute paths, profile fragments or the database host and user.
+- **A malformed `If-Match` header is `OAK-PRECONDITION-INVALID`, not
+  `OAK-EXPECTED-VERSION`.** The latter maps to HTTP 409 and CLI exit 4, both of which tell
+  automation to re-read and retry — and a client that sent a weak entity tag never succeeds
+  by retrying, so a retry loop keyed on that signal spins forever.
+- **An artifact lookup miss is `OAK-ARTIFACT-NOT-FOUND`, not `OAK-WORKSPACE-NOT-FOUND`.**
+  Both still map to 404, but REST and MCP opaque the message for not-found codes, so the
+  code was the operator's only signal and it pointed at a storage failure that had not
+  happened.
+- Three of four copies of the idempotency-key and correlation-id messages stated an exact
+  length for what is a minimum check.
+- A stray `-.uv-cache/` directory, matched by neither `.gitignore` nor `.dockerignore`,
+  shipped inside the `0.6.0.dev6` sdist and entered the image build context. Sdist contents
+  are now an explicit exclude list rather than inherited ignore rules, and
+  `reproducible = true` is declared rather than inherited from a build-backend default.
+- `scripts/validate_repository.py` uses `sys.executable` rather than a bare `python`, which
+  does not exist on a clean Debian or Ubuntu host.
+
+### Changed
+
+- **`jsonschema[format]` is now plain `jsonschema`.** Nothing constructs a `FormatChecker`,
+  so the extra changed no behaviour — but it placed `rfc3987` 1.3.8 (**GPL-3.0-or-later**)
+  in the runtime dependency closure of this Apache-2.0 distribution, unrecorded in the
+  dependency inventory, which listed jsonschema as "MIT". The runtime closure drops from 45
+  packages to 37. `format-nongpl` was rejected: it keeps eight unused packages to preserve a
+  capability nothing enables. Recorded in `docs/dependencies.md`.
+- The documentation gate that forbids naming the other distributions now exempts
+  `docs/adr/architecture/`, which holds verbatim governance mirrors — ADR-0012's subject is
+  the boundary between those distributions, so it necessarily names them. The prohibition
+  stands in every reader-facing document, pinned by a test.
+
+### Known limitations
+
+Published in [security/residual-risk.md](docs/security/residual-risk.md) — 31 entries,
+including unsigned release artifacts (`RR-005`), non-reproducible container images
+(`RR-006`), no application logging or metrics (`RR-015`), `/readyz` not checking the schema
+revision (`RR-016`), no file-workspace format migration (`RR-017`), PostgreSQL suites that
+skip silently in CI (`RR-019`), and unbounded workspace read growth (`RR-030`).
+
 ## Unreleased
 
 ### Added

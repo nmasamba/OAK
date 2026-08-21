@@ -227,7 +227,7 @@ class PostgreSQLWorkspaceRepository:
                 .one_or_none()
             )
         if row is None:
-            raise OAKError("OAK-WORKSPACE-NOT-FOUND", "artifact was not found")
+            raise OAKError("OAK-ARTIFACT-NOT-FOUND", "artifact was not found")
         return self._read_object(str(row["digest"]), expected_size=int(row["size_bytes"]))
 
     def read_json_artifact(self, reference: ArtifactReference) -> dict[str, Any]:

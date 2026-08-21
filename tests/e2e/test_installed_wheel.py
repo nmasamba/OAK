@@ -75,9 +75,7 @@ def unpacked(wheel: Path, tmp_path_factory: pytest.TempPathFactory) -> Path:
     return destination
 
 
-def _run_packaged(
-    unpacked: Path, code: str, *, cwd: Path
-) -> subprocess.CompletedProcess[str]:
+def _run_packaged(unpacked: Path, code: str, *, cwd: Path) -> subprocess.CompletedProcess[str]:
     """Run Python against the unpacked wheel only, from outside the checkout."""
 
     environment = {
@@ -117,9 +115,9 @@ def test_the_wheel_carries_every_force_included_tree(wheel: Path) -> None:
 
 def test_the_wheel_declares_every_console_script(wheel: Path) -> None:
     with zipfile.ZipFile(wheel) as archive:
-        entry_points = archive.read(
-            f"oak_community-{VERSION}.dist-info/entry_points.txt"
-        ).decode("utf-8")
+        entry_points = archive.read(f"oak_community-{VERSION}.dist-info/entry_points.txt").decode(
+            "utf-8"
+        )
 
     declared = {
         line.split("=", 1)[0].strip()
@@ -139,9 +137,9 @@ def test_console_script_targets_import_from_the_packaged_wheel(
     """
 
     with zipfile.ZipFile(wheel) as archive:
-        entry_points = archive.read(
-            f"oak_community-{VERSION}.dist-info/entry_points.txt"
-        ).decode("utf-8")
+        entry_points = archive.read(f"oak_community-{VERSION}.dist-info/entry_points.txt").decode(
+            "utf-8"
+        )
 
     targets = [
         line.split("=", 1)[1].strip()
@@ -239,9 +237,7 @@ def test_the_packaged_cli_completes_the_reference_journey_outside_the_checkout(
     assert "journey-ok" in result.stdout
 
 
-def test_the_packaged_version_matches_the_version_file(
-    unpacked: Path, tmp_path: Path
-) -> None:
+def test_the_packaged_version_matches_the_version_file(unpacked: Path, tmp_path: Path) -> None:
     result = _run_packaged(unpacked, "import oak; print(oak.__version__)", cwd=tmp_path)
 
     assert result.returncode == 0, result.stderr

@@ -208,16 +208,118 @@ source, and the egress claim against a live socket guard.
 
 ## Security, privacy and authority review
 
-To be completed as the work happens.
+Sprint 8 adds no capability and moves no trust boundary. The release script, the release
+workflow and the operator scripts are read-only or build-only: `scripts/verify_release.py`
+and `scripts/verify_deployment.py` open nothing for writing, `scripts/check_clean_machine.py`
+runs no mutating Docker command, and `.github/workflows/release.yml` holds `contents: read`
+and publishes nothing. MCP stays design/read only, remote CLI keeps refusing local-only
+commands, and runner apply stays behind signing, approval and independent runner
+verification.
+
+Untrusted input handled by new code: a `SHA256SUMS` manifest is treated as untrusted — a
+name that is absolute or escapes the release directory is refused rather than followed, so a
+hostile manifest cannot direct verification at an arbitrary file. Release artifacts are
+**not signed**; the documentation states what checksums do and do not prove rather than
+implying provenance they cannot carry.
+
+Four confidentiality defects found by the review were fixed rather than documented, each
+reproduced locally first: canonical and MCP validation diagnostics echoing the rejected
+value, SQLAlchemy bound parameters reaching uvicorn's error log, and unhandled tracebacks
+from `oak-runner` and `oak-db-migrate` disclosing paths and connection details. The
+no-egress claim moved from a grep to an enforced test.
+
+No external security review was commissioned, and no document implies one occurred; a build
+gate now rejects unqualified assurance vocabulary.
 
 ## Operational and rollback plan
 
-To be completed as the work happens.
+Every change is additive or a contained fix; reverting the branch is a complete rollback,
+and no migration, key rotation or stored-data change is involved.
+
+Two changes alter observable behaviour and are called out because a consumer could notice:
+a malformed `If-Match` header now returns `OAK-PRECONDITION-INVALID` (422) instead of
+`OAK-EXPECTED-VERSION` (409), and an artifact lookup miss now returns
+`OAK-ARTIFACT-NOT-FOUND` instead of `OAK-WORKSPACE-NOT-FOUND` (still 404). Both are
+corrections of a code carrying two meanings, both are free to make before the first release
+and would need a deprecation window after it, and both are recorded in `CHANGELOG.md`.
+
+The version move to `0.7.0` shifts no canonical digest — verified directly — so stored
+workspaces, signed envelopes and trust anchors are unaffected. Dropping the
+`jsonschema[format]` extra removes eight packages from the runtime closure and changes no
+behaviour, because no `FormatChecker` was ever constructed; rollback is restoring the extra
+and re-running `uv lock`.
 
 ## Progress
 
 - [x] 2026-08-21 ExecPlan authored; tasks claimed in `STATUS.md`; branch
   `claude/sprint-8-community-release-hardening` created from `origin/main` at `9998508`.
+- [x] 2026-08-21 Baseline recorded before any change: the reference case compiled on the
+  branch tip at `9998508` produced `deployment_bundle 042313be`, `runner_plan 5e0a65ba`,
+  `selected_candidate 576b0ca6`, `semantic_manifest 2ef34758` at case `0.1.7`, matching the
+  invariant exactly.
+- [x] 2026-08-21 M1 release identity and packaging hygiene: version `0.7.0` across `VERSION`,
+  `pyproject.toml`, `package.json`, `web/package.json`, `STATUS.md` and the regenerated
+  OpenAPI document, bound together by `make toolchain-check` with three drift tests;
+  ADR-0002 recorded with the rejected alternatives; `jsonschema[format]` dropped, removing
+  `rfc3987` (GPL-3.0-or-later) and seven other unused packages from the runtime closure
+  (45 → 37) with a `docs/dependencies.md` review; the stray `-.uv-cache/` removed and the
+  `.gitignore`/`.dockerignore` blind spot closed; sdist contents made an explicit exclude
+  list and `reproducible = true` declared rather than inherited. Two consecutive builds
+  produce identical digests; the sdist no longer carries a cache directory; byte-stability
+  verified directly against the baseline (identical).
+- [x] 2026-08-21 M2 clean install matrix: `docs/platforms.md` with the architecture and
+  glibc floors read from the wheel tags in `uv.lock` (macOS x86_64 and Windows are
+  unsupported, and the reasons are specific), the Kubernetes deferral written down with its
+  four blockers, `scripts/validate_repository.py` moved off a bare `python`, and
+  `tests/e2e/test_installed_wheel.py` — which builds the real wheel, unpacks it where no
+  source tree sits above it, and drives the reference journey from packaged data. That is
+  the branch every other e2e test misses, because `.venv` is an editable install. A
+  `linux/amd64` API image builds and runs `oak --version` → `0.7.0` as uid `oak`.
+- [x] 2026-08-21 M4 supply-chain release: `scripts/build_release.py` and `make release`
+  (double build with digest comparison, clean-environment install, out-of-checkout smoke
+  test, release SBOM of the installed runtime closure stamped with the artifact digests,
+  generated licence inventory naming the packages this platform's markers exclude, and
+  `SHA256SUMS`); `scripts/verify_release.py` and `make verify-release`;
+  `.github/workflows/release.yml` with `contents: read`, running `make check` before
+  `make release`, leaving `ci.yml` untouched; `docs/release-process.md`. Fifteen tests drive
+  the verifier against tampered, equal-length-substituted, missing, empty, malformed and
+  path-escaping inputs. The generated inventory shows LGPL-3.0 Psycopg as the only copyleft
+  entry — the GPL transitive is gone.
+- [x] 2026-08-21 M3 upgrade, backup and restore: `scripts/verify_deployment.py` walks the
+  artifact index and re-verifies every object, and `tests/integration/test_backup_restore.py`
+  creates a scratch PostgreSQL database, migrates it to head, writes state, and proves that a
+  database restored *without* its artifact root is detected — the exact half-restore the old
+  `pg_dump`-only documentation would have produced. Also pins the Alembic `downgrade()`
+  refusal, the export/reimport round trip, and the fail-closed behaviour of a workspace
+  whose manifest carries an unknown `schema_version`.
+- [x] 2026-08-21 M5 security review and residual risk: `docs/security/threat-coverage.md`
+  (all nineteen threat ids mapped to tests, 8 direct / 9 partial / 2 structural / 0 none,
+  every cited test verified to exist), `docs/security/residual-risk.md` (31 stable-id
+  entries, severities scored for the shipped configuration, owners explicitly unassigned),
+  `SECURITY.md`, an assurance-claim gate in `tools/check_repository.py` with a documented
+  escape for denials, and `tests/integration/test_offline_boundary.py` which runs the whole
+  reference journey with every outbound socket path broken plus a guard-the-guard test.
+  **Four confidentiality defects found and fixed**, each reproduced first: canonical and MCP
+  validation diagnostics echoing the rejected value, SQLAlchemy bound parameters reaching
+  uvicorn's error log, and tracebacks from `oak-runner` and `oak-db-migrate`.
+- [x] 2026-08-21 M6 performance: `scripts/benchmark.py` with a machine-readable provenance
+  header and `docs/performance.md`. Reference compiler 8.21 s median against a 120 s
+  requirement; interactive read p95 30.2 ms (case) and 54.2 ms (audit) against 500 ms;
+  workspace manifest reads 3.6 ms at zero artifacts and 263.9 ms at 43. Four measurements
+  are reported as *not measured*, with the reason, rather than omitted.
+- [x] 2026-08-21 M7 operator documentation: `docs/operations.md`, `docs/configuration.md`
+  (all 25 `OAK_*` variables, pinned to the source by a contract test that fails in both
+  directions), the generated `docs/error-codes.md`, and `scripts/check_clean_machine.py`.
+  Two stable-code defects found while compiling the reference were fixed: a malformed
+  `If-Match` returned 409/exit 4, telling automation to retry something that can never
+  succeed, and an artifact miss reported as a missing workspace on surfaces that opaque the
+  message.
+- [x] 2026-08-21 M8 contributor documentation: `CONTRIBUTING.md`, `docs/README.md`, the six
+  cited architecture ADRs mirrored into `docs/adr/architecture/` with provenance headers and
+  a contract test that every cited ADR resolves, and `docs/development.md` updated with the
+  new targets and the silent PostgreSQL gate. The product-reference prohibition gained one
+  narrow, tested exception for the mirror directory, because ADR-0012's subject is the
+  boundary between the distributions.
 
 ## Decisions
 
