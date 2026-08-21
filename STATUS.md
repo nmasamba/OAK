@@ -246,6 +246,15 @@
   case stable at `0.1.7`. A four-interface conformance suite (file CLI, remote CLI, REST, MCP)
   matched candidate/bundle/semantic digests, denial codes, idempotent retries, and audit
   outcomes.
+- Sprint 7 CI is green on the remote: both GitHub Actions `check` jobs pass on PR #11 after an
+  end-to-end e2e assertion was rewritten. The original test scraped `oak --help` for
+  `--server`; that output is rendered by Rich, whose wrapping and styling differ between a
+  developer machine and the CI runner, so the assertion failed there while the option worked
+  (the same run passed the `oak validate webhook` end-to-end from the same installed build).
+  It now asserts behaviour instead: `mcp` and `validate` are invocable, an unknown validate
+  kind returns `OAK-VALIDATE-KIND`, `--server` routes a local-only command to
+  `OAK-REMOTE-UNSUPPORTED`, and a remote-capable command fails closed with
+  `OAK-REMOTE-UNAVAILABLE` against an unreachable server.
 - A six-lens multi-agent adversarial audit ran against the Sprint 7 diff with independent
   per-finding refutation and a repo-wide latent sweep. Eleven candidates were raised; two
   independent skeptics confirmed their findings and the remaining eight candidates were

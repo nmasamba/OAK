@@ -274,6 +274,11 @@ surface; no migration, key rotation, or data change is involved.
   independent per-finding refutation plus owner verification of every candidate; six real
   defects fixed and four scoped limitations recorded (see Post-implementation audit). Full
   `make check` re-run green after the fixes; byte-stability re-verified unchanged.
+- [x] 2026-08-21 Remote CI green on PR #11. One e2e assertion scraped Rich-rendered
+  `oak --help` for `--server` and failed on the CI runner while the option worked; it was
+  replaced with behavioural assertions (invocable subcommands, `OAK-VALIDATE-KIND`,
+  `OAK-REMOTE-UNSUPPORTED`, `OAK-REMOTE-UNAVAILABLE`), which prove more than the presentation
+  check did. Rule recorded for later sprints: never assert on Rich-formatted help output.
 
 ## Decisions
 
