@@ -51,7 +51,7 @@ def _call(client: MCPClient, name: str, arguments: dict[str, Any]) -> dict[str, 
 
 
 def test_prompt_injection_in_brief_content_is_stored_as_inert_data(tmp_path: Path) -> None:
-    server, control_plane, _store = build_server(tmp_path)
+    server, _control_plane, _store = build_server(tmp_path)
     client = MCPClient(server)
     poisoned = (
         "brief_version: 0.1.0\n"
@@ -185,7 +185,7 @@ def test_confirm_actor_field_cannot_escalate_beyond_the_bound_identity() -> None
 
 
 def test_tenant_crossover_is_an_opaque_denial(tmp_path: Path) -> None:
-    server, control_plane, _store = build_server(tmp_path)
+    server, _control_plane, _store = build_server(tmp_path)
     client = MCPClient(server)
     client.call_ok(
         "oak_design_case_create",
@@ -259,7 +259,7 @@ def test_non_tool_methods_cannot_be_reached() -> None:
 
 
 def test_execution_fields_in_tool_arguments_are_refused(tmp_path: Path) -> None:
-    server, control_plane, store = build_server(tmp_path)
+    server, _control_plane, store = build_server(tmp_path)
     client = MCPClient(server)
     created = client.call_ok(
         "oak_design_case_create",

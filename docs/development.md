@@ -88,6 +88,33 @@ on loopback, and keeps PostgreSQL on the project network. The named artifact and
 volumes survive normal teardown. Compose does not start a runner or external model service;
 `oak-runner` is a separate outbound-only process an operator starts deliberately. Use `docker compose down --volumes` only when intentionally deleting local state.
 
+## MCP, remote CLI, and portals
+
+The bounded MCP server, the CLI's remote (`--server`) mode, and the portal/webhook
+integrations share the same application services as everything above and are documented in
+[interfaces.md](interfaces.md) (setup, permission model, capability matrix) and governed by
+[compatibility.md](compatibility.md). Quick forms:
+
+```bash
+# Bounded MCP server on stdio (same OAK_DATABASE_URL configuration as oak-api)
+oak mcp serve
+
+# The design journey over REST from the same CLI
+oak --server http://127.0.0.1:8080 design ./brief.yaml
+oak --server http://127.0.0.1:8080 evaluate candidate-03 --case design-case.public-manual-qa
+
+# Server-free validation for CI and portals
+oak validate export ./case-export/
+oak validate bundle ./bundle/
+oak validate webhook examples/example-webhook-envelope.yaml \
+  --public-key examples/portal/webhook-publisher.identity.json
+```
+
+The MCP surface is design/read only: it cannot approve, sign, dispatch, resolve a secret,
+override policy, select a candidate, run a command, or read a file. Remote mode maps only
+commands that have a REST surface; signing, approval, dispatch, keys, extensions, policy, and
+render are local-only and refuse with `OAK-REMOTE-UNSUPPORTED` when a server is set.
+
 ## Signed runner
 
 Signing, approval, dispatch, and the separate `oak-runner` process are documented in
