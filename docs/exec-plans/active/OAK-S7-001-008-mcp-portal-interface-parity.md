@@ -242,6 +242,26 @@ surface; no migration, key rotation, or data change is involved.
   privileged operation in wiring, no Backstage type in `src/`, identity file is public
   material only) pass; `make validate` passes with the schema registered in
   `EXAMPLE_BY_SCHEMA` and `schemas/README.md`.
+- [x] 2026-08-21 M5 interface conformance: PostgreSQL-gated suite runs the reference
+  scenario across four legs — file-mode application services, REST over a live loopback
+  uvicorn server, real MCP frames, and the installed CLI in `--server` mode — each in an
+  isolated environment with one fixed clock. Candidate/selected/assurance/bundle/
+  semantic-manifest digests, question sets, forbidden-transition and stale-version denial
+  codes, idempotent retry convergence, final version/status, and the audit event sequence
+  are compared and identical; `interface_origin` is asserted per transport including the
+  deliberate out-of-band selection in the MCP leg. The runner-plan digest is asserted
+  lineage-specific (it binds the exact case document, whose audit head and origin are
+  transport metadata) rather than cross-interface equal. Passed against pinned
+  PostgreSQL 17.6.
+- [x] 2026-08-21 M6 MCP abuse suite: 13 adversarial integration tests — prompt injection
+  stays inert quarantined data, oversized content and an unbounded newline-free frame are
+  bounded (the reader aborts before buffering the whole line), a 2000-deep frame is a
+  clean parse error (fixing an unhandled `RecursionError` in the frame parser and hardening
+  the tool executor), actor impersonation and tenant crossover are denied before dispatch
+  (tenant opaquely), stale versions are retriable denials, every privileged tool name and
+  non-tool method is refused, a forbidden execution field in a target profile is refused
+  with no operation enqueued, malformed frames keep the session alive, and a denied
+  mutation leaves no workspace or operation state. Runs db-free in `make test-integration`.
 
 ## Decisions
 

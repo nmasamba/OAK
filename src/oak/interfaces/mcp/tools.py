@@ -343,7 +343,7 @@ class MCPToolExecutor:
                     "retriable": False,
                 }
             )
-        except (OSError, RuntimeError, ValueError):
+        except (OSError, RecursionError, RuntimeError, ValueError):
             return self._error_result(
                 {
                     "code": "OAK-INTERNAL",

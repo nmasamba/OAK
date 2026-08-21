@@ -88,7 +88,10 @@ class MCPServer:
 
         try:
             message = load_json_document(frame.decode("utf-8"))
-        except (UnicodeDecodeError, ValueError):
+        except (UnicodeDecodeError, ValueError, RecursionError):
+            # RecursionError guards against adversarially deep nesting; the
+            # canonical loader recurses to validate, so a hostile frame is a
+            # parse error, never an unhandled crash.
             return self._error(None, PARSE_ERROR, "frame is not a JSON-RPC object")
         return self._handle_message(message)
 
