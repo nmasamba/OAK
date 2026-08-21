@@ -92,7 +92,7 @@
 | `OAK-S7-008` | complete | `docs/interfaces.md` interface setup, permission model, capability matrix, and explicit unavailable operations |
 | `OAK-S8-001` | complete | Clean install matrix across supported platforms and install paths |
 | `OAK-S8-002` | complete | Rehearsed upgrade, backup/restore, export/import and stated downgrade limits |
-| `OAK-S8-003` | complete | Threat-model coverage index, scans, secret/log and runner review, residual-risk register |
+| `OAK-S8-003` | partial | Threat-model coverage index, dependency scans, secret/log and runner review, residual-risk register; **container scan not performed** (`RR-035`) |
 | `OAK-S8-004` | complete | Reproducible artifacts with SBOM, licence inventory, checksums and tested verification |
 | `OAK-S8-005` | complete | Provenance-stamped performance and soak measurements |
 | `OAK-S8-006` | complete | Operator documentation from install through uninstall |
@@ -304,7 +304,7 @@
   generated inventory now shows LGPL-3.0 Psycopg as the only copyleft entry.
 - Security review produced `docs/security/threat-coverage.md` (all nineteen threat ids mapped
   to tests: 8 direct, 9 partial, 2 structural, 0 uncovered, every cited test verified to
-  exist), `docs/security/residual-risk.md` (34 stable-id entries), and `SECURITY.md`. **No
+  exist), `docs/security/residual-risk.md` (35 stable-id entries), and `SECURITY.md`. **No
   external security review was commissioned**, and a build gate now fails on unqualified
   assurance vocabulary — it caught three of its own author's sentences on first run.
 - Four confidentiality defects were found and fixed, each reproduced before the fix:
@@ -339,6 +339,13 @@
   267 were previously undocumented), the supported platform matrix with architecture and
   glibc floors read from the lockfile, and the six architecture ADRs that shipped documents
   cite, mirrored so their citations resolve outside the governance repository.
+- One part of `OAK-S8-003` was **not** completed: the task names dependency *and* container
+  scans, and only the dependency half was run. `make audit` covers the Python and web
+  closures and is clean; the OS packages inside the shipped images are unassessed because no
+  scanner was available (`trivy`/`grype`/`syft` absent, `docker scout` requires a Docker Hub
+  login the release preparation would not perform). Base images are digest-pinned, which is
+  not the same assurance. Recorded as `RR-035` and raised in its own section of the release
+  decision so a maintainer sees it before signing.
 - `OAK-S8-009` is **not complete**. The evidence pack, the P0 blocker proposal and the
   published known-limitations statement are prepared in
   `docs/release/0.7.0/release-decision.md`; three named humans — maintainer, security and

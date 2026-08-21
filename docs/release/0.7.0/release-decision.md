@@ -30,10 +30,11 @@ Explicitly *not* being decided:
 | Can a user verify what they downloaded? | [release-process.md](../../release-process.md#verifying-a-release); the refusal path is tested against tampered, substituted, missing and path-escaping inputs |
 | Can it be upgraded, backed up and restored? | [operations.md](../../operations.md); `scripts/verify_deployment.py` plus `tests/integration/test_backup_restore.py`, which rehearses a restore into a clean migrated database and proves a database-only restore is detected |
 | What does it defend against? | [security/threat-coverage.md](../../security/threat-coverage.md) — 19 threats, 8 direct, 9 partial, 2 structural, 0 uncovered |
-| What does it *not* defend against? | [security/residual-risk.md](../../security/residual-risk.md) — 34 entries with stable ids |
+| What does it *not* defend against? | [security/residual-risk.md](../../security/residual-risk.md) — 35 entries with stable ids |
 | How fast is it, and on what? | [performance.md](../../performance.md) and [performance.json](performance.json) |
 | Is every claim backed? | A build gate rejects unqualified assurance vocabulary; `tests/contract/test_assurance_claims.py` proves it is not vacuous |
 | Was it externally reviewed? | **No.** See below |
+| Were the images scanned? | **No.** Dependency scans were run and are clean; no container scan was possible — see `RR-035` and the note below |
 
 ## External review
 
@@ -46,6 +47,26 @@ multi-agent adversarial audit of the Sprint 8 diff.
 Nothing in this release may be described as audited, certified, or independently assured.
 A documentation gate now enforces that wording; the substance is the maintainers' to
 preserve.
+
+## Container scanning
+
+`OAK-S8-003` asks for dependency **and container** scans. Only the dependency half was
+done. `make audit` runs `pip-audit` over the Python closure and `pnpm audit` over the web
+closure — both clean — but neither looks inside a built image, so the **OS packages in the
+shipped images are unscanned**. No scanner was available in the release environment:
+`trivy`, `grype` and `syft` are not installed, and `docker scout` requires a Docker Hub
+login that the release preparation deliberately did not perform.
+
+What stands in its place is weaker and should be read as such: every base image is pinned
+by tag *and* immutable `sha256` digest, `make toolchain-check` fails if the `uv`, Python or
+Node pins drift, and the images derive from `python:3.13.12-slim` and `nginx`/`node` Alpine
+rather than anything bespoke.
+
+**This is the one place where the sprint's own task list is not fully satisfied**, which is
+why it is raised here rather than buried in the register. A maintainer may reasonably treat
+it as a blocker. Closing it needs one scanner run against
+`oak-community/api:0.7.0` and `oak-community/web:0.7.0` — `trivy image` is the smallest
+option and needs no account — plus a record of the result. Recorded as `RR-035`.
 
 ## Defects found and fixed during release preparation
 
@@ -65,7 +86,12 @@ what survived it.
 
 ## Proposed P0 blocker list
 
-**Proposed: none.**
+**Proposed: none — with one item explicitly handed to the maintainer.**
+
+`RR-035` (no container scan) is not a defect but an *unperformed task*: `OAK-S8-003` names
+container scans and this release does not have them. It is listed as the maintainer's call
+rather than proposed either way, because the judgement — ship with the base-image pinning
+that exists, or run a scanner first — is a risk-appetite decision, not a technical one.
 
 That needs justifying rather than asserting. `RR-001` (unsigned, fail-open revocation
 notices) and `RR-003` (the resolved image digest is never verified, and no registry
@@ -88,7 +114,7 @@ find it rather than buried in a sprint post-mortem.
 
 [security/residual-risk.md](../../security/residual-risk.md) is the published statement, linked
 from the README, `SECURITY.md`, the operations runbook and the release process. It carries
-34 entries with stable ids, severities scored for the shipped configuration, and an explicit
+35 entries with stable ids, severities scored for the shipped configuration, and an explicit
 note that every owner field is unassigned pending this decision.
 
 ## Approvals required

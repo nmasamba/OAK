@@ -294,7 +294,7 @@ and re-running `uv lock`.
   whose manifest carries an unknown `schema_version`.
 - [x] 2026-08-21 M5 security review and residual risk: `docs/security/threat-coverage.md`
   (all nineteen threat ids mapped to tests, 8 direct / 9 partial / 2 structural / 0 none,
-  every cited test verified to exist), `docs/security/residual-risk.md` (34 stable-id
+  every cited test verified to exist), `docs/security/residual-risk.md` (35 stable-id
   entries, severities scored for the shipped configuration, owners explicitly unassigned),
   `SECURITY.md`, an assurance-claim gate in `tools/check_repository.py` with a documented
   escape for denials, and `tests/integration/test_offline_boundary.py` which runs the whole
@@ -464,6 +464,17 @@ category that matters most.
 - The two ADR series share a number space, so a bare `ADR-00NN` citation is ambiguous. The
   contract test checks that a citation *resolves*; it cannot check which series was meant.
   `docs/adr/README.md` now tells authors to cite with a link.
+
+### Found after the audit, while closing out
+
+- **`OAK-S8-003` asks for dependency *and container* scans, and only the dependency half
+  was done.** `make audit` covers the Python and web closures and is clean; nothing looks
+  inside a built image, so the OS packages in the shipped images are unassessed. No scanner
+  was available — `trivy`, `grype` and `syft` are not installed, and `docker scout`
+  requires a Docker Hub login the release preparation would not perform. This is the one
+  place where the sprint's own task list is not fully satisfied. It is recorded as `RR-035`
+  and raised in its own section of the release decision rather than left in the register,
+  because a maintainer may reasonably treat an unperformed task as a blocker.
 
 ### Not reproduced
 

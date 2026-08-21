@@ -83,6 +83,15 @@ What does exist, and is checkable:
   expiry, tampering, prompt injection, MCP tool escalation, confused-deputy actors,
   tenant crossover, oversized and deeply nested frames, and execution-field injection.
 
+## Scanning
+
+`make audit` runs `pip-audit` over the Python dependency closure and `pnpm audit` over the
+web one. Both were clean for `0.7.0`.
+
+**Container images are not scanned.** No image scanner was run for this release; the OS
+packages inside the shipped images are therefore unassessed. Base images are pinned by tag
+and immutable digest, which is not the same thing. Recorded as `RR-035`.
+
 ## Supported versions
 
 `0.7.0` is the first release. Only the latest release is supported; there is no

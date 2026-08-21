@@ -48,7 +48,7 @@ customer readiness claim, and no external security review was commissioned for i
 - **Security record**: [SECURITY.md](SECURITY.md),
   [threat-coverage.md](docs/security/threat-coverage.md) mapping all nineteen threat ids to
   the tests that exercise them, and [residual-risk.md](docs/security/residual-risk.md) with
-  34 stable-id entries. A build gate now rejects unqualified assurance vocabulary.
+  35 stable-id entries. A build gate now rejects unqualified assurance vocabulary.
 - **Measurements**: [performance.md](docs/performance.md) and a provenance-stamped
   `scripts/benchmark.py`. Reference compiler 8.75 s median against a 120 s requirement;
   interactive read p95 32 ms against 500 ms; workspace manifest reads grow from 4.0 ms at
@@ -108,7 +108,7 @@ customer readiness claim, and no external security review was commissioned for i
 
 ### Known limitations
 
-Published in [security/residual-risk.md](docs/security/residual-risk.md) — 34 entries,
+Published in [security/residual-risk.md](docs/security/residual-risk.md) — 35 entries,
 including unsigned release artifacts (`RR-005`), non-reproducible container images
 (`RR-006`), no application logging or metrics (`RR-015`), `/readyz` not checking the schema
 revision (`RR-016`), no file-workspace format migration (`RR-017`), PostgreSQL suites that
