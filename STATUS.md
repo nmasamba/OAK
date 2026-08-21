@@ -2,12 +2,12 @@
 
 # Build status
 
-- **Updated:** 2026-08-20
+- **Updated:** 2026-08-21
 - **Repository version:** `0.6.0.dev6`
-- **Phase:** Sprint 6 complete — policy and adapter SDK with governed extensions
+- **Phase:** Sprint 7 in progress — MCP, portal and interface parity
 - **Completed plans:** `docs/exec-plans/completed/OAK-S0-001-009-walking-skeleton.md`, `docs/exec-plans/completed/OAK-S1-001-010-local-design-case.md`, `docs/exec-plans/completed/OAK-S2-001-011-candidate-planning.md`, `docs/exec-plans/completed/OAK-S3-001-009-persistent-rest-jobs.md`, `docs/exec-plans/completed/OAK-S4-001-009-web-workspace.md`, `docs/exec-plans/completed/OAK-S5-001-011-signed-runner.md`, and `docs/exec-plans/completed/OAK-S6-001-008-policy-adapter-sdk.md`
-- **Active plan:** none — Sprint 6 closed; Sprint 7 (MCP, portal and interface parity) is next
-- **Next task:** author and claim the Sprint 7 (`OAK-S7-001`–`OAK-S7-008`) ExecPlan
+- **Active plan:** `docs/exec-plans/active/OAK-S7-001-008-mcp-portal-interface-parity.md`
+- **Next task:** implement `OAK-S7-001` (bounded MCP server)
 
 ## Claimed work
 
@@ -80,6 +80,14 @@
 | `OAK-S6-006` | complete | Second deterministic deployment renderer (Helm/Kubernetes-shaped) behind the renderer port |
 | `OAK-S6-007` | complete | Policy and deployment adapter replacement in the reference case with unchanged canonical lineage |
 | `OAK-S6-008` | complete | Extension supply chain: manifest digest, compatibility, signature hooks, quarantine, explicit activation, no dynamic code |
+| `OAK-S7-001` | claimed | Bounded typed MCP server over the shared application services with no generic shell/file/secret tool |
+| `OAK-S7-002` | claimed | Remote CLI mode mapping design-journey commands to REST with stable output and exit semantics |
+| `OAK-S7-003` | claimed | Public compatibility policy for schemas, REST/OpenAPI, CLI, MCP, and runner protocol before `0.1.0` |
+| `OAK-S7-004` | claimed | One fixture across local CLI, remote CLI, REST, and MCP with matching semantic digests, errors, and audit outcomes |
+| `OAK-S7-005` | claimed | Backstage catalogue/template/card examples over documented REST behavior with no core-IR type leak |
+| `OAK-S7-006` | claimed | Signed webhook/event example and a headless case/plan validator suitable for CI and portals |
+| `OAK-S7-007` | claimed | MCP abuse suite: injection, oversize, confused deputy, stale version, tenant crossover, tool escalation |
+| `OAK-S7-008` | claimed | Interface setup, permission model, capability matrix, and explicit unavailable operations documentation |
 
 ## Verification evidence
 
