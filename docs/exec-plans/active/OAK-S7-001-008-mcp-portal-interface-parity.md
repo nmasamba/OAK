@@ -225,6 +225,23 @@ surface; no migration, key rotation, or data change is involved.
   identical bundle digest, idempotent confirm replay, state denials, and unreachable/
   non-http server refusals. Full db-free `make`-equivalent suites pass (329 unit/contract,
   85 integration + 20 gated skips, mypy 113 files).
+- [x] 2026-08-21 M3 compatibility policy: `docs/compatibility.md` covering the versioning
+  model and per-surface rules for canonical schemas, REST/OpenAPI (baseline-gate
+  semantics), CLI (exit codes, output shapes, remote parity), MCP (tool registry,
+  permanent prohibition list, pinned protocol revisions), the runner protocol, and the
+  pre-`0.1.0` deprecation process.
+- [x] 2026-08-21 M4 portal/CI integration: canonical `webhook-envelope.schema.json` with a
+  really-signed committed example (`examples/example-webhook-envelope.yaml`; publisher key
+  pinned in `examples/portal/webhook-publisher.identity.json`, private half generated in a
+  throwaway process and discarded); `oak validate export|bundle|webhook` headless
+  validator that replays workspace import, verifies bundle schema/digest-links/inert
+  status/execution-field ban, and verifies webhooks against the pinned key only; Backstage
+  catalogue/template/proxy-card examples under `examples/backstage/`. Six validator
+  integration tests (tamper, poison, missing-file, wrong-key denials) and five portal
+  contract tests (every referenced REST path exists in the committed OpenAPI document, no
+  privileged operation in wiring, no Backstage type in `src/`, identity file is public
+  material only) pass; `make validate` passes with the schema registered in
+  `EXAMPLE_BY_SCHEMA` and `schemas/README.md`.
 
 ## Decisions
 

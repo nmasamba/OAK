@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://oak.example/schemas/webhook-envelope.schema.json",
+  "title": "WebhookEnvelope",
+  "description": "A signed, portable wrapper around one audit event for portal and CI consumers. Consumers verify the signature against a pinned publisher key, never the key embedded in the envelope, and deduplicate deliveries by delivery_id while detecting gaps by sequence.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "id",
+    "version",
+    "delivery_id",
+    "case_id",
+    "tenant_id",
+    "sequence",
+    "published_at",
+    "event",
+    "signature",
+    "extensions"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "0.1.0"
+    },
+    "id": {
+      "$ref": "common.schema.json#/$defs/identifier"
+    },
+    "version": {
+      "$ref": "common.schema.json#/$defs/semver"
+    },
+    "delivery_id": {
+      "type": "string",
+      "pattern": "^delivery\\.[a-f0-9]{32,64}$"
+    },
+    "case_id": {
+      "$ref": "common.schema.json#/$defs/identifier"
+    },
+    "tenant_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "published_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "event": {
+      "$ref": "audit-event.schema.json"
+    },
+    "signature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "role",
+        "key_id",
+        "algorithm",
+        "public_key_base64",
+        "trust_level",
+        "signature_base64"
+      ],
+      "properties": {
+        "role": {
+          "const": "webhook-publisher"
+        },
+        "key_id": {
+          "$ref": "common.schema.json#/$defs/digest"
+        },
+        "algorithm": {
+          "const": "ed25519"
+        },
+        "public_key_base64": {
+          "type": "string",
+          "minLength": 40,
+          "maxLength": 60
+        },
+        "trust_level": {
+          "enum": [
+            "development"
+          ]
+        },
+        "signature_base64": {
+          "type": "string",
+          "minLength": 80,
+          "maxLength": 100
+        }
+      }
+    },
+    "extensions": {
+      "$ref": "common.schema.json#/$defs/extensions"
+    }
+  }
+}

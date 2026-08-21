@@ -38,6 +38,7 @@ All schemas use JSON Schema Draft 2020-12. YAML examples are parsed to the equiv
 | `policy-decision.schema.json` | Engine-neutral canonical policy decision | `examples/example-policy-decision.yaml` |
 | `extension-manifest.schema.json` | Governed extension identity, payload digests and compatibility | `examples/example-extension-manifest.yaml` |
 | `extension-activation.schema.json` | Record of a verified, explicitly activated extension | `examples/example-extension-activation.yaml` |
+| `webhook-envelope.schema.json` | Signed portable audit-event wrapper for portal and CI consumers | `examples/example-webhook-envelope.yaml` |
 
 `common.schema.json` contains shared identifiers, evidence, provenance, constraints, approvals and artifact references.
 

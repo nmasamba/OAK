@@ -808,6 +808,58 @@ def serve(
         raise typer.Exit(code=2) from error
 
 
+@app.command()
+def validate(
+    kind: Annotated[str, typer.Argument(help="export, bundle, or webhook.")],
+    source: Annotated[Path, typer.Argument(help="Export directory, bundle directory, or file.")],
+    public_key: Annotated[
+        str | None,
+        typer.Option(
+            "--public-key",
+            help="Pinned publisher key for webhook verification: a base64 value or the "
+            "path of a publisher identity JSON document.",
+        ),
+    ] = None,
+    output: Annotated[
+        OutputFormat, typer.Option("--output", help="Output format.")
+    ] = OutputFormat.HUMAN,
+) -> None:
+    """Validate exported cases, compiled bundles, or signed webhooks without a server."""
+
+    try:
+        _require_local("validate")
+        from oak.interfaces.cli import validate as validation
+
+        if kind == "export":
+            document = validation.validate_export(source)
+            human = (
+                f"Export is valid: {document['case_id']}@{document['case_version']} "
+                f"({document['status']})"
+            )
+        elif kind == "bundle":
+            document = validation.validate_bundle(source)
+            human = (
+                f"Bundle is valid: {document['bundle_id']} with inert draft plan "
+                f"{document['runner_plan_id']}"
+            )
+        elif kind == "webhook":
+            if not public_key:
+                raise OAKError(
+                    "OAK-VALIDATE-KEY-REQUIRED",
+                    "--public-key is required to verify a webhook envelope",
+                )
+            document = validation.validate_webhook(source, public_key)
+            human = (
+                f"Webhook is valid: {document['delivery_id']} for {document['case_id']} "
+                f"({document['event_type']})"
+            )
+        else:
+            raise OAKError("OAK-VALIDATE-KIND", "validate kind must be export, bundle, or webhook")
+        _emit(document, output, human=human)
+    except (OAKError, ContractValidationError, OSError, RuntimeError, ValueError) as error:
+        _abort(error)
+
+
 mcp_app = typer.Typer(
     name="mcp",
     help="Bounded typed Model Context Protocol interface.",

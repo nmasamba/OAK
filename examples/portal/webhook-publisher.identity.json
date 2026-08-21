@@ -1,0 +1,7 @@
+{
+  "algorithm": "ed25519",
+  "key_id": "sha256:2397fa6840bd1fa312968ce9eb9b7f65e26115098f77e63fe1aaf94920ee3e31",
+  "public_key_base64": "QtGEe07UCpenJw1j8QiNpxUeMMZLuCNAEN0BC+CRMZE=",
+  "role": "webhook-publisher",
+  "trust_level": "development"
+}

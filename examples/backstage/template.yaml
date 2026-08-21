@@ -1,0 +1,67 @@
+# SPDX-License-Identifier: Apache-2.0
+# Backstage Software Template that creates an OAK design case over documented
+# REST behavior. It uses the community `http:backstage:request` scaffolder
+# action (an optional Backstage backend module); the request goes through the
+# Backstage proxy entry shown in app-config.oak.yaml. The template can create a
+# draft case and link to it; it cannot select, approve, sign, or dispatch —
+# those capabilities do not exist on the API it talks to.
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: oak-design-case
+  title: Start an OAK design case
+  description: Create a draft architecture design case from a bounded brief.
+  tags:
+    - oak
+    - architecture
+spec:
+  owner: group:default/platform-team
+  type: service
+  parameters:
+    - title: Brief
+      required:
+        - briefName
+        - briefContent
+        - idempotencyKey
+      properties:
+        briefName:
+          title: Brief file name
+          type: string
+          maxLength: 240
+          description: Original brief name, for provenance (for example brief.yaml).
+        briefContent:
+          title: Brief content
+          type: string
+          maxLength: 262144
+          description: Bounded YAML, JSON, Markdown, or text brief content.
+          ui:widget: textarea
+        idempotencyKey:
+          title: Idempotency key
+          type: string
+          minLength: 16
+          maxLength: 240
+          description: Stable retry key; reusing it with the same brief converges.
+  steps:
+    - id: create-design-case
+      name: Create the design case
+      action: http:backstage:request
+      input:
+        method: POST
+        path: /proxy/oak/v1/design-cases
+        headers:
+          content-type: application/json
+          Idempotency-Key: ${{ parameters.idempotencyKey }}
+        body:
+          original_name: ${{ parameters.briefName }}
+          content: ${{ parameters.briefContent }}
+  output:
+    text:
+      - title: Design case created
+        content: |
+          Case `${{ steps['create-design-case'].output.body.case.id }}` is in
+          state `${{ steps['create-design-case'].output.body.case.status }}`.
+          Continue in the OAK workspace: interpretation, confirmation,
+          candidate comparison, and selection stay in OAK, not the portal.
+    links:
+      - title: Open the architecture workspace
+        url: http://127.0.0.1:5173/
