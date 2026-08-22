@@ -2,12 +2,15 @@
 
 # Build status
 
-- **Updated:** 2026-08-21
-- **Repository version:** `0.6.0.dev6`
-- **Phase:** Sprint 7 complete — MCP, portal and interface parity
-- **Completed plans:** `docs/exec-plans/completed/OAK-S0-001-009-walking-skeleton.md`, `docs/exec-plans/completed/OAK-S1-001-010-local-design-case.md`, `docs/exec-plans/completed/OAK-S2-001-011-candidate-planning.md`, `docs/exec-plans/completed/OAK-S3-001-009-persistent-rest-jobs.md`, `docs/exec-plans/completed/OAK-S4-001-009-web-workspace.md`, `docs/exec-plans/completed/OAK-S5-001-011-signed-runner.md`, `docs/exec-plans/completed/OAK-S6-001-008-policy-adapter-sdk.md`, and `docs/exec-plans/completed/OAK-S7-001-008-mcp-portal-interface-parity.md`
-- **Active plan:** none — Sprint 7 closed; Sprint 8 (Community release hardening) is next
-- **Next task:** author and claim the Sprint 8 (`OAK-S8-001`–`OAK-S8-009`) ExecPlan
+- **Updated:** 2026-08-22
+- **Repository version:** `0.7.0`
+- **Phase:** Sprint 8 complete — Community release hardening; `0.7.0` approved as a local-first developer release
+- **Completed plans:** `docs/exec-plans/completed/OAK-S0-001-009-walking-skeleton.md`, `docs/exec-plans/completed/OAK-S1-001-010-local-design-case.md`, `docs/exec-plans/completed/OAK-S2-001-011-candidate-planning.md`, `docs/exec-plans/completed/OAK-S3-001-009-persistent-rest-jobs.md`, `docs/exec-plans/completed/OAK-S4-001-009-web-workspace.md`, `docs/exec-plans/completed/OAK-S5-001-011-signed-runner.md`, `docs/exec-plans/completed/OAK-S6-001-008-policy-adapter-sdk.md`, `docs/exec-plans/completed/OAK-S7-001-008-mcp-portal-interface-parity.md`, and `docs/exec-plans/completed/OAK-S8-001-009-community-release-hardening.md`
+- **Active plan:** none — Sprint 8 closed
+- **Next task:** post-`0.7.0` work. The release was approved by `nmasamba` on 2026-08-22 in
+  all three roles (`docs/release/0.7.0/release-decision.md`); nothing is published, and no
+  tag is pushed. The approval carries a condition: `RR-001` and `RR-003` become P0 before
+  any release that permits a runner off the operator's machine
 
 ## Claimed work
 
@@ -88,6 +91,15 @@
 | `OAK-S7-006` | complete | Signed `webhook-envelope` contract with a pinned-key example and a headless `oak validate export/bundle/webhook` checker suitable for CI and portals |
 | `OAK-S7-007` | complete | MCP abuse suite: injection inertness, oversized/unbounded/deep frames, confused deputy, stale version, tenant crossover, tool/method escalation, execution fields |
 | `OAK-S7-008` | complete | `docs/interfaces.md` interface setup, permission model, capability matrix, and explicit unavailable operations |
+| `OAK-S8-001` | complete | Clean install matrix across supported platforms and install paths |
+| `OAK-S8-002` | complete | Rehearsed upgrade, backup/restore, export/import and stated downgrade limits |
+| `OAK-S8-003` | complete | Threat-model coverage index, dependency and container scans, secret/log and runner review, residual-risk register |
+| `OAK-S8-004` | complete | Reproducible artifacts with SBOM, licence inventory, checksums and tested verification |
+| `OAK-S8-005` | complete | Provenance-stamped performance and soak measurements |
+| `OAK-S8-006` | complete | Operator documentation from install through uninstall |
+| `OAK-S8-007` | complete | Contributor documentation and the release process |
+| `OAK-S8-008` | complete | Clean-room release-candidate rehearsal with archived evidence |
+| `OAK-S8-009` | complete | Evidence, P0 proposal and known limitations published; approved by `nmasamba` in all three roles, 2026-08-22, with RR-001/RR-003 accepted only for a local-first release |
 
 ## Verification evidence
 
@@ -267,6 +279,87 @@
   or crashing the session; a vacuous MCP/REST bounds-parity test; and a remote-`design`
   idempotency-key inconsistency). Four scoped limitations are recorded in the completed
   ExecPlan.
+
+- Sprint 8 delivered Community release hardening for the `0.7.0` candidate. The version
+  contradiction was resolved first: `sprints.md` targeted `0.1.0` while the repository was at
+  `0.6.0.dev6`, and PEP 440 sorts `0.1.0` *below* that, so the release is `0.7.0`
+  (ADR-0002). `VERSION`, `pyproject.toml`, `package.json`, `web/package.json`, `STATUS.md`
+  and the generated OpenAPI `info.version` are now bound together by `make toolchain-check`
+  with drift tests; `package.json` had silently sat at `0.5.0-dev.5`.
+- Byte-stability was verified directly rather than inferred: the reference case compiled
+  before any change and after every milestone produced identical deployment-bundle,
+  runner-plan, semantic-manifest and selected-candidate digests, stable at case `0.1.7`. The
+  repository version is not embedded in any canonical document — `minimum_oak_version` and
+  `generator_version` are hardcoded literals — which was checked rather than assumed.
+- `make release` builds the sdist and wheel twice and refuses to finish unless the digests
+  match, installs the wheel into a clean environment holding only the locked runtime closure,
+  and runs it from a working directory outside the checkout to prove the packaged schemas,
+  catalogue and policy packs resolve. It emits an SBOM of the *released* closure stamped with
+  the artifact digests, a generated licence inventory, and `SHA256SUMS`. `make verify-release`
+  is a dependency-free consumer-side verifier whose refusal paths are tested against tampered,
+  equal-length-substituted, missing, empty, malformed and path-escaping input.
+- The runtime dependency closure shrank from 45 packages to 37 by dropping the unused
+  `jsonschema[format]` extra, which had placed `rfc3987` 1.3.8 (GPL-3.0-or-later) in the
+  runtime closure of this Apache-2.0 distribution while `docs/dependencies.md` recorded
+  jsonschema as "MIT". Nothing constructs a `FormatChecker`, so no behaviour changed. The
+  generated inventory now shows LGPL-3.0 Psycopg as the only copyleft entry.
+- Security review produced `docs/security/threat-coverage.md` (all nineteen threat ids mapped
+  to tests: 8 direct, 9 partial, 2 structural, 0 uncovered, every cited test verified to
+  exist), `docs/security/residual-risk.md` (38 stable-id entries), and `SECURITY.md`. **No
+  external security review was commissioned**, and a build gate now fails on unqualified
+  assurance vocabulary — it caught three of its own author's sentences on first run.
+- Four confidentiality defects were found and fixed, each reproduced before the fix:
+  canonical and MCP validation diagnostics echoed the value that failed validation (the REST
+  layer already dropped it, so the transports disagreed); SQLAlchemy bound statement
+  parameters — which carry brief text — reached uvicorn's error log, since `access_log=False`
+  does not suppress `uvicorn.error`; and `oak-runner` and `oak-db-migrate` answered
+  misconfiguration with tracebacks disclosing absolute paths, profile fragments and the
+  database host and user.
+- Two stable-code defects were fixed. A malformed `If-Match` returned `OAK-EXPECTED-VERSION`,
+  which maps to HTTP 409 and CLI exit 4 — both meaning "re-read and retry" — so an automated
+  retry loop on a weak entity tag would spin forever; it is now `OAK-PRECONDITION-INVALID`. An
+  artifact lookup miss returned `OAK-WORKSPACE-NOT-FOUND` on surfaces that opaque the message,
+  making the code the only signal and pointing an operator at a storage failure that had not
+  happened; it is now `OAK-ARTIFACT-NOT-FOUND`.
+- The no-egress claim moved from a grep to a gate: the reference journey and an
+  export/reimport now run with every outbound socket path patched to raise, a
+  guard-the-guard test proves the fixture is not vacuous, and an AST check pins the set of
+  modules permitted to import a network client to the remote CLI alone.
+- Backup and restore are measured rather than declared. `scripts/verify_deployment.py` walks
+  the artifact index and re-verifies every object; `tests/integration/test_backup_restore.py`
+  creates a scratch PostgreSQL database, migrates it to head, and proves that a database
+  restored without its artifact root is detected — the half-restore the previous
+  `pg_dump`-only documentation would have produced.
+- Performance was measured with provenance rather than asserted: reference compiler 8.66 s
+  median against a 120 s requirement, interactive read p95 30.5 ms against 500 ms, and
+  workspace manifest reads growing from 3.8 ms at zero indexed artifacts to 283.3 ms at 43
+  with no compaction anywhere (`RR-030`). Four measurements are published as *not measured*
+  with the reason.
+- Operator and contributor documentation now covers install through uninstall, every `OAK_*`
+  variable (pinned to the source by a contract test), every `OAK-*` code (generated; 245 of
+  267 were previously undocumented), the supported platform matrix with architecture and
+  glibc floors read from the lockfile, and the six architecture ADRs that shipped documents
+  cite, mirrored so their citations resolve outside the governance repository.
+- The container scan that `OAK-S8-003` asks for was initially missed, recorded as `RR-035`,
+  and then performed. It was worth doing: the first scan found 6 CRITICAL and 72 HIGH in the
+  API image and 3 CRITICAL and 33 HIGH in the web image. Three causes — `uv` and `uvx`
+  shipping in the runtime layer with advisories in their vendored Rust dependencies, base
+  images lagging their distributions' patch streams (the pinned digests were checked and
+  found *current* for their tags, so re-pinning would have fixed nothing), and a residue
+  with no vendor fix. The API image is now multi-stage so the build tool no longer ships,
+  and both images apply distribution security updates at build time. Result: the web image
+  is entirely clean, the API image has 3 CRITICAL and 14 HIGH all with **no vendor fix
+  available**, and **zero fixable findings remain** in either. `make scan-images` makes it
+  repeatable and fails on anything fixable; `RR-036` tracks the residue and `RR-037` records
+  that the web image still runs nginx as root.
+- `OAK-S8-009` was decided by a human, not by the agent that prepared it. `nmasamba`
+  approved `0.7.0` on 2026-08-22 in all three roles — maintainer, security and licence —
+  after review. All three roles being held by one person is recorded in the decision record
+  itself, because it means the security and licence judgements were not independent of the
+  maintainer judgement. The approval accepts `RR-035` (images unscanned) and accepts
+  `RR-001` and `RR-003` as non-blocking **for a local-first developer release only**; both
+  become P0 before any release permitting a runner off the operator's machine. Approval is
+  not a Gate 2/3 deployment approval and does not authorise publication.
 
 ## Safety boundary
 

@@ -79,19 +79,30 @@ class RunnerJournal:
         if not self._path.is_file():
             return ()
         entries: list[JournalEntry] = []
-        for line in self._path.read_text(encoding="utf-8").splitlines():
+        for number, line in enumerate(self._path.read_text(encoding="utf-8").splitlines(), start=1):
             if not line.strip():
                 continue
-            document = json.loads(line)
-            entries.append(
-                JournalEntry(
-                    sequence=int(document["sequence"]),
-                    previous_digest=document["previous_digest"],
-                    entry_type=str(document["entry_type"]),
-                    occurred_at=str(document["occurred_at"]),
-                    details=dict(document["details"]),
+            # A journal on disk is exactly the thing that is damaged when this matters,
+            # so a malformed line is a domain refusal, not a raw parser exception.
+            # `json.loads` raised JSONDecodeError and a wrong-shaped line raised
+            # TypeError or KeyError, and `verify_chain` is called unguarded from both
+            # `oak-runner status` and `run_once` — so a corrupt journal crashed the very
+            # command that exists to report it, and wedged the runner besides.
+            try:
+                document = json.loads(line)
+                entries.append(
+                    JournalEntry(
+                        sequence=int(document["sequence"]),
+                        previous_digest=document["previous_digest"],
+                        entry_type=str(document["entry_type"]),
+                        occurred_at=str(document["occurred_at"]),
+                        details=dict(document["details"]),
+                    )
                 )
-            )
+            except (ValueError, TypeError, KeyError) as error:
+                raise OAKError(
+                    "OAK-JOURNAL-TAMPERED", f"journal entry {number} is not readable"
+                ) from error
         return tuple(entries)
 
     def verify_chain(self) -> None:

@@ -382,9 +382,22 @@ def verify_dispatch(
                 required_approval, envelope, local_fingerprint, revoked_approval_ids, now_time
             )
 
-    policy_body = policy.get("body", policy)
-    if policy_body.get("requires_signature_before_dispatch") is False:
+    # The compiled verification policy is a review-artifact wrapper: its fields live
+    # under `content`. This read used to be `policy.get("body", policy)`, and no compiled
+    # document has ever had a `body` key, so the lookup always returned the wrapper, the
+    # `is False` comparison was always against None, and the guard could not fire for any
+    # plan the compiler produces. `_validate` is applied for the same reason: this was the
+    # only attachment admitted without a schema check.
+    _validate(registry, "review-artifact.schema.json", policy, "verification policy")
+    policy_content = policy.get("content")
+    if not isinstance(policy_content, dict):
         raise RunnerDenialError("OAK-RUNNER-POLICY", "verification policy is not acceptable")
+    # The runner never *relaxes* on the strength of a policy attachment — a policy that
+    # said no signature were needed would be a weakening, and is refused rather than
+    # honoured. It only refuses a policy that contradicts what the runner enforces.
+    for clause in ("requires_signature_before_dispatch", "requires_approval_before_dispatch"):
+        if policy_content.get(clause) is False:
+            raise RunnerDenialError("OAK-RUNNER-POLICY", "verification policy is not acceptable")
 
     ordered = tuple(
         operation for operation in plan["operations"] if operation in verified_operations

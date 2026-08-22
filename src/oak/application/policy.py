@@ -319,9 +319,13 @@ class PolicyService:
     @staticmethod
     def _check_context(context: CommandContext) -> None:
         if len(context.idempotency_key) < 16:
-            raise OAKError("OAK-IDEMPOTENCY-KEY", "idempotency key must contain 16 characters")
+            raise OAKError(
+                "OAK-IDEMPOTENCY-KEY", "idempotency key must contain at least 16 characters"
+            )
         if len(context.correlation_id) < 8:
-            raise OAKError("OAK-CORRELATION-ID", "correlation ID must contain 8 characters")
+            raise OAKError(
+                "OAK-CORRELATION-ID", "correlation ID must contain at least 8 characters"
+            )
 
     @staticmethod
     def _normalized_context(

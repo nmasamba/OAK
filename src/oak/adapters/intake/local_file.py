@@ -120,6 +120,14 @@ class LocalBriefIntake:
                 document = load_json_document(text)
         except OAKError:
             raise
+        # `RecursionError` is a `RuntimeError`, not a `ValueError`, so it escaped this
+        # clause. The structure-depth bound below runs *after* parsing, which is too
+        # late: a 120 KiB brief of `{"a":{"a":{...` — well inside the size limit — blew
+        # the stack inside `json.loads` before any bound was applied. Both parsers are
+        # recursive, so both are guarded, and the refusal reuses the depth guard's own
+        # code so the two paths give one answer.
+        except RecursionError as error:
+            raise OAKError("OAK-INTAKE-COMPLEXITY", "structured brief is too complex") from error
         except (ValueError, yaml.YAMLError) as error:
             raise OAKError("OAK-INTAKE-MALFORMED", "structured brief is malformed") from error
         self._validate_json_shape(document)

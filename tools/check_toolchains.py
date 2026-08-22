@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Check that source, CI, container, package, and documentation toolchains agree."""
+"""Check that source, CI, container, package, documentation, and version declarations agree."""
 
 import json
 import re
@@ -44,6 +44,60 @@ def _load_package(text: str, failures: list[str]) -> dict[str, Any]:
     return value
 
 
+def _npm_version(pep440: str) -> str:
+    """Return the npm spelling of a PEP 440 repository version.
+
+    The Python and npm version grammars disagree about pre-releases: PEP 440
+    writes ``0.8.0.dev8`` where npm requires ``0.8.0-dev.8``. Releases are
+    spelled identically in both, so this only matters between releases.
+    """
+
+    for marker in (".dev", ".rc", ".a", ".b"):
+        head, separator, tail = pep440.partition(marker)
+        if separator:
+            return f"{head}-{marker.lstrip('.')}.{tail}"
+    return pep440
+
+
+def _check_release_version(root: Path, failures: list[str]) -> None:
+    """Check that every file naming the repository version agrees with VERSION."""
+
+    version = _read(root, "VERSION", failures).strip()
+    if not version:
+        return
+
+    pyproject = _read(root, "pyproject.toml", failures)
+    if f'\nversion = "{version}"\n' not in pyproject:
+        failures.append("pyproject.toml: project version differs from VERSION")
+
+    status = _read(root, "STATUS.md", failures)
+    if f"- **Repository version:** `{version}`" not in status:
+        failures.append("STATUS.md: reported repository version differs from VERSION")
+
+    npm_version = _npm_version(version)
+    for relative in ("package.json", "web/package.json"):
+        text = _read(root, relative, failures)
+        if not text:
+            continue
+        try:
+            declared = json.loads(text).get("version")
+        except json.JSONDecodeError:
+            failures.append(f"{relative}: invalid JSON")
+            continue
+        if declared != npm_version:
+            failures.append(f"{relative}: version {declared!r} differs from VERSION {version!r}")
+
+    openapi = _read(root, "openapi/oak.openapi.json", failures)
+    if openapi:
+        try:
+            info = json.loads(openapi).get("info", {})
+        except json.JSONDecodeError:
+            failures.append("openapi/oak.openapi.json: invalid JSON")
+        else:
+            if info.get("version") != version:
+                failures.append("openapi/oak.openapi.json: info.version differs from VERSION")
+
+
 def check(root: Path = ROOT) -> list[str]:
     """Return stable descriptions of every toolchain-contract mismatch."""
 
@@ -54,6 +108,7 @@ def check(root: Path = ROOT) -> list[str]:
     api_dockerfile = _read(root, "deploy/images/api.Dockerfile", failures)
     web_dockerfile = _read(root, "deploy/images/web.Dockerfile", failures)
     workflow = _read(root, ".github/workflows/ci.yml", failures)
+    release_workflow = _read(root, ".github/workflows/release.yml", failures)
     readme = _read(root, "README.md", failures)
     development = _read(root, "docs/development.md", failures)
 
@@ -104,6 +159,15 @@ def check(root: Path = ROOT) -> list[str]:
     if "node-version-file: .node-version" not in workflow:
         failures.append("CI workflow: Node must come from .node-version")
 
+    # The release builder must be the pinned builder. A release produced by a different
+    # uv than the one CI and the container use is not the artifact anyone reviewed.
+    if "uses: astral-sh/setup-uv@v6" not in release_workflow:
+        failures.append("release workflow: setup-uv action is missing")
+    if uv_version and f'version: "{uv_version}"' not in release_workflow:
+        failures.append("uv version differs between the release workflow and API container")
+    if "node-version-file: .node-version" not in release_workflow:
+        failures.append("release workflow: Node must come from .node-version")
+
     if uv_version:
         uv_parts = uv_version.split(".")
         compatible_series = ".".join(uv_parts[:2]) + ".x"
@@ -116,6 +180,8 @@ def check(root: Path = ROOT) -> list[str]:
                 failures.append(f"{name}: local uv compatibility series is stale")
             if f"{uv_version}" not in text:
                 failures.append(f"{name}: exact CI/container uv builder is stale")
+
+    _check_release_version(root, failures)
 
     for name, text, version, fragment in (
         ("README.md", readme, python_version, f"Python {python_version}"),

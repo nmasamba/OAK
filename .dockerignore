@@ -3,6 +3,7 @@
 .github
 .venv
 .uv-cache
+-.uv-cache
 node_modules
 web/node_modules
 web/dist
@@ -26,3 +27,4 @@ oak-export*
 tests
 docs
 examples
+web/test-results

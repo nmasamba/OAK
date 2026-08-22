@@ -19,7 +19,7 @@ from typing import Any
 from jsonschema.validators import validator_for
 
 from oak.application import CommandContext, CommunityControlPlane
-from oak.contracts import ContractValidationError
+from oak.contracts import ContractValidationError, payload_safe_reason
 from oak.domain import OAKError
 
 # Argument bounds mirror the REST request models exactly so a value accepted by one
@@ -43,6 +43,7 @@ NOT_FOUND_CODES = frozenset(
         "OAK-CANDIDATE-NOT-FOUND",
         "OAK-OPERATION-NOT-FOUND",
         "OAK-WORKSPACE-NOT-FOUND",
+        "OAK-ARTIFACT-NOT-FOUND",
         "OAK-TENANT-MISMATCH",
     }
 )
@@ -378,7 +379,7 @@ class MCPToolExecutor:
             reported = tuple(
                 {
                     "path": "/" + "/".join(str(part) for part in error.absolute_path),
-                    "message": error.message,
+                    "message": payload_safe_reason(error),
                 }
                 for error in errors
             )

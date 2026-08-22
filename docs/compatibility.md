@@ -2,23 +2,30 @@
 
 # Public compatibility policy
 
-This policy governs every public surface of OAK Community before `0.1.0`: canonical JSON
-Schemas, the REST/OpenAPI contract, the CLI, the MCP tool surface, and the runner
-protocol. It exists so that a consumer can tell, before upgrading, what may change under
-them and what may not. It is a pre-`1.0` policy: the repository version (`VERSION`,
-currently a `0.x` development series) signals that breaking change is still possible —
-but never silent.
+This policy governs every public surface of OAK Community from `0.7.0`, the first
+Community release: canonical JSON Schemas, the REST/OpenAPI contract, the CLI, the MCP
+tool surface, and the runner protocol. It exists so that a consumer can tell, before
+upgrading, what may change under them and what may not. It is a pre-`1.0` policy: the
+repository version (`VERSION`, a `0.x` series) signals that breaking change is still
+possible — but never silent.
 
 ## Versioning model
 
 - **Repository version** (`VERSION`, `pyproject.toml`, `oak --version`, `/version`):
-  one version for the whole distribution. Pre-`0.1.0` it moves as `0.<sprint>.0.dev<n>`;
-  from `0.1.0` it follows semantic versioning intent: patch releases are compatible,
-  minor releases are additive, and any break lands only in a minor release with a
-  changelog migration note.
-- **Object schema version** (`schema_version` inside canonical documents, currently
-  `0.4.0`): versions the canonical data contracts independently of the repository.
-  `SUPPORTED_SCHEMA_VERSIONS` in `src/oak/bootstrap.py` lists every readable version.
+  one version for the whole distribution. Through `0.6.0.dev6` it moved as
+  `0.<sprint>.0.dev<n>`; that development scheme is retired at `0.7.0`, and from `0.7.0`
+  the version follows semantic versioning intent: patch releases are compatible, minor
+  releases are additive, and any break lands only in a minor release with a changelog
+  migration note. `0.7.0` rather than `0.1.0` is the first release because `0.1.0` would
+  have sorted below the development builds that already existed; see
+  [ADR-0002](adr/0002-release-versioning.md).
+- **Object schema version** (`schema_version` inside canonical documents): versions each
+  canonical data contract independently of the repository *and of the other schemas*.
+  There is no single current number — schemas sit at `0.1.0`, `0.3.0` or `0.4.0`
+  depending on when each was introduced and last changed; see
+  [schemas/README.md](../schemas/README.md). `SUPPORTED_SCHEMA_VERSIONS` in
+  `src/oak/bootstrap.py` lists the versions the **workspace manifest** may carry, which is
+  a narrower thing than every readable document version.
 - **Interface protocol versions**: the MCP server pins its supported protocol revisions
   in `SUPPORTED_PROTOCOL_VERSIONS`; the runner protocol carries `protocol_version` in
   every message; the canonical export carries `export_version`.
@@ -52,7 +59,7 @@ mechanical migration; **breaking** otherwise.
   request bodies becoming required, removed schemas or properties, and property type
   changes. Additive paths, operations, optional properties, and schemas pass.
 - A breaking REST change therefore requires a deliberate baseline reset
-  (`--write-baseline`) in the same change, a changelog entry, and — after `0.1.0` — a
+  (`--write-baseline`) in the same change, a changelog entry, and — from `0.7.0` — a
   deprecation period of at least one minor release in which the old behavior still
   works and is marked deprecated in the OpenAPI description.
 - Error contracts are part of the surface: problem-details field names, stable
@@ -69,7 +76,7 @@ mechanical migration; **breaking** otherwise.
   the `--output json|yaml` document shapes, which mirror the application results.
 - Adding a command or an option with a default that preserves old behavior is
   compatible. Renaming or removing a command/option, changing an exit code, or changing
-  a JSON output shape is breaking and needs a changelog migration note; after `0.1.0`
+  a JSON output shape is breaking and needs a changelog migration note; from `0.7.0`
   the old spelling must keep working (with a deprecation warning on stderr) for at
   least one minor release.
 - Local mode and remote mode (`--server`) promise the same stable output and exit
@@ -79,9 +86,11 @@ mechanical migration; **breaking** otherwise.
 ## MCP
 
 - The tool registry in `oak.interfaces.mcp.tools.TOOL_DEFINITIONS` is the contract:
-  tool names, required arguments, argument bounds, and result document shapes. A
-  contract test pins the registry to the documented capability matrix in
-  [docs/interfaces.md](interfaces.md).
+  tool names, required arguments, argument bounds, and result document shapes.
+  `tests/contract/test_mcp_contract.py` pins that registry against a list of the eleven
+  contract tools held in the test itself — it does **not** parse
+  [docs/interfaces.md](interfaces.md), so adding a tool fails the test but keeping the
+  capability matrix in step is a human step.
 - Adding a tool or an *optional* argument is compatible. Removing a tool, renaming one,
   adding a required argument, or changing a result shape is breaking and follows the
   same changelog/deprecation rules as the CLI.
@@ -105,7 +114,7 @@ mechanical migration; **breaking** otherwise.
 - The four forbidden execution fields (`command`, `shell`, `executable`, `argv`) are
   permanently invalid in every protocol version.
 
-## Deprecation process (pre-`0.1.0`)
+## Deprecation process
 
 1. Announce the change and its migration in `CHANGELOG.md` under the release that
    ships it, and in the affected document under `docs/`.
@@ -113,9 +122,9 @@ mechanical migration; **breaking** otherwise.
    change whenever the surface allows it.
 3. A break that affects stored data ships with a tested upgrade path in the same
    release (import/migration), never as a manual instruction alone.
-4. Development (`.dev`) versions may break between themselves without a deprecation
-   window, but never without a changelog entry and never silently for canonical
-   digests: a digest-shifting change is always called out as such.
+4. A digest-shifting change is never silent: any change to the canonical bytes of an
+   unchanged document is called out as such in the changelog, whatever else it is.
 
-From `0.1.0`, the deprecation window becomes at least one minor release for every
-public surface above.
+Before `0.7.0`, development (`.dev`) versions were permitted to break between themselves
+without a deprecation window. From `0.7.0`, the deprecation window is at least one minor
+release for every public surface above.

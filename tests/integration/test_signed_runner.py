@@ -189,3 +189,41 @@ def test_mutating_dispatch_without_apply_approval_is_denied(tmp_path: Path) -> N
             ("apply", "verify"), harness.context("dispatch-noapply-1", "0.1.9")
         )
     assert caught.value.code == "OAK-DISPATCH-APPROVAL"
+
+
+def test_the_verification_policy_clauses_are_where_the_runner_reads_them(
+    readonly_dispatch,
+) -> None:
+    """The policy guard must be reachable for the document the compiler actually emits.
+
+    `verify_dispatch` used to read `policy.get("body", policy)`. No compiled verification
+    policy has ever carried a `body` key — the clauses live under `content` — so the
+    lookup always returned the wrapper, the comparison was always against `None`, and the
+    guard could not fire for any plan the compiler produces.
+
+    Substituting the policy outright is already caught earlier by the digest check
+    (`test_tampered_plan_is_denied_before_execution` shows that path), so this asserts the
+    narrower thing that was actually broken: the compiler's write key and the runner's
+    read key agree, and the clauses the guard inspects are present and true.
+    """
+
+    policy = readonly_dispatch["attachments"]["verification-policy"]
+
+    assert "body" not in policy, "the key the old lookup used must not silently appear"
+    content = policy["content"]
+    assert isinstance(content, dict)
+    assert content["requires_signature_before_dispatch"] is True
+    assert content["requires_approval_before_dispatch"] is True
+
+    source = (ROOT / "src" / "oak" / "runner" / "verification.py").read_text(encoding="utf-8")
+    assert 'policy.get("content")' in source, "the runner must read the clauses from `content`"
+
+
+def test_a_read_only_dispatch_still_verifies_with_the_policy_guard_live(
+    readonly_dispatch,
+) -> None:
+    """Making a dead guard live must not deny what the release already ships."""
+
+    verified = _verify(readonly_dispatch)
+
+    assert set(verified.requested_kinds) == {"inventory", "validate", "render", "plan", "verify"}

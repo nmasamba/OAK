@@ -44,7 +44,18 @@ uv run oak-api        # http://127.0.0.1:8080
 uv run oak-worker     # drains durable operations
 ```
 
-Or the whole stack through Compose: `docker compose up -d postgres migrate api worker web`.
+Or the whole stack through Compose: `docker compose up -d --build postgres migrate api worker web
+curl --fail http://127.0.0.1:8080/version   # --build is not optional; see operations.md#install
+```
+
+The committed contract is [openapi/oak.openapi.json](../openapi/oak.openapi.json), and a
+running `oak-api` also serves it live at `/openapi.json`, with FastAPI's interactive
+browsers at `/docs` and `/redoc`. Those three are **not** part of the `/v1` contract and
+are not covered by the compatibility policy — they are debugging affordances that come
+with the framework. They bind to the same address as everything else, so on a non-loopback
+bind they are exposed too.
+
+```bash`.
 
 ### Remote CLI
 
@@ -122,6 +133,7 @@ prohibition).
 | Cancel operation | — | — | ● | — | ● |
 | Export / import case | ● | ● | ● | — | ○ |
 | Read audit / artifacts | — | — | ○ | — | ○ |
+| List design cases | — | — | ○ | — | ○ |
 | Render deployment artifacts | ● | ✕ | — | ✕ | — |
 | Render GitOps files | ● | ✕ | — | ✕ | — |
 | Validate export/bundle/webhook | ● | ✕ | — | — | — |
