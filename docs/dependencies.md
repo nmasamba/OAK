@@ -131,6 +131,31 @@ introduced, and Community ships no webhook dispatcher.
 Reviews outside a sprint boundary are recorded here, newest first, under the same standard
 as a sprint dependency review.
 
+### 2026-08-22 container image scanner
+
+`OAK-S8-003` requires container scans, and nothing in the repository performed one. The
+capability gap is assessing the OS packages inside the images OAK ships — `pip-audit` and
+`pnpm audit` cover the Python and web language closures and never look inside a built
+layer.
+
+`aquasec/trivy` was selected and **pinned to `0.74.0`** in `scripts/scan_images.py`. It is
+Apache-2.0, actively maintained, and reads both Debian and Alpine package databases, which
+is what the two images need. Alternatives considered: `grype` (equivalent, no advantage
+here), and `docker scout`, rejected because it requires a Docker Hub account — a hosted
+dependency and a credential, for a tool run during release.
+
+It is **not** a project dependency. It is not in `uv.lock` or `pnpm-lock.yaml`, ships in no
+artifact, and runs only when someone invokes `make scan-images`. It executes as a
+container, and deliberately **without the Docker socket**: images are exported with
+`docker save` and the scanner reads the tarball, so the scanner never holds the daemon.
+The version pin matters for the same reason any gate's tooling is pinned — a floating tag
+would make the gate's verdict depend on when it ran.
+
+The scanner's own vulnerability database is fetched at run time and is not pinned; that is
+inherent to vulnerability scanning and is why the scan is a release step rather than part
+of `make check`, which must work offline. Results for `0.7.0` are recorded in
+`docs/release/0.7.0/container-scan.md`.
+
 ### 2026-08-21 jsonschema `format` extra removed
 
 The `jsonschema[format]` extra was dropped from `pyproject.toml` in favour of plain

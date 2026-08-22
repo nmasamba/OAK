@@ -91,8 +91,13 @@ clean:
 
 # `clean` only empties the uv cache. This removes everything a from-scratch rebuild
 # would recreate, which is what a reproducibility check actually needs.
+# Build output and caches only. `.oak` is deliberately NOT removed: in a checkout it is
+# a file workspace holding design cases, artifacts and audit history, and deleting user
+# data from a target named "clean" is data loss dressed as housekeeping. The uninstall
+# procedure in docs/operations.md removes it, deliberately and with warning.
 clean-all:
 	rm -rf .venv node_modules web/node_modules web/dist web/test-results \
 		.mypy_cache .ruff_cache .pytest_cache dist sbom playwright-report \
-		.uv-cache ./-.uv-cache .oak
+		.uv-cache ./-.uv-cache
 	@echo "Run 'python scripts/check_clean_machine.py' to confirm nothing is left."
+	@echo "Note: any .oak workspace is kept. See docs/operations.md#uninstall to remove it."

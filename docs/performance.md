@@ -40,11 +40,11 @@ by the host's Docker daemon:
 
 | Measure | Value |
 |---|---|
-| Median | **8.75 s** |
-| Range | 8.69 s – 8.76 s |
+| Median | **8.66 s** |
+| Range | 8.62 s – 8.66 s |
 
 The governing requirement (`OAK-NFR-PERF-001`) asks for three variants within 120 s. One
-full journey producing four candidate variants takes about 8.8 seconds here, roughly an
+full journey producing four candidate variants takes about 8.7 seconds here, roughly an
 order of magnitude inside that budget.
 
 Where the time goes: schema validation dominates. A fresh validator is constructed and
@@ -55,16 +55,18 @@ deliverable to fix.
 ## Interactive API reads
 
 Sequential single-client reads over loopback HTTP against a real uvicorn server, with one
-interpreted reference case in the workspace:
+reference case created through `POST /v1/design-cases` and **not** interpreted — so the
+workspace is at revision 1, not the eight revisions a completed journey produces:
 
 | Endpoint | Median | p95 | p99 |
 |---|---|---|---|
-| `GET /version` | 0.66 ms | **0.90 ms** | 1.04 ms |
-| `GET /v1/design-cases/{id}` | 29.7 ms | **31.9 ms** | 41.3 ms |
-| `GET /v1/design-cases/{id}/audit` | 55.1 ms | **58.3 ms** | 65.0 ms |
+| `GET /version` | 0.57 ms | **0.89 ms** | 0.99 ms |
+| `GET /v1/design-cases/{id}` | 29.4 ms | **30.5 ms** | 31.6 ms |
+| `GET /v1/design-cases/{id}/audit` | 54.7 ms | **56.9 ms** | 59.4 ms |
 
 `OAK-NFR-PERF-002` asks for a p95 interactive read within 500 ms. All three are inside it
-by a wide margin **for this workload**, which is one case with eight revisions. Read cost is
+by a wide margin **for this workload**, which is one freshly created case at revision 1 —
+about as favourable as the measurement gets. Read cost is
 history-dependent: pagination slices in Python after loading, and the audit endpoint reads
 every audit artifact. Treat these as a floor.
 
@@ -77,12 +79,12 @@ This is the number most likely to affect a first user.
 
 | Indexed artifacts | Manifest read (median) | p95 |
 |---|---|---|
-| 0 | 4.0 ms | 4.2 ms |
-| 43 | **281.2 ms** | 297.8 ms |
+| 0 | 3.8 ms | 4.0 ms |
+| 43 | **283.3 ms** | 296.1 ms |
 
 The file workspace revalidates its entire audit lineage on every manifest read, and
 **nothing in OAK ever deletes history**. One complete reference journey produces 43 indexed
-artifacts and takes manifest reads from about 4 ms to over 280 ms — a factor of about 71.
+artifacts and takes manifest reads from under 4 ms to over 280 ms — a factor of about 74.
 
 Two data points cannot distinguish linear growth from super-linear growth, and this release
 does not claim to know which it is. What it does claim: the cost grows, it grows steeply,

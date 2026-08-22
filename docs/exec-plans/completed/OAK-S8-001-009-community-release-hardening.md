@@ -294,7 +294,7 @@ and re-running `uv lock`.
   whose manifest carries an unknown `schema_version`.
 - [x] 2026-08-21 M5 security review and residual risk: `docs/security/threat-coverage.md`
   (all nineteen threat ids mapped to tests, 8 direct / 9 partial / 2 structural / 0 none,
-  every cited test verified to exist), `docs/security/residual-risk.md` (35 stable-id
+  every cited test verified to exist), `docs/security/residual-risk.md` (37 stable-id
   entries, severities scored for the shipped configuration, owners explicitly unassigned),
   `SECURITY.md`, an assurance-claim gate in `tools/check_repository.py` with a documented
   escape for denials, and `tests/integration/test_offline_boundary.py` which runs the whole
@@ -303,9 +303,9 @@ and re-running `uv lock`.
   validation diagnostics echoing the rejected value, SQLAlchemy bound parameters reaching
   uvicorn's error log, and tracebacks from `oak-runner` and `oak-db-migrate`.
 - [x] 2026-08-21 M6 performance: `scripts/benchmark.py` with a machine-readable provenance
-  header and `docs/performance.md`. Reference compiler 8.75 s median against a 120 s
-  requirement; interactive read p95 31.9 ms (case) and 58.3 ms (audit) against 500 ms;
-  workspace manifest reads 4.0 ms at zero artifacts and 281.2 ms at 43. Four measurements
+  header and `docs/performance.md`. Reference compiler 8.66 s median against a 120 s
+  requirement; interactive read p95 30.5 ms (case) and 56.9 ms (audit) against 500 ms;
+  workspace manifest reads 3.8 ms at zero artifacts and 283.3 ms at 43. Four measurements
   are reported as *not measured*, with the reason, rather than omitted.
 - [x] 2026-08-21 M7 operator documentation: `docs/operations.md`, `docs/configuration.md`
   (all 25 `OAK_*` variables, pinned to the source by a contract test that fails in both

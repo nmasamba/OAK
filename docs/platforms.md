@@ -19,7 +19,7 @@ before reading the platform table.
 | Path | What it gives you | Needs |
 |---|---|---|
 | **CLI only** | The whole offline `init → design → questions → confirm → candidates → evaluate → select → assure → plan → export` journey, plus `render`, `policy`, `extensions` and `validate`, against a file workspace | Python 3.13 and `uv`. No database, no Docker, no network after install |
-| **Control plane** | `oak-api`, `oak-worker`, `oak-db-migrate`, `oak mcp serve`, the REST surface and the web workspace | The CLI row, plus PostgreSQL 17. There is no SQLite fallback: every server entrypoint refuses to start without `OAK_DATABASE_URL` |
+| **Control plane** | `oak-api`, `oak-worker`, `oak-db-migrate`, `oak mcp serve`, the REST surface and the web workspace | The CLI row, plus PostgreSQL 17. There is no SQLite fallback. `oak-worker`, `oak-db-migrate` and `oak-mcp` refuse to start without `OAK_DATABASE_URL`; `oak-api` starts but reports `/readyz` as not ready and fails every `/v1` request |
 | **Signed runner** | `oak dispatch`/`oak-runner` against the local fixture profile, including the container apply/rollback cycle | The CLI row, plus a Docker daemon reachable on its default socket |
 
 The Compose profile is the packaged form of the control-plane row: it supplies PostgreSQL,

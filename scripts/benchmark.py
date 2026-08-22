@@ -93,6 +93,9 @@ def provenance() -> dict[str, Any]:
             "catalogue_component_manifests": len(list((catalogue / "components").glob("*.yaml")))
             if (catalogue / "components").is_dir()
             else len(list(catalogue.rglob("*.yaml"))),
+            "catalogue_architecture_patterns": len(list((catalogue / "patterns").glob("*.yaml")))
+            if (catalogue / "patterns").is_dir()
+            else 0,
             "reference_brief": "examples/briefs/public-manual-qa.yaml",
             "persistence": "file workspace",
         },

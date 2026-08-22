@@ -43,7 +43,7 @@ customer readiness claim, and no external security review was commissioned for i
   uninstall), [platforms.md](docs/platforms.md) (supported matrix with architecture and
   glibc floors read from the lockfile), [configuration.md](docs/configuration.md) (every
   `OAK_*` variable, pinned to the source by a contract test), and
-  [error-codes.md](docs/error-codes.md) (generated; 245 of 267 codes were previously
+  [error-codes.md](docs/error-codes.md) (generated; 245 codes were previously
   undocumented).
 - **Container image scanning** (`make scan-images`), pinned to `aquasec/trivy:0.74.0`,
   failing the build on any *fixable* CRITICAL or HIGH and reporting unfixable findings
@@ -53,11 +53,11 @@ customer readiness claim, and no external security review was commissioned for i
 - **Security record**: [SECURITY.md](SECURITY.md),
   [threat-coverage.md](docs/security/threat-coverage.md) mapping all nineteen threat ids to
   the tests that exercise them, and [residual-risk.md](docs/security/residual-risk.md) with
-  35 stable-id entries. A build gate now rejects unqualified assurance vocabulary.
+  38 stable-id entries. A build gate now rejects unqualified assurance vocabulary.
 - **Measurements**: [performance.md](docs/performance.md) and a provenance-stamped
-  `scripts/benchmark.py`. Reference compiler 8.75 s median against a 120 s requirement;
-  interactive read p95 32 ms against 500 ms; workspace manifest reads grow from 4.0 ms at
-  zero artifacts to 281.2 ms at 43, with no compaction anywhere (`RR-030`).
+  `scripts/benchmark.py`. Reference compiler 8.66 s median against a 120 s requirement;
+  interactive read p95 30 ms against 500 ms; workspace manifest reads grow from 3.8 ms at
+  zero artifacts to 283.3 ms at 43, with no compaction anywhere (`RR-030`).
 - **Operator tooling**: `scripts/verify_deployment.py` re-verifies every indexed artifact
   against the artifact store so a restore is measured rather than declared, and
   `scripts/check_clean_machine.py` makes uninstall verifiable.
@@ -126,7 +126,7 @@ customer readiness claim, and no external security review was commissioned for i
 
 ### Known limitations
 
-Published in [security/residual-risk.md](docs/security/residual-risk.md) — 35 entries,
+Published in [security/residual-risk.md](docs/security/residual-risk.md) — 38 entries,
 including unsigned release artifacts (`RR-005`), non-reproducible container images
 (`RR-006`), no application logging or metrics (`RR-015`), `/readyz` not checking the schema
 revision (`RR-016`), no file-workspace format migration (`RR-017`), PostgreSQL suites that

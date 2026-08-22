@@ -77,15 +77,16 @@ directory whose location depends on where someone happened to be standing.
 Be realistic about what is available: OAK Community emits **no application logs and no
 metrics**. `oak-api` runs uvicorn with `access_log=False`
 (`src/oak/interfaces/api/server.py:36`), and nothing in `src/` configures a logger. What
-you have is four endpoints and the database.
+you have is a handful of endpoints and the database.
 
 | Signal | Where | What it tells you |
 |---|---|---|
 | Liveness | `GET /healthz` | The process is accepting requests |
-| Readiness | `GET /readyz` | The database answered. **It does not check the schema revision** — see [Upgrade](#upgrade) |
+| Readiness | `GET /readyz` | The database answered, or 503 if it did not — including when `OAK_DATABASE_URL` is unset entirely, which is the case `oak-api` will otherwise start happily in. **It does not check the schema revision** — see [Upgrade](#upgrade) |
 | Build identity | `GET /version` | Version and `OAK_COMMIT` |
 | Projection lag | `GET /v1/system/outbox-lag` | Pending outbox events and sequence lag for the built-in projection |
 | Work in flight | `GET /v1/operations/{id}` | Status, attempts and checkpoint of one durable operation |
+| Contract | `GET /openapi.json`, `/docs`, `/redoc` | The live OpenAPI document and FastAPI's interactive browsers. Useful for debugging; **not** part of the `/v1` contract, not covered by the compatibility policy, and exposed on whatever address the API binds |
 
 ```bash
 curl --fail --silent http://127.0.0.1:8080/readyz
@@ -208,7 +209,9 @@ python scripts/verify_deployment.py --workspace /path/to/workspace
 
 It walks every row of `artifact_versions`, re-reads each object from the artifact root and
 re-checks its size and SHA-256. Exit `0` means the two stores agree; exit `2` names each
-artifact that does not resolve. It is read-only, and it detects missing objects, truncated
+artifact that does not resolve, and also fires when the index is empty unless you pass
+`--allow-empty`; exit `3` means the deployment could not be read at all — an unreachable
+database, a missing workspace — which is the code you are most likely to hit mid-restore. It is read-only, and it detects missing objects, truncated
 objects and same-length-different-content substitution.
 
 **Compare the count against what you backed up.** "Verified 0 artifacts" after a restore is
@@ -280,7 +283,8 @@ success, `2` refusal or invalid input, `4` version or idempotency conflict.
 | `OAK-IDEMPOTENCY-CONFLICT` | An idempotency key was reused with different input | Use a new key, or send the original input |
 | `OAK-REMOTE-UNSUPPORTED` | A local-only command was run with `--server` | Signing, approval, dispatch, keys, extensions and policy are local-only by design |
 | `OAK-REMOTE-UNAVAILABLE` | The control plane is unreachable | Check the URL and that `oak-api` is up |
-| Server refuses to start | `OAK_DATABASE_URL` unset, or a non-loopback bind without `OAK_ALLOW_NON_LOOPBACK` | See [configuration.md](configuration.md) |
+| Server refuses to start | `OAK_DATABASE_URL` unset (`oak-worker`, `oak-db-migrate`, `oak-mcp`), or a non-loopback bind without `OAK_ALLOW_NON_LOOPBACK` | See [configuration.md](configuration.md) |
+| `oak-api` runs but every `/v1` call returns 500 | `OAK_DATABASE_URL` unset — `oak-api` starts regardless | `curl /readyz`: it returns 503 in exactly this case |
 | Artifact reads fail after a restore | The artifact root was not restored with the database | See [Restore](#restore) |
 | Dependency install fails on macOS | An Intel or Rosetta interpreter | See [platforms.md](platforms.md#prerequisites) |
 
@@ -359,6 +363,12 @@ exporting anything you still want.
 Global toolchain caches are shared with other projects and are **not** OAK's to remove —
 `~/.cache/uv`, the pnpm store, and the Playwright browser cache stay unless you clear
 them yourself.
+
+The same applies to the third-party images OAK causes Docker to pull: `postgres:17.6-alpine`,
+`python:3.13.12-slim`, `node:24.18.0-alpine`, `nginx:1.29.1-alpine`, and `aquasec/trivy` if
+you ran `make scan-images`. Neither the commands above nor
+`scripts/check_clean_machine.py` touches or reports them, because they are shared Docker
+state rather than OAK's. Remove them with `docker image rm` if you want the disk back.
 
 Then confirm the machine is actually clean:
 

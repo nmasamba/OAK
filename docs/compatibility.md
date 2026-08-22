@@ -19,9 +19,13 @@ possible — but never silent.
   migration note. `0.7.0` rather than `0.1.0` is the first release because `0.1.0` would
   have sorted below the development builds that already existed; see
   [ADR-0002](adr/0002-release-versioning.md).
-- **Object schema version** (`schema_version` inside canonical documents, currently
-  `0.4.0`): versions the canonical data contracts independently of the repository.
-  `SUPPORTED_SCHEMA_VERSIONS` in `src/oak/bootstrap.py` lists every readable version.
+- **Object schema version** (`schema_version` inside canonical documents): versions each
+  canonical data contract independently of the repository *and of the other schemas*.
+  There is no single current number — schemas sit at `0.1.0`, `0.3.0` or `0.4.0`
+  depending on when each was introduced and last changed; see
+  [schemas/README.md](../schemas/README.md). `SUPPORTED_SCHEMA_VERSIONS` in
+  `src/oak/bootstrap.py` lists the versions the **workspace manifest** may carry, which is
+  a narrower thing than every readable document version.
 - **Interface protocol versions**: the MCP server pins its supported protocol revisions
   in `SUPPORTED_PROTOCOL_VERSIONS`; the runner protocol carries `protocol_version` in
   every message; the canonical export carries `export_version`.
@@ -82,9 +86,11 @@ mechanical migration; **breaking** otherwise.
 ## MCP
 
 - The tool registry in `oak.interfaces.mcp.tools.TOOL_DEFINITIONS` is the contract:
-  tool names, required arguments, argument bounds, and result document shapes. A
-  contract test pins the registry to the documented capability matrix in
-  [docs/interfaces.md](interfaces.md).
+  tool names, required arguments, argument bounds, and result document shapes.
+  `tests/contract/test_mcp_contract.py` pins that registry against a list of the eleven
+  contract tools held in the test itself — it does **not** parse
+  [docs/interfaces.md](interfaces.md), so adding a tool fails the test but keeping the
+  capability matrix in step is a human step.
 - Adding a tool or an *optional* argument is compatible. Removing a tool, renaming one,
   adding a required argument, or changing a result shape is breaking and follows the
   same changelog/deprecation rules as the CLI.

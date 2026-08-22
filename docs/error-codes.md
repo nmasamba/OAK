@@ -16,7 +16,8 @@ given an invented description.
 | CLI | `CODE: message` on stderr. Exit `0` success, `2` refusal or invalid input, `4` version or idempotency conflict |
 | REST | The `code` field of the problem-details body. For a not-found code the `detail` is replaced with an opaque string, so **the code is your only signal** |
 | MCP | The `code` field of the tool result's `structuredContent`, with `isError: true`. Not-found codes are opaqued as on REST |
-| Runner | `CODE: message` on stderr, exit `70` |
+| Runner | `CODE: message` on stderr. Exit `64` for a configuration refusal (a required `OAK_RUNNER_*` variable missing), `70` for a verification or execution refusal |
+| Process startup | `oak-api`, `oak-worker`, `oak-db-migrate` and `oak-mcp` print `CODE: message` and exit non-zero before serving anything. `OAK-SAFE-BIND`, `OAK-DATABASE-CONFIG`, `OAK-DATABASE-MIGRATION`, `OAK-WORKER-CONFIG` and `OAK-MCP-CONFIG` reach you only this way |
 
 Codes are a public surface governed by [compatibility.md](compatibility.md): new codes may
 be added freely, but an existing code may not change meaning or disappear while a
@@ -40,7 +41,7 @@ documented flow uses it.
 
 ## Full index
 
-260 codes across 14 families.
+265 codes across 15 families.
 
 ### Workspace, artifacts and import/export (22)
 
@@ -219,7 +220,7 @@ documented flow uses it.
 | `OAK-RUNNER-APPLY` | fixture container creation failed | `src/oak/runner/adapters.py:95` |
 | `OAK-RUNNER-APPROVAL` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:366` |
 | `OAK-RUNNER-ATTACHMENT` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:188` |
-| `OAK-RUNNER-CONFIG` | OAK_RUNNER_TARGET_PROFILE could not be read; OAK_RUNNER_TARGET_PROFILE is not a valid target profile; the runner home, mailbox or trust anchors are unreadable | `src/oak/runner/main.py:61` |
+| `OAK-RUNNER-CONFIG` | OAK_RUNNER_TARGET_PROFILE could not be read; OAK_RUNNER_TARGET_PROFILE is not a valid target profile; the runner home, mailbox or trust anchors are unreadable | `src/oak/runner/main.py:40` |
 | `OAK-RUNNER-DIGEST` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:497` |
 | `OAK-RUNNER-DRIFT` | target state digest drifted during execution | `src/oak/runner/execution.py:209` |
 | `OAK-RUNNER-ENVIRONMENT` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:233` |
@@ -270,10 +271,11 @@ documented flow uses it.
 | `OAK-REMOTE-UNAVAILABLE` | the remote control plane could not be reached | `src/oak/interfaces/cli/remote.py:108` |
 | `OAK-REMOTE-UNSUPPORTED` | init is local-only; a remote case is created by oak design; mcp serve is local-only; serve is local-only (some dynamic) | `src/oak/interfaces/cli/main.py:100` |
 
-### MCP (1)
+### MCP (2)
 
 | Code | Meaning | First raise site |
 |---|---|---|
+| `OAK-MCP-CONFIG` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/mcp/server.py:229` |
 | `OAK-TOOL-UNKNOWN` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/mcp/server.py:164` |
 
 ### Headless validation (11)
@@ -292,7 +294,7 @@ documented flow uses it.
 | `OAK-VALIDATE-WEBHOOK-KEY` | envelope key id does not derive from the pinned publisher key; envelope signer does not match the pinned publisher key | `src/oak/interfaces/cli/validate.py:223` |
 | `OAK-VALIDATE-WEBHOOK-SIGNATURE` | envelope signature does not verify under the pinned publisher key | `src/oak/interfaces/cli/validate.py:247` |
 
-### Durable operations and the outbox (24)
+### Durable operations and the outbox (25)
 
 | Code | Meaning | First raise site |
 |---|---|---|
@@ -320,6 +322,7 @@ documented flow uses it.
 | `OAK-OUTBOX-LIMIT` | outbox claim limit must be between 1 and 100 | `src/oak/adapters/persistence/outbox.py:44` |
 | `OAK-OUTBOX-UNAVAILABLE` | outbox observation is unavailable | `src/oak/application/control_plane.py:389` |
 | `OAK-PROJECTION-NAME` | projection name is invalid | `src/oak/adapters/persistence/outbox.py:152` |
+| `OAK-WORKER-CONFIG` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/worker.py:53` |
 
 ### Concurrency, identity and requests (11)
 
@@ -337,7 +340,14 @@ documented flow uses it.
 | `OAK-TENANT-MISMATCH` | repository scope does not match workspace initialization; requested resource was not found; workspace tenant does not match command | `src/oak/adapters/persistence/postgresql.py:100` |
 | `OAK-TIME-INVALID` | timestamp must include a timezone; worker timestamp must include a timezone | `src/oak/adapters/persistence/postgresql.py:927` |
 
-### Everything else (30)
+### Configuration and process startup (2)
+
+| Code | Meaning | First raise site |
+|---|---|---|
+| `OAK-DATABASE-CONFIG` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/migrations.py:25` |
+| `OAK-DATABASE-MIGRATION` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/migrations.py:36` |
+
+### Everything else (31)
 
 | Code | Meaning | First raise site |
 |---|---|---|
@@ -367,6 +377,7 @@ documented flow uses it.
 | `OAK-NOT-FOUND` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/api/app.py:319` |
 | `OAK-OUTPUT-EXISTS` | GitOps output directory already exists; output directory already exists; render output directory already exists | `src/oak/application/gitops.py:36` |
 | `OAK-REVOCATION-REASON` | revocation requires a reason | `src/oak/application/release.py:236` |
+| `OAK-SAFE-BIND` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/api/server.py:61` |
 | `OAK-SIGNING-KEY-INVALID` | signing key length is invalid; signing key must be a regular file | `src/oak/adapters/signing/local_ed25519.py:75` |
 | `OAK-SIGNING-KEY-MISSING` | signing key does not exist; run oak keys init | `src/oak/adapters/signing/local_ed25519.py:70` |
 | `OAK-SIGNING-KEY-PERMISSIONS` | signing key must not be group or world accessible | `src/oak/adapters/signing/local_ed25519.py:77` |

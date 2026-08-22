@@ -36,10 +36,16 @@ first acquisition of dependencies and base images.
 Green, verified by **counting `make: ***` lines: 0** — not by the exit code, which the
 wrapper reports as success even when the gate failed.
 
-- 376 unit and contract tests
-- 165 integration tests, 4 skipped (file-only parameter cases), **including** the
+- 389 unit and contract tests
+- 167 integration tests, 4 skipped (file-only parameter cases), **including** the
   PostgreSQL-gated suites that CI silently skips (`RR-019`)
-- 27 end-to-end tests
+- 41 end-to-end tests
+
+These are the counts from the **final** gate run. The rehearsal was first performed
+earlier in the sprint, at 376 / 165 / 27; the container-scan work
+([container-scan.md](container-scan.md)) landed afterwards, adding tests and changing both
+Dockerfiles, so the gate and the image steps were re-run on the final tree rather than
+leaving this record describing a tree that no longer exists.
 - validate, format, lint, boundaries, hygiene, toolchain, strict mypy over 120 files,
   generated-OpenAPI compatibility, web build
 

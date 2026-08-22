@@ -30,11 +30,11 @@ Explicitly *not* being decided:
 | Can a user verify what they downloaded? | [release-process.md](../../release-process.md#verifying-a-release); the refusal path is tested against tampered, substituted, missing and path-escaping inputs |
 | Can it be upgraded, backed up and restored? | [operations.md](../../operations.md); `scripts/verify_deployment.py` plus `tests/integration/test_backup_restore.py`, which rehearses a restore into a clean migrated database and proves a database-only restore is detected |
 | What does it defend against? | [security/threat-coverage.md](../../security/threat-coverage.md) — 19 threats, 8 direct, 9 partial, 2 structural, 0 uncovered |
-| What does it *not* defend against? | [security/residual-risk.md](../../security/residual-risk.md) — 35 entries with stable ids |
+| What does it *not* defend against? | [security/residual-risk.md](../../security/residual-risk.md) — 38 entries with stable ids |
 | How fast is it, and on what? | [performance.md](../../performance.md) and [performance.json](performance.json) |
 | Is every claim backed? | A build gate rejects unqualified assurance vocabulary; `tests/contract/test_assurance_claims.py` proves it is not vacuous |
 | Was it externally reviewed? | **No.** See below |
-| Were the images scanned? | **No.** Dependency scans were run and are clean; no container scan was possible — see `RR-035` and the note below |
+| Were the images scanned? | **Yes, after approval.** See the addendum below — this said "no" when the approval was given |
 
 ## External review
 
@@ -48,7 +48,30 @@ Nothing in this release may be described as audited, certified, or independently
 A documentation gate now enforces that wording; the substance is the maintainers' to
 preserve.
 
-## Container scanning
+## Addendum, 2026-08-22: the container scan was performed after approval
+
+**The approval above was given on the strength of a record that said the images had not
+been scanned.** They have been since, at the owner's instruction, and the section below is
+kept as it was written so the basis of the decision stays legible. What changed after the
+signatures:
+
+- The scan found **6 CRITICAL and 72 HIGH** in the API image and **3 and 33** in the web
+  image. Three causes: `uv` and `uvx` shipping in the runtime layer, base images lagging
+  their distributions' patch streams, and a residue with no vendor fix.
+- The API image is now multi-stage and both images apply distribution security updates.
+  End state: the web image is clean and the API image has **3 CRITICAL and 14 HIGH, all
+  with no vendor fix available**. **Zero fixable findings remain.**
+- `RR-035` is closed. `RR-036` (the unfixable residue) and `RR-037` (the web image runs
+  nginx as root) were added to the register afterwards.
+
+**Does this invalidate the approval?** In the maintainer's judgement it does not: the
+release is strictly better than the one approved, and the two conditions attached to the
+approval — the `RR-001`/`RR-003` scoping — are untouched. But a reader should know that
+`RR-036` and `RR-037` entered the register *after* the signatures, and neither has been
+separately signed off. The full record is
+[container-scan.md](container-scan.md).
+
+## Container scanning as it stood at approval
 
 `OAK-S8-003` asks for dependency **and container** scans. Only the dependency half was
 done. `make audit` runs `pip-audit` over the Python closure and `pnpm audit` over the web
@@ -114,7 +137,7 @@ find it rather than buried in a sprint post-mortem.
 
 [security/residual-risk.md](../../security/residual-risk.md) is the published statement, linked
 from the README, `SECURITY.md`, the operations runbook and the release process. It carries
-35 entries with stable ids, severities scored for the shipped configuration, and an explicit
+38 entries with stable ids, severities scored for the shipped configuration, and an explicit
 note that every owner field is unassigned pending this decision.
 
 ## Approvals required

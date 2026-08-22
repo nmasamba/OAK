@@ -13,6 +13,7 @@ CI and container builds are the reproducible builder boundary. They pin `uv` 0.1
 | Command | Purpose |
 |---|---|
 | `make bootstrap` | Install locked Python and web dependencies |
+| `make lock` | Re-resolve both lockfiles. Prefer `uv lock --upgrade-package <name>` for a single Python dependency; this target also rewrites `pnpm-lock.yaml` |
 | `make toolchain-check` | Check local, CI, container, package, and documentation toolchain declarations for drift |
 | `make validate` | Validate canonical schemas, examples, generated files, and documentation policy |
 | `make format` | Apply deterministic Python and web formatting |
@@ -23,14 +24,17 @@ CI and container builds are the reproducible builder boundary. They pin `uv` 0.1
 | `make test-integration` | Run local API integration tests |
 | `make test-e2e` | Run CLI/API user-visible smoke tests |
 | `make openapi-compatibility` | Reproduce OpenAPI/client output and reject local breaking changes |
+| `make web-build` | Build the production web bundle |
 | `make web-e2e` | Run the Playwright browser journey and accessibility suite against the Compose stack |
 | `make build` | Build Python and web artifacts from bootstrapped dependencies without network |
-| `make sbom` | Generate a development dependency SBOM under ignored `sbom/` |
+| `make sbom` | Generate a development dependency SBOM under ignored `sbom/`. The *release* SBOM is different and comes from `make release` |
+| `make audit` | Audit the Python and web dependency closures for known advisories. Needs network |
+| `make scan-images` | Build and scan both container images, failing on any **fixable** CRITICAL or HIGH. Needs Docker and network; see [release-process.md](release-process.md) |
 | `make check` | Run the non-destructive repository gate |
 | `make release` | Build the release artifacts, SBOM, licence inventory and checksums; see [release-process.md](release-process.md) |
 | `make verify-release` | Verify a release directory against its `SHA256SUMS` |
 | `make clean` | Empty the `uv` cache |
-| `make clean-all` | Remove every build artifact, virtual environment and cache in the tree |
+| `make clean-all` | Remove every build artifact, virtual environment and cache in the tree. It does **not** touch a `.oak` workspace — that is your data; see [operations.md](operations.md#uninstall) |
 
 The bootstrap step may use the public package registries. After dependencies are installed, `make check` requires no hosted service, credentials, model provider, database, or public network. It does require `git`: `tools/check_repository.py` shells out to `git check-ignore`.
 

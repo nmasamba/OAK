@@ -27,7 +27,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "src" / "oak"
 REFERENCE = ROOT / "docs" / "error-codes.md"
-CODE_LITERAL = re.compile(r'"(OAK-[A-Z0-9-]+)"')
+# Two spellings reach a user. `OAKError("OAK-X", ...)` is the common one; the process
+# entrypoints instead print `f"OAK-X: message"` and exit, which the quoted-literal form
+# alone does not see — six codes, including OAK-SAFE-BIND and OAK-DATABASE-MIGRATION,
+# were absent from a reference whose first line claims to list every code.
+CODE_LITERAL = re.compile(r'"(OAK-[A-Z0-9-]+)(?:"|:)')
 REQUIREMENT_ID = re.compile(r"^OAK-(?:FR|NFR)-")
 
 # Families are matched in order; the first prefix that matches wins, so more specific
@@ -142,7 +146,8 @@ given an invented description.
 | CLI | `CODE: message` on stderr. Exit `0` success, `2` refusal or invalid input, `4` version or idempotency conflict |
 | REST | The `code` field of the problem-details body. For a not-found code the `detail` is replaced with an opaque string, so **the code is your only signal** |
 | MCP | The `code` field of the tool result's `structuredContent`, with `isError: true`. Not-found codes are opaqued as on REST |
-| Runner | `CODE: message` on stderr, exit `70` |
+| Runner | `CODE: message` on stderr. Exit `64` for a configuration refusal (a required `OAK_RUNNER_*` variable missing), `70` for a verification or execution refusal |
+| Process startup | `oak-api`, `oak-worker`, `oak-db-migrate` and `oak-mcp` print `CODE: message` and exit non-zero before serving anything. `OAK-SAFE-BIND`, `OAK-DATABASE-CONFIG`, `OAK-DATABASE-MIGRATION`, `OAK-WORKER-CONFIG` and `OAK-MCP-CONFIG` reach you only this way |
 
 Codes are a public surface governed by [compatibility.md](compatibility.md): new codes may
 be added freely, but an existing code may not change meaning or disappear while a

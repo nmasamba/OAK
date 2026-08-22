@@ -17,7 +17,7 @@ changing one.
 
 | Variable | Default | Meaning | Safety-relevant |
 |---|---|---|---|
-| `OAK_DATABASE_URL` | *(none — required)* | SQLAlchemy URL of the control-plane metadata database. Every server entrypoint refuses to start without it; there is no SQLite fallback. **Carries a password in the Compose default**, so treat it as a secret | Yes |
+| `OAK_DATABASE_URL` | *(none — required)* | SQLAlchemy URL of the control-plane metadata database; there is no SQLite fallback. `oak-worker`, `oak-db-migrate` and `oak-mcp` refuse to start without it. `oak-api` and `oak serve` **do** start — they serve `/version` and `/healthz`, report `/readyz` as **503 not ready**, and fail every `/v1` request with a 500 — so check `/readyz`, not the process, to know whether the API can work. **Carries a password in the Compose default**, so treat it as a secret | Yes |
 | `OAK_ARTIFACT_ROOT` | `.oak/server-artifacts` | Directory holding content-addressed artifact bytes. **Relative by default**, so it resolves against the process working directory — see the warning below | Yes |
 | `OAK_HOST` | `127.0.0.1` | Bind address for `oak-api` | Yes |
 | `OAK_PORT` | `8080` | Bind port for `oak-api` | No |
@@ -40,8 +40,8 @@ changing one.
 | Variable | Default | Meaning | Safety-relevant |
 |---|---|---|---|
 | `OAK_SERVER` | *(none)* | Base URL for remote mode; equivalent to `--server`. When set, design-journey commands run against a control plane and local-only commands refuse with `OAK-REMOTE-UNSUPPORTED` | Yes |
-| `OAK_ACTOR` | `local-user` | Actor the CLI claims, sent as `X-OAK-Actor` in remote mode | Yes |
-| `OAK_REMOTE_TIMEOUT` | *(built-in default)* | Seconds to wait for a remote request and for bounded operation polling | No |
+| `OAK_ACTOR` | `local-user` | Actor the CLI claims; sent as `X-OAK-Actor` in remote mode. **In remote mode it must equal the server's `OAK_LOCAL_ACTOR`** or every command fails with `OAK-ACTOR-DENIED` — the actor is a claim the server checks, not a credential it accepts | Yes |
+| `OAK_REMOTE_TIMEOUT` | `120` | Seconds to wait for a bounded durable operation to reach a terminal state. It does **not** change the per-request HTTP timeout, which is fixed at 30 s and not configurable. A value outside `0 < n <= 3600`, or one that is not a number, is ignored and the default used | No |
 
 ## Packaged data locations
 
@@ -94,3 +94,5 @@ when you harden a runner environment. Recorded as `RR-033`.
 |---|---|---|---|
 | `OAK_TEST_DATABASE_URL` | *(none)* | Enables the PostgreSQL-gated integration suites. **Unset, those suites skip silently and a green run is not evidence they ran.** See [CONTRIBUTING.md](../CONTRIBUTING.md) | No |
 | `OAK_E2E_DOCKER` | *(none)* | Set by `make web-e2e` to enable the Compose-backed browser journey | No |
+| `OAK_WEB_BASE_URL` | `http://127.0.0.1:5173` | Origin the Playwright suite drives. Read by `web/playwright.config.ts`, not by Python | No |
+| `OAK_API_BASE_URL` | `http://127.0.0.1:8080` | API origin the Playwright suite calls directly. Read by `web/e2e/support.ts`, not by Python | No |

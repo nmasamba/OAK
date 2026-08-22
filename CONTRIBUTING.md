@@ -59,7 +59,7 @@ marker fails collection. Shared harnesses are `tests/runner_support.py`
 (`build_compiled_case` drives the whole reference journey) and `tests/mcp_support.py`
 (file-backed control plane, in-memory operation store, `MCPClient`).
 
-**The PostgreSQL suites skip silently.** Roughly twenty integration tests are gated on
+**The PostgreSQL suites skip silently.** Roughly twenty tests — all but one under `tests/integration`, plus the installed-MCP handshake in `tests/e2e/test_mcp_interface.py` — are gated on
 `OAK_TEST_DATABASE_URL`, and a skip looks exactly like a pass in the summary line. CI never
 sets it. To actually run them:
 
@@ -73,6 +73,7 @@ YML
 docker compose up -d postgres
 export OAK_TEST_DATABASE_URL=postgresql+psycopg://oak:oak-local-only@127.0.0.1:15432/oak
 make test-integration
+make test-e2e          # the MCP handshake test is gated too
 ```
 
 `compose.yaml` publishes no host port for PostgreSQL, which is why the override is needed.
@@ -116,6 +117,17 @@ This is recorded as `RR-019`.
   `adapters`. An interface that needs an adapter needs an application service instead.
 - A new package under `src/oak/` is import-locked to nothing until it is added to
   `INTERNAL_ALLOWED`.
+- `oak.adapters` may import `contracts`, `domain` and `ports`.
+
+It also enforces which **third-party** packages each layer may touch, which is the rule
+people trip over first:
+
+- `oak.domain` may not import `fastapi`, `pydantic`, `sqlalchemy`, `typer` or `uvicorn`.
+- `oak.compiler`, `oak.ports`, `oak.application` and `oak.runner` may not import
+  `fastapi`, `sqlalchemy`, `typer` or `uvicorn`.
+
+The point is that a framework choice stays replaceable: anything that would make the
+domain depend on how it is served does not belong in the domain.
 
 ## Review policy
 

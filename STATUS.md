@@ -305,7 +305,7 @@
   generated inventory now shows LGPL-3.0 Psycopg as the only copyleft entry.
 - Security review produced `docs/security/threat-coverage.md` (all nineteen threat ids mapped
   to tests: 8 direct, 9 partial, 2 structural, 0 uncovered, every cited test verified to
-  exist), `docs/security/residual-risk.md` (35 stable-id entries), and `SECURITY.md`. **No
+  exist), `docs/security/residual-risk.md` (38 stable-id entries), and `SECURITY.md`. **No
   external security review was commissioned**, and a build gate now fails on unqualified
   assurance vocabulary — it caught three of its own author's sentences on first run.
 - Four confidentiality defects were found and fixed, each reproduced before the fix:
@@ -330,9 +330,9 @@
   creates a scratch PostgreSQL database, migrates it to head, and proves that a database
   restored without its artifact root is detected — the half-restore the previous
   `pg_dump`-only documentation would have produced.
-- Performance was measured with provenance rather than asserted: reference compiler 8.75 s
-  median against a 120 s requirement, interactive read p95 31.9 ms against 500 ms, and
-  workspace manifest reads growing from 4.0 ms at zero indexed artifacts to 281.2 ms at 43
+- Performance was measured with provenance rather than asserted: reference compiler 8.66 s
+  median against a 120 s requirement, interactive read p95 30.5 ms against 500 ms, and
+  workspace manifest reads growing from 3.8 ms at zero indexed artifacts to 283.3 ms at 43
   with no compaction anywhere (`RR-030`). Four measurements are published as *not measured*
   with the reason.
 - Operator and contributor documentation now covers install through uninstall, every `OAK_*`

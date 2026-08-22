@@ -4,28 +4,28 @@
       "caveat": "One case, no concurrency, one client. Read cost is history-dependent - pagination slices in Python after loading and the audit endpoint reads every audit artifact - so a workspace with many cases and deep history will be slower. Treat this as a floor, not a service level. The design-case list endpoint is not measured: it needs the PostgreSQL case directory, which file mode does not provide.",
       "description": "Sequential single-client reads over loopback HTTP against a file-backed control plane holding one interpreted reference case.",
       "design_case_audit": {
-        "max_ms": 69.2,
-        "median_ms": 55.14,
-        "min_ms": 54.18,
-        "p95_ms": 58.3,
-        "p99_ms": 65.03,
+        "max_ms": 65.83,
+        "median_ms": 54.7,
+        "min_ms": 53.54,
+        "p95_ms": 56.92,
+        "p99_ms": 59.38,
         "samples": 200
       },
       "design_case_read": {
-        "max_ms": 46.27,
-        "median_ms": 29.74,
-        "min_ms": 28.84,
-        "p95_ms": 31.86,
-        "p99_ms": 41.28,
+        "max_ms": 32.22,
+        "median_ms": 29.43,
+        "min_ms": 28.65,
+        "p95_ms": 30.46,
+        "p99_ms": 31.64,
         "samples": 200
       },
       "requirement": "OAK-NFR-PERF-002 (p95 interactive read within 500 ms)",
       "version_endpoint": {
-        "max_ms": 1.1,
-        "median_ms": 0.66,
-        "min_ms": 0.54,
-        "p95_ms": 0.9,
-        "p99_ms": 1.04,
+        "max_ms": 1.05,
+        "median_ms": 0.57,
+        "min_ms": 0.52,
+        "p95_ms": 0.89,
+        "p99_ms": 0.99,
         "samples": 200
       }
     },
@@ -41,11 +41,11 @@
     },
     "reference_compiler": {
       "description": "One full reference case through build_compiled_case: intake, interpretation, confirmation, candidate generation, evaluation, selection, assurance and plan compilation, ending at bundle_compiled. Signing, approval and dispatch are separate commands and are NOT included in this figure.",
-      "max_ms": 8760.51,
-      "median_ms": 8749.68,
-      "min_ms": 8689.26,
-      "p95_ms": 8760.51,
-      "p99_ms": 8760.51,
+      "max_ms": 8662.38,
+      "median_ms": 8659.52,
+      "min_ms": 8621.75,
+      "p95_ms": 8662.38,
+      "p99_ms": 8662.38,
       "requirement": "OAK-NFR-PERF-001 (three variants within 120 s)",
       "samples": 3
     },
@@ -55,22 +55,22 @@
         {
           "indexed_artifacts": 0,
           "manifest_read": {
-            "max_ms": 4.26,
-            "median_ms": 3.96,
-            "min_ms": 3.65,
-            "p95_ms": 4.16,
-            "p99_ms": 4.26,
+            "max_ms": 4.03,
+            "median_ms": 3.84,
+            "min_ms": 3.63,
+            "p95_ms": 3.97,
+            "p99_ms": 4.03,
             "samples": 25
           }
         },
         {
           "indexed_artifacts": 43,
           "manifest_read": {
-            "max_ms": 351.66,
-            "median_ms": 281.24,
-            "min_ms": 277.33,
-            "p95_ms": 297.75,
-            "p99_ms": 351.66,
+            "max_ms": 303.2,
+            "median_ms": 283.28,
+            "min_ms": 280.44,
+            "p95_ms": 296.12,
+            "p99_ms": 303.2,
             "samples": 25
           }
         }
@@ -91,7 +91,7 @@
       "ram_gib": 64.0,
       "storage_gib": 1858.2
     },
-    "source_commit": "b3137e23b89aa7dbc5a5c185cfcc535aafe17a77",
+    "source_commit": "4bd9bf0f7acf375a14c572400a5ce259acb9c843",
     "source_tree_dirty": true,
     "toolchain": {
       "implementation": "CPython",
@@ -99,6 +99,7 @@
       "python": "3.13.12"
     },
     "workload": {
+      "catalogue_architecture_patterns": 4,
       "catalogue_component_manifests": 3,
       "persistence": "file workspace",
       "reference_brief": "examples/briefs/public-manual-qa.yaml"
