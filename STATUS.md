@@ -93,7 +93,7 @@
 | `OAK-S7-008` | complete | `docs/interfaces.md` interface setup, permission model, capability matrix, and explicit unavailable operations |
 | `OAK-S8-001` | complete | Clean install matrix across supported platforms and install paths |
 | `OAK-S8-002` | complete | Rehearsed upgrade, backup/restore, export/import and stated downgrade limits |
-| `OAK-S8-003` | partial | Threat-model coverage index, dependency scans, secret/log and runner review, residual-risk register; **container scan not performed** (`RR-035`) |
+| `OAK-S8-003` | complete | Threat-model coverage index, dependency and container scans, secret/log and runner review, residual-risk register |
 | `OAK-S8-004` | complete | Reproducible artifacts with SBOM, licence inventory, checksums and tested verification |
 | `OAK-S8-005` | complete | Provenance-stamped performance and soak measurements |
 | `OAK-S8-006` | complete | Operator documentation from install through uninstall |
@@ -340,13 +340,18 @@
   267 were previously undocumented), the supported platform matrix with architecture and
   glibc floors read from the lockfile, and the six architecture ADRs that shipped documents
   cite, mirrored so their citations resolve outside the governance repository.
-- One part of `OAK-S8-003` was **not** completed: the task names dependency *and* container
-  scans, and only the dependency half was run. `make audit` covers the Python and web
-  closures and is clean; the OS packages inside the shipped images are unassessed because no
-  scanner was available (`trivy`/`grype`/`syft` absent, `docker scout` requires a Docker Hub
-  login the release preparation would not perform). Base images are digest-pinned, which is
-  not the same assurance. Recorded as `RR-035` and raised in its own section of the release
-  decision so a maintainer sees it before signing.
+- The container scan that `OAK-S8-003` asks for was initially missed, recorded as `RR-035`,
+  and then performed. It was worth doing: the first scan found 6 CRITICAL and 72 HIGH in the
+  API image and 3 CRITICAL and 33 HIGH in the web image. Three causes — `uv` and `uvx`
+  shipping in the runtime layer with advisories in their vendored Rust dependencies, base
+  images lagging their distributions' patch streams (the pinned digests were checked and
+  found *current* for their tags, so re-pinning would have fixed nothing), and a residue
+  with no vendor fix. The API image is now multi-stage so the build tool no longer ships,
+  and both images apply distribution security updates at build time. Result: the web image
+  is entirely clean, the API image has 3 CRITICAL and 14 HIGH all with **no vendor fix
+  available**, and **zero fixable findings remain** in either. `make scan-images` makes it
+  repeatable and fails on anything fixable; `RR-036` tracks the residue and `RR-037` records
+  that the web image still runs nginx as root.
 - `OAK-S8-009` was decided by a human, not by the agent that prepared it. `nmasamba`
   approved `0.7.0` on 2026-08-22 in all three roles — maintainer, security and licence —
   after review. All three roles being held by one person is recorded in the decision record

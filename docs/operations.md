@@ -38,6 +38,11 @@ The worker is not optional if you intend to use the API: candidate generation,
 evaluation and compilation are durable operations, and without a worker they stay
 queued forever with no error.
 
+The images apply their distribution's security updates at build time, so **rebuilding
+picks up patches**. `make scan-images` reports what a build currently carries. As of
+`0.7.0` the web image is clean and the API image has 3 CRITICAL and 14 HIGH with no vendor
+fix available ([container-scan.md](release/0.7.0/container-scan.md)).
+
 Verify the release artifacts you downloaded before installing them — see
 [release-process.md](release-process.md#verifying-a-release). Remember that OAK
 Community artifacts are **unsigned**: checksums prove the bytes match the manifest, not

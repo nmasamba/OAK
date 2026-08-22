@@ -45,6 +45,11 @@ customer readiness claim, and no external security review was commissioned for i
   `OAK_*` variable, pinned to the source by a contract test), and
   [error-codes.md](docs/error-codes.md) (generated; 245 of 267 codes were previously
   undocumented).
+- **Container image scanning** (`make scan-images`), pinned to `aquasec/trivy:0.74.0`,
+  failing the build on any *fixable* CRITICAL or HIGH and reporting unfixable findings
+  without failing. The first run found 6 CRITICAL and 72 HIGH in the API image and 3 and 33
+  in the web image; see
+  [release/0.7.0/container-scan.md](docs/release/0.7.0/container-scan.md).
 - **Security record**: [SECURITY.md](SECURITY.md),
   [threat-coverage.md](docs/security/threat-coverage.md) mapping all nineteen threat ids to
   the tests that exercise them, and [residual-risk.md](docs/security/residual-risk.md) with
@@ -94,6 +99,19 @@ customer readiness claim, and no external security review was commissioned for i
   does not exist on a clean Debian or Ubuntu host.
 
 ### Changed
+
+- **The API image is multi-stage and no longer ships `uv`.** The build tool built the
+  virtual environment and then stayed in the delivered image, carrying three HIGH
+  advisories in its vendored Rust dependencies. The runtime stage now copies only the
+  virtual environment; the image dropped from 428 MB to 373 MB.
+- **Both images apply their distribution's security updates at build time.** The pinned
+  base digests were verified against the registry and found *current for their tags* — the
+  upstream images simply lag their distributions, so re-pinning would have fixed nothing,
+  including a CRITICAL OpenSSL flaw fixed in both Debian and Alpine. This costs build-time
+  determinism, which OAK does not claim for images (`RR-006`), and is the better trade
+  against shipping a known-fixed CRITICAL. The web image is now free of CRITICAL, HIGH,
+  MEDIUM and LOW findings; the API image has 3 CRITICAL and 14 HIGH with no vendor fix
+  available (`RR-036`), all in packages inherited from the Python base image.
 
 - **`jsonschema[format]` is now plain `jsonschema`.** Nothing constructs a `FormatChecker`,
   so the extra changed no behaviour — but it placed `rfc3987` 1.3.8 (**GPL-3.0-or-later**)

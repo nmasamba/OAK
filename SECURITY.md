@@ -88,9 +88,12 @@ What does exist, and is checkable:
 `make audit` runs `pip-audit` over the Python dependency closure and `pnpm audit` over the
 web one. Both were clean for `0.7.0`.
 
-**Container images are not scanned.** No image scanner was run for this release; the OS
-packages inside the shipped images are therefore unassessed. Base images are pinned by tag
-and immutable digest, which is not the same thing. Recorded as `RR-035`.
+`make scan-images` scans the API and web images with a pinned scanner and **fails on any
+fixable CRITICAL or HIGH finding**. For `0.7.0` the web image is clean and the API image
+carries 3 CRITICAL and 14 HIGH with **no vendor fix available** — `perl-base`, inherited
+from the Python base image, accounts for all three CRITICALs. Full record in
+[docs/release/0.7.0/container-scan.md](docs/release/0.7.0/container-scan.md); residue
+tracked as `RR-036`.
 
 ## Supported versions
 

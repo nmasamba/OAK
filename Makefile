@@ -4,7 +4,7 @@ UV_CACHE_DIR ?= .uv-cache
 UV := UV_CACHE_DIR=$(UV_CACHE_DIR) uv
 PNPM := pnpm
 
-.PHONY: bootstrap lock toolchain-check validate format format-check lint typecheck test test-integration test-e2e openapi-compatibility web-build web-e2e build check audit sbom release verify-release clean clean-all
+.PHONY: bootstrap lock toolchain-check validate format format-check lint typecheck test test-integration test-e2e openapi-compatibility web-build web-e2e build check audit sbom scan-images release verify-release clean clean-all
 
 bootstrap:
 	$(UV) sync --frozen
@@ -71,6 +71,12 @@ audit:
 sbom:
 	mkdir -p sbom
 	$(UV) run cyclonedx-py environment --output-reproducible --output-format JSON --output-file sbom/python.cdx.json .venv
+
+# Container image scan. Separate from `audit`, which covers the Python and web
+# dependency closures but never looks inside a built image. Needs Docker and network.
+scan-images:
+	$(UV) run python scripts/scan_images.py --build \
+		--output docs/release/$(shell cat VERSION)/container-scan.json
 
 # Release artifacts plus the evidence that describes them. Unlike `sbom`, which scans
 # the development virtualenv, this scans the released runtime closure.

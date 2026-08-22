@@ -487,6 +487,30 @@ category that matters most.
   and raised in its own section of the release decision rather than left in the register,
   because a maintainer may reasonably treat an unperformed task as a blocker.
 
+### Closed after the sprint, on the owner's instruction
+
+`RR-035` — the missing container scan — was performed rather than left accepted, and it
+justified the effort. The first scan found **6 CRITICAL and 72 HIGH** in the API image and
+**3 CRITICAL and 33 HIGH** in the web image, from three distinct causes:
+
+1. `uv` and `uvx` were shipping in the API runtime layer with three HIGH advisories each in
+   their vendored Rust dependencies. The image was single-stage, so build tooling was
+   delivered. It is now multi-stage and the runtime carries only the virtual environment.
+2. The base images lag their distributions' patch streams. The instructive part: the pinned
+   digests were checked against the registry and were **current for their tags**, so the
+   obvious remedy — re-pinning — would have achieved nothing. Both images now apply
+   distribution security updates at build time, at a cost to build determinism that is
+   recorded rather than waved away.
+3. A residue with no vendor fix, dominated by `perl-base`, an Essential package inherited
+   from the Python base image that OAK never invokes.
+
+End state: the web image is entirely clean; the API image has 3 CRITICAL and 14 HIGH, and
+**zero fixable findings** in either. `make scan-images` makes it repeatable and blocks on
+fixable findings only — a gate that blocks on findings nobody can act on gets suppressed,
+and a suppressed gate protects nothing. `tests/contract/test_image_scan_gate.py` pins both
+halves. `RR-036` tracks the residue; `RR-037` records that the web image still runs nginx
+as root.
+
 ### Not reproduced
 
 Reported but did not hold up when driven directly: the release workflow's tag trigger

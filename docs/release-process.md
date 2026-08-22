@@ -49,9 +49,17 @@ The compatibility rules that apply from `0.7.0` onward are in
 ```bash
 make bootstrap
 make check
+make scan-images
 make release
 make verify-release
 ```
+
+`make scan-images` builds both container images and scans them, failing on any **fixable**
+CRITICAL or HIGH finding. It is not part of `make check`, because it needs Docker and
+network and `make check` deliberately needs neither. Findings with no vendor fix are
+reported without failing — see
+[release/0.7.0/container-scan.md](release/0.7.0/container-scan.md) for why that asymmetry
+is the point rather than a loophole.
 
 `make release` refuses to finish unless three things hold:
 
@@ -166,6 +174,7 @@ tested and honest on the day that changes.
 - [ ] `CHANGELOG.md` has a section for the version, including any digest-shifting change
       called out as such
 - [ ] `make check` green — verified by reading the output, not the exit code
+- [ ] `make scan-images` green — no *fixable* CRITICAL or HIGH in either image
 - [ ] Reference-case byte-stability verified directly against the previous mainline
 - [ ] `make release` green, including its reproducibility and clean-install gates
 - [ ] `make verify-release` green
