@@ -8,6 +8,22 @@ All notable changes to OAK Community are recorded here.
 
 Nothing yet.
 
+## 0.7.1 — unreleased, pending approval
+
+Pre-launch hardening of the approved-but-never-published `0.7.0`. `0.7.0` was approved on
+2026-08-22 as a local-first developer release and never published — no PyPI upload, no
+image push, no tag, no GitHub release. This re-cut closes residual risks that `0.7.0`
+deliberately recorded rather than fixed, while no published artifact yet binds the
+compatibility promises in [compatibility.md](docs/compatibility.md).
+
+### Versioning
+
+- **The release is re-cut as `0.7.1` with a fresh approval.** The `RR-032` migration
+  changes canonical digests, so the signed `0.7.0` release record would otherwise describe
+  a build whose digests no longer match. `0.7.0` stays in the record as approved but
+  unpublished; nothing that was approved is republished under its name. The draft decision
+  record is [release/0.7.1/release-decision.md](docs/release/0.7.1/release-decision.md).
+
 ## 0.7.0 — 2026-08-21
 
 The first OAK Community release. A **local-first developer release**: no production or

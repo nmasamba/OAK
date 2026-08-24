@@ -372,7 +372,18 @@ observed immediately during Milestone 3.
   arm64, `opa` 1.19.1. Baseline digests captured directly (recorded under Context and
   invariants); the four reference values equal the Sprint 6/8 records. Baseline
   `make check` green with `OAK_TEST_DATABASE_URL` set: zero `make: ***` lines,
-  392 + 167 (4 skipped) + 42 tests passed, web build clean.
+  392 + 167 (4 skipped) + 42 tests passed, web build clean. The 4 integration skips
+  are the file-backend variants of PostgreSQL-specific assertions in
+  `test_workspace_repository_contract.py`, by design.
+- [x] 2026-08-24 M1: version re-cut to `0.7.1` across `VERSION`, `pyproject.toml`,
+  `STATUS.md`, `package.json`, `web/package.json`, regenerated OpenAPI (`info.version`
+  the only OpenAPI change) and `uv.lock`. `CHANGELOG.md` `0.7.1` section opened;
+  `docs/release/0.7.1/release-decision.md` created as an unsigned draft and added to the
+  residual-risk count gate's file list. First gate run failed deliberately at
+  `tools/check_repository.py` — the draft's external-review row used an assurance term
+  the vocabulary gate forbids; reworded to cite the `0.7.0` record's restrictions
+  instead. Full `make check` then green (zero `make: ***` lines), and the four reference
+  digests recompiled unchanged, proving the version literals are digest-independent.
 
 ## Decisions
 

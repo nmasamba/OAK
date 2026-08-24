@@ -2,15 +2,17 @@
 
 # Build status
 
-- **Updated:** 2026-08-22
-- **Repository version:** `0.7.0`
-- **Phase:** Sprint 8 complete — Community release hardening; `0.7.0` approved as a local-first developer release
+- **Updated:** 2026-08-24
+- **Repository version:** `0.7.1`
+- **Phase:** Pre-launch hardening in progress — `0.7.0` was approved as a local-first developer release but never published; the release is being re-cut as `0.7.1`
 - **Completed plans:** `docs/exec-plans/completed/OAK-S0-001-009-walking-skeleton.md`, `docs/exec-plans/completed/OAK-S1-001-010-local-design-case.md`, `docs/exec-plans/completed/OAK-S2-001-011-candidate-planning.md`, `docs/exec-plans/completed/OAK-S3-001-009-persistent-rest-jobs.md`, `docs/exec-plans/completed/OAK-S4-001-009-web-workspace.md`, `docs/exec-plans/completed/OAK-S5-001-011-signed-runner.md`, `docs/exec-plans/completed/OAK-S6-001-008-policy-adapter-sdk.md`, `docs/exec-plans/completed/OAK-S7-001-008-mcp-portal-interface-parity.md`, and `docs/exec-plans/completed/OAK-S8-001-009-community-release-hardening.md`
-- **Active plan:** none — Sprint 8 closed
-- **Next task:** post-`0.7.0` work. The release was approved by `nmasamba` on 2026-08-22 in
-  all three roles (`docs/release/0.7.0/release-decision.md`); nothing is published, and no
-  tag is pushed. The approval carries a condition: `RR-001` and `RR-003` become P0 before
-  any release that permits a runner off the operator's machine
+- **Active plan:** `docs/exec-plans/active/OAK-PL-001-007-pre-launch-hardening.md`
+- **Next task:** complete the pre-launch hardening plan. `0.7.0` was approved by `nmasamba`
+  on 2026-08-22 in all three roles (`docs/release/0.7.0/release-decision.md`); nothing is
+  published, and no tag is pushed. The approval carried a condition — `RR-001` and `RR-003`
+  become P0 before any release that permits a runner off the operator's machine — and both
+  are being closed by the active plan, which re-cuts the release as `0.7.1` pending a fresh
+  approval
 
 ## Claimed work
 

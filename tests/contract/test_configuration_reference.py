@@ -195,6 +195,7 @@ def test_documents_that_quote_the_residual_risk_count_agree_with_the_register() 
         "STATUS.md",
         "CHANGELOG.md",
         "docs/release/0.7.0/release-decision.md",
+        "docs/release/0.7.1/release-decision.md",
         "docs/security/residual-risk.md",
         "docs/exec-plans/completed/OAK-S8-001-009-community-release-hardening.md",
     ):
