@@ -9,6 +9,28 @@ from jsonschema import ValidationError
 from jsonschema.validators import validator_for
 from referencing import Registry, Resource
 
+# jsonschema builds most of its messages by interpolating the *offending value*:
+# `'sk-live-…' is too long`, `'…' is not of type 'integer'`. Only these validators
+# describe the schema constraint or the offending key names instead, which is
+# structural information the caller already sent. Everything else is synthesized from
+# the constraint alone, so a rejected value can never travel back out in a diagnostic.
+_INSTANCE_FREE_VALIDATORS = frozenset(
+    {"required", "dependentRequired", "dependencies", "additionalProperties"}
+)
+_MAXIMUM_CONSTRAINT_CHARACTERS = 120
+
+
+def payload_safe_reason(error: ValidationError) -> str:
+    """Describe why validation failed without echoing the value that failed it."""
+
+    validator = str(error.validator)
+    if validator in _INSTANCE_FREE_VALIDATORS:
+        return error.message
+    constraint = repr(error.validator_value)
+    if len(constraint) > _MAXIMUM_CONSTRAINT_CHARACTERS:
+        constraint = constraint[: _MAXIMUM_CONSTRAINT_CHARACTERS - 3] + "..."
+    return f"value does not satisfy {validator}: {constraint}"
+
 
 class ContractValidationError(ValueError):
     """A stable, payload-safe canonical validation failure."""
@@ -71,4 +93,6 @@ class SchemaRegistry:
     @staticmethod
     def _error(name: str, error: ValidationError) -> ContractValidationError:
         path = "/" + "/".join(str(part) for part in error.absolute_path)
-        return ContractValidationError(schema_name=name, path=path, reason=error.message)
+        return ContractValidationError(
+            schema_name=name, path=path, reason=payload_safe_reason(error)
+        )

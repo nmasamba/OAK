@@ -11,10 +11,16 @@ OAK does not proxy an installed application's inference traffic. The current har
 The container path requires only Docker with Compose. Python, `uv`, Node.js, and `pnpm` are pinned inside the build images and do not need to be installed on the host:
 
 ```bash
-docker compose up -d postgres api worker web
+docker compose up -d --build postgres migrate api worker web
 curl --fail http://127.0.0.1:8080/version
 docker compose down
 ```
+
+**`--build` is not optional after the first run.** `docker compose up -d` reuses an image
+if one already exists with that name and does not rebuild when the source changes, so
+without it the stack silently serves whatever you built last. This was found by running the
+`0.7.0` release rehearsal: the stack came up reporting `0.5.0.dev5` from a three-day-old
+image. `curl /version` is the check that catches it.
 
 The worker is required for the asynchronous candidate-generation, evaluation, and
 compilation stages; without it those operations stay queued. The web workspace serves at
@@ -147,7 +153,42 @@ in [examples/backstage/](examples/backstage/README.md) and
 
 The canonical schemas and public synthetic examples live in `schemas/` and `examples/`. See [development.md](docs/development.md) for command details and [architecture.md](docs/architecture.md) for the enforced boundaries.
 
+## Documentation
+
+[docs/README.md](docs/README.md) is the index. The ones most people need first:
+
+| | |
+|---|---|
+| [platforms.md](docs/platforms.md) | Where OAK is supported, and where it is not |
+| [operations.md](docs/operations.md) | Install, observe, back up, restore, upgrade, troubleshoot, uninstall |
+| [configuration.md](docs/configuration.md) | Every `OAK_*` environment variable |
+| [error-codes.md](docs/error-codes.md) | Every `OAK-*` code, generated from the source |
+| [performance.md](docs/performance.md) | Measured numbers, with the machine they came from |
+| [security/residual-risk.md](docs/security/residual-risk.md) | What this release does not defend against |
+| [release-process.md](docs/release-process.md) | What a release is, and how to verify one |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Setting up, the test topology, the review policy |
+| [SECURITY.md](SECURITY.md) | Reporting a vulnerability |
+
+## Verifying a release
+
+Release artifacts ship with a `SHA256SUMS` manifest:
+
+```bash
+sha256sum -c SHA256SUMS
+```
+
+Checksums prove the bytes match the manifest. They do **not** prove who produced them:
+OAK Community release artifacts are **unsigned**, because no maintainer signing key exists
+and this release does not invent one. See
+[release-process.md](docs/release-process.md#verifying-a-release).
+
 ## Current limits
+
+OAK Community `0.7.0` is a local-first developer release. It carries no production or
+customer readiness claim, and no external security review was commissioned for it — every
+security statement in this repository records work the project did itself. The complete,
+identified list of what is not defended is
+[security/residual-risk.md](docs/security/residual-risk.md).
 
 Signing, approval, and runner execution exist only in local development form: keys are labelled `development`, the runner reaches only an isolated non-production fixture target, and the sole permitted mutation is creating and removing one network-isolated, never-started container. Enterprise authentication, remote runner transport, production targets, real secret resolution, and Git provider promotion are not implemented. The local file workspace is a reference persistence adapter, not a production metadata store. Policy decisions are recorded but gate no state transition, and activating a component-manifest or architecture-pattern extension governs the payload without yet adding it to the compiler's catalogue. The bundled policy pack is a synthetic fixture, not legal advice. The MCP server serves one stdio client per process and exposes no approval, signing, dispatch, secret, policy-override, file, or command tool; remote CLI mode trusts the control plane it is pointed at and refuses the local-only signing and runner commands; and Community ships the signed webhook envelope contract and validator but no webhook dispatcher. Progress is tracked in [STATUS.md](STATUS.md).
 

@@ -1,0 +1,70 @@
+{
+  "artifact_version": "0.7.0",
+  "fixable_total": 0,
+  "images": {
+    "api": {
+      "counts": {
+        "CRITICAL": 3,
+        "HIGH": 14,
+        "LOW": 58,
+        "MEDIUM": 49,
+        "UNKNOWN": 6
+      },
+      "fixable": [],
+      "tag": "oak-community/api:0.7.0",
+      "unfixable": {
+        "gzip": [
+          "HIGH CVE-2026-41992"
+        ],
+        "libacl1": [
+          "HIGH CVE-2026-54369"
+        ],
+        "libncursesw6": [
+          "HIGH CVE-2025-69720"
+        ],
+        "libssl3t64": [
+          "HIGH CVE-2026-14456"
+        ],
+        "libtinfo6": [
+          "HIGH CVE-2025-69720"
+        ],
+        "ncurses-base": [
+          "HIGH CVE-2025-69720"
+        ],
+        "ncurses-bin": [
+          "HIGH CVE-2025-69720"
+        ],
+        "openssl": [
+          "HIGH CVE-2026-14456"
+        ],
+        "openssl-provider-legacy": [
+          "HIGH CVE-2026-14456"
+        ],
+        "perl-base": [
+          "CRITICAL CVE-2026-13221",
+          "CRITICAL CVE-2026-42496",
+          "CRITICAL CVE-2026-8376",
+          "HIGH CVE-2026-42497",
+          "HIGH CVE-2026-48962",
+          "HIGH CVE-2026-57432",
+          "HIGH CVE-2026-57433",
+          "HIGH CVE-2026-9538"
+        ]
+      }
+    },
+    "web": {
+      "counts": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "LOW": 0,
+        "MEDIUM": 0,
+        "UNKNOWN": 0
+      },
+      "fixable": [],
+      "tag": "oak-community/web:0.7.0",
+      "unfixable": {}
+    }
+  },
+  "platform": "linux/amd64",
+  "scanner": "aquasec/trivy:0.74.0"
+}

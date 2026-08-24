@@ -46,8 +46,20 @@ from oak.domain.extension_sdk import (
     LOCAL_MANIFEST_RENDERER_ID,
 )
 from oak.ports.policy import PolicyEnginePort
+from oak.ports.readiness import ReadinessProbe
 
 SUPPORTED_SCHEMA_VERSIONS = ("0.3.0", "0.4.0")
+
+
+class _UnconfiguredDatabase:
+    """A readiness probe that fails because there is nothing to probe.
+
+    Deliberately not an empty probe tuple: "nothing to check" and "everything checked
+    and healthy" must not produce the same answer at `/readyz`.
+    """
+
+    def is_ready(self) -> bool:
+        return False
 
 
 def create_system_information_service() -> SystemInformationService:
@@ -61,8 +73,15 @@ def create_system_information_service() -> SystemInformationService:
         schema_versions=SUPPORTED_SCHEMA_VERSIONS,
     )
     database_url = os.getenv("OAK_DATABASE_URL")
-    probes = (
-        (PostgreSQLReadinessProbe(create_postgresql_engine(database_url)),) if database_url else ()
+    # An unconfigured database is *not ready*, and must not be silently ready. With no
+    # probes at all, `all(())` is True, so `/readyz` answered "ready" on an `oak-api`
+    # started without OAK_DATABASE_URL while every `/v1` request returned a 500. A
+    # readiness endpoint that reports ready for a service that cannot serve is worse than
+    # no readiness endpoint: it is what an orchestrator routes traffic on.
+    probes: tuple[ReadinessProbe, ...] = (
+        (PostgreSQLReadinessProbe(create_postgresql_engine(database_url)),)
+        if database_url
+        else (_UnconfiguredDatabase(),)
     )
     return SystemInformationService(information, readiness_probes=probes)
 

@@ -1,0 +1,126 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Release build. Deliberately separate from ci.yml: the `check` job's green signal is
+# load bearing and this workflow does not touch it.
+#
+# It exists because ci.yml builds the wheel and sdist and then discards them, and never
+# builds a container image at all — the blind spot that left the API image unbuildable
+# from Sprint 6 until 2026-08-20 without any gate noticing.
+#
+# This workflow publishes nothing. It produces artifacts and the evidence describing
+# them; the decision to publish anywhere is a separate, human one.
+name: release
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: Why this release build is being run
+        required: false
+        default: manual rehearsal
+  push:
+    tags:
+      - "v*"
+
+# No write scope: this workflow does not create releases, push images, or publish
+# packages. Widening this is a deliberate decision, not a convenience.
+permissions:
+  contents: read
+
+jobs:
+  artifacts:
+    name: build and verify release artifacts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.10.8"
+          enable-cache: true
+
+      - run: corepack enable
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Bootstrap from the committed lockfiles
+        run: make bootstrap
+
+      - name: Refuse to release from a tree that fails the gate
+        run: make check
+
+      - name: Build release artifacts, SBOM, licence inventory and checksums
+        run: make release
+
+      - name: Verify the published verification procedure against the artifacts
+        run: make verify-release
+
+      - name: Show what a consumer will verify
+        run: cat dist/release/SHA256SUMS
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-artifacts
+          path: dist/release/
+          retention-days: 90
+          if-no-files-found: error
+
+  images:
+    name: build container images
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Read the release version
+        id: version
+        run: echo "value=$(cat VERSION)" >> "$GITHUB_OUTPUT"
+
+      # Building alone is the point: nothing else in CI proves the images build, and a
+      # force-included directory missing from the build context has broken them before.
+      - name: Build the API image
+        run: |
+          docker buildx build \
+            --platform linux/amd64 \
+            --file deploy/images/api.Dockerfile \
+            --tag oak-community/api:${{ steps.version.outputs.value }} \
+            --load .
+
+      - name: Build the web image
+        run: |
+          docker buildx build \
+            --platform linux/amd64 \
+            --file deploy/images/web.Dockerfile \
+            --tag oak-community/web:${{ steps.version.outputs.value }} \
+            --load .
+
+      - name: Prove the API image runs the packaged entrypoint
+        run: |
+          reported="$(docker run --rm oak-community/api:${{ steps.version.outputs.value }} oak --version)"
+          expected="$(cat VERSION)"
+          test "$reported" = "$expected" || {
+            echo "image reports $reported, expected $expected" >&2
+            exit 1
+          }
+
+      # Recorded as provenance, not as a reproducibility claim: OAK's image builds are
+      # not byte-reproducible today (see docs/security/residual-risk.md, RR-006).
+      - name: Record image digests
+        run: |
+          mkdir -p image-evidence
+          for image in api web; do
+            docker image inspect "oak-community/$image:${{ steps.version.outputs.value }}" \
+              --format '{{.Id}}' >> image-evidence/image-digests.txt
+          done
+          cat image-evidence/image-digests.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: image-evidence
+          path: image-evidence/
+          retention-days: 90
+          if-no-files-found: error

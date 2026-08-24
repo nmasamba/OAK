@@ -146,13 +146,22 @@ def _etag(version: str) -> str:
 
 
 def _expected_version(value: str) -> str:
+    """Parse an `If-Match` precondition into a case version.
+
+    A malformed header is deliberately *not* `OAK-EXPECTED-VERSION`. That code maps to
+    409 and to CLI exit 4, both of which mean "re-read the resource and retry" — and a
+    client that sent a weak or empty entity tag will never succeed by retrying, so a
+    retry loop keyed on that signal spins forever. An unusable precondition is a
+    client-input error, not a concurrency conflict.
+    """
+
     normalized = value.strip()
     if normalized.startswith("W/"):
-        raise OAKError("OAK-EXPECTED-VERSION", "weak entity tags are not accepted")
+        raise OAKError("OAK-PRECONDITION-INVALID", "weak entity tags are not accepted")
     if len(normalized) >= 2 and normalized[0] == normalized[-1] == '"':
         normalized = normalized[1:-1]
     if not normalized:
-        raise OAKError("OAK-EXPECTED-VERSION", "expected version is required")
+        raise OAKError("OAK-PRECONDITION-INVALID", "expected version is required")
     return normalized
 
 
@@ -209,6 +218,7 @@ def _error_status(error: OAKError) -> int:
         "OAK-CANDIDATE-NOT-FOUND",
         "OAK-OPERATION-NOT-FOUND",
         "OAK-WORKSPACE-NOT-FOUND",
+        "OAK-ARTIFACT-NOT-FOUND",
         "OAK-TENANT-MISMATCH",
     }:
         return 404

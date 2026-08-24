@@ -20,7 +20,7 @@ from tests.runner_support import ROOT
 pytestmark = pytest.mark.integration
 
 NOW = "2026-08-19T12:00:00Z"
-OAK_VERSION = "0.6.0.dev6"
+OAK_VERSION = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
 
 
 @pytest.fixture(scope="module")
