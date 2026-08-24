@@ -2,66 +2,120 @@
 
 # Release decision record — OAK Community 0.7.1
 
-**Status: draft — not approved. Do not release against this document.**
+**Status: draft — awaiting owner approval. Do not release against this document until
+the approvals table below carries names and dates.**
 
-This document is being assembled by the pre-launch hardening work
-(`docs/exec-plans/active/OAK-PL-001-007-pre-launch-hardening.md`). It will hold the
-evidence a maintainer needs to decide whether to declare `0.7.1` released, and will record
-who signed. Until the approvals table below carries names and dates, nothing here
-authorises anything.
+This document assembles the evidence a maintainer needs to decide whether to declare
+`0.7.1` released, and records who signed. It was prepared by the pre-launch hardening
+work (`docs/exec-plans/completed/OAK-PL-001-007-pre-launch-hardening.md`); the person or
+agent who prepared it is not in a position to approve it, and has not.
 
 ## What is being decided
 
-Whether to declare OAK Community `0.7.1` released: a **local-first developer release** with
-no production or customer readiness claim, superseding the approved but never-published
-`0.7.0`.
+Whether to declare OAK Community `0.7.1` released: a **local-first developer release**
+with no production or customer readiness claim, superseding the approved but
+never-published `0.7.0`.
 
 Explicitly *not* being decided:
 
 - Whether to publish anywhere. Like `0.7.0`, this release publishes nothing by itself —
   not to PyPI, not to a container registry, not as a GitHub release. That is a separate
   decision.
-- Anything about deploying OAK to a customer or production environment. A release approval
-  is **not** a Gate 2/3 deployment approval, and no evidence here supports one.
+- Anything about deploying OAK to a customer or production environment. A release
+  approval is **not** a Gate 2/3 deployment approval, and no evidence here supports one.
 
 ## Why 0.7.1 exists
 
 `0.7.0` was approved by `nmasamba` on 2026-08-22
 ([release-decision.md](../0.7.0/release-decision.md)) and never published. The approval
-carried two standing conditions — `RR-001` and `RR-003` become P0 before any release that
-permits a runner off the operator's machine or a non-fixture target. The pre-launch
-hardening work closes both conditions, plus `RR-011`, `RR-032`, `RR-034`, `RR-037` and
-`RR-038`, and the `RR-032` closure is a deliberate digest migration: the canonical bytes of
-compiled bundles change, so the `0.7.0` record would describe a build whose digests no
-longer match. Rather than reuse the version, the release is re-cut as `0.7.1` and the
-`0.7.0` record stays as history.
+carried two standing conditions — `RR-001` and `RR-003` become P0 before any release
+that permits a runner off the operator's machine or a non-fixture target. The pre-launch
+hardening closed both conditions, plus `RR-011`, `RR-032`, `RR-034`, `RR-037` and
+`RR-038`, while nothing published bound the compatibility promises. The `RR-032` closure
+is a deliberate digest migration: the canonical bytes of compiled bundles changed, so
+the signed `0.7.0` record describes a build whose digests no longer match. Rather than
+reuse the version, the release was re-cut as `0.7.1` and the `0.7.0` record stays as
+history.
 
-*(To be completed before signature: the digest before/after values, the register count
-reconciliation, and the evidence table below.)*
+**The digest migration, precisely.** At reference case `0.1.7`:
+
+| Document | `0.7.0` (approved, unpublished) | `0.7.1` |
+|---|---|---|
+| `deployment_bundle` | `sha256:042313be7ccd8355cfb7eb21b67b3137bc897cbe92d0d77c2f8189a8f9175c00` | `sha256:570abb66ee53eb6433588b865fb4a77dc4d5d7133bc1275fbe433a9a37936596` |
+| `runner_plan` | `sha256:5e0a65ba9c1f17945c5100c5532c890806e71bed4c0c40c5e7099a97d4f459dc` | `sha256:fad309590f1d09da0019f52dce9bd3d31da5b6285f5246d899657a8f161e18c4` |
+| `selected_candidate` | `sha256:576b0ca62835a521439e44b280ffdfca79438323d45ae79e70521a27d14118b3` | unchanged — recompiled on both sides, byte-identical |
+| `semantic_manifest` | `sha256:2ef34758128e13038d26b82847589b2b0ec2c5f25ba6ba56982a520a92a34d63` | unchanged — recompiled on both sides, byte-identical |
+
+The blast radius is exactly the two documents that embed the corrected content, called
+out in `CHANGELOG.md` as [compatibility.md](../../compatibility.md) rule 4 requires. No
+schema shape changed; stored workspaces remain valid and importable.
+
+## What changed since the 0.7.0 approval
+
+Seven register entries closed, each with adversarial tests; nothing else moved:
+
+- **`RR-001`** — revocation notices are signed (`approver` role, `revocation.schema.json`)
+  and the channel fails closed; deleting a notice no longer restores an approval.
+- **`RR-003`** — post-create resolved-digest verification (`OAK-RUNNER-IMAGE`) and a
+  target-profile registry allowlist (`OAK-RUNNER-REGISTRY`); TM-08 moved to **direct**
+  in [threat-coverage.md](../../security/threat-coverage.md).
+- **`RR-032` + `RR-011`** — the compiled verification policy is target-derived and its
+  clauses are enforced before any adapter exists (`OAK-RUNNER-POLICY`); the stale
+  `not_signed` reason is corrected. This is the digest migration above.
+- **`RR-034`** — pnpm provisions the pinned Node (`devEngines.runtime`) and
+  `make toolchain-check` fatally compares the running binaries against the pins.
+- **`RR-037`** — the web image runs unprivileged (uid 101, verified in the running
+  container) and Compose applies `cap_drop`/`no-new-privileges`/read-only/limits.
+- **`RR-038`** — per-image CycloneDX SBOMs and unsigned provenance, generated locally
+  and in the release workflow.
+
+The runner protocol tightened accordingly (signed revocations; three new denial paths).
+Nothing was published under the old protocol, so no deprecation window was owed;
+[compatibility.md](../../compatibility.md) now states the publication-boundary reading
+explicitly.
 
 ## Evidence
 
-*(Draft — rows are filled in as the hardening milestones land; entries marked `0.7.0` are
-inherited evidence that remains valid because the underlying behaviour did not change.)*
-
 | Question | Where it is answered |
 |---|---|
-| Does it install on a clean machine? | Inherited from `0.7.0`: [platforms.md](../../platforms.md); `make release` installs the built wheel into a throwaway environment on every build |
+| Does it install on a clean machine? | Inherited from `0.7.0`: [platforms.md](../../platforms.md); `make release` installs the built wheel into a throwaway environment on every build. The wheel path is unchanged by this work |
+| Does the artifact that ships actually work? | `tests/e2e/test_installed_wheel.py`, unchanged; the full gate ran green on every hardening milestone (final: 416 unit/contract + 185 integration + 42 e2e, PostgreSQL suites enabled) |
 | Do the artifacts reproduce? | Inherited from `0.7.0`: `make release` builds twice and compares digests. Container images do **not** reproduce (`RR-006`) |
-| What changed since the `0.7.0` approval? | `CHANGELOG.md` `0.7.1` section; the exec plan's digest before/after record |
-| Were the images scanned? | *(pending — rescan lands with `OAK-PL-007`)* |
-| Do the images carry SBOM and provenance? | *(pending — `OAK-PL-007`)* |
-| What does it *not* defend against? | [security/residual-risk.md](../../security/residual-risk.md) — 38 entries with stable ids |
+| Were the images scanned? | **Yes, re-scanned at `0.7.1`** after the web base change: zero fixable findings; the web image reports no findings at any severity; the API residue equals `RR-036`. [container-scan.md](container-scan.md) |
+| Do the images carry SBOM and provenance? | **Yes** — per-image CycloneDX SBOMs and unsigned `image-provenance.json` in this directory, regenerated by `make scan-images` and by the release workflow's `images` job (`RR-038`, closed) |
+| Are the dependency closures clean? | `make audit` re-run clean at `0.7.1` (`pip-audit` + `pnpm audit`) |
+| How fast is it? | Inherited from `0.7.0`: [performance.md](../../performance.md) / [../0.7.0/performance.json](../0.7.0/performance.json). The migration changed compiled *content*, not the compile path; figures were not re-measured |
+| Was a clean-room rehearsal re-run? | **No** — inherited from `0.7.0` ([../0.7.0/clean-room.md](../0.7.0/clean-room.md)). The install path (wheel, packaged data) is unchanged; the web image base changed and is covered by the rescan and `make web-e2e` instead. An approver who weighs the rehearsal heavily may ask for a re-run |
+| What does it *not* defend against? | [security/residual-risk.md](../../security/residual-risk.md) — 38 entries with stable ids, seven now closed |
 | Was it externally reviewed? | **No.** As for `0.7.0`, no external security review was commissioned; the wording restrictions recorded in the [`0.7.0` decision](../0.7.0/release-decision.md#external-review) apply to this release unchanged |
+
+## The register count, made legible
+
+The `0.7.0` decision says the register carries 38 entries, but its own addendum records
+that `RR-036` and `RR-037` entered the register *after* the signatures, and `RR-038` was
+added later still and never separately signed. So the `0.7.0` signatures actually
+covered 35 entries; the "38" in that document describes the register as it stood when
+the count was last updated, not as it stood at signature. This approval is asked to
+cover the full 38-entry register as it stands now — including the three entries that
+post-dated the previous signatures and the seven closures made since.
+
+## Conditions from the 0.7.0 approval
+
+Both standing conditions — `RR-001` and `RR-003` become P0 before any release that
+permits a runner off the operator's machine or a non-fixture target — are **discharged
+by closure**, not by rescoping: both risks are fixed and adversarially tested. No new
+condition is proposed. The remaining open register entries are documented limitations of
+a local-first developer release, unchanged in kind from what the `0.7.0` approval
+accepted.
 
 ## Approvals required
 
-Each of these is a named human accepting accountability for a specific judgement. None may
-be self-assigned by whoever prepared this record, and none is satisfied by an agent
+Each of these is a named human accepting accountability for a specific judgement. None
+may be self-assigned by whoever prepared this record, and none is satisfied by an agent
 signature.
 
 | Role | Approving that | Name | Date |
 |---|---|---|---|
 | Maintainer | The release is functionally what it claims to be, and the evidence above is sufficient | *(unsigned)* | — |
-| Security | The residual-risk register is complete and correctly scoped, including the closures made since `0.7.0` | *(unsigned)* | — |
-| Licence | The Apache-2.0 declaration and the generated third-party inventory are correct | *(unsigned)* | — |
+| Security | The residual-risk register is complete and correctly scoped, including the seven closures and the digest migration made since `0.7.0` | *(unsigned)* | — |
+| Licence | The Apache-2.0 declaration and the generated third-party inventory are correct; no dependency changed since the `0.7.0` licence approval | *(unsigned)* | — |

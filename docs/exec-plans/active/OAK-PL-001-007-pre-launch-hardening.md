@@ -542,6 +542,25 @@ observed immediately during Milestone 3.
   verified still Docker-free. Scan-dependent doc statements repointed
   (`operations.md`, `SECURITY.md`, `dependencies.md`). Full `make check` green
   (416 + 185/4 + 42); digests unchanged.
+- [x] 2026-08-24 M9 (register, records, close-out docs): the seven entries closed in
+  the RR-035 style — rows stay, count stays 38, each closure names its mechanism, its
+  error codes and its regression tests; the RR-001/RR-003 rationale paragraph is
+  reframed as history with the conditions **discharged by closure**; `RR-036`
+  re-confirmed against the `0.7.1` rescan; register title and owner pointer moved to
+  `0.7.1`. `threat-coverage.md`: TM-08 **partial → direct** with the new tests cited,
+  tally 8 direct / 9 partial / 2 structural / 0 none, the TM-08 named-gap row removed,
+  and a "what changed at 0.7.1" note added. `docs/release/0.7.1/release-decision.md`
+  finalized as a complete but **unsigned** record: the digest migration table, the
+  seven closures, the evidence table (including what is inherited from `0.7.0` and
+  why, with the clean-room inheritance flagged for the approver), the register-count
+  legibility section (the `0.7.0` signatures actually covered 35 entries), and the
+  discharged conditions. `CHANGELOG.md` `0.7.1` completed (Security/Added/Changed).
+  `OAKCommunity/STATUS.md`: seven `OAK-PL` rows in claimed work, a hardening evidence
+  block, the safety-boundary paragraph extended with the three new runner controls,
+  and the next-task line reduced to audit + PR + owner approval. Governance repo:
+  `STATUS.md` header/phase/next-task rewritten (date drift and the "How to resume"
+  contradiction fixed), `IMPLEMENT.md` hand-off updated so a fresh agent cannot redo
+  landed work.
 
 ## Decisions
 

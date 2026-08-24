@@ -1,6 +1,6 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-# Threat-model coverage index — OAK Community 0.7.0
+# Threat-model coverage index — OAK Community 0.7.1
 
 Which tests exercise which threat, and — more usefully — which threats nothing exercises.
 
@@ -17,7 +17,7 @@ every sprint and a renamed or deleted test dropped a threat silently.
   Where a test can prove the absence, it now does.
 - **none** — nothing covers it.
 
-Verdict tally: **7 direct, 10 partial, 2 structural, 0 none.**
+Verdict tally: **8 direct, 9 partial, 2 structural, 0 none.**
 
 Every test function cited below was verified to exist in the tree at the time of writing;
 a citation to a test that does not exist would make this document worse than nothing. The
@@ -37,7 +37,7 @@ security review was commissioned for this release (`RR-028`).
 | TM-05 | Optimizer manipulates weights or hides dominated alternatives (62) | **partial** | `tests/unit/test_candidate_compiler.py::test_catalogue_snapshot_and_candidates_ignore_input_order`, `::test_candidate_set_includes_baseline_variants_and_excludes_unknown_from_frontier`. **No test tampers with a weight or objective contract; no sensitivity or predicted-vs-observed test** |
 | TM-06 | Approval replayed for a changed bundle or wrong target (63) | **direct** | `tests/integration/test_signed_runner.py::test_replayed_lease_nonce_is_denied`, `::test_wrong_target_fingerprint_is_denied`, `::test_expired_lease_is_denied`, `::test_revoked_approval_is_denied`, `::test_tampered_plan_is_denied_before_execution`, `::test_untrusted_signer_is_denied` |
 | TM-07 | Runner compromise exposes cross-tenant credentials (64) | **partial** | `tests/unit/test_runner_adapters.py::test_inventory_is_bounded_and_secret_free`; `tests/e2e/test_runner_journey.py::test_signed_apply_and_rollback_touch_only_the_fixture_container`, `tests/e2e/test_cli.py::test_runner_requires_explicit_environment`. **No test asserts the runner holds no control-plane DB credential; no workspace-zeroize test; single local tenant means cross-tenant has no surface** |
-| TM-08 | Time-of-check/time-of-use substitution at deployment (65) | **partial** | `tests/unit/test_runner_trust.py::test_approved_digest_is_always_the_pin`, `::test_image_reference_carrying_its_own_digest_is_refused`; `tests/unit/test_runner_adapters.py::test_renderer_pins_images_to_the_attested_digest_not_the_reference`; `tests/integration/test_validate_cli.py::test_a_real_bundle_validates_and_tampering_is_refused`. **The time-of-use half is not enforced**: the runner never compares the digest the container runtime actually resolved against the approved one, and no registry allowlist exists (`RR-003`) |
+| TM-08 | Time-of-check/time-of-use substitution at deployment (65) | **direct** | `tests/unit/test_runner_trust.py::test_approved_digest_is_always_the_pin`, `::test_image_reference_carrying_its_own_digest_is_refused`; `tests/unit/test_runner_adapters.py::test_apply_removes_the_container_when_the_resolved_digest_differs`, `::test_apply_fails_closed_when_the_image_has_no_repo_digest`, `::test_apply_fails_closed_when_the_inspection_itself_fails`, `::test_renderer_pins_images_to_the_attested_digest_not_the_reference`; `tests/integration/test_signed_runner.py::test_a_disallowed_registry_is_denied_before_any_adapter_exists`; `tests/integration/test_validate_cli.py::test_a_real_bundle_validates_and_tampering_is_refused`. The time-of-use half is enforced since `0.7.1`: the adapter verifies the runtime's resolved `RepoDigests` after `docker create` and removes the container on mismatch, and a target-profile registry allowlist is enforced before any adapter exists (`RR-003`, closed) |
 | TM-09 | Partial deployment leaves unsafe mixed versions (66) | **direct** | `tests/unit/test_runner_journal.py::test_incomplete_operation_is_detected_on_resume`, `::test_manual_recovery_state_sticks`, `::test_chain_verifies_and_detects_tampering`; `tests/integration/test_signed_runner.py::test_mutating_dispatch_applies_and_rolls_back`; `tests/integration/test_operations.py::test_expired_final_attempt_is_swept_to_safe_failure` |
 | TM-10 | Tenant data leaks through caches, logs, prompts, embeddings or global learning (67) | **partial** | `tests/integration/test_mcp_abuse.py::test_tenant_crossover_is_an_opaque_denial`; `tests/unit/test_mcp_server.py::test_foreign_tenant_receives_an_opaque_denial_without_dispatch`; `tests/integration/test_design_case_service.py::test_idempotent_result_is_not_returned_across_tenant_or_actor_context`; `tests/integration/test_api.py::test_outbox_lag_is_observable_without_exposing_event_payloads`. **Explicitly not multi-tenant evidence per security-invariants.md:98** |
 | TM-11 | Telemetry or feedback poisoned to induce a bad self-improvement (68) | **structural** | No self-improvement or aggregation loop exists in Community. Nearest surface is `ingest_runner_messages` (`src/oak/application/release.py:428-455`), whose deny branches have **no adversarial test** — only the happy path at `tests/e2e/test_runner_journey.py:91` asserts `rejected == []` |
@@ -84,7 +84,6 @@ register with an id.
 | TM-02 | No signature, provenance or SBOM gate on catalogue component manifests | `RR-025` |
 | TM-05 | No test tampers with an objective weight; no sensitivity or predicted-versus-observed test | — |
 | TM-07 | No test asserts the runner holds no control-plane credential; no workspace zeroization | `RR-027` |
-| TM-08 | The resolved image digest is never compared against the approved one, and no registry allowlist exists — the pin is an input assertion, not an enforced control | `RR-003` |
 | TM-10 | Single local tenant; not multi-tenant evidence | `RR-026` |
 | TM-12 | No restricted-writer or separation-of-duties control exists, so none is tested | — |
 | TM-14 | No per-job budget, tenant quota or rate limiter | `RR-024` |
@@ -102,3 +101,10 @@ diagnostics echoing rejected values. Both are fixed and pinned by
 `tests/unit/test_diagnostic_confidentiality.py`.
 
 `TM-13` and `TM-19` moved from "defended by a grep" to "defended by a test", as above.
+
+At `0.7.1`, `TM-08` moved from **partial** to **direct**: the pre-launch hardening closed
+`RR-003` (post-create resolved-digest verification plus a target-profile registry
+allowlist), closed `RR-001` (signed, fail-closed revocation notices — strengthening the
+revocation control TM-02 and TM-06 lean on), and made the compiled verification policy's
+clauses enforced rather than carried (`RR-032`), each with adversarial tests cited in the
+rows above and in `tests/integration/test_runner_revocation.py`.
