@@ -75,8 +75,9 @@ In this order, and any failure denies the dispatch before an adapter is construc
 6. **Separation of duties** between the signing and approving identities.
 7. **Operations**: adapter identity and parameter-schema digest against the code-level
    allowlist; typed parameters against the adapter schema with execution fields rejected
-   recursively; empty secret references within the target allowance; empty network
-   destinations.
+   recursively; if the target profile declares `execution.allowed_registries`, any image
+   whose registry resolves outside it is denied (`OAK-RUNNER-REGISTRY`); empty secret
+   references within the target allowance; empty network destinations.
 8. **Approval** for any mutating kind — current, unrevoked, and bound to the digest,
    target, action class and expiry.
 9. **Verification policy.** The attachment is schema-validated, its clauses are read from
@@ -94,7 +95,12 @@ with `status: non-production-local`, `permissions.mutation_allowed: true`, and a
 then emits typed `apply`, `rollback`, and `destroy` operations whose failure actions are
 `rollback` and `manual_recovery`. The container adapter runs
 `docker create --network=none --label oak.fixture=true --name <name> <image>@<digest>`;
-the container is never started, and rollback removes exactly the journaled name.
+the container is never started, and rollback removes exactly the journaled name. After
+creation the adapter reads back what the daemon actually resolved and requires a
+`RepoDigests` entry carrying the approved digest — an inspect failure, an image that
+cannot prove its identity (no repo digest), or a mismatch removes the container and
+denies with `OAK-RUNNER-IMAGE`, closing the time-of-use half of TM-08 that the create
+argv's pin alone cannot.
 
 ## Reading `oak-runner status`
 

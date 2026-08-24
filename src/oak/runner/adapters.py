@@ -8,6 +8,7 @@ shell interpreter is involved anywhere, and command output is size-bounded.
 
 from __future__ import annotations
 
+import json
 import os
 import platform
 import re
@@ -93,7 +94,48 @@ class ContainerFixtureAdapter:
         result = self._run(argv, timeout_seconds)
         if result.returncode != 0:
             raise OAKError("OAK-RUNNER-APPLY", "fixture container creation failed")
-        return {"container_name": name, "created": True}
+        self._verify_resolved_digest(name, str(parameters["image_digest"]), timeout_seconds)
+        return {
+            "container_name": name,
+            "created": True,
+            "resolved_image_digest": str(parameters["image_digest"]),
+        }
+
+    def _verify_resolved_digest(self, name: str, digest: str, timeout_seconds: int) -> None:
+        """Require the runtime's resolved image to carry the approved repo digest.
+
+        The digest pin in the create argv is an input assertion: it constrains what the
+        daemon is asked for, not what it resolved (RR-003, TM-08 time-of-use). This reads
+        back the created container's image and demands a `RepoDigests` entry ending in
+        the approved digest. Anything else — an inspect failure, an image with no repo
+        digest (for example one loaded from a tarball, which cannot prove its identity),
+        or a mismatch — removes the container and denies, so no unproven container
+        survives a failed admission.
+        """
+
+        inspected = self._run(
+            ("docker", "inspect", "--format", "{{.Image}}", name), timeout_seconds
+        )
+        image_id = inspected.stdout.strip()
+        entries: list[Any] = []
+        if inspected.returncode == 0 and image_id:
+            listed = self._run(
+                ("docker", "image", "inspect", "--format", "{{json .RepoDigests}}", image_id),
+                timeout_seconds,
+            )
+            if listed.returncode == 0:
+                try:
+                    parsed = json.loads(listed.stdout)
+                except ValueError:
+                    parsed = None
+                if isinstance(parsed, list):
+                    entries = parsed
+        if not any(isinstance(entry, str) and entry.endswith(f"@{digest}") for entry in entries):
+            self._run(("docker", "rm", "--force", name), timeout_seconds)
+            raise OAKError(
+                "OAK-RUNNER-IMAGE",
+                "resolved image does not carry the approved digest",
+            )
 
     def verify_present(self, parameters: dict[str, Any], timeout_seconds: int) -> dict[str, Any]:
         name, _ = self._validated(parameters)

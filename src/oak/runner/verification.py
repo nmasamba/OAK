@@ -22,6 +22,7 @@ from oak.domain.runner_adapters import (
     ADAPTER_IDENTITY_BY_ID,
     ALLOWED_KINDS_BY_ADAPTER,
     PARAMETER_SCHEMA_BY_ADAPTER,
+    registry_host,
 )
 
 PROTOCOL_VERSION = "0.1.0"
@@ -312,6 +313,13 @@ def verify_dispatch(
     # duplicate kind would otherwise let an unverified operation run alongside a
     # verified one.
     requested = tuple(envelope["requested_kinds"])
+    # An allowlist declared by the acknowledged target profile is enforced before any
+    # adapter exists; absence keeps the historical behavior (any registry, digest-pinned).
+    # The image regex alone accepts any host shaped like a hostname (RR-003).
+    execution_block = target_document.get("execution")
+    allowed_registries = (
+        execution_block.get("allowed_registries") if isinstance(execution_block, dict) else None
+    )
     operations_by_kind: dict[str, dict[str, Any]] = {}
     for operation in plan["operations"]:
         kind_key = str(operation["kind"])
@@ -358,6 +366,13 @@ def verify_dispatch(
             "OAK-RUNNER-PARAMETERS",
             "operation parameters do not satisfy the schema",
         )
+        if allowed_registries is not None and "image_reference" in operation["parameters"]:
+            _check(
+                registry_host(str(operation["parameters"]["image_reference"]))
+                in allowed_registries,
+                "OAK-RUNNER-REGISTRY",
+                "operation image registry is not in the target allowlist",
+            )
         _check(
             operation["secret_references"] == [],
             "OAK-RUNNER-SECRETS",

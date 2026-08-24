@@ -429,6 +429,24 @@ observed immediately during Milestone 3.
   Error reference regenerated; `docs/signed-runner.md` updated. All three e2e runner
   journeys pass unmodified; full `make check` green (401 + 177/4 + 42); digests
   unchanged.
+- [x] 2026-08-24 M5 (`OAK-PL-005`, RR-003): optional `execution.allowed_registries`
+  added to the target-profile schema; `registry_host()` in `oak.domain.runner_adapters`
+  implements Docker's resolution rule (7-case unit table); `verify_dispatch` denies a
+  disallowed registry with `OAK-RUNNER-REGISTRY` inside the operation loop —
+  demonstrated on a fully authentic compiled/signed/approved dispatch, structurally
+  before any adapter can exist. `ContainerFixtureAdapter.apply` now verifies the
+  runtime's resolution after `docker create`: a `RepoDigests` entry must carry the
+  approved digest, and an inspect failure, an identity-less image, or a mismatch
+  removes the container and raises `OAK-RUNNER-IMAGE` (fail closed, proven with
+  scripted-executor unit tests asserting the removal argv). The shipped mutation
+  fixture adopts `allowed_registries: [docker.io]`; the Docker e2e journey exercised
+  the real resolved-digest admission live. Expected consequence recorded: the
+  mutation-target digests shifted because the fixture's bytes changed
+  (`deployment_bundle` → `sha256:…` new set; `semantic_manifest`
+  `sha256:8e7e013bbd815691…`, `runner_plan` `sha256:c094e3b5004995f4…`); the four
+  reference digests are unchanged. A kit-contract fake executor needed the new
+  inspections scripted (first gate run caught it); full `make check` then green
+  (412 + 179/4 + 42). Error reference regenerated; `docs/signed-runner.md` updated.
 
 ## Decisions
 

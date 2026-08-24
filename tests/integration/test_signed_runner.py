@@ -191,6 +191,74 @@ def test_mutating_dispatch_without_apply_approval_is_denied(tmp_path: Path) -> N
     assert caught.value.code == "OAK-DISPATCH-APPROVAL"
 
 
+def test_a_disallowed_registry_is_denied_before_any_adapter_exists(tmp_path: Path) -> None:
+    """A target allowlist that excludes the image's registry denies the dispatch.
+
+    The whole chain is authentic — compiled, signed, and approved against this exact
+    profile — so the denial is the new admission control, not a broken signature. The
+    denial comes from `verify_dispatch`, which cannot construct an adapter: the module
+    imports none, so no docker invocation can precede it structurally.
+    """
+
+    import yaml
+
+    source = load_yaml_document(
+        (ROOT / "examples/targets" / MUTATION_TARGET).read_text(encoding="utf-8")
+    )
+    source["execution"]["allowed_registries"] = ["registry.example.internal"]
+    variant = tmp_path / "disallowed-registry-target.yaml"
+    variant.write_text(yaml.safe_dump(source, sort_keys=False), encoding="utf-8")
+
+    harness = build_compiled_case(tmp_path, target_name=str(variant))
+    harness.release.sign_plan(harness.context("signplan-00000001", "0.1.7"))
+    harness.release.approve("dry_run", harness.context("approve-dryrun-0001", "0.1.8"))
+    harness.release.approve("apply", harness.context("approve-apply-00001", "0.1.9"))
+    harness.release.approve("rollback", harness.context("approve-rollbk-0001", "0.1.10"))
+    harness.release.dispatch(
+        ("apply", "verify", "rollback"),
+        harness.context("dispatch-mutating-1", "0.1.11"),
+    )
+    envelope, attachments = read_dispatch(harness.mailbox_root)
+    with pytest.raises(RunnerDenialError) as caught:
+        verify_dispatch(
+            envelope=envelope,
+            attachments=attachments,
+            registry=harness.registry,
+            anchors=TrustAnchors.from_directory(harness.trust_directory),
+            target_document=source,
+            revoked_approval_ids=frozenset(),
+            seen_lease_nonces=frozenset(),
+            now=with_time(harness.now, 60),
+        )
+    assert caught.value.code == "OAK-RUNNER-REGISTRY"
+
+
+def test_an_allowlisted_registry_still_verifies(tmp_path: Path) -> None:
+    """The shipped mutation fixture allowlists docker.io and must keep working."""
+
+    harness = build_compiled_case(tmp_path, target_name=MUTATION_TARGET)
+    harness.release.sign_plan(harness.context("signplan-00000001", "0.1.7"))
+    harness.release.approve("dry_run", harness.context("approve-dryrun-0001", "0.1.8"))
+    harness.release.approve("apply", harness.context("approve-apply-00001", "0.1.9"))
+    harness.release.approve("rollback", harness.context("approve-rollbk-0001", "0.1.10"))
+    harness.release.dispatch(
+        ("apply", "verify", "rollback"),
+        harness.context("dispatch-mutating-1", "0.1.11"),
+    )
+    envelope, attachments = read_dispatch(harness.mailbox_root)
+    verified = verify_dispatch(
+        envelope=envelope,
+        attachments=attachments,
+        registry=harness.registry,
+        anchors=TrustAnchors.from_directory(harness.trust_directory),
+        target_document=_target(MUTATION_TARGET),
+        revoked_approval_ids=frozenset(),
+        seen_lease_nonces=frozenset(),
+        now=with_time(harness.now, 60),
+    )
+    assert "apply" in verified.requested_kinds
+
+
 def test_the_verification_policy_clauses_are_where_the_runner_reads_them(
     readonly_dispatch,
 ) -> None:
