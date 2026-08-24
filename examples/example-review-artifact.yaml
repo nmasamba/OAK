@@ -5,6 +5,6 @@ version: 0.1.0
 artifact_type: signature_marker
 status: not_signed
 content:
-  reason: Sprint 2 review artifacts are not signed.
+  reason: Compilation emits an inert, unsigned draft; execution authority is a separately signed plan signature plus per-action approvals, verified independently by the runner.
   authorizes_execution: false
 extensions: {}

@@ -55,3 +55,27 @@ def test_runner_plan_example_has_no_execution_fields() -> None:
     serialized = json.dumps(plan).casefold()
     for field in FORBIDDEN:
         assert f'"{field}":' not in serialized
+
+
+def test_the_signed_examples_actually_verify() -> None:
+    """Every signed example must carry a real signature over its own content.
+
+    The examples were regenerated from a live harness run after the OAK-PL-006 digest
+    migration; without this gate they could silently rot back into plausible-looking
+    documents whose signatures verify nothing (schema validation alone cannot tell).
+    """
+
+    from oak.contracts import load_yaml_document
+    from oak.contracts.signatures import verify_signed_document
+
+    for name in (
+        "example-plan-signature",
+        "example-approval",
+        "example-runner-envelope",
+        "example-runner-message",
+        "example-revocation",
+    ):
+        document = load_yaml_document(
+            (ROOT / "examples" / f"{name}.yaml").read_text(encoding="utf-8")
+        )
+        assert verify_signed_document(document), f"{name} signature does not verify"

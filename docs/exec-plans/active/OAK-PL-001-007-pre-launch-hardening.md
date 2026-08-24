@@ -483,6 +483,19 @@ observed immediately during Milestone 3.
   source-binding test, and the Docker mutation journey pass **unmodified**. Full
   `make check` green (412 + 185/4 + 42). Workspace replay: no schema shape changed,
   stored documents remain valid; the migration affects newly compiled content only.
+- [x] 2026-08-24 M7 (examples): `scripts/generate_examples.py` added — drives the
+  fixed-clock harness through compile → sign → approve → dispatch → revoke and writes
+  what actually landed in the mailbox, round-tripping and cryptographically
+  re-verifying every output before succeeding. `example-runner-envelope`,
+  `example-plan-signature`, `example-approval`, `example-runner-plan` and
+  `example-revocation` regenerated with post-migration digests and real signatures;
+  `example-review-artifact`'s `not_signed` reason aligned with the compiler;
+  `examples/README.md` documents the generated-not-hand-written property. New contract
+  test `test_the_signed_examples_actually_verify` locks cryptographic validity for all
+  five signed examples (all five verified before the change too — the property is
+  preserved, now enforced). No stale digest or old policy id remains outside
+  historical records. Full `make check` green (413 + 185/4 + 42); reference digests
+  equal the M6 set.
 
 ## Decisions
 

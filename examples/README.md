@@ -16,7 +16,9 @@ Key build fixtures:
 - `targets/local-fixture.yaml` permits only inventory, validate, render, plan, and verify operations and is never a production target;
 - `example-webhook-envelope.yaml` is a really-signed portal event envelope whose publisher key is pinned in `portal/webhook-publisher.identity.json`.
 
-The executable Sprint 2 fixture uses `candidate-00` as the simpler baseline and `candidate-03` as the selected balanced candidate. Its generated runner plan remains unsigned and unapproved; the standalone signing example demonstrates only schema shape.
+The executable Sprint 2 fixture uses `candidate-00` as the simpler baseline and `candidate-03` as the selected balanced candidate. A compiled runner plan is inert until it is separately signed, approved and independently verified by the runner.
+
+The signed protocol examples (`example-plan-signature`, `example-approval`, `example-runner-envelope`, `example-runner-plan`, `example-revocation`) are **generated, not hand-written**: `uv run python scripts/generate_examples.py` drives the fixed-clock reference harness through compile, sign, approve, dispatch and revoke, and writes what actually landed in the mailbox, so their digests and Ed25519 signatures are real and re-verify. A contract test fails if any signed example stops verifying.
 
 ## Interface and portal starters
 
