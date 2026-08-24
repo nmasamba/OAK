@@ -2,7 +2,7 @@
 
 # Operations runbook
 
-For the person running OAK Community `0.7.0`: install, configure, observe, back up,
+For the person running OAK Community `0.7.1`: install, configure, observe, back up,
 restore, upgrade, troubleshoot, export and remove it.
 
 **Scope.** OAK Community is a local-first developer release. It has no authentication,
@@ -251,14 +251,14 @@ its `downgrade()` deliberately raises — pinned by
 
 ### A file workspace
 
-There is no file-workspace format migration, and none is planned for `0.7.0`. A
+There is no file-workspace format migration, and none is planned for `0.7.1`. A
 workspace whose manifest carries a `schema_version` this build does not know is refused
 with `OAK-WORKSPACE-CORRUPT` — on **every** command, including `export`, so it cannot be
 rescued after the fact
 (`tests/integration/test_backup_restore.py::test_a_workspace_written_by_an_unknown_format_fails_closed`).
 
 **Therefore: `oak export` before upgrading.** The exported tree is the migration unit.
-`0.7.0` does not move any manifest `schema_version`, so upgrading to it needs nothing —
+`0.7.1` does not move any manifest `schema_version`, so upgrading to it needs nothing —
 but make exporting first a habit before it does. Recorded as `RR-017`.
 
 ### Rollback limits
@@ -308,6 +308,11 @@ edge into the bundle spine.
 
 ## Securing a local deployment
 
+- **Compose ships hardened; overrides can silently undo it.** Every service runs with
+  `cap_drop: [ALL]`, `no-new-privileges`, a read-only root filesystem where the image
+  tolerates one, and memory/CPU ceilings (postgres adds back exactly the six ownership
+  and identity capabilities its entrypoint needs). A `compose.override.yaml` that
+  redefines a service replaces these keys — re-state them in the override if you add one.
 - **Keep the bind on loopback.** `OAK_ALLOW_NON_LOOPBACK` exists for containers on an
   internal network, and Compose uses it because the containers publish only to
   `127.0.0.1` on the host. Setting it on a host interface publishes an unauthenticated
@@ -365,8 +370,8 @@ Global toolchain caches are shared with other projects and are **not** OAK's to 
 them yourself.
 
 The same applies to the third-party images OAK causes Docker to pull: `postgres:17.6-alpine`,
-`python:3.13.12-slim`, `node:24.18.0-alpine`, `nginx:1.29.1-alpine`, and `aquasec/trivy` if
-you ran `make scan-images`. Neither the commands above nor
+`python:3.13.12-slim`, `node:24.18.0-alpine`, `nginxinc/nginx-unprivileged:1.29.1-alpine`,
+and `aquasec/trivy` if you ran `make scan-images`. Neither the commands above nor
 `scripts/check_clean_machine.py` touches or reports them, because they are shared Docker
 state rather than OAK's. Remove them with `docker image rm` if you want the disk back.
 

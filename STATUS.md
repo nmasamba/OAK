@@ -339,7 +339,8 @@
   with the reason.
 - Operator and contributor documentation now covers install through uninstall, every `OAK_*`
   variable (pinned to the source by a contract test), every `OAK-*` code (generated; 245 of
-  267 were previously undocumented), the supported platform matrix with architecture and
+  the 265 codes that existed at `0.7.0` were previously undocumented), the supported
+  platform matrix with architecture and
   glibc floors read from the lockfile, and the six architecture ADRs that shipped documents
   cite, mirrored so their citations resolve outside the governance repository.
 - The container scan that `OAK-S8-003` asks for was initially missed, recorded as `RR-035`,

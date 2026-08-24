@@ -2,7 +2,10 @@
 
 # Measured performance
 
-What OAK Community `0.7.0` was observed to do, on one machine, under a stated workload.
+What OAK Community was observed to do at `0.7.0`, on one machine, under a stated
+workload. The `0.7.1` re-cut changed compiled content, not the compile path, so these
+figures are inherited rather than re-measured; the `0.7.1` release decision records that
+inheritance explicitly.
 
 **These are observations, not a service level objective.** They were taken on a single
 developer laptop with no controlled environment, no warm-up isolation from operating-system
@@ -20,7 +23,7 @@ python scripts/benchmark.py --output docs/release/0.7.0/performance.json
 
 | | |
 |---|---|
-| Version | `0.7.0` |
+| Version | `0.7.0` (inherited by `0.7.1` — see [release/0.7.1/release-decision.md](release/0.7.1/release-decision.md)) |
 | Machine | macOS 26.3.1, arm64, 10 CPUs, 64 GiB RAM |
 | Python | CPython 3.13.12 |
 | Persistence | File workspace |

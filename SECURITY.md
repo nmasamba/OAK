@@ -59,7 +59,7 @@ limitation. If you need a response by a deadline, say so in the report.
 
 ## What this release does and does not assure
 
-OAK Community `0.7.0` is a **local-first developer release**. It carries no production or
+OAK Community `0.7.1` is a **local-first developer release**. It carries no production or
 customer readiness claim, and a release approval is not a deployment approval.
 
 **No external security review was commissioned for this release.** All security work —
@@ -97,8 +97,8 @@ tracked as `RR-036`.
 
 ## Supported versions
 
-`0.7.0` is the first release. Only the latest release is supported; there is no
-backport policy yet.
+`0.7.1` is the first release; `0.7.0` was approved but never published and was re-cut.
+Only the latest release is supported; there is no backport policy yet.
 
 ## Dependencies
 

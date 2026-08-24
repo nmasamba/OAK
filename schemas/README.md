@@ -25,7 +25,7 @@ All schemas use JSON Schema Draft 2020-12. YAML examples are parsed to the equiv
 | `evaluation-result.schema.json` | Digest-linked deterministic evaluation | `examples/example-evaluation-result.yaml` |
 | `architecture-decision.schema.json` | Immutable selected-candidate decision | `examples/example-architecture-decision.yaml` |
 | `assurance-plan.schema.json` | Test, evidence, control, owner and blocker plan | `examples/example-assurance-plan.yaml` |
-| `target-profile.schema.json` | Non-production compile target input | `examples/targets/local-fixture.yaml` |
+| `target-profile.schema.json` | Non-production compile target input | `examples/targets/local-fixture.yaml`, `examples/targets/local-mutation-fixture.yaml` |
 | `review-artifact.schema.json` | Semantic/supply-chain review artifact | `examples/example-review-artifact.yaml` |
 | `deployment-bundle.schema.json` | `DeploymentBundle` | `examples/example-deployment-bundle.yaml` |
 | `runner-plan.schema.json` | `RunnerPlan` typed execution plan | `examples/example-runner-plan.yaml` |

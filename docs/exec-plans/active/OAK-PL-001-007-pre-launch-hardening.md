@@ -496,6 +496,31 @@ observed immediately during Milestone 3.
   preserved, now enforced). No stale digest or old policy id remains outside
   historical records. Full `make check` green (413 + 185/4 + 42); reference digests
   equal the M6 set.
+- [x] 2026-08-24 Docs truth-up (owner instruction: "ensure all docs are fully
+  updated"): a repo-wide staleness sweep against the branch state found 43 actionable
+  items; the state-independent ones are applied — `platforms.md` and
+  `release-process.md` no longer claim the toolchain check is declaration-only or that
+  only the uv/Python/Node pins are guarded; `operations.md` names the
+  `nginxinc/nginx-unprivileged` image in the uninstall list, adds a
+  compose-override-undoes-hardening warning, and moves its forward-looking claims to
+  `0.7.1`; `performance.md` marks its figures as inherited from `0.7.0`;
+  `README.md`/`SECURITY.md`/`docs/README.md` reference `0.7.1` and the draft decision;
+  ADR-0002's "the bump cannot shift any canonical digest" is scoped to the `0.7.0`
+  bump with the `0.7.1` digest-shifting re-cut recorded; `architecture.md` and the
+  governance `interface-contract` gain the three new runner checks (policy clauses,
+  registry allowlist, resolved-digest admission) — governance `interface-contract.md`
+  pending in this batch; `compiler-flow.md` cross-references the enforced policy;
+  `schemas/README.md` cites both target fixtures; `STATUS.md`'s error-code claim is
+  corrected to "245 of the 265 codes that existed at `0.7.0`". Governance repo:
+  `SECURITY.md` and `architecture.md` versions, `docs/roadmap.md`'s spent
+  `OAK-S8-009` clause, and `docs/traceability.md`'s phantom fixture globs (an S8
+  discovery never actioned) replaced with real evidence or explicit "none — planned".
+  Deferred deliberately: scan-dependent repoints (`operations.md:42`,
+  `SECURITY.md:89-92`, `dependencies.md` scan link) to M8 after the rescan;
+  residual-risk entry rewrites and `threat-coverage.md` TM-08 to the register
+  close-out; governance `STATUS.md`/`IMPLEMENT.md` to the final close-out so they are
+  written once, describing the finished state. Verified: `validate_repository`,
+  `check_repository`, `check_toolchains` and all 124 contract tests green.
 
 ## Decisions
 

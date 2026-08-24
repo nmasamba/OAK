@@ -57,8 +57,10 @@
 
 ## Release evidence
 
-[release/0.7.0/](release/0.7.0/) holds the artefacts produced while preparing `0.7.0`:
-measurements, rehearsal records, and the release decision record.
+[release/0.7.1/](release/0.7.1/) holds the artefacts for the current release candidate,
+including its (still unsigned) release decision record. [release/0.7.0/](release/0.7.0/)
+holds the superseded `0.7.0` evidence set — approved 2026-08-22, never published, kept as
+history.
 
 ## Engineering history — not product documentation
 
