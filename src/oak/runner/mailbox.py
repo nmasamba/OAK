@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from oak.domain import canonical_json_bytes
+from oak.domain import OAKError, canonical_json_bytes
 from oak.runner.identity import RunnerIdentity
 
 MAXIMUM_DOCUMENT_BYTES = 1_048_576
@@ -58,16 +58,55 @@ class RunnerMailbox:
         marker.parent.mkdir(parents=True, exist_ok=True)
         marker.write_text("processed\n", encoding="utf-8")
 
-    def revoked_approval_ids(self) -> frozenset[str]:
+    def revocation_documents(self) -> tuple[dict[str, Any], ...]:
+        """Read every revocation notice, failing closed on anything unreadable.
+
+        The channel used to fail open four ways: a missing directory, an unreadable or
+        oversized file, and a malformed document all read as "nothing revoked", so
+        deleting a notice restored a revoked approval (RR-001). Every one of those is now
+        a refusal — a runner that cannot prove what is revoked must not guess. Hidden
+        files are ignored (no valid notice can be named with a leading dot; the producer
+        refuses such names), so stray filesystem metadata cannot brick the channel.
+        """
+
         directory = self._root / REVOCATION_DIRECTORY
-        if not directory.is_dir():
-            return frozenset()
-        revoked: set[str] = set()
-        for path in directory.glob("*.json"):
-            document = _read_document(path)
-            if document is not None and isinstance(document.get("approval_id"), str):
-                revoked.add(document["approval_id"])
-        return frozenset(revoked)
+        try:
+            entries = sorted(directory.iterdir())
+        except OSError as error:
+            raise OAKError(
+                "OAK-RUNNER-REVOCATION",
+                "revocation directory is missing or unreadable",
+            ) from error
+        documents: list[dict[str, Any]] = []
+        for path in entries:
+            if path.name.startswith("."):
+                continue
+            if not path.is_file() or path.suffix != ".json":
+                raise OAKError(
+                    "OAK-RUNNER-REVOCATION",
+                    "revocation directory contains an entry that is not a notice",
+                )
+            try:
+                if path.stat().st_size > MAXIMUM_DOCUMENT_BYTES:
+                    raise OAKError(
+                        "OAK-RUNNER-REVOCATION",
+                        "revocation notice exceeds the mailbox bound",
+                    )
+                document = json.loads(path.read_text(encoding="utf-8"))
+            except OAKError:
+                raise
+            except (OSError, ValueError) as error:
+                raise OAKError(
+                    "OAK-RUNNER-REVOCATION",
+                    "revocation notice is unreadable",
+                ) from error
+            if not isinstance(document, dict):
+                raise OAKError(
+                    "OAK-RUNNER-REVOCATION",
+                    "revocation notice is not a document",
+                )
+            documents.append(document)
+        return tuple(documents)
 
     def consumed_lease_nonces(self) -> frozenset[str]:
         path = self._home / "consumed-nonces.json"

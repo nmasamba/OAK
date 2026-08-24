@@ -25,7 +25,12 @@ from oak.runner.identity import RunnerIdentity
 from oak.runner.journal import RunnerJournal
 from oak.runner.mailbox import RunnerMailbox
 from oak.runner.schemas import load_registry
-from oak.runner.verification import RunnerDenialError, TrustAnchors, verify_dispatch
+from oak.runner.verification import (
+    RunnerDenialError,
+    TrustAnchors,
+    verified_revocation_ids,
+    verify_dispatch,
+)
 
 
 def _now() -> str:
@@ -95,7 +100,11 @@ def run_once(*, cancellation_requested: bool = False) -> int:
                 registry=registry,
                 anchors=anchors,
                 target_document=target_document,
-                revoked_approval_ids=mailbox.revoked_approval_ids(),
+                revoked_approval_ids=verified_revocation_ids(
+                    mailbox.revocation_documents(),
+                    registry=registry,
+                    anchors=anchors,
+                ),
                 seen_lease_nonces=mailbox.consumed_lease_nonces(),
                 now=now,
             )

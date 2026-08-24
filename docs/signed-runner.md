@@ -48,9 +48,15 @@ Then ingest the result; delivery is never treated as success:
 oak ingest --output json
 ```
 
-`oak revoke-approval apply --reason "..."` publishes a revocation the runner honors on its
-next verification pass, and `oak gitops --output ./gitops` renders deterministic
-branch-ready manifests with a patch description that promotes nothing automatically.
+`oak revoke-approval apply --reason "..."` re-signs the approval as revoked and publishes
+a **signed revocation notice** into the mailbox's `revocations/` directory; the runner
+honors it on its next verification pass. The channel fails closed: every notice must be
+schema-valid and verify against a pinned `approver` anchor, and a missing revocation
+directory, an unreadable, oversized or malformed notice, or any unexpected entry denies
+every pending dispatch (`OAK-RUNNER-REVOCATION`) rather than reading as "nothing
+revoked" — deleting a notice no longer restores a revoked approval. `oak gitops
+--output ./gitops` renders deterministic branch-ready manifests with a patch description
+that promotes nothing automatically.
 
 ## What the runner checks before touching a target
 

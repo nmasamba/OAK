@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: Apache-2.0
+action: dry_run
+approval_digest: sha256:72f7394e5d0e48aee5566660bb3696580971fb13f9bce9df22db3415ae013af9
+approval_id: approval.dry-run.bundle.candidate-03.target.local-fixture
+extensions: {}
+id: revocation.approval.dry-run.bundle.candidate-03.target.local-fixture
+reason: Key rotation drill; approval superseded.
+revoked_at: '2026-08-18T12:00:00Z'
+schema_version: 0.1.0
+signature:
+  algorithm: ed25519
+  key_id: sha256:a1f983678e384eb4add6cd3566062bad50aceb01bd70589d11c8a9ec7345caf1
+  public_key_base64: AIwkHzVbm9krxPL2HjDtGgX0cjMd/VrZijGEkqsqkwk=
+  role: approver
+  signature_base64: gViR4G9/tnP7YEWhjDXCdJNIa8et4CzpQicg8MKjb/dJs69BHVaJahINKpilo0t7YvtbHYz493PMnLWhnGd/Bw==
+  trust_level: development
+version: 0.1.0

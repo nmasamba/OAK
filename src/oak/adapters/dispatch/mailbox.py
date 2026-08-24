@@ -39,6 +39,10 @@ class FilesystemMailbox:
         if directory.exists():
             raise OAKError("OAK-DISPATCH-EXISTS", "dispatch envelope was already delivered")
         directory.mkdir(parents=True, mode=0o700)
+        # The runner treats a missing revocation directory as denial, never as "nothing
+        # revoked" — deleting it used to restore every revoked approval (RR-001). Creating
+        # it with every delivery makes its absence abnormal wherever a dispatch exists.
+        (self._root / REVOCATION_DIRECTORY).mkdir(parents=True, exist_ok=True, mode=0o700)
         _write_document(directory / "envelope.json", envelope)
         for name, document in attachments.items():
             _check_component(name)

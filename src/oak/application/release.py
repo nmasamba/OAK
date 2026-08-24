@@ -40,6 +40,7 @@ PLAN_SIGNATURE_MEDIA_TYPE = "application/vnd.oak.plan-signature+json"
 APPROVAL_MEDIA_TYPE = "application/vnd.oak.approval+json"
 ENVELOPE_MEDIA_TYPE = "application/vnd.oak.runner-envelope+json"
 RUNNER_MESSAGE_MEDIA_TYPE = "application/vnd.oak.runner-message+json"
+REVOCATION_MEDIA_TYPE = "application/vnd.oak.revocation+json"
 
 APPROVAL_ACTIONS = ("dry_run", "apply", "rollback", "destroy")
 READ_ONLY_KINDS = frozenset({"inventory", "validate", "render", "plan", "verify"})
@@ -281,16 +282,29 @@ class ReleaseService:
             input_digest=input_digest,
             artifacts=(artifact,),
         )
-        self._transport.publish_revocation(
+        # The notice is signed in the approver role so the runner can refuse anything an
+        # anchor did not issue: an unsigned file in the revocation channel used to be
+        # honoured on its say-so, and its deletion restored the approval (RR-001). The
+        # notice is a mailbox protocol document, not a workspace artifact — the workspace
+        # record of the revocation is the re-signed approval above.
+        notice = self._signed_artifact(
             {
+                "schema_version": "0.1.0",
                 "id": f"revocation.{artifact.reference.id}",
+                "version": "0.1.0",
                 "approval_id": artifact.reference.id,
                 "approval_digest": artifact.reference.digest,
                 "action": action,
                 "revoked_at": context.occurred_at,
                 "reason": reason.strip(),
-            }
+                "extensions": {},
+            },
+            role="approver",
+            schema="revocation.schema.json",
+            kind="revocation_notice",
+            media_type=REVOCATION_MEDIA_TYPE,
         )
+        self._transport.publish_revocation(self._artifact_document(notice))
         return ReleaseResult(
             case=published,
             document=self._artifact_document(artifact),

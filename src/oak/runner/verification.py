@@ -149,6 +149,28 @@ class VerifiedDispatch:
     """Exactly the operations verification approved, in plan order."""
 
 
+def verified_revocation_ids(
+    documents: tuple[dict[str, Any], ...],
+    *,
+    registry: SchemaRegistry,
+    anchors: TrustAnchors,
+) -> frozenset[str]:
+    """Return the approval ids named by schema-valid, anchor-signed revocation notices.
+
+    A notice that fails validation or signature verification denies the whole read
+    rather than being skipped: an attacker who can plant one malformed file in the
+    revocation channel must not thereby suppress the valid notices beside it, and a
+    channel containing anything unverifiable cannot prove what is revoked (RR-001).
+    """
+
+    revoked: set[str] = set()
+    for document in documents:
+        _validate(registry, "revocation.schema.json", document, "revocation notice")
+        _verify_against_anchor(document, anchors, "approver", "revocation notice")
+        revoked.add(str(document["approval_id"]))
+    return frozenset(revoked)
+
+
 def verify_dispatch(
     *,
     envelope: dict[str, Any],

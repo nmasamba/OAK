@@ -414,6 +414,21 @@ observed immediately during Milestone 3.
   `deploy/images/strip-managed-node.cjs` now strips `devEngines` and the lockfile
   runtime entry inside the image build only, failing the build loudly if the lockfile
   shape ever stops matching.
+- [x] 2026-08-24 M4 (`OAK-PL-004`, RR-001): `schemas/revocation.schema.json` added with
+  `examples/example-revocation.yaml` generated from a live harness run (real approver
+  signature); `revoke_approval` signs the notice through the existing signed-artifact
+  path and the dispatch transport creates `revocations/` on every delivery; the
+  runner's `revocation_documents()` fails closed on a missing/unlistable directory and
+  any unreadable, oversized, malformed or unexpected entry (`OAK-RUNNER-REVOCATION`,
+  hidden files ignored so filesystem metadata cannot brick the channel);
+  `verified_revocation_ids()` schema-validates and anchor-verifies every notice before
+  it is honoured, and one bad notice denies the whole read so a planted file cannot
+  suppress valid notices. Ten integration tests including the RR-001 attack as a
+  regression (`test_deleting_the_revocations_directory_does_not_restore_an_approval`).
+  The notice is a mailbox protocol document, not a workspace artifact (see Decisions).
+  Error reference regenerated; `docs/signed-runner.md` updated. All three e2e runner
+  journeys pass unmodified; full `make check` green (401 + 177/4 + 42); digests
+  unchanged.
 
 ## Decisions
 
@@ -448,6 +463,20 @@ observed immediately during Milestone 3.
   the pinned socketless trivy; `make release` keeps needing no Docker. Alternatives
   (`make release`, CI-only) rejected for changing the release target's contract or leaving
   local rehearsals without image evidence.
+- 2026-08-24 **The revocation notice is a mailbox protocol document, not a workspace
+  artifact.** The workspace manifest's artifact-kind enum is closed (22 kinds), and the
+  workspace already records every revocation via the re-signed approval
+  (`revoked: true`, approver signature) plus its `approval_revoked` audit event —
+  persisting the notice too would add a 23rd canonical kind for a duplicate record.
+  The notice therefore lives only in the mailbox, like the dispatch envelope copies.
+- 2026-08-24 **Fail-closed revocation semantics.** A missing or unlistable
+  `revocations/` directory, or any unreadable, oversized, schema-invalid, unsigned or
+  unexpected entry, denies every pending dispatch via the existing per-dispatch denial
+  path. One unverifiable notice denies the whole read: an attacker able to plant one
+  malformed file must not thereby suppress the valid notices beside it. Hidden
+  (dot-prefixed) files are ignored — no valid notice can carry such a name, the
+  producer refuses them, and treating Finder metadata as denial would brick the
+  channel on macOS for no security gain.
 
 ## Post-implementation audit
 
