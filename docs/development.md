@@ -2,7 +2,7 @@
 
 # Development guide
 
-Local source development uses Python 3.13.12, Node.js 24.18.0, `uv` 0.10.x, and `pnpm` 11.15.1. Dependencies are locked in `uv.lock` and `pnpm-lock.yaml`; those lockfiles do not pin the `uv` executable itself. Contributors use `.python-version` and `.node-version`, while `package.json` pins `pnpm`.
+Local source development uses Python 3.13.12, Node.js 24.18.0, `uv` 0.10.x, and `pnpm` 11.15.1. Dependencies are locked in `uv.lock` and `pnpm-lock.yaml`; those lockfiles do not pin the `uv` executable itself. Contributors use `.python-version` and `.node-version`, while `package.json` pins `pnpm` and its `devEngines.runtime` entry makes pnpm download and run the pinned Node itself, so the host's own Node version never reaches a build. `make toolchain-check` fails if the running Python or the pnpm-provisioned Node differs from the pins, not only if two declarations disagree.
 
 macOS contributors need an arm64 Python 3.13.12 interpreter. From `cryptography` 49.0.0 the project no longer publishes macOS x86_64 wheels, so an Intel or Rosetta interpreter falls through to the source distribution and cannot build it without a Rust toolchain.
 
@@ -36,7 +36,7 @@ CI and container builds are the reproducible builder boundary. They pin `uv` 0.1
 | `make clean` | Empty the `uv` cache |
 | `make clean-all` | Remove every build artifact, virtual environment and cache in the tree. It does **not** touch a `.oak` workspace — that is your data; see [operations.md](operations.md#uninstall) |
 
-The bootstrap step may use the public package registries. After dependencies are installed, `make check` requires no hosted service, credentials, model provider, database, or public network. It does require `git`: `tools/check_repository.py` shells out to `git check-ignore`.
+The bootstrap step may use the public package registries, and downloads the pinned Node.js runtime for pnpm on first use. After dependencies are installed, `make check` requires no hosted service, credentials, model provider, database, or public network. It does require `git`: `tools/check_repository.py` shells out to `git check-ignore`.
 
 **`make check` reports success wrongly when backgrounded.** Verify it by counting `make: ***` lines in its output rather than by its exit code.
 

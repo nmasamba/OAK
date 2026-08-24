@@ -1,9 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 """OAK-S0-001 local, CI, and container toolchain contract tests."""
 
+import json
 from pathlib import Path
 
-from tools.check_toolchains import _npm_version, check
+from tools.check_toolchains import _npm_version, check, runtime_failures
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -159,6 +160,71 @@ def test_openapi_info_version_drift_is_rejected(tmp_path: Path) -> None:
     )
 
     assert "openapi/oak.openapi.json: info.version differs from VERSION" in check(tree)
+
+
+def test_runtime_check_passes_when_the_provisioned_node_matches_the_pin() -> None:
+    """The running Python must equal the pin, and a pnpm reporting the pinned Node passes.
+
+    The Python half runs against the real interpreter — the venv is provisioned by uv
+    from `.python-version`, so a mismatch here means the pin and the toolchain have
+    genuinely diverged.
+    """
+
+    pinned = (ROOT / ".node-version").read_text(encoding="utf-8").strip()
+    assert runtime_failures(ROOT, run=lambda _argv: f"v{pinned}\n") == []
+
+
+def test_runtime_node_drift_is_fatal() -> None:
+    """A pnpm-provisioned Node that differs from .node-version must fail the check.
+
+    RR-034: the 0.7.0 web artifacts were built on Node 22.17.1 against a 24.18.0 pin
+    and every declaration-only gate stayed green.
+    """
+
+    failures = runtime_failures(ROOT, run=lambda _argv: "v22.17.1\n")
+    assert any("does not match .node-version" in failure for failure in failures)
+
+
+def test_runtime_check_fails_closed_when_pnpm_cannot_run() -> None:
+    """Not being able to ask pnpm for its Node is a failure, never a pass."""
+
+    def refuse(argv: tuple[str, ...]) -> str:
+        raise OSError("pnpm is not installed")
+
+    failures = runtime_failures(ROOT, run=refuse)
+    assert any("could not report its Node version" in failure for failure in failures)
+
+
+def test_managed_node_version_drift_is_rejected(tmp_path: Path) -> None:
+    """devEngines.runtime is the setting that makes pnpm provision the pinned Node.
+
+    If its version drifts from .node-version, pnpm would silently provision and run a
+    different Node than every other declaration names.
+    """
+
+    tree = _mirror(ROOT, tmp_path)
+    manifest = tree / "package.json"
+    node_version = (ROOT / ".node-version").read_text(encoding="utf-8").strip()
+    manifest.write_text(
+        manifest.read_text(encoding="utf-8").replace(
+            f'"version": "{node_version}"', '"version": "22.17.1"'
+        ),
+        encoding="utf-8",
+    )
+
+    assert "Node version differs between .node-version and devEngines.runtime" in check(tree)
+
+
+def test_a_missing_managed_node_declaration_is_rejected(tmp_path: Path) -> None:
+    tree = _mirror(ROOT, tmp_path)
+    manifest = tree / "package.json"
+    document = manifest.read_text(encoding="utf-8")
+    assert '"devEngines"' in document
+    parsed = json.loads(document)
+    del parsed["devEngines"]
+    manifest.write_text(json.dumps(parsed), encoding="utf-8")
+
+    assert "package.json: devEngines.runtime must pin the managed Node" in check(tree)
 
 
 def test_release_builder_uv_drift_is_rejected(tmp_path: Path) -> None:

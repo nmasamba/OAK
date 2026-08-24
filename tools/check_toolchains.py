@@ -1,9 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Check that source, CI, container, package, documentation, and version declarations agree."""
+"""Check that source, CI, container, package, documentation, and version declarations agree,
+and that the binaries actually running match the pins."""
 
 import json
+import platform
 import re
+import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -143,6 +147,18 @@ def check(root: Path = ROOT) -> list[str]:
     if node_version and engines.get("node") != node_version:
         failures.append("Node version differs between .node-version and package.json")
 
+    # devEngines.runtime is what makes pnpm provision the pinned Node itself instead of
+    # trusting whatever Node happens to invoke it (RR-034). An engines pin without it is
+    # a declaration nothing enforces at run time.
+    runtime = package.get("devEngines", {}).get("runtime") if isinstance(package, dict) else None
+    if not isinstance(runtime, dict):
+        failures.append("package.json: devEngines.runtime must pin the managed Node")
+    else:
+        if runtime.get("name") != "node" or runtime.get("onFail") != "download":
+            failures.append("package.json: devEngines.runtime must download the pinned Node")
+        if node_version and runtime.get("version") != node_version:
+            failures.append("Node version differs between .node-version and devEngines.runtime")
+
     package_manager = package.get("packageManager")
     if not isinstance(package_manager, str) or not package_manager.startswith("pnpm@"):
         failures.append("package.json: packageManager must pin pnpm exactly")
@@ -197,8 +213,64 @@ def check(root: Path = ROOT) -> list[str]:
     return failures
 
 
+def runtime_failures(
+    root: Path = ROOT,
+    *,
+    run: Callable[[tuple[str, ...]], str] | None = None,
+) -> list[str]:
+    """Compare the pinned toolchain against the binaries actually running.
+
+    `check()` compares declarations against each other and never executes anything,
+    so a host whose interpreters drift from the pins passes every declaration check:
+    the `0.7.0` web artifacts were built on Node 22.17.1 against a 24.18.0 pin with
+    every gate green (`RR-034`). This is the runtime half: the Python executing this
+    process and the Node that pnpm actually provides must equal the pins exactly, and
+    an inability to ask pnpm is itself a failure, never a pass. It is a separate
+    function so the declaration checks stay runnable on scratch trees without pnpm.
+    """
+
+    failures: list[str] = []
+    pinned_python = _read(root, ".python-version", failures).strip()
+    pinned_node = _read(root, ".node-version", failures).strip()
+
+    running_python = platform.python_version()
+    if pinned_python and running_python != pinned_python:
+        failures.append(
+            f"runtime: Python {running_python} does not match .python-version {pinned_python}"
+        )
+
+    if pinned_node:
+        executor = run if run is not None else _pnpm_runner(root)
+        try:
+            reported = executor(("pnpm", "exec", "node", "--version")).strip()
+        except (OSError, subprocess.SubprocessError) as error:
+            failures.append(f"runtime: pnpm could not report its Node version: {error}")
+        else:
+            if reported != f"v{pinned_node}":
+                failures.append(
+                    f"runtime: pnpm-provisioned Node {reported} does not match "
+                    f".node-version {pinned_node}"
+                )
+    return failures
+
+
+def _pnpm_runner(root: Path) -> Callable[[tuple[str, ...]], str]:
+    def execute(argv: tuple[str, ...]) -> str:
+        completed = subprocess.run(
+            argv,
+            cwd=root,
+            capture_output=True,
+            text=True,
+            timeout=300,
+            check=True,
+        )
+        return completed.stdout
+
+    return execute
+
+
 def main() -> int:
-    failures = check()
+    failures = check() + runtime_failures()
     for failure in failures:
         print(failure, file=sys.stderr)
     return 1 if failures else 0

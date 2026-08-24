@@ -384,6 +384,16 @@ observed immediately during Milestone 3.
   the vocabulary gate forbids; reworded to cite the `0.7.0` record's restrictions
   instead. Full `make check` then green (zero `make: ***` lines), and the four reference
   digests recompiled unchanged, proving the version literals are digest-independent.
+- [x] 2026-08-24 M2 (`OAK-PL-002`, RR-034): pnpm now provisions the pinned Node via
+  `devEngines.runtime` in `package.json` (verified live: `pnpm exec node --version`
+  reports `v24.18.0` on a host whose system Node is 22.17.1, after pnpm downloaded the
+  runtime); the self-masking `nodeVersion` setting is deleted from
+  `pnpm-workspace.yaml`; `make bootstrap` triggers the one-time download;
+  `tools/check_toolchains.py` gained the fatal `runtime_failures()` (running Python and
+  pnpm-provisioned Node vs the pins, pnpm-unavailable fails closed) and a declaration
+  check that `devEngines.runtime` pins the same Node as `.node-version`. Five new
+  contract tests. `make toolchain-check` passes on this host, full `make check` green
+  (397 + 167/4 + 42), digests unchanged.
 
 ## Decisions
 
@@ -398,10 +408,21 @@ observed immediately during Milestone 3.
   Alternatives (fix only `RR-003`; add a hard local-only refusal and defer both) rejected
   because the cost asymmetry favours closing both while breaking is free.
 - 2026-08-24 **`RR-034` is fixed at the cause, with a fatal check as backstop.** Owner
-  decision. pnpm provisions the pinned Node (`use-node-version`), so the fatal runtime
-  check passes by construction on a host with a different system Node; a fatal check alone
-  would have broken `make check` locally, and an advisory check is fail-open for exactly
-  the drift that already happened once.
+  decision. pnpm provisions the pinned Node, so the fatal runtime check passes by
+  construction on a host with a different system Node; a fatal check alone would have
+  broken `make check` locally, and an advisory check is fail-open for exactly the drift
+  that already happened once.
+- 2026-08-24 **The provisioning mechanism is `devEngines.runtime` in `package.json`, not
+  `.npmrc` `use-node-version`.** Deviation from the owner's letter, empirically forced:
+  under pnpm 11.15.1 both `use-node-version` (`.npmrc`) and `useNodeVersion`
+  (`pnpm-workspace.yaml`) are read by `pnpm config get` but never provision or switch the
+  runtime on this host, while `devEngines.runtime` with `onFail: "download"` downloads
+  and uses Node 24.18.0 for `pnpm node`, `pnpm exec` and scripts. A side discovery worth
+  recording: the removed `nodeVersion` setting made `engineStrict` evaluate `engines`
+  against the *declared* version rather than the running one — the 0.7.0-era pin was
+  verifying itself. With `devEngines.runtime` active and `nodeVersion` gone,
+  `pnpm install --frozen-lockfile` passes under a system Node 22 because the engines
+  check is satisfied by the genuinely provisioned 24.18.0.
 - 2026-08-24 **Image SBOM/provenance generation lives in `scripts/scan_images.py`, wired
   into the `images` job of `release.yml`.** Owner decision. Reuses the exported tarball and
   the pinned socketless trivy; `make release` keeps needing no Docker. Alternatives
