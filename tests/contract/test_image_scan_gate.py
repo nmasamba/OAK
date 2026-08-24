@@ -11,9 +11,20 @@ on it would be silenced within a week. These tests pin both halves — fixable b
 unfixable reports — so neither can quietly invert.
 """
 
+from pathlib import Path
 from typing import Any
 
-from scripts.scan_images import BLOCKING, SCANNER, _classify
+from scripts.scan_images import (
+    BLOCKING,
+    SCANNER,
+    _classify,
+    _final_stage_base,
+    _from_lines,
+    _provenance_document,
+    _sbom_name,
+)
+
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def _document(*vulnerabilities: dict[str, Any]) -> dict[str, Any]:
@@ -97,3 +108,50 @@ def test_the_scanner_is_pinned() -> None:
 
 def test_only_critical_and_high_block() -> None:
     assert set(BLOCKING) == {"CRITICAL", "HIGH"}
+
+
+def test_provenance_records_the_final_stage_base_not_a_build_stage() -> None:
+    """The SBOM and provenance must describe the image that ships (RR-038).
+
+    The 0.7.0 scan found `uv` in the runtime layer precisely because nothing separated
+    build stages from the shipped stage; evidence that described a build stage would
+    repeat that mistake at the paperwork level.
+    """
+
+    api = (ROOT / "deploy/images/api.Dockerfile").read_text(encoding="utf-8")
+    web = (ROOT / "deploy/images/web.Dockerfile").read_text(encoding="utf-8")
+
+    assert _final_stage_base(api).startswith("python:")
+    assert "@sha256:" in _final_stage_base(api)
+    assert _final_stage_base(web).startswith("nginxinc/nginx-unprivileged:")
+    assert "@sha256:" in _final_stage_base(web)
+
+    api_stages = _from_lines(api)
+    assert any(base.startswith("ghcr.io/astral-sh/uv:") for base in api_stages[:-1])
+    assert not _final_stage_base(api).startswith("ghcr.io/astral-sh/uv:")
+    assert any(base.startswith("node:") for base in _from_lines(web)[:-1])
+
+
+def test_image_sboms_follow_the_distribution_naming_convention() -> None:
+    assert _sbom_name("api", "0.7.1") == "oak-community-api-image-0.7.1.cdx.json"
+    assert _sbom_name("web", "0.7.1") == "oak-community-web-image-0.7.1.cdx.json"
+
+
+def test_image_provenance_is_marked_unsigned_and_unreproducible() -> None:
+    """Provenance is a record, not an assurance; it must say so itself."""
+
+    document = _provenance_document(
+        version="0.7.1",
+        requested_platform="linux/amd64",
+        source_commit="deadbeef",
+        source_tree_dirty=False,
+        docker_server="29.0.0",
+        images={"api": {"tag": "oak-community/api:0.7.1", "image_id": "sha256:x"}},
+    )
+
+    assert document["signed"] is False
+    assert "unsigned" in document["signing_note"]
+    assert document["byte_reproducible"] is False
+    assert "RR-006" in document["reproducibility_note"]
+    assert document["artifact_version"] == "0.7.1"
+    assert document["images"]["api"]["tag"] == "oak-community/api:0.7.1"

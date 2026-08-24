@@ -153,7 +153,8 @@ would make the gate's verdict depend on when it ran.
 
 The scanner's own vulnerability database is fetched at run time and is not pinned; that is
 inherent to vulnerability scanning and is why the scan is a release step rather than part
-of `make check`, which must work offline. Results for `0.7.0` are recorded in
+of `make check`, which must work offline. Results for `0.7.1` are recorded in
+`docs/release/0.7.1/container-scan.md`; the superseded `0.7.0` record remains at
 `docs/release/0.7.0/container-scan.md`.
 
 ### 2026-08-21 jsonschema `format` extra removed
