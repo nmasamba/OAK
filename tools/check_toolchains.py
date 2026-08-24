@@ -111,6 +111,7 @@ def check(root: Path = ROOT) -> list[str]:
     package = _load_package(_read(root, "package.json", failures), failures)
     api_dockerfile = _read(root, "deploy/images/api.Dockerfile", failures)
     web_dockerfile = _read(root, "deploy/images/web.Dockerfile", failures)
+    compose = _read(root, "compose.yaml", failures)
     workflow = _read(root, ".github/workflows/ci.yml", failures)
     release_workflow = _read(root, ".github/workflows/release.yml", failures)
     readme = _read(root, "README.md", failures)
@@ -134,9 +135,35 @@ def check(root: Path = ROOT) -> list[str]:
         "deploy/images/web.Dockerfile",
         failures,
     )
+    # The build stage carries its own FROM line; the anchored runtime pattern above
+    # cannot match it, so without this check the two Python pins could silently diverge
+    # and the build stage would escape drift detection entirely.
+    container_python_build = _match_version(
+        api_dockerfile,
+        r"^FROM python:(?P<version>\d+\.\d+\.\d+)-slim@sha256:[a-f0-9]{64} AS build$",
+        "deploy/images/api.Dockerfile",
+        failures,
+    )
+    # The web runtime base and the compose postgres image are version-pinned to nothing
+    # else in the repository, so the only checkable property is that each stays pinned by
+    # tag plus immutable digest; an unpinned line here previously escaped drift detection.
+    if not re.search(
+        r"^FROM nginxinc/nginx-unprivileged:\d+\.\d+\.\d+-alpine@sha256:[a-f0-9]{64}$",
+        web_dockerfile,
+        flags=re.MULTILINE,
+    ):
+        failures.append("deploy/images/web.Dockerfile: expected pinned unprivileged nginx runtime")
+    if not re.search(
+        r"^    image: postgres:\d+\.\d+-alpine@sha256:[a-f0-9]{64}$",
+        compose,
+        flags=re.MULTILINE,
+    ):
+        failures.append("compose.yaml: expected pinned postgres image with immutable digest")
 
     if python_version and container_python != python_version:
         failures.append("Python version differs between .python-version and API container")
+    if python_version and container_python_build != python_version:
+        failures.append("Python version differs between .python-version and API build stage")
     if node_version and container_node != node_version:
         failures.append("Node version differs between .node-version and web container")
 

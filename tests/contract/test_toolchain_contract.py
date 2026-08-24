@@ -2,6 +2,7 @@
 """OAK-S0-001 local, CI, and container toolchain contract tests."""
 
 import json
+import re
 from pathlib import Path
 
 from tools.check_toolchains import _npm_version, check, runtime_failures
@@ -20,6 +21,7 @@ def test_ci_uv_drift_is_rejected(tmp_path: Path) -> None:
         "package.json",
         "deploy/images/api.Dockerfile",
         "deploy/images/web.Dockerfile",
+        "compose.yaml",
         ".github/workflows/ci.yml",
         "README.md",
         "docs/development.md",
@@ -100,6 +102,7 @@ def _mirror(root: Path, tmp_path: Path) -> Path:
         "openapi/oak.openapi.json",
         "deploy/images/api.Dockerfile",
         "deploy/images/web.Dockerfile",
+        "compose.yaml",
         ".github/workflows/ci.yml",
         ".github/workflows/release.yml",
         "README.md",
@@ -160,6 +163,66 @@ def test_openapi_info_version_drift_is_rejected(tmp_path: Path) -> None:
     )
 
     assert "openapi/oak.openapi.json: info.version differs from VERSION" in check(tree)
+
+
+def test_web_runtime_base_unpinning_is_rejected(tmp_path: Path) -> None:
+    """The nginx runtime line previously escaped drift detection entirely.
+
+    Only the uv, Python and Node FROM lines were guarded, so the web runtime base
+    could lose its digest — or change image — without any gate noticing (RR-037's
+    fix depends on this base staying what the Dockerfile says it is).
+    """
+
+    tree = _mirror(ROOT, tmp_path)
+    dockerfile = tree / "deploy/images/web.Dockerfile"
+    dockerfile.write_text(
+        re.sub(
+            r"^FROM nginxinc/nginx-unprivileged:(\d+\.\d+\.\d+)-alpine@sha256:[a-f0-9]{64}$",
+            r"FROM nginxinc/nginx-unprivileged:\1-alpine",
+            dockerfile.read_text(encoding="utf-8"),
+            flags=re.MULTILINE,
+        ),
+        encoding="utf-8",
+    )
+
+    failures = check(tree)
+    assert "deploy/images/web.Dockerfile: expected pinned unprivileged nginx runtime" in failures
+
+
+def test_api_build_stage_python_drift_is_rejected(tmp_path: Path) -> None:
+    """The anchored runtime regex cannot see the `AS build` line, so it was unguarded."""
+
+    tree = _mirror(ROOT, tmp_path)
+    dockerfile = tree / "deploy/images/api.Dockerfile"
+    python_version = (ROOT / ".python-version").read_text(encoding="utf-8").strip()
+    dockerfile.write_text(
+        dockerfile.read_text(encoding="utf-8").replace(
+            f"FROM python:{python_version}-slim", "FROM python:3.12.0-slim", 1
+        ),
+        encoding="utf-8",
+    )
+
+    failures = check(tree)
+    assert "Python version differs between .python-version and API build stage" in failures
+
+
+def test_compose_postgres_unpinning_is_rejected(tmp_path: Path) -> None:
+    """compose.yaml was never read by the toolchain check, leaving its pin unguarded."""
+
+    tree = _mirror(ROOT, tmp_path)
+    compose = tree / "compose.yaml"
+    compose.write_text(
+        re.sub(
+            r"^    image: postgres:(\d+\.\d+)-alpine@sha256:[a-f0-9]{64}$",
+            r"    image: postgres:\1-alpine",
+            compose.read_text(encoding="utf-8"),
+            flags=re.MULTILINE,
+        ),
+        encoding="utf-8",
+    )
+
+    failures = check(tree)
+    assert "compose.yaml: expected pinned postgres image with immutable digest" in failures
 
 
 def test_runtime_check_passes_when_the_provisioned_node_matches_the_pin() -> None:

@@ -394,6 +394,26 @@ observed immediately during Milestone 3.
   check that `devEngines.runtime` pins the same Node as `.node-version`. Five new
   contract tests. `make toolchain-check` passes on this host, full `make check` green
   (397 + 167/4 + 42), digests unchanged.
+- [x] 2026-08-24 M3 (`OAK-PL-003`, RR-037): web runtime stage moved to
+  `nginxinc/nginx-unprivileged:1.29.1-alpine` (digest-pinned), `apk upgrade` sandwiched
+  between `USER root`/`USER nginx`; compose hardening applied to every service
+  (`read_only` for api/worker/migrate/web, `tmpfs`, `cap_drop: [ALL]`,
+  `no-new-privileges`, memory/CPU limits; postgres keeps a writable data volume with
+  `cap_add: [CHOWN, SETUID, SETGID, FOWNER, DAC_OVERRIDE, DAC_READ_SEARCH]` — proven
+  against a **fresh** data volume, so first-boot `initdb` works under the reduced set).
+  `check_toolchains` now guards the nginx runtime pin, the compose postgres pin and the
+  previously unmatched `AS build` Python line, with three new drift tests. Runtime
+  honesty proven live: `docker compose exec` reports uid 101 (web) / 10001 (api,
+  worker), captured as a docker-gated Playwright spec (`web/e2e/hardening.spec.ts`);
+  `docker inspect` confirms `ReadonlyRootfs`, `CapDrop=[ALL]` and `no-new-privileges`
+  actually applied. `make web-e2e` 4/4 green; one `--platform linux/amd64` web build
+  succeeds and defaults to uid 101; full `make check` green (400 + 167/4 + 42); digests
+  unchanged. Discovery: the managed-Node lockfile entry from M2 made the alpine build
+  stage try to download a musl Node from `unofficial-builds.nodejs.org` (integrity-
+  locked, but slow/unofficial and redundant — the base image IS the pinned Node), so
+  `deploy/images/strip-managed-node.cjs` now strips `devEngines` and the lockfile
+  runtime entry inside the image build only, failing the build loudly if the lockfile
+  shape ever stops matching.
 
 ## Decisions
 
