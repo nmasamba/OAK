@@ -307,7 +307,41 @@ def verify_dispatch(
             "approval and plan signatures share one identity",
         )
 
-    # 7-9. Operations: allowlisted adapters, parameter schemas, permissions.
+    # 7. The compiled verification policy, validated and read before any operation is
+    # admitted. The policy is a review-artifact wrapper: its fields live under
+    # `content`. This read used to be `policy.get("body", policy)`, and no compiled
+    # document has ever had a `body` key, so the lookup always returned the wrapper, the
+    # `is False` comparison was always against None, and the guard could not fire for any
+    # plan the compiler produces. `_validate` is applied for the same reason: this was the
+    # only attachment admitted without a schema check.
+    _validate(registry, "review-artifact.schema.json", policy, "verification policy")
+    policy_content = policy.get("content")
+    if not isinstance(policy_content, dict):
+        raise RunnerDenialError("OAK-RUNNER-POLICY", "verification policy is not acceptable")
+    # The runner never *relaxes* on the strength of a policy attachment — a policy that
+    # said no signature were needed would be a weakening, and is refused rather than
+    # honoured. It refuses a policy that contradicts what the runner enforces, and it
+    # honours the policy's own restrictions: a requested kind outside
+    # `allowed_operation_kinds`, or a mutating kind under `mutation_allowed: false`, is
+    # denied below before any adapter exists (RR-032).
+    for clause in ("requires_signature_before_dispatch", "requires_approval_before_dispatch"):
+        if policy_content.get(clause) is False:
+            raise RunnerDenialError("OAK-RUNNER-POLICY", "verification policy is not acceptable")
+    policy_kinds_value = policy_content.get("allowed_operation_kinds")
+    if not isinstance(policy_kinds_value, list) or not all(
+        isinstance(kind, str) for kind in policy_kinds_value
+    ):
+        raise RunnerDenialError(
+            "OAK-RUNNER-POLICY", "verification policy operation kinds are malformed"
+        )
+    policy_kinds = frozenset(policy_kinds_value)
+    policy_mutation = policy_content.get("mutation_allowed")
+    if not isinstance(policy_mutation, bool):
+        raise RunnerDenialError(
+            "OAK-RUNNER-POLICY", "verification policy mutation clause is malformed"
+        )
+
+    # 8-9. Operations: allowlisted adapters, parameter schemas, permissions.
     # Every operation the runner will execute is verified individually. Operation
     # kinds must be unique so that verification and execution cannot diverge: a
     # duplicate kind would otherwise let an unverified operation run alongside a
@@ -339,6 +373,17 @@ def verify_dispatch(
             f"plan does not contain a {kind} operation",
         )
         assert operation is not None
+        _check(
+            kind in policy_kinds,
+            "OAK-RUNNER-POLICY",
+            "verification policy does not allow this operation kind",
+        )
+        if kind in MUTATING_KINDS:
+            _check(
+                policy_mutation is True,
+                "OAK-RUNNER-POLICY",
+                "verification policy does not allow mutation",
+            )
         verified_operations.append(operation)
         adapter = operation["adapter"]
         identity = ADAPTER_IDENTITY_BY_ID.get(str(adapter["id"]))
@@ -418,23 +463,6 @@ def verify_dispatch(
             _check_approval(
                 required_approval, envelope, local_fingerprint, revoked_approval_ids, now_time
             )
-
-    # The compiled verification policy is a review-artifact wrapper: its fields live
-    # under `content`. This read used to be `policy.get("body", policy)`, and no compiled
-    # document has ever had a `body` key, so the lookup always returned the wrapper, the
-    # `is False` comparison was always against None, and the guard could not fire for any
-    # plan the compiler produces. `_validate` is applied for the same reason: this was the
-    # only attachment admitted without a schema check.
-    _validate(registry, "review-artifact.schema.json", policy, "verification policy")
-    policy_content = policy.get("content")
-    if not isinstance(policy_content, dict):
-        raise RunnerDenialError("OAK-RUNNER-POLICY", "verification policy is not acceptable")
-    # The runner never *relaxes* on the strength of a policy attachment — a policy that
-    # said no signature were needed would be a weakening, and is refused rather than
-    # honoured. It only refuses a policy that contradicts what the runner enforces.
-    for clause in ("requires_signature_before_dispatch", "requires_approval_before_dispatch"):
-        if policy_content.get(clause) is False:
-            raise RunnerDenialError("OAK-RUNNER-POLICY", "verification policy is not acceptable")
 
     ordered = tuple(
         operation for operation in plan["operations"] if operation in verified_operations

@@ -73,19 +73,19 @@ In this order, and any failure denies the dispatch before an adapter is construc
    (`OAK-RUNNER-PLAN-STATE`) and not expired (`OAK-RUNNER-PLAN-EXPIRED`).
 5. **Lease**: validity window, expiry, policy bound on lease duration, and nonce replay.
 6. **Separation of duties** between the signing and approving identities.
-7. **Operations**: adapter identity and parameter-schema digest against the code-level
+7. **Verification policy.** The attachment is schema-validated before any operation is
+   admitted, its clauses are read from `content`, and a policy that contradicts the
+   signing or approval requirements is refused. The compiler derives the policy from the
+   target profile, and the runner enforces it: a requested kind outside
+   `allowed_operation_kinds`, a mutating kind under `mutation_allowed: false`, or a
+   malformed clause denies the dispatch (`OAK-RUNNER-POLICY`) before any adapter exists.
+8. **Operations**: adapter identity and parameter-schema digest against the code-level
    allowlist; typed parameters against the adapter schema with execution fields rejected
    recursively; if the target profile declares `execution.allowed_registries`, any image
    whose registry resolves outside it is denied (`OAK-RUNNER-REGISTRY`); empty secret
    references within the target allowance; empty network destinations.
-8. **Approval** for any mutating kind — current, unrevoked, and bound to the digest,
+9. **Approval** for any mutating kind — current, unrevoked, and bound to the digest,
    target, action class and expiry.
-9. **Verification policy.** The attachment is schema-validated, its clauses are read from
-   `content`, and a policy that contradicts the signing or approval requirements is
-   refused. Two clauses it carries — `mutation_allowed` and `allowed_operation_kinds` —
-   are **not** enforced; see `RR-032` in
-   [security/residual-risk.md](security/residual-risk.md) for why, and what would have to
-   change first.
 
 ## Mutation profile
 

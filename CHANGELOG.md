@@ -23,6 +23,25 @@ compatibility promises in [compatibility.md](docs/compatibility.md).
   a build whose digests no longer match. `0.7.0` stays in the record as approved but
   unpublished; nothing that was approved is republished under its name. The draft decision
   record is [release/0.7.1/release-decision.md](docs/release/0.7.1/release-decision.md).
+- **Canonical digests changed — deliberately, once.** The compiled verification policy is
+  now a function of the target profile instead of a hard-coded read-only constant, the
+  `not_signed` marker's reason no longer claims signing is unimplemented, and the
+  bundle's `compatibility` block stops asserting read-only constraints for
+  mutation-capable targets (`RR-032`, `RR-011`; `minimum_oak_version` moves to `0.7.1`).
+  These fields are canonical bytes, so the reference-case digests shift, exactly as
+  [compatibility.md](docs/compatibility.md) rule 4 requires this entry to say. At case
+  `0.1.7`, `deployment_bundle` moved from `sha256:042313be…` to
+  `sha256:570abb66ee53eb6433588b865fb4a77dc4d5d7133bc1275fbe433a9a37936596` and
+  `runner_plan` from `sha256:5e0a65ba…` to
+  `sha256:fad309590f1d09da0019f52dce9bd3d31da5b6285f5246d899657a8f161e18c4`;
+  `selected_candidate` (`sha256:576b0ca6…`) and `semantic_manifest` (`sha256:2ef34758…`)
+  were recompiled on both sides and are byte-identical, bounding the blast radius to the
+  two documents that embed the corrected content. No schema shape changed, previously
+  stored workspaces remain valid and importable, and nothing was ever published under the
+  old digests. The runner now enforces the policy it is handed: a requested operation
+  kind outside `allowed_operation_kinds`, a mutating kind under
+  `mutation_allowed: false`, or a malformed clause denies the dispatch
+  (`OAK-RUNNER-POLICY`) before any adapter is constructed.
 
 ## 0.7.0 — 2026-08-21
 

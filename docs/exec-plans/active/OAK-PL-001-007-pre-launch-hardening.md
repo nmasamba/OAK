@@ -447,6 +447,42 @@ observed immediately during Milestone 3.
   reference digests are unchanged. A kit-contract fake executor needed the new
   inspections scripted (first gate run caught it); full `make check` then green
   (412 + 179/4 + 42). Error reference regenerated; `docs/signed-runner.md` updated.
+- [x] 2026-08-24 M6 (`OAK-PL-006`, RR-032 + RR-011) — **the sanctioned digest
+  migration.** Compiler: the verification policy is now derived from the target
+  (id `verification-policy.<target id>`, `allowed_operation_kinds` = the target's
+  allowed operations in canonical order, `mutation_allowed` = the target's flag); the
+  semantic manifest's `operation_kinds` uses the same derivation; the `not_signed`
+  reason is truthful; `compatibility.target_constraints`/`known_incompatibilities` and
+  `procedures.install` describe what the target actually permits;
+  `minimum_oak_version` → `"0.7.1"` (deliberate literal); dead `MUTATION_KINDS`
+  removed. Runner: the policy is schema-validated and read before the operation loop,
+  and every requested kind must be in `allowed_operation_kinds`, mutating kinds
+  additionally require `mutation_allowed: true`, malformed clauses fail closed — all
+  `OAK-RUNNER-POLICY`, all inside `verify_dispatch`, structurally before any adapter
+  exists. **Digest record (case `0.1.7`, read-only reference target)** — before
+  (= M0 baseline): `deployment_bundle sha256:042313be7ccd8355cfb7eb21b67b3137bc897cbe
+  92d0d77c2f8189a8f9175c00`, `runner_plan sha256:5e0a65ba9c1f17945c5100c5532c890806e7
+  1bed4c0c40c5e7099a97d4f459dc`; after: `deployment_bundle
+  sha256:570abb66ee53eb6433588b865fb4a77dc4d5d7133bc1275fbe433a9a37936596`,
+  `runner_plan sha256:fad309590f1d09da0019f52dce9bd3d31da5b6285f5246d899657a8f161e18c4`;
+  `selected_candidate sha256:576b0ca6…` and `semantic_manifest sha256:2ef34758…`
+  recompiled on both sides and **byte-identical** (for the read-only target the
+  derived kinds equal the old constant, so the blast radius is exactly the two
+  documents embedding the corrected content). Mutation-target values post-migration:
+  `deployment_bundle sha256:607ec5764993f3774c7519b53d4b152716b29e4fc20d3b0a3cf4188c
+  69aed90e`, `runner_plan sha256:a6b50396074c5c9951a8161e6e0af591dd28b12c58d67859468f
+  caa73f8ef44d`, `semantic_manifest sha256:f747988ab08e8915dda41f496f4bfcc6dbeae7420d
+  ada964e45065d94de44b74`. Changelog carries the mandatory digest-shifting callout;
+  `docs/compatibility.md` preamble now states the promises bind operationally from the
+  first published artifact; `docs/signed-runner.md` records the policy as enforced
+  (step 7, before operations). Six new tests: an authentically re-signed restrictive
+  policy denies a fully approved mutation; three malformed-clause variants fail
+  closed; a full `run_once` denial leaves no journal and publishes a `denied`
+  completion with `OAK-RUNNER-POLICY`; the compiled policy provably reflects each
+  target. The pre-existing read-only live-guard test, the `policy.get("content")`
+  source-binding test, and the Docker mutation journey pass **unmodified**. Full
+  `make check` green (412 + 185/4 + 42). Workspace replay: no schema shape changed,
+  stored documents remain valid; the migration affects newly compiled content only.
 
 ## Decisions
 

@@ -295,3 +295,206 @@ def test_a_read_only_dispatch_still_verifies_with_the_policy_guard_live(
     verified = _verify(readonly_dispatch)
 
     assert set(verified.requested_kinds) == {"inventory", "validate", "render", "plan", "verify"}
+
+
+def test_the_compiled_policy_reflects_its_target(readonly_dispatch, tmp_path: Path) -> None:
+    """RR-032: the policy is a function of the target, not a constant.
+
+    The read-only compile carries the five read-only kinds and `mutation_allowed:
+    false`; the mutation compile carries every target-allowed kind and `true`. The
+    policy id names the target, because one constant id for two different policies
+    would collide in the workspace index.
+    """
+
+    readonly_policy = readonly_dispatch["attachments"]["verification-policy"]
+    assert readonly_policy["id"] == "verification-policy.target.local-fixture"
+    assert readonly_policy["content"]["allowed_operation_kinds"] == [
+        "inventory",
+        "validate",
+        "render",
+        "plan",
+        "verify",
+    ]
+    assert readonly_policy["content"]["mutation_allowed"] is False
+
+    harness = build_compiled_case(tmp_path, target_name=MUTATION_TARGET)
+    harness.release.sign_plan(harness.context("signplan-00000001", "0.1.7"))
+    harness.release.approve("dry_run", harness.context("approve-dryrun-0001", "0.1.8"))
+    harness.release.dispatch(("inventory",), harness.context("dispatch-readonly-1", "0.1.9"))
+    _, attachments = read_dispatch(harness.mailbox_root)
+    mutation_policy = attachments["verification-policy"]
+    assert mutation_policy["id"] == "verification-policy.target.local-mutation-fixture"
+    assert mutation_policy["content"]["allowed_operation_kinds"] == [
+        "inventory",
+        "validate",
+        "render",
+        "plan",
+        "verify",
+        "apply",
+        "rollback",
+        "destroy",
+    ]
+    assert mutation_policy["content"]["mutation_allowed"] is True
+
+
+def _resigned_envelope(envelope: dict, trust_directory: Path) -> dict:
+    """Sign an edited envelope with the harness's own plan-signer key.
+
+    The policy reference sits under the envelope signature, so a policy-substitution
+    case cannot be produced by tampering — and an authentically signed restrictive
+    policy is the stronger case anyway: a signer issued it, and the runner must honour
+    it rather than the plan's wider contents.
+    """
+
+    from oak.adapters.signing import LocalEd25519Signer
+    from oak.contracts.signatures import signed_payload_bytes
+
+    signer = LocalEd25519Signer.load(trust_directory, "plan-signer")
+    identity = signer.identity()
+    document = {key: value for key, value in envelope.items() if key != "signature"}
+    document["signature"] = {
+        "role": identity.role,
+        "key_id": identity.key_id,
+        "algorithm": identity.algorithm,
+        "public_key_base64": identity.public_key_base64,
+        "trust_level": identity.trust_level,
+        "signature_base64": signer.sign(signed_payload_bytes(document)),
+    }
+    return document
+
+
+def _restrictive_policy() -> dict:
+    return {
+        "schema_version": "0.4.0",
+        "id": "verification-policy.target.local-mutation-fixture",
+        "version": "0.1.0",
+        "artifact_type": "verification_policy",
+        "status": "draft",
+        "content": {
+            "allowed_status": "draft",
+            "allowed_operation_kinds": ["inventory", "validate", "render", "plan", "verify"],
+            "mutation_allowed": False,
+            "requires_signature_before_dispatch": True,
+            "requires_approval_before_dispatch": True,
+        },
+        "extensions": {},
+    }
+
+
+def _mutation_dispatch_with_policy(tmp_path: Path, policy: dict, *, now: str | None = None):
+    """A signed, fully approved mutation dispatch carrying the given authentic policy."""
+
+    harness = build_compiled_case(tmp_path, target_name=MUTATION_TARGET, now=now)
+    harness.release.sign_plan(harness.context("signplan-00000001", "0.1.7"))
+    harness.release.approve("dry_run", harness.context("approve-dryrun-0001", "0.1.8"))
+    harness.release.approve("apply", harness.context("approve-apply-00001", "0.1.9"))
+    harness.release.approve("rollback", harness.context("approve-rollbk-0001", "0.1.10"))
+    harness.release.dispatch(
+        ("apply", "verify", "rollback"),
+        harness.context("dispatch-mutating-1", "0.1.11"),
+    )
+    envelope, attachments = read_dispatch(harness.mailbox_root)
+    reference = dict(envelope["verification_policy_ref"])
+    reference["id"] = policy["id"]
+    reference["digest"] = content_digest(canonical_json_bytes(policy))
+    envelope["verification_policy_ref"] = reference
+    envelope = _resigned_envelope(envelope, harness.trust_directory)
+    attachments["verification-policy"] = policy
+    return harness, envelope, attachments
+
+
+def test_a_policy_forbidding_the_requested_kind_denies_the_mutation(tmp_path: Path) -> None:
+    """An authentic restrictive policy denies a signed, fully approved mutation.
+
+    Every other credential in the dispatch is valid — signature, approvals, target,
+    lease — so the denial can only be the newly enforced clauses. `verify_dispatch`
+    raises before returning, and adapters are constructed only from its return value,
+    so no side effect can precede the denial.
+    """
+
+    harness, envelope, attachments = _mutation_dispatch_with_policy(tmp_path, _restrictive_policy())
+    with pytest.raises(RunnerDenialError) as caught:
+        verify_dispatch(
+            envelope=envelope,
+            attachments=attachments,
+            registry=harness.registry,
+            anchors=TrustAnchors.from_directory(harness.trust_directory),
+            target_document=_target(MUTATION_TARGET),
+            revoked_approval_ids=frozenset(),
+            seen_lease_nonces=frozenset(),
+            now=with_time(harness.now, 60),
+        )
+    assert caught.value.code == "OAK-RUNNER-POLICY"
+
+
+@pytest.mark.parametrize(
+    "clauses",
+    [
+        {"allowed_operation_kinds": "everything"},
+        {"allowed_operation_kinds": ["inventory", 7]},
+        {"mutation_allowed": "yes"},
+    ],
+)
+def test_a_policy_with_malformed_clauses_is_refused(tmp_path: Path, clauses: dict) -> None:
+    """Malformed policy clauses fail closed, never open."""
+
+    policy = _restrictive_policy()
+    policy["content"] = {**policy["content"], **clauses}
+    harness, envelope, attachments = _mutation_dispatch_with_policy(tmp_path, policy)
+    with pytest.raises(RunnerDenialError) as caught:
+        verify_dispatch(
+            envelope=envelope,
+            attachments=attachments,
+            registry=harness.registry,
+            anchors=TrustAnchors.from_directory(harness.trust_directory),
+            target_document=_target(MUTATION_TARGET),
+            revoked_approval_ids=frozenset(),
+            seen_lease_nonces=frozenset(),
+            now=with_time(harness.now, 60),
+        )
+    assert caught.value.code == "OAK-RUNNER-POLICY"
+
+
+def test_a_denied_policy_leaves_no_journal_and_publishes_a_denial(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """The full runner path: a restrictive policy denies with no side effect at all.
+
+    Uses real timestamps so the lease and approvals are current when `run_once` reads
+    its own clock; the fixed harness clock would read as an expired lease and mask the
+    policy denial behind `OAK-RUNNER-LEASE`.
+    """
+
+    import json as json_module
+    from datetime import UTC, datetime
+
+    from oak.runner.main import run_once
+
+    real_now = datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
+    harness, envelope, attachments = _mutation_dispatch_with_policy(
+        tmp_path, _restrictive_policy(), now=real_now
+    )
+    dispatch_dir = next((harness.mailbox_root / "dispatches").iterdir())
+    (dispatch_dir / "envelope.json").write_bytes(canonical_json_bytes(envelope))
+    (dispatch_dir / "verification-policy.json").write_bytes(
+        canonical_json_bytes(attachments["verification-policy"])
+    )
+
+    home = tmp_path / "runner-home"
+    monkeypatch.setenv("OAK_RUNNER_MAILBOX", str(harness.mailbox_root))
+    monkeypatch.setenv("OAK_RUNNER_HOME", str(home))
+    monkeypatch.setenv("OAK_RUNNER_TRUST_ANCHORS", str(harness.trust_directory))
+    monkeypatch.setenv(
+        "OAK_RUNNER_TARGET_PROFILE",
+        str(ROOT / "examples/targets" / MUTATION_TARGET),
+    )
+    assert run_once() == 0
+
+    assert not (home / "journals").exists(), "a denied dispatch must never open a journal"
+    messages = sorted((harness.mailbox_root / "messages").glob("*.json"))
+    assert messages, "the denial must be published as a signed completion"
+    payloads = [json_module.loads(path.read_text(encoding="utf-8"))["payload"] for path in messages]
+    assert any(
+        entry["outcome"] == "denied" and entry["denial_code"] == "OAK-RUNNER-POLICY"
+        for entry in payloads
+    )
