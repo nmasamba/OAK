@@ -4,7 +4,7 @@
 
 ## Status
 
-- Owner/agent: Claude
+- Owner/agent: owner-directed coding agent
 - Started: 2026-08-21
 - Last updated: 2026-08-21
 - State: done; `OAK-S8-009` decided by the owner on 2026-08-22

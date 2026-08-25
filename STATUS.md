@@ -7,15 +7,17 @@
 - **Phase:** Pre-launch hardening complete — `0.7.0` was approved as a local-first developer release but never published; the release is re-cut as `0.7.1`, awaiting a fresh owner approval
 - **Completed plans:** `docs/exec-plans/completed/OAK-S0-001-009-walking-skeleton.md`, `docs/exec-plans/completed/OAK-S1-001-010-local-design-case.md`, `docs/exec-plans/completed/OAK-S2-001-011-candidate-planning.md`, `docs/exec-plans/completed/OAK-S3-001-009-persistent-rest-jobs.md`, `docs/exec-plans/completed/OAK-S4-001-009-web-workspace.md`, `docs/exec-plans/completed/OAK-S5-001-011-signed-runner.md`, `docs/exec-plans/completed/OAK-S6-001-008-policy-adapter-sdk.md`, `docs/exec-plans/completed/OAK-S7-001-008-mcp-portal-interface-parity.md`, `docs/exec-plans/completed/OAK-S8-001-009-community-release-hardening.md`, and `docs/exec-plans/completed/OAK-PL-001-007-pre-launch-hardening.md`
 - **Active plan:** none — the pre-launch hardening plan is complete
-- **Next task:** the pre-launch hardening plan is complete, including its closing
-  adversarial audit (23 findings raised, 15 confirmed and fixed or dispositioned, 8
-  refuted — see the completed plan's audit section). Seven register entries were closed
-  by this work (`RR-001`, `RR-003`, `RR-011`, `RR-032`, `RR-034`, `RR-037`, `RR-038`;
-  eight of the register's 38 rows are now closed, `RR-035` predating it), including
-  both standing conditions from the `0.7.0` approval, with the one sanctioned digest
-  migration recorded in `CHANGELOG.md`. Nothing is published and no tag is pushed.
-  What remains: merge the PR once remote CI is green, then the owner's fresh approval
-  of `docs/release/0.7.1/release-decision.md` (unsigned draft)
+- **Next task:** the pre-launch hardening PR (#13) is **merged** (`2d85322`), with its
+  closing adversarial audit complete (23 findings raised, 15 confirmed and fixed or
+  dispositioned, 8 refuted — see the completed plan's audit section). Seven register
+  entries were closed by this work (`RR-001`, `RR-003`, `RR-011`, `RR-032`, `RR-034`,
+  `RR-037`, `RR-038`; eight of the register's 38 rows are now closed, `RR-035`
+  predating it), including both standing conditions from the `0.7.0` approval, with the
+  one sanctioned digest migration recorded in `CHANGELOG.md`. Nothing is published and
+  no tag is pushed. What remains is the owner's: approve
+  `docs/release/0.7.1/release-decision.md` (unsigned draft), then tag `v0.7.1` and
+  decide where — if anywhere — to publish. An illustrated user manual lives at
+  `docs/manual/`
 
 ## Claimed work
 

@@ -6,6 +6,7 @@
 
 | If you want to | Read |
 |---|---|
+| Follow an illustrated end-to-end walkthrough | [manual/OAK-Community-Manual.pdf](manual/OAK-Community-Manual.pdf) (source and rebuild instructions in [manual/](manual/)) |
 | Run OAK on your machine | [../README.md](../README.md), then [platforms.md](platforms.md) |
 | Operate it: back up, restore, upgrade, uninstall | [operations.md](operations.md) |
 | Look up a setting | [configuration.md](configuration.md) |

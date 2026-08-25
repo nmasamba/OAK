@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>OAK Community User Manual — 0.7.1</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm 20mm 16mm; }
+  * { box-sizing: border-box; }
+  body { font-family: Georgia, "Times New Roman", serif; color: #1c2320; background: #ffffff; margin: 0; font-size: 11pt; line-height: 1.55; }
+  header.cover { height: 250mm; display: flex; flex-direction: column; justify-content: center; page-break-after: always; }
+  .cover h1 { font-size: 34pt; margin: 0 0 4mm 0; letter-spacing: -0.5px; }
+  .cover .subtitle { font-size: 14pt; color: #38564a; margin-bottom: 10mm; }
+  .cover .meta { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 9.5pt; color: #5a6b63; border-top: 1px solid #c9d6cf; padding-top: 5mm; max-width: 120mm; }
+  .cover .honest { margin-top: 14mm; padding: 5mm 6mm; background: #f2f6f3; border-left: 3px solid #38564a; font-size: 10pt; max-width: 150mm; }
+  h1 { font-size: 19pt; margin: 0 0 4mm 0; page-break-after: avoid; }
+  h2 { font-size: 13.5pt; margin: 7mm 0 2.5mm 0; page-break-after: avoid; color: #24382f; }
+  h3 { font-size: 11.5pt; margin: 5mm 0 2mm 0; page-break-after: avoid; }
+  section.chapter { page-break-before: always; }
+  p { margin: 0 0 3mm 0; }
+  .kicker { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 8.5pt; letter-spacing: 1.5px; text-transform: uppercase; color: #38564a; margin-bottom: 1.5mm; }
+  code, pre { font-family: "SF Mono", Menlo, Consolas, monospace; }
+  code { font-size: 9.5pt; background: #f1f4f2; padding: 0.5px 3px; border-radius: 2px; }
+  pre { font-size: 9pt; background: #1c2320; color: #e8efe9; padding: 3.5mm 4mm; border-radius: 3px; overflow-x: hidden; white-space: pre-wrap; word-break: break-word; page-break-inside: avoid; margin: 2.5mm 0 3.5mm 0; }
+  pre code { background: none; color: inherit; padding: 0; }
+  pre .out { color: #94a89d; }
+  table { border-collapse: collapse; width: 100%; font-size: 9.5pt; margin: 2.5mm 0 4mm 0; page-break-inside: avoid; }
+  th, td { border: 1px solid #c9d6cf; padding: 1.8mm 2.5mm; text-align: left; vertical-align: top; }
+  th { background: #eef3ef; font-family: "Helvetica Neue", Arial, sans-serif; font-size: 8.5pt; letter-spacing: 0.5px; text-transform: uppercase; }
+  figure { margin: 4mm 0 5mm 0; page-break-inside: avoid; }
+  figure img { width: 100%; border: 1px solid #c9d6cf; border-radius: 3px; }
+  figure.diagram svg { width: 100%; height: auto; }
+  figcaption { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 8.5pt; color: #5a6b63; margin-top: 1.5mm; }
+  .note { background: #f2f6f3; border-left: 3px solid #38564a; padding: 2.5mm 4mm; margin: 3mm 0 4mm 0; font-size: 10pt; page-break-inside: avoid; }
+  .warn { background: #faf3ee; border-left: 3px solid #a8552e; padding: 2.5mm 4mm; margin: 3mm 0 4mm 0; font-size: 10pt; page-break-inside: avoid; }
+  nav.toc ol { font-size: 11pt; line-height: 2; padding-left: 6mm; }
+  .cols { display: flex; gap: 6mm; }
+  .cols > div { flex: 1; }
+  ul, ol { margin: 0 0 3mm 0; padding-left: 6mm; }
+  li { margin-bottom: 1mm; }
+</style>
+</head>
+<body>
+
+<header class="cover">
+  <div class="kicker">User manual · version 0.7.1</div>
+  <h1>OAK Community</h1>
+  <div class="subtitle">From an architecture brief to a signed, independently verified plan — entirely on your own machine.</div>
+  <div class="honest">
+    <strong>What this is.</strong> OAK Community 0.7.1 is a <em>local-first developer
+    release</em>. It carries no production or customer readiness claim, and no external
+    security review was commissioned for it. Everything in this manual runs on your own
+    machine against public or synthetic fixtures; the only mutation the runner can ever
+    perform is creating and removing one network-isolated, never-started container that
+    you explicitly acknowledge. The authoritative statements of scope and limitation are
+    <code>SECURITY.md</code> and <code>docs/security/residual-risk.md</code> in the
+    repository.
+  </div>
+  <div class="meta">
+    Covers OAK Community 0.7.1 · generated from <code>docs/manual/</code> in the
+    repository — see the colophon for how to rebuild this document and re-capture its
+    screenshots from a live system.
+  </div>
+</header>
+
+<nav class="toc">
+  <div class="kicker">Contents</div>
+  <ol>
+    <li>What OAK Community is — and is not</li>
+    <li>Installing on a fresh machine</li>
+    <li>The command-line journey: brief to compiled bundle</li>
+    <li>The browser workspace</li>
+    <li>The signed runner: sign, approve, dispatch, verify, revoke</li>
+    <li>Verifying release artifacts</li>
+    <li>Troubleshooting</li>
+    <li>Uninstalling completely</li>
+    <li>Colophon: how this manual is built</li>
+  </ol>
+</nav>
+
+<section class="chapter">
+  <div class="kicker">Chapter 1</div>
+  <h1>What OAK Community is — and is not</h1>
+  <p>
+    OAK Community is a compiler-shaped control plane for designing, evaluating and
+    planning AI systems. You feed it an <strong>architecture brief</strong> — a bounded
+    YAML description of a problem, its stakeholders, data, quality priorities and
+    constraints — and it walks that brief through a deterministic pipeline: it
+    interprets the brief into typed claims with provenance, asks you at most five ranked
+    clarification questions, generates and compares candidate architectures against hard
+    constraints, evaluates the selected candidate against an evaluation contract,
+    records an immutable decision with your rationale, attaches an assurance plan, and
+    finally compiles a canonical <strong>deployment bundle</strong> and a typed,
+    non-executing <strong>runner plan</strong>.
+  </p>
+  <figure class="diagram">
+    <svg viewBox="0 0 1000 190" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The OAK pipeline from brief to runner plan">
+      <defs>
+        <marker id="arr" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 z" fill="#38564a"/></marker>
+      </defs>
+      <g font-family="Helvetica, Arial, sans-serif" font-size="15">
+        <rect x="8" y="60" width="102" height="52" rx="6" fill="#eef3ef" stroke="#38564a"/><text x="59" y="82" text-anchor="middle">brief</text><text x="59" y="100" text-anchor="middle" font-size="11" fill="#5a6b63">YAML input</text>
+        <rect x="134" y="60" width="112" height="52" rx="6" fill="#fff" stroke="#38564a"/><text x="190" y="82" text-anchor="middle">interpret</text><text x="190" y="100" text-anchor="middle" font-size="11" fill="#5a6b63">claims + origin</text>
+        <rect x="270" y="60" width="112" height="52" rx="6" fill="#fff" stroke="#38564a"/><text x="326" y="82" text-anchor="middle">confirm</text><text x="326" y="100" text-anchor="middle" font-size="11" fill="#5a6b63">5 questions</text>
+        <rect x="406" y="60" width="118" height="52" rx="6" fill="#fff" stroke="#38564a"/><text x="465" y="82" text-anchor="middle">candidates</text><text x="465" y="100" text-anchor="middle" font-size="11" fill="#5a6b63">4 variants, Pareto</text>
+        <rect x="548" y="60" width="112" height="52" rx="6" fill="#fff" stroke="#38564a"/><text x="604" y="82" text-anchor="middle">evaluate</text><text x="604" y="100" text-anchor="middle" font-size="11" fill="#5a6b63">contract run</text>
+        <rect x="684" y="60" width="130" height="52" rx="6" fill="#fff" stroke="#38564a"/><text x="749" y="82" text-anchor="middle">select + assure</text><text x="749" y="100" text-anchor="middle" font-size="11" fill="#5a6b63">immutable decision</text>
+        <rect x="838" y="38" width="154" height="44" rx="6" fill="#24382f" stroke="#24382f"/><text x="915" y="65" text-anchor="middle" fill="#fff">deployment bundle</text>
+        <rect x="838" y="96" width="154" height="44" rx="6" fill="#24382f" stroke="#24382f"/><text x="915" y="123" text-anchor="middle" fill="#fff">runner plan (inert)</text>
+        <line x1="110" y1="86" x2="130" y2="86" stroke="#38564a" stroke-width="1.6" marker-end="url(#arr)"/>
+        <line x1="246" y1="86" x2="266" y2="86" stroke="#38564a" stroke-width="1.6" marker-end="url(#arr)"/>
+        <line x1="382" y1="86" x2="402" y2="86" stroke="#38564a" stroke-width="1.6" marker-end="url(#arr)"/>
+        <line x1="524" y1="86" x2="544" y2="86" stroke="#38564a" stroke-width="1.6" marker-end="url(#arr)"/>
+        <line x1="660" y1="86" x2="680" y2="86" stroke="#38564a" stroke-width="1.6" marker-end="url(#arr)"/>
+        <line x1="814" y1="72" x2="834" y2="62" stroke="#38564a" stroke-width="1.6" marker-end="url(#arr)"/>
+        <line x1="814" y1="100" x2="834" y2="112" stroke="#38564a" stroke-width="1.6" marker-end="url(#arr)"/>
+        <text x="500" y="170" text-anchor="middle" font-size="12" fill="#5a6b63">Every stage is deterministic, offline, and writes immutable content-addressed artifacts with an audit trail.</text>
+      </g>
+    </svg>
+    <figcaption>Figure 1 — the pipeline. The compiled plan is inert: executing anything requires the separate signing, approval and runner verification described in chapter 5.</figcaption>
+  </figure>
+  <p>
+    Three properties shape everything you will see. <strong>Deterministic:</strong> the
+    same inputs produce byte-identical canonical artifacts, so digests are meaningful
+    and two clean machines agree. <strong>Offline:</strong> after installation, no
+    command in this manual needs a network, a hosted service, or a model provider.
+    <strong>Fail-closed:</strong> anything unknown, malformed, expired, unsigned or
+    mismatched is refused with a stable <code>OAK-*</code> error code, never skipped.
+  </p>
+  <h2>What it is not</h2>
+  <p>
+    It is not a deployment tool for real infrastructure: the only target it will ever
+    touch is an explicitly acknowledged, network-isolated local fixture. It is not
+    multi-tenant, has no authentication, and binds to loopback. It is not a hosted
+    service and never phones home. And a compiled plan is not permission to run
+    anything — execution authority comes only from the signing and approval chain in
+    chapter 5, verified independently by the runner.
+  </p>
+</section>
+
+<section class="chapter">
+  <div class="kicker">Chapter 2</div>
+  <h1>Installing on a fresh machine</h1>
+  <h2>Prerequisites</h2>
+  <table>
+    <tr><th>Requirement</th><th>Version</th><th>Notes</th></tr>
+    <tr><td>macOS or Linux</td><td>macOS 14+ arm64/x86_64, Linux glibc ≥ 2.24 (x86_64) / ≥ 2.27 (aarch64)</td><td>See <code>docs/platforms.md</code> for the authoritative matrix</td></tr>
+    <tr><td><code>git</code></td><td>any recent</td><td>Required even offline: the hygiene check shells out to it</td></tr>
+    <tr><td><code>uv</code></td><td>0.10.x</td><td>Installs and pins Python 3.13.12 itself</td></tr>
+    <tr><td>Node.js + <code>pnpm</code></td><td>pnpm 11.15.1</td><td>Only for the web workspace. pnpm downloads and runs the pinned Node 24.18.0 itself, so your system Node version does not matter</td></tr>
+    <tr><td>Docker with Compose</td><td>any recent</td><td>Only for the web stack (ch. 4) and the runner's apply cycle (ch. 5)</td></tr>
+  </table>
+  <h2>Install</h2>
+  <pre><code>git clone https://github.com/nmasamba/OAK.git
+cd OAK
+make bootstrap</code></pre>
+  <p>
+    <code>make bootstrap</code> installs the locked Python and web dependencies and
+    downloads pnpm's managed Node runtime. It is the one step that uses the network;
+    everything after it works with egress disabled.
+  </p>
+  <pre><code>uv run oak --version
+<span class="out">0.7.1</span></code></pre>
+  <div class="note">
+    Throughout this manual, commands are shown as <code>uv run oak …</code> so they work
+    from the repository without activating anything. If you prefer, activate the
+    environment once (<code>source .venv/bin/activate</code>) and drop the
+    <code>uv run</code> prefix.
+  </div>
+  <h2>Optional: run the full verification gate</h2>
+  <pre><code>make check</code></pre>
+  <p>
+    This runs formatting, linting, type checks, boundary rules, contract validation and
+    the unit, integration and end-to-end suites — around ten minutes. The
+    PostgreSQL-gated suites skip silently unless a database is published; that is
+    expected on a fresh machine and documented in <code>docs/development.md</code>.
+  </p>
+</section>
+
+<section class="chapter">
+  <div class="kicker">Chapter 3</div>
+  <h1>The command-line journey: brief to compiled bundle</h1>
+  <p>
+    This chapter follows the reference brief that ships with the repository — a
+    citation-first documentation-search service — from intake to a compiled bundle.
+    Every command runs offline. Start in the repository root and create a workspace:
+  </p>
+  <pre><code>uv run oak init ./workspace
+cd workspace</code></pre>
+  <h2>1 · Ingest and interpret the brief</h2>
+  <pre><code>uv run oak design ../examples/briefs/public-manual-qa.yaml</code></pre>
+  <p>
+    OAK quarantines the brief as an untrusted source record, then deterministically
+    interprets it into a typed intent. Every populated value carries provenance: a
+    <em>fact</em> quoted from the brief, an <em>inference</em>, or a <em>domain
+    default</em> — you will see these classes again in the browser workspace.
+  </p>
+  <h2>2 · Review the questions, then confirm</h2>
+  <pre><code>uv run oak questions</code></pre>
+  <p>
+    At most five ranked questions, each explaining why it matters to candidate choice.
+    Answers live in a small YAML file; the reference answers ship alongside the brief:
+  </p>
+  <pre><code>uv run oak confirm --answers ../examples/briefs/public-manual-qa-answers.yaml</code></pre>
+  <p>
+    Confirmation creates immutable successors for the affected claims — the original
+    interpretation is never edited, and the audit trail records who decided what.
+  </p>
+  <h2>3 · Generate and compare candidates</h2>
+  <pre><code>uv run oak candidates</code></pre>
+  <p>
+    Four provider-neutral candidate architectures are generated from a bundled synthetic
+    catalogue, checked against hard constraints, and scored with transparent estimator
+    ranges (cost, latency, quality, operability, energy). Infeasible candidates stay
+    visible with their rejection reasons — in the reference case,
+    <code>candidate-04</code> fails a hardware constraint and says so.
+  </p>
+  <h2>4 · Evaluate, select, assure</h2>
+  <pre><code>uv run oak evaluate candidate-03
+printf 'Balanced trade-off between quality, cost, and operability.\n' &gt; decision.md
+uv run oak select candidate-03 --rationale-file decision.md
+uv run oak assure candidate-03 --output ./assurance</code></pre>
+  <p>
+    <code>evaluate</code> runs the deterministic reference evaluation contract and
+    records pass/fail per metric. <code>select</code> records an immutable decision
+    bound to you (<code>OAK_ACTOR</code>), your rationale, and the rejected
+    alternatives. <code>assure</code> writes the assurance plan: required tests,
+    evidence, controls, owners, and the gate blockers that stand between this design
+    and any real deployment.
+  </p>
+  <h2>5 · Compile the bundle and the runner plan</h2>
+  <pre><code>uv run oak plan candidate-03 \
+  --target ../examples/targets/local-fixture.yaml \
+  --output ./bundle</code></pre>
+  <p>
+    The target profile is explicit invocation data — OAK never treats your machine as
+    the target. Compilation validates the profile, binds it to the tenant, checks the
+    candidate's platform and capacity requirements against it, and emits the canonical
+    files: the semantic manifest, the deployment bundle, and a <code>draft</code> typed
+    runner plan whose verification policy is derived from that exact target. For this
+    read-only fixture the plan contains only <code>inventory</code>,
+    <code>validate</code>, <code>render</code>, <code>plan</code> and
+    <code>verify</code> operations.
+  </p>
+  <div class="note">
+    Two clean machines running this chapter produce byte-identical semantic manifests —
+    that is the determinism promise, and it is what makes the digests in chapter 5
+    worth signing.
+  </div>
+  <h2>Export and import</h2>
+  <pre><code>uv run oak export --output ../case-export
+uv run oak import ../case-export --workspace ../restored</code></pre>
+  <p>
+    The export is the portable, digest-verified unit — also your backup before any
+    upgrade. Import revalidates every artifact, digest and audit event before
+    publishing the restored workspace.
+  </p>
+</section>
+
+<section class="chapter">
+  <div class="kicker">Chapter 4</div>
+  <h1>The browser workspace</h1>
+  <p>
+    The web workspace drives the same journey through a reviewer-friendly interface,
+    backed by a persistent PostgreSQL control plane. Start the stack:
+  </p>
+  <pre><code>docker compose up -d --build</code></pre>
+  <div class="warn">
+    Always pass <code>--build</code>: Compose happily reuses a stale cached image after
+    you change source. Confirm what you are running with
+    <code>curl http://127.0.0.1:8080/version</code> — it must report 0.7.1.
+  </div>
+  <p>
+    The API listens on <code>127.0.0.1:8080</code> and the workspace on
+    <code>http://127.0.0.1:5173</code> — loopback only, by design. The screenshots below
+    are captured from a real journey against this stack.
+  </p>
+  <figure><img src="assets/01-case-list.png" alt="The design cases list screen"><figcaption>The case list. Paste a brief (or start from the reference brief) and create a case.</figcaption></figure>
+  <figure><img src="assets/02-create-case.png" alt="Creating a case from a pasted brief"><figcaption>Creating a case: the brief file name and content, exactly as the CLI would ingest them.</figcaption></figure>
+  <figure><img src="assets/03-case-detail.png" alt="Case detail after interpretation"><figcaption>After “Interpret brief” the case reaches <em>needs_confirmation</em>; the next actions are server-driven, so the UI can never invent a transition the control plane would refuse.</figcaption></figure>
+  <figure><img src="assets/04-brief-review.png" alt="Interpreted claims with provenance classes"><figcaption>Claim review: every value is labelled a fact from the brief, an inference, or a domain default, with the unknowns listed beneath.</figcaption></figure>
+  <figure><img src="assets/05-questions.png" alt="The five ranked confirmation questions"><figcaption>The five ranked questions. Confirm, correct (with a value), reject, or accept-risk — each with a recorded rationale.</figcaption></figure>
+  <figure><img src="assets/06-operation.png" alt="A durable operation in progress"><figcaption>Long stages run as durable operations: they survive restarts, can be cancelled cooperatively, and record their outcome.</figcaption></figure>
+  <figure><img src="assets/07-candidates.png" alt="Candidate comparison with an infeasible variant"><figcaption>Candidate comparison. Note the infeasible candidate staying visible with its constraint failure — rejection reasons are first-class.</figcaption></figure>
+  <figure><img src="assets/08-decision-assurance.png" alt="Decision and assurance plan"><figcaption>The immutable decision with evaluation evidence, plus the assurance plan's controls and gate blockers.</figcaption></figure>
+  <figure><img src="assets/09-bundle.png" alt="Compiled bundle review"><figcaption>Bundle review. Plan, approval and apply are deliberately separated — and apply is marked unavailable here: the web surface holds no runner execution authority.</figcaption></figure>
+  <figure><img src="assets/10-timeline.png" alt="Audit timeline"><figcaption>The audit timeline: every command, actor and artifact from case creation to <em>bundle_compiled</em>, exportable as a canonical JSON bundle.</figcaption></figure>
+  <p>Stop the stack with <code>docker compose down</code> (add <code>--volumes</code> to also drop the local database and artifact store).</p>
+</section>
+
+<section class="chapter">
+  <div class="kicker">Chapter 5</div>
+  <h1>The signed runner: sign, approve, dispatch, verify, revoke</h1>
+  <p>
+    Everything so far produced <em>inert</em> artifacts. This chapter is where OAK lets
+    something run — under the strictest discipline in the system. Two separate trust
+    domains cooperate without ever trusting each other's say-so:
+  </p>
+  <figure class="diagram">
+    <svg viewBox="0 0 1000 330" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Control plane and runner trust domains connected only by a filesystem mailbox">
+      <defs><marker id="arr2" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 z" fill="#38564a"/></marker></defs>
+      <g font-family="Helvetica, Arial, sans-serif" font-size="14">
+        <rect x="10" y="20" width="380" height="290" rx="8" fill="#eef3ef" stroke="#38564a"/>
+        <text x="200" y="45" text-anchor="middle" font-size="16" font-weight="bold">Control plane (oak CLI)</text>
+        <rect x="35" y="65" width="330" height="40" rx="5" fill="#fff" stroke="#38564a"/><text x="200" y="90" text-anchor="middle">sign — plan-signer key binds plan + bundle digests</text>
+        <rect x="35" y="115" width="330" height="40" rx="5" fill="#fff" stroke="#38564a"/><text x="200" y="140" text-anchor="middle">approve — per-action, digest/target/expiry bound</text>
+        <rect x="35" y="165" width="330" height="40" rx="5" fill="#fff" stroke="#38564a"/><text x="200" y="190" text-anchor="middle">dispatch — signed lease envelope + attachments</text>
+        <rect x="35" y="215" width="330" height="40" rx="5" fill="#fff" stroke="#38564a"/><text x="200" y="240" text-anchor="middle">revoke — signed notice + signed set manifest</text>
+        <text x="200" y="292" text-anchor="middle" font-size="11" fill="#5a6b63">private keys in ~/.oak/trust (development-labelled)</text>
+
+        <rect x="430" y="90" width="140" height="150" rx="8" fill="#fff" stroke="#a8552e" stroke-dasharray="5 3"/>
+        <text x="500" y="115" text-anchor="middle" font-weight="bold">mailbox</text>
+        <text x="500" y="140" text-anchor="middle" font-size="11">dispatches/</text>
+        <text x="500" y="160" text-anchor="middle" font-size="11">revocations/ + manifest</text>
+        <text x="500" y="180" text-anchor="middle" font-size="11">messages/</text>
+        <text x="500" y="215" text-anchor="middle" font-size="10.5" fill="#a8552e">untrusted files —</text>
+        <text x="500" y="230" text-anchor="middle" font-size="10.5" fill="#a8552e">everything re-verified</text>
+
+        <rect x="610" y="20" width="380" height="290" rx="8" fill="#eef3ef" stroke="#38564a"/>
+        <text x="800" y="45" text-anchor="middle" font-size="16" font-weight="bold">Runner (oak-runner) — separate trust domain</text>
+        <rect x="635" y="65" width="330" height="52" rx="5" fill="#fff" stroke="#38564a"/><text x="800" y="86" text-anchor="middle">verifies everything against pinned anchors:</text><text x="800" y="106" text-anchor="middle" font-size="11.5" fill="#5a6b63">revocation set · digests · signatures · target · lease · policy · approvals</text>
+        <rect x="635" y="127" width="330" height="40" rx="5" fill="#fff" stroke="#38564a"/><text x="800" y="152" text-anchor="middle">executes typed operations only — no shell, ever</text>
+        <rect x="635" y="177" width="330" height="40" rx="5" fill="#fff" stroke="#38564a"/><text x="800" y="202" text-anchor="middle">verifies the digest the runtime actually resolved</text>
+        <rect x="635" y="227" width="330" height="40" rx="5" fill="#fff" stroke="#38564a"/><text x="800" y="252" text-anchor="middle">hash-chained journal + signed completion message</text>
+        <text x="800" y="292" text-anchor="middle" font-size="11" fill="#5a6b63">no database credential · no listening socket · outbound-only</text>
+
+        <line x1="390" y1="150" x2="426" y2="150" stroke="#38564a" stroke-width="1.6" marker-end="url(#arr2)"/>
+        <line x1="570" y1="150" x2="606" y2="150" stroke="#38564a" stroke-width="1.6" marker-end="url(#arr2)"/>
+        <line x1="606" y1="185" x2="570" y2="185" stroke="#38564a" stroke-width="1.6" marker-end="url(#arr2)"/>
+        <line x1="426" y1="185" x2="390" y2="185" stroke="#38564a" stroke-width="1.6" marker-end="url(#arr2)"/>
+      </g>
+    </svg>
+    <figcaption>Figure 2 — two trust domains, one untrusted mailbox. A tampered mailbox file is an expected adversarial case: the runner recomputes and re-verifies everything from pinned keys, and any failure is a denial with a stable code, published back as a signed message.</figcaption>
+  </figure>
+
+  <h2>Set up and compile against the mutation fixture</h2>
+  <p>
+    The runner demonstration uses the one mutation-capable target that ships: an
+    acknowledged, network-isolated fixture whose only permitted mutation is creating
+    and removing a single never-started container (Docker required). Set the
+    environment, then compile chapter 3's journey against that target:
+  </p>
+  <pre><code>export OAK_TRUST_DIRECTORY=$PWD/trust
+export OAK_DISPATCH_MAILBOX=$PWD/mailbox
+export OAK_ACTOR=local-user
+
+uv run oak init ./runner-demo &amp;&amp; cd runner-demo
+uv run oak design ../examples/briefs/public-manual-qa.yaml
+uv run oak confirm --answers ../examples/briefs/public-manual-qa-answers.yaml
+uv run oak candidates
+uv run oak evaluate candidate-03
+printf 'Balanced fixture for the runner demonstration.\n' &gt; decision.md
+uv run oak select candidate-03 --rationale-file decision.md
+uv run oak assure candidate-03 --output ./assurance
+uv run oak plan candidate-03 \
+  --target ../examples/targets/local-mutation-fixture.yaml \
+  --output ./bundle</code></pre>
+
+  <h2>Sign, approve, dispatch</h2>
+  <pre><code>uv run oak keys init
+uv run oak sign
+uv run oak approve dry_run
+uv run oak approve apply
+uv run oak approve rollback
+uv run oak dispatch apply verify rollback</code></pre>
+  <p>
+    <code>keys init</code> creates three development-labelled Ed25519 identities with
+    separated roles — the plan-signer may not approve, and the runner enforces that the
+    two signatures come from different keys. Each <code>approve</code> is bound to one
+    action, the exact plan and bundle digests, the target's identity and fingerprint, a
+    nonce, and an expiry. <code>dispatch</code> writes the signed lease envelope and
+    every attachment into the mailbox — delivery, not execution.
+  </p>
+
+  <h2>Run the runner</h2>
+  <pre><code>OAK_RUNNER_MAILBOX=$OAK_DISPATCH_MAILBOX \
+OAK_RUNNER_TRUST_ANCHORS=$OAK_TRUST_DIRECTORY \
+OAK_RUNNER_TARGET_PROFILE=../examples/targets/local-mutation-fixture.yaml \
+OAK_RUNNER_HOME=$PWD/runner-home \
+uv run oak-runner run-once</code></pre>
+  <p>
+    The runner independently verifies the revocation set, the envelope, every digest
+    and signature against its own pinned anchors, the target fingerprint it recomputes
+    locally, the lease and nonce, the compiled verification policy's clauses, the
+    adapter allowlist and typed parameters, and the approvals — all before touching
+    anything. It then creates the fixture container with
+    <code>docker create --network=none</code>, reads back the image digest the daemon
+    actually resolved and refuses on any mismatch, verifies, rolls back — removing
+    exactly what it created — and publishes a signed completion message. Then:
+  </p>
+  <pre><code>uv run oak ingest --output json
+uv run oak-runner status</code></pre>
+  <p>
+    <code>ingest</code> verifies the runner's signed messages — delivery never implies
+    success — and <code>status</code> reports the journal's hash-chain integrity and
+    any manual-recovery state.
+  </p>
+
+  <h2>Revocation — and why deleting files does not help</h2>
+  <pre><code>uv run oak revoke-approval apply --reason "manual drill"</code></pre>
+  <figure class="diagram">
+    <svg viewBox="0 0 1000 210" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Revocation manifest protecting the notice set">
+      <defs><marker id="arr3" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 z" fill="#38564a"/></marker></defs>
+      <g font-family="Helvetica, Arial, sans-serif" font-size="13.5">
+        <rect x="10" y="30" width="230" height="120" rx="6" fill="#eef3ef" stroke="#38564a"/>
+        <text x="125" y="55" text-anchor="middle" font-weight="bold">revocations/</text>
+        <text x="125" y="80" text-anchor="middle" font-size="12">notice A (signed)</text>
+        <text x="125" y="100" text-anchor="middle" font-size="12">notice B (signed)</text>
+        <text x="125" y="128" text-anchor="middle" font-size="12" font-weight="bold">manifest.json (signed)</text>
+        <rect x="300" y="20" width="330" height="140" rx="6" fill="#fff" stroke="#38564a"/>
+        <text x="465" y="45" text-anchor="middle" font-weight="bold">the manifest inventories the set</text>
+        <text x="465" y="70" text-anchor="middle" font-size="12">every notice's canonical digest, both ways</text>
+        <text x="465" y="90" text-anchor="middle" font-size="12">a strictly increasing sequence number</text>
+        <text x="465" y="110" text-anchor="middle" font-size="12">signed by the approver key</text>
+        <text x="465" y="140" text-anchor="middle" font-size="11.5" fill="#5a6b63">the first dispatch establishes an empty manifest</text>
+        <rect x="690" y="20" width="300" height="140" rx="6" fill="#faf3ee" stroke="#a8552e"/>
+        <text x="840" y="45" text-anchor="middle" font-weight="bold" fill="#a8552e">so every tampering denies</text>
+        <text x="840" y="70" text-anchor="middle" font-size="12">delete one notice → set mismatch</text>
+        <text x="840" y="90" text-anchor="middle" font-size="12">delete the manifest → missing manifest</text>
+        <text x="840" y="110" text-anchor="middle" font-size="12">restore an older signed set → sequence</text>
+        <text x="840" y="126" text-anchor="middle" font-size="12">regression vs the runner's own record</text>
+        <text x="840" y="150" text-anchor="middle" font-size="11.5" fill="#a8552e">all OAK-RUNNER-REVOCATION</text>
+        <line x1="240" y1="90" x2="296" y2="90" stroke="#38564a" stroke-width="1.6" marker-end="url(#arr3)"/>
+        <line x1="630" y1="90" x2="686" y2="90" stroke="#38564a" stroke-width="1.6" marker-end="url(#arr3)"/>
+        <text x="500" y="195" text-anchor="middle" font-size="12" fill="#5a6b63">A revoked approval stays revoked: the runner would rather deny every pending dispatch than guess about a revocation set it cannot prove.</text>
+      </g>
+    </svg>
+    <figcaption>Figure 3 — the revocation channel. Notices and their signed set manifest; the runner records the highest manifest sequence it has seen in its own home directory.</figcaption>
+  </figure>
+</section>
+
+<section class="chapter">
+  <div class="kicker">Chapter 6</div>
+  <h1>Verifying release artifacts</h1>
+  <p>
+    If you received OAK Community as built artifacts rather than as this repository,
+    verify them before installing anything. The repository builds with:
+  </p>
+  <pre><code>make release</code></pre>
+  <p>
+    which builds the wheel and sdist twice and fails if the digests differ, installs
+    the wheel into a clean environment holding only the locked runtime closure, runs it
+    from outside the checkout, and emits an SBOM, a licence inventory, and
+    <code>SHA256SUMS</code>. On the consuming side:
+  </p>
+  <pre><code>make verify-release</code></pre>
+  <p>
+    is a dependency-free verifier for the <code>SHA256SUMS</code> manifest. Be aware of
+    what this does and does not prove: checksums prove the bytes match the manifest;
+    they do not prove who produced them. Release artifacts are deliberately not signed
+    yet (<code>RR-005</code> in the residual-risk register), and the container images
+    are not byte-reproducible (<code>RR-006</code>) — their SBOMs and provenance under
+    <code>docs/release/0.7.1/</code> record what one build produced.
+  </p>
+</section>
+
+<section class="chapter">
+  <div class="kicker">Chapter 7</div>
+  <h1>Troubleshooting</h1>
+  <table>
+    <tr><th>Symptom</th><th>Likely cause</th><th>What to do</th></tr>
+    <tr><td>A command refuses with <code>OAK-EXPECTED-VERSION</code></td><td>The case advanced since you last read it</td><td>Re-read the case and retry with the current version — this is optimistic concurrency working, not an error to force past</td></tr>
+    <tr><td>The web stack serves an old version</td><td><code>docker compose up -d</code> reused a cached image</td><td>Always <code>--build</code>, then check <code>/version</code></td></tr>
+    <tr><td><code>OAK-RUNNER-REVOCATION</code> on every dispatch</td><td>The revocation manifest is missing or the notice set does not match it</td><td>Re-publish from the control plane (<code>oak revoke-approval</code>, or a fresh dispatch establishes an empty manifest). Do not hand-delete notices — the mismatch is the protection working</td></tr>
+    <tr><td><code>OAK-RUNNER-REPLAY</code> on every dispatch</td><td>The consumed-nonce ledger in <code>$OAK_RUNNER_HOME</code> is corrupt; it deliberately refuses rather than reading as empty</td><td>Inspect <code>consumed-nonces.json</code>; remove it only if you accept that previously burned nonces become replayable</td></tr>
+    <tr><td><code>OAK-WORKSPACE-CORRUPT</code> on every command</td><td>Manifest unreadable, or written by a format this build does not know</td><td>Restore from your last <code>oak export</code> — this is why the manual says export before upgrading</td></tr>
+    <tr><td>Runner exits 64 / 70 with a code on stderr</td><td>64 is configuration refusal, 70 is a verification or execution denial</td><td>Look the code up in <code>docs/error-codes.md</code> — every <code>OAK-*</code> code is documented with its raise site</td></tr>
+  </table>
+  <p>
+    The full runbook is <code>docs/operations.md</code>; the complete generated
+    error-code reference is <code>docs/error-codes.md</code>.
+  </p>
+</section>
+
+<section class="chapter">
+  <div class="kicker">Chapter 8</div>
+  <h1>Uninstalling completely</h1>
+  <pre><code>docker compose down --volumes          # stack, database and artifact volumes
+rm -rf ~/.oak                          # trust keys, runner home, local state
+cd .. &amp;&amp; rm -rf OAK                    # the repository, workspaces and venv</code></pre>
+  <p>
+    <code>~/.oak</code> holds private signing keys, the runner's journal, consumed
+    nonces and its revocation-sequence mark — export anything you want to keep first.
+    Shared caches (<code>~/.cache/uv</code>, the pnpm store, Playwright browsers) and
+    the third-party images OAK pulled (<code>postgres:17.6-alpine</code>,
+    <code>python:3.13.12-slim</code>, <code>node:24.18.0-alpine</code>,
+    <code>nginxinc/nginx-unprivileged:1.29.1-alpine</code>) are yours to keep or remove
+    with <code>docker image rm</code>. <code>scripts/check_clean_machine.py</code>
+    reports what OAK-related state remains.
+  </p>
+</section>
+
+<section class="chapter">
+  <div class="kicker">Chapter 9</div>
+  <h1>Colophon: how this manual is built</h1>
+  <p>
+    The source of this manual is <code>docs/manual/manual.html</code>; the PDF is a
+    rendering of it. Both are committed. To rebuild:
+  </p>
+  <pre><code># screenshots, from a live journey against the Compose stack
+docker compose up -d --build
+OAK_MANUAL_SCREENS=1 pnpm --dir web exec playwright test e2e/manual-screens.spec.ts
+
+# the PDF, using the same pinned Chromium the e2e suite uses
+node docs/manual/build_manual.mjs</code></pre>
+  <p>
+    Every command in chapters 3 and 5 is the exact invocation exercised by the
+    repository's end-to-end suites (<code>tests/e2e/test_cli.py</code>,
+    <code>tests/e2e/test_runner_journey.py</code>), so the suite passing means this
+    manual's commands work. The diagrams are inline SVG in the source. This manual
+    describes OAK Community 0.7.1 — a local-first developer release with no production
+    or customer readiness claim; where this document and
+    <code>docs/security/residual-risk.md</code> could ever disagree, the register wins.
+  </p>
+</section>
+
+</body>
+</html>
