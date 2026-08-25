@@ -41,7 +41,23 @@ SECRET_PATTERNS = (
     re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
     re.compile(r"\bghp_[A-Za-z0-9]{36}\b"),
 )
-TEXT_SUFFIXES = {".md", ".py", ".toml", ".yaml", ".yml", ".json", ".ts", ".tsx", ".js"}
+TEXT_SUFFIXES = {
+    ".md",
+    ".py",
+    ".toml",
+    ".yaml",
+    ".yml",
+    ".json",
+    ".ts",
+    ".tsx",
+    ".js",
+    ".mjs",
+    ".html",
+}
+# Documents a reader consumes, held to the document policy (product references,
+# assurance vocabulary) as well as the secret scan. The user manual's authoritative
+# source is HTML, so suffix alone cannot draw this line.
+DOCUMENT_SUFFIXES = {".md", ".html"}
 
 
 def _text_files() -> Iterable[Path]:
@@ -59,7 +75,7 @@ def _check_patterns() -> list[str]:
     for path in _text_files():
         text = path.read_text(encoding="utf-8")
         relative = path.relative_to(ROOT)
-        if path.suffix.lower() == ".md":
+        if path.suffix.lower() in DOCUMENT_SUFFIXES:
             if not _is_governance_mirror(relative):
                 for pattern in DOCUMENT_PATTERNS:
                     if pattern.search(text):
@@ -86,7 +102,7 @@ def _is_governance_mirror(relative: Path) -> bool:
 
 
 def _assurance_claims(relative: Path, text: str) -> list[str]:
-    """Report unqualified assurance claims in one markdown document.
+    """Report unqualified assurance claims in one document (markdown or HTML).
 
     Matching is line-scoped, which is a real limit: a claim split across a line break in
     this hard-wrapped corpus is not seen. The gate is a regression guard for a property

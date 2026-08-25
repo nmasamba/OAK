@@ -17,7 +17,9 @@ SOURCE_ROOTS = ("src", "tools", "scripts")
 
 # Read by the browser end-to-end suite (TypeScript) rather than by Python. The scan below
 # covers `src`, `tools` and `scripts`, so these would otherwise look invented.
-WEB_ONLY = frozenset({"OAK_E2E_DOCKER", "OAK_WEB_BASE_URL", "OAK_API_BASE_URL"})
+WEB_ONLY = frozenset(
+    {"OAK_E2E_DOCKER", "OAK_WEB_BASE_URL", "OAK_API_BASE_URL", "OAK_MANUAL_SCREENS"}
+)
 
 
 def _documented() -> set[str]:
@@ -164,6 +166,7 @@ def test_web_side_environment_variables_are_documented_too() -> None:
     web_sources = [
         ROOT / "web" / "playwright.config.ts",
         ROOT / "web" / "e2e" / "support.ts",
+        ROOT / "web" / "e2e" / "manual-screens.spec.ts",
     ]
     read_by_web: set[str] = set()
     for path in web_sources:
