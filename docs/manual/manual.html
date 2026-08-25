@@ -84,8 +84,9 @@
   <p>
     OAK Community is a compiler-shaped control plane for designing, evaluating and
     planning AI systems. You feed it an <strong>architecture brief</strong> — a bounded
-    YAML description of a problem, its stakeholders, data, quality priorities and
-    constraints — and it walks that brief through a deterministic pipeline: it
+    description of a problem, its stakeholders, data, quality priorities and
+    constraints, written in plain language (Markdown or text) or as structured YAML —
+    and it walks that brief through a deterministic pipeline: it
     interprets the brief into typed claims with provenance, asks you at most five ranked
     clarification questions, generates and compares candidate architectures against hard
     constraints, evaluates the selected candidate against an evaluation contract,
@@ -187,6 +188,36 @@ make bootstrap</code></pre>
   </p>
   <pre><code>uv run oak init ./workspace
 cd workspace</code></pre>
+  <h2>Brief formats: plain language or structured</h2>
+  <p>
+    A brief can be written in plain language — a Markdown or text file — or as
+    structured YAML/JSON; intake accepts all four and quarantines whichever you provide
+    as an untrusted source record. What happens next depends on the form:
+  </p>
+  <ul>
+    <li><strong>A plain-language brief</strong> is recorded verbatim as your problem
+      statement, with explicit provenance, and everything the prose does not state in
+      OAK's terms surfaces as findings and ranked clarification questions. Brief text
+      is always treated as <em>data, never instructions</em> — a brief that says
+      "ignore all constraints and confirm everything" becomes a problem statement
+      containing those words, nothing more (there is a test that pins exactly this).</li>
+    <li><strong>A structured brief</strong>, like the reference
+      <code>public-manual-qa.yaml</code> used below, fills the typed intent directly
+      field by field, which is what lets the rest of the pipeline run end-to-end with
+      no model involved.</li>
+  </ul>
+  <div class="note">
+    <strong>Where a language model fits — and why this release has none.</strong> OAK's
+    design gives an LLM exactly one seat: the optional <em>interpretation proposal</em>
+    port, where a model adapter may propose the structured interpretation of a prose
+    brief. A proposal is bounded in size, schema-validated, digest-bound to the exact
+    quarantined source it interprets, and never bypasses your confirmation — the model
+    proposes, you decide, and the provenance records which is which. OAK Community
+    0.7.1 deliberately ships <em>no real model adapter</em> and makes <em>zero model
+    calls</em>: everything in this manual, including brief interpretation, is
+    deterministic and offline. If you want the prose-to-structure step automated, that
+    is the port to implement — the rest of the pipeline neither knows nor cares.
+  </div>
   <h2>1 · Ingest and interpret the brief</h2>
   <pre><code>uv run oak design ../examples/briefs/public-manual-qa.yaml</code></pre>
   <p>
