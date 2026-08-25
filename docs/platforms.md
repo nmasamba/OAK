@@ -2,7 +2,7 @@
 
 # Supported platforms
 
-This is the authoritative statement of where OAK Community `0.7.0` is supported, what
+This is the authoritative statement of where OAK Community `0.7.1` is supported, what
 "supported" means for each row, and what is deliberately out of scope. Prerequisites that
 used to be scattered across [README.md](../README.md), [development.md](development.md) and
 [dependencies.md](dependencies.md) are consolidated here.
@@ -139,10 +139,12 @@ it has no relationship to deploying OAK itself.
 
 ## What is not tested where
 
-The toolchain pins are declarations checked against each other, never against the binary
-actually running: `make toolchain-check` will not notice that you are on a different Node.
-The `0.7.0` rehearsal built on Node 22.17.1 against a 24.18.0 pin and every gate passed
-(`RR-034`).
+`make toolchain-check` fails if the running Python or the pnpm-provisioned Node differs
+from the pins, not only if two declarations disagree, and `package.json`'s
+`devEngines.runtime` makes pnpm download and run the pinned Node itself, so the host's
+Node never reaches a build. That closes the defect `RR-034` recorded: the `0.7.0`
+rehearsal built on Node 22.17.1 against a 24.18.0 pin with every declaration-only gate
+green.
 
 CI (`.github/workflows/ci.yml`) runs `ubuntu-latest` x86_64 only. It has no macOS job, no
 arm64 job, and it builds no container image. The macOS arm64 rows in the table above are

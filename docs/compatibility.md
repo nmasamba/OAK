@@ -9,6 +9,14 @@ upgrading, what may change under them and what may not. It is a pre-`1.0` policy
 repository version (`VERSION`, a `0.x` series) signals that breaking change is still
 possible — but never silent.
 
+These promises bind external consumers operationally from the **first published
+artifact**. No `0.7.x` artifact has been published anywhere — no package index, no image
+registry, no tag, no release — so no external consumer yet exists to be bound. The
+`0.7.1` re-cut deliberately used that window for one digest-shifting change (the `RR-032`
+verification-policy migration), recorded in the changelog exactly as rule 4 below
+requires rather than made silently. From the first published artifact, every rule here
+binds as written with no such window remaining.
+
 ## Versioning model
 
 - **Repository version** (`VERSION`, `pyproject.toml`, `oak --version`, `/version`):

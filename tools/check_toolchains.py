@@ -1,9 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Check that source, CI, container, package, documentation, and version declarations agree."""
+"""Check that source, CI, container, package, documentation, and version declarations agree,
+and that the binaries actually running match the pins."""
 
 import json
+import platform
 import re
+import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -107,6 +111,7 @@ def check(root: Path = ROOT) -> list[str]:
     package = _load_package(_read(root, "package.json", failures), failures)
     api_dockerfile = _read(root, "deploy/images/api.Dockerfile", failures)
     web_dockerfile = _read(root, "deploy/images/web.Dockerfile", failures)
+    compose = _read(root, "compose.yaml", failures)
     workflow = _read(root, ".github/workflows/ci.yml", failures)
     release_workflow = _read(root, ".github/workflows/release.yml", failures)
     readme = _read(root, "README.md", failures)
@@ -130,9 +135,35 @@ def check(root: Path = ROOT) -> list[str]:
         "deploy/images/web.Dockerfile",
         failures,
     )
+    # The build stage carries its own FROM line; the anchored runtime pattern above
+    # cannot match it, so without this check the two Python pins could silently diverge
+    # and the build stage would escape drift detection entirely.
+    container_python_build = _match_version(
+        api_dockerfile,
+        r"^FROM python:(?P<version>\d+\.\d+\.\d+)-slim@sha256:[a-f0-9]{64} AS build$",
+        "deploy/images/api.Dockerfile",
+        failures,
+    )
+    # The web runtime base and the compose postgres image are version-pinned to nothing
+    # else in the repository, so the only checkable property is that each stays pinned by
+    # tag plus immutable digest; an unpinned line here previously escaped drift detection.
+    if not re.search(
+        r"^FROM nginxinc/nginx-unprivileged:\d+\.\d+\.\d+-alpine@sha256:[a-f0-9]{64}$",
+        web_dockerfile,
+        flags=re.MULTILINE,
+    ):
+        failures.append("deploy/images/web.Dockerfile: expected pinned unprivileged nginx runtime")
+    if not re.search(
+        r"^    image: postgres:\d+\.\d+-alpine@sha256:[a-f0-9]{64}$",
+        compose,
+        flags=re.MULTILINE,
+    ):
+        failures.append("compose.yaml: expected pinned postgres image with immutable digest")
 
     if python_version and container_python != python_version:
         failures.append("Python version differs between .python-version and API container")
+    if python_version and container_python_build != python_version:
+        failures.append("Python version differs between .python-version and API build stage")
     if node_version and container_node != node_version:
         failures.append("Node version differs between .node-version and web container")
 
@@ -142,6 +173,18 @@ def check(root: Path = ROOT) -> list[str]:
         engines = {}
     if node_version and engines.get("node") != node_version:
         failures.append("Node version differs between .node-version and package.json")
+
+    # devEngines.runtime is what makes pnpm provision the pinned Node itself instead of
+    # trusting whatever Node happens to invoke it (RR-034). An engines pin without it is
+    # a declaration nothing enforces at run time.
+    runtime = package.get("devEngines", {}).get("runtime") if isinstance(package, dict) else None
+    if not isinstance(runtime, dict):
+        failures.append("package.json: devEngines.runtime must pin the managed Node")
+    else:
+        if runtime.get("name") != "node" or runtime.get("onFail") != "download":
+            failures.append("package.json: devEngines.runtime must download the pinned Node")
+        if node_version and runtime.get("version") != node_version:
+            failures.append("Node version differs between .node-version and devEngines.runtime")
 
     package_manager = package.get("packageManager")
     if not isinstance(package_manager, str) or not package_manager.startswith("pnpm@"):
@@ -197,8 +240,64 @@ def check(root: Path = ROOT) -> list[str]:
     return failures
 
 
+def runtime_failures(
+    root: Path = ROOT,
+    *,
+    run: Callable[[tuple[str, ...]], str] | None = None,
+) -> list[str]:
+    """Compare the pinned toolchain against the binaries actually running.
+
+    `check()` compares declarations against each other and never executes anything,
+    so a host whose interpreters drift from the pins passes every declaration check:
+    the `0.7.0` web artifacts were built on Node 22.17.1 against a 24.18.0 pin with
+    every gate green (`RR-034`). This is the runtime half: the Python executing this
+    process and the Node that pnpm actually provides must equal the pins exactly, and
+    an inability to ask pnpm is itself a failure, never a pass. It is a separate
+    function so the declaration checks stay runnable on scratch trees without pnpm.
+    """
+
+    failures: list[str] = []
+    pinned_python = _read(root, ".python-version", failures).strip()
+    pinned_node = _read(root, ".node-version", failures).strip()
+
+    running_python = platform.python_version()
+    if pinned_python and running_python != pinned_python:
+        failures.append(
+            f"runtime: Python {running_python} does not match .python-version {pinned_python}"
+        )
+
+    if pinned_node:
+        executor = run if run is not None else _pnpm_runner(root)
+        try:
+            reported = executor(("pnpm", "exec", "node", "--version")).strip()
+        except (OSError, subprocess.SubprocessError) as error:
+            failures.append(f"runtime: pnpm could not report its Node version: {error}")
+        else:
+            if reported != f"v{pinned_node}":
+                failures.append(
+                    f"runtime: pnpm-provisioned Node {reported} does not match "
+                    f".node-version {pinned_node}"
+                )
+    return failures
+
+
+def _pnpm_runner(root: Path) -> Callable[[tuple[str, ...]], str]:
+    def execute(argv: tuple[str, ...]) -> str:
+        completed = subprocess.run(
+            argv,
+            cwd=root,
+            capture_output=True,
+            text=True,
+            timeout=300,
+            check=True,
+        )
+        return completed.stdout
+
+    return execute
+
+
 def main() -> int:
-    failures = check()
+    failures = check() + runtime_failures()
     for failure in failures:
         print(failure, file=sys.stderr)
     return 1 if failures else 0

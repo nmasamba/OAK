@@ -63,8 +63,13 @@ sprint backlog and expecting a `0.1.0` tag will not find one.
 
 Because the repository version is not embedded in any canonical document — `minimum_oak_version`
 and `generator_version` in the compiler are hardcoded literals, verified directly rather than
-assumed — the bump cannot shift any canonical digest, and the reference case stays byte-stable
-at `0.1.7`.
+assumed — the `0.6.0.dev6` → `0.7.0` bump could not shift any canonical digest, and the
+reference case stayed byte-stable at `0.1.7`. The later `0.7.1` re-cut **did** shift two
+canonical digests — not because the version is embedded (it still is not; the
+`minimum_oak_version` literal was updated by hand), but because that release deliberately
+changed the *content* of the compiled verification policy, the `not_signed` marker and the
+bundle's compatibility block. The change is recorded as digest-shifting in `CHANGELOG.md`,
+as `docs/compatibility.md` rule 4 requires.
 
 Object schema versions (`schema_version` inside canonical documents) are unaffected and remain
 per-object, as `schemas/README.md` describes. The repository version and the object schema

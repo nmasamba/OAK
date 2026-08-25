@@ -2,15 +2,20 @@
 
 # Build status
 
-- **Updated:** 2026-08-22
-- **Repository version:** `0.7.0`
-- **Phase:** Sprint 8 complete — Community release hardening; `0.7.0` approved as a local-first developer release
-- **Completed plans:** `docs/exec-plans/completed/OAK-S0-001-009-walking-skeleton.md`, `docs/exec-plans/completed/OAK-S1-001-010-local-design-case.md`, `docs/exec-plans/completed/OAK-S2-001-011-candidate-planning.md`, `docs/exec-plans/completed/OAK-S3-001-009-persistent-rest-jobs.md`, `docs/exec-plans/completed/OAK-S4-001-009-web-workspace.md`, `docs/exec-plans/completed/OAK-S5-001-011-signed-runner.md`, `docs/exec-plans/completed/OAK-S6-001-008-policy-adapter-sdk.md`, `docs/exec-plans/completed/OAK-S7-001-008-mcp-portal-interface-parity.md`, and `docs/exec-plans/completed/OAK-S8-001-009-community-release-hardening.md`
-- **Active plan:** none — Sprint 8 closed
-- **Next task:** post-`0.7.0` work. The release was approved by `nmasamba` on 2026-08-22 in
-  all three roles (`docs/release/0.7.0/release-decision.md`); nothing is published, and no
-  tag is pushed. The approval carries a condition: `RR-001` and `RR-003` become P0 before
-  any release that permits a runner off the operator's machine
+- **Updated:** 2026-08-25
+- **Repository version:** `0.7.1`
+- **Phase:** Pre-launch hardening complete — `0.7.0` was approved as a local-first developer release but never published; the release is re-cut as `0.7.1`, awaiting a fresh owner approval
+- **Completed plans:** `docs/exec-plans/completed/OAK-S0-001-009-walking-skeleton.md`, `docs/exec-plans/completed/OAK-S1-001-010-local-design-case.md`, `docs/exec-plans/completed/OAK-S2-001-011-candidate-planning.md`, `docs/exec-plans/completed/OAK-S3-001-009-persistent-rest-jobs.md`, `docs/exec-plans/completed/OAK-S4-001-009-web-workspace.md`, `docs/exec-plans/completed/OAK-S5-001-011-signed-runner.md`, `docs/exec-plans/completed/OAK-S6-001-008-policy-adapter-sdk.md`, `docs/exec-plans/completed/OAK-S7-001-008-mcp-portal-interface-parity.md`, `docs/exec-plans/completed/OAK-S8-001-009-community-release-hardening.md`, and `docs/exec-plans/completed/OAK-PL-001-007-pre-launch-hardening.md`
+- **Active plan:** none — the pre-launch hardening plan is complete
+- **Next task:** the pre-launch hardening plan is complete, including its closing
+  adversarial audit (23 findings raised, 15 confirmed and fixed or dispositioned, 8
+  refuted — see the completed plan's audit section). Seven register entries were closed
+  by this work (`RR-001`, `RR-003`, `RR-011`, `RR-032`, `RR-034`, `RR-037`, `RR-038`;
+  eight of the register's 38 rows are now closed, `RR-035` predating it), including
+  both standing conditions from the `0.7.0` approval, with the one sanctioned digest
+  migration recorded in `CHANGELOG.md`. Nothing is published and no tag is pushed.
+  What remains: merge the PR once remote CI is green, then the owner's fresh approval
+  of `docs/release/0.7.1/release-decision.md` (unsigned draft)
 
 ## Claimed work
 
@@ -100,6 +105,13 @@
 | `OAK-S8-007` | complete | Contributor documentation and the release process |
 | `OAK-S8-008` | complete | Clean-room release-candidate rehearsal with archived evidence |
 | `OAK-S8-009` | complete | Evidence, P0 proposal and known limitations published; approved by `nmasamba` in all three roles, 2026-08-22, with RR-001/RR-003 accepted only for a local-first release |
+| `OAK-PL-001` | complete | Unpublished `0.7.0` re-cut as `0.7.1` with a draft (unsigned) decision record under `docs/release/0.7.1/`, covered by the residual-risk count gate |
+| `OAK-PL-002` | complete | pnpm provisions the pinned Node (`devEngines.runtime`); `make toolchain-check` fatally compares the running Python and pnpm-provisioned Node against the pins (`RR-034` closed) |
+| `OAK-PL-003` | complete | Web image runs unprivileged (uid 101, verified in the running container); Compose applies `cap_drop`/`no-new-privileges`/read-only/limits per service; nginx, postgres and build-stage pins join the drift check (`RR-037` closed) |
+| `OAK-PL-004` | complete | Revocation notices signed in the `approver` role, inventoried by a signed monotonically sequenced manifest, and verified against pinned anchors; the revocation channel fails closed against deletion, tampering and rollback (`OAK-RUNNER-REVOCATION`; `RR-001` closed) |
+| `OAK-PL-005` | complete | Post-create resolved-digest verification (`OAK-RUNNER-IMAGE`) and target-profile registry allowlist (`OAK-RUNNER-REGISTRY`); TM-08 direct (`RR-003` closed) |
+| `OAK-PL-006` | complete | Verification policy derived from the target and enforced per requested kind (`OAK-RUNNER-POLICY`); the one sanctioned digest migration, recorded in `CHANGELOG.md` (`RR-032`/`RR-011` closed); signed examples regenerated and cryptographically gated |
+| `OAK-PL-007` | complete | Per-image CycloneDX SBOMs and unsigned provenance from `make scan-images` and the release workflow; `0.7.1` rescan: zero fixable findings, web image clean at every severity (`RR-038` closed, `RR-036` re-confirmed) |
 
 ## Verification evidence
 
@@ -337,7 +349,8 @@
   with the reason.
 - Operator and contributor documentation now covers install through uninstall, every `OAK_*`
   variable (pinned to the source by a contract test), every `OAK-*` code (generated; 245 of
-  267 were previously undocumented), the supported platform matrix with architecture and
+  the 265 codes that existed at `0.7.0` were previously undocumented), the supported
+  platform matrix with architecture and
   glibc floors read from the lockfile, and the six architecture ADRs that shipped documents
   cite, mirrored so their citations resolve outside the governance repository.
 - The container scan that `OAK-S8-003` asks for was initially missed, recorded as `RR-035`,
@@ -360,7 +373,25 @@
   `RR-001` and `RR-003` as non-blocking **for a local-first developer release only**; both
   become P0 before any release permitting a runner off the operator's machine. Approval is
   not a Gate 2/3 deployment approval and does not authorise publication.
+- The pre-launch hardening plan (`OAK-PL-001`–`007`, 2026-08-24) closed seven register
+  entries before anything was published, with every milestone gated by a full
+  `make check` (final: 419 unit/contract + 191 integration, 4 by-design skips, + 42
+  e2e, PostgreSQL suites enabled) and a direct recompilation of the reference case.
+  The four reference digests were held byte-stable through every milestone except the
+  one sanctioned digest migration (`OAK-PL-006`), whose before/after values are
+  recorded in the exec plan and `CHANGELOG.md`: `deployment_bundle` and `runner_plan`
+  moved; `selected_candidate` and `semantic_manifest` were recompiled on both sides and
+  are byte-identical. The `0.7.1` image rescan after the web base change reports zero
+  fixable findings with the web image clean at every severity; per-image SBOMs and
+  unsigned provenance live in `docs/release/0.7.1/`. `make audit` re-ran clean. The
+  runner now enforces the compiled verification policy, verifies the runtime's resolved
+  image digest after creation, honours a target registry allowlist, and consumes only
+  signed revocation notices matched against a signed, monotonically sequenced manifest
+  over a fail-closed channel — each denial path
+  adversarially tested, including a full `run_once` denial that leaves no journal.
+  The release awaits a fresh human approval in
+  `docs/release/0.7.1/release-decision.md`.
 
 ## Safety boundary
 
-The current harness accepts bounded local architecture briefs, catalogue files, rationale, and target profiles and treats their content as untrusted data. It has no mandatory or real model-provider call and no secret resolution. Signing, approval, runner dispatch, and target mutation now exist in explicitly local development form: keys are labelled `development`, the runner reaches only an isolated non-production fixture profile that opts in through an explicit acknowledgement, and the sole permitted mutation is creating and removing one network-isolated, never-started container through a fixed allowlisted argument vector. Every mutating operation requires a separately signed, current, digest and target bound approval that the runner verifies independently before any target access. A compiled plan is inert until it is signed, approved, and independently verified by the runner. Governed extensions and policy packs are untrusted input: they are quarantined on install, verified against pinned local trust anchors, and never executed — an extension payload is data, and a deployment-adapter extension only binds configuration to an in-tree renderer identity. Policy evaluation is fail-closed, an undecidable condition can never yield an automated allow, and an optional external policy engine that disagrees with the built-in reference engine is refused rather than published. The bounded MCP server and the CLI's remote mode are additional transports onto the same application services and grant no authority: the MCP surface is design/read only with no approval, signing, dispatch, secret, policy-override, file, or command tool, and remote mode refuses the local-only signing and runner commands rather than acting on local state. Remote mode trusts the control plane it is pointed at; a wrong-shape response is refused with a stable code rather than crashing. Signed webhook envelopes and compiled review bundles are verified against pinned keys and existing digest edges only, and are not themselves execution authority. All committed fixtures are public or synthetic, and the committed webhook publisher key is public material whose private half was discarded.
+The current harness accepts bounded local architecture briefs, catalogue files, rationale, and target profiles and treats their content as untrusted data. It has no mandatory or real model-provider call and no secret resolution. Signing, approval, runner dispatch, and target mutation now exist in explicitly local development form: keys are labelled `development`, the runner reaches only an isolated non-production fixture profile that opts in through an explicit acknowledgement, and the sole permitted mutation is creating and removing one network-isolated, never-started container through a fixed allowlisted argument vector. Every mutating operation requires a separately signed, current, digest and target bound approval that the runner verifies independently before any target access, the compiled verification policy's clauses are enforced per requested operation kind, revocation notices are honoured only when signed by a pinned anchor and matched against a signed, monotonically sequenced manifest of the whole set over a fail-closed channel, and after creating the fixture container the runner verifies the image digest the runtime actually resolved, removing the container on any mismatch. A compiled plan is inert until it is signed, approved, and independently verified by the runner. Governed extensions and policy packs are untrusted input: they are quarantined on install, verified against pinned local trust anchors, and never executed — an extension payload is data, and a deployment-adapter extension only binds configuration to an in-tree renderer identity. Policy evaluation is fail-closed, an undecidable condition can never yield an automated allow, and an optional external policy engine that disagrees with the built-in reference engine is refused rather than published. The bounded MCP server and the CLI's remote mode are additional transports onto the same application services and grant no authority: the MCP surface is design/read only with no approval, signing, dispatch, secret, policy-override, file, or command tool, and remote mode refuses the local-only signing and runner commands rather than acting on local state. Remote mode trusts the control plane it is pointed at; a wrong-shape response is refused with a stable code rather than crashing. Signed webhook envelopes and compiled review bundles are verified against pinned keys and existing digest edges only, and are not themselves execution authority. All committed fixtures are public or synthetic, and the committed webhook publisher key is public material whose private half was discarded.

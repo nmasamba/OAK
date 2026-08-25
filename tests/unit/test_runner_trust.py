@@ -146,18 +146,23 @@ def test_image_reference_carrying_its_own_digest_is_refused() -> None:
 
 def test_approved_digest_is_always_the_pin() -> None:
     calls: list[tuple[str, ...]] = []
+    digest = "sha256:" + "a" * 64
 
     def executor(argv: tuple[str, ...], timeout_seconds: int) -> CommandResult:
         calls.append(argv)
+        if argv[:2] == ("docker", "inspect"):
+            return CommandResult(returncode=0, stdout="sha256:imageid\n", stderr="")
+        if argv[:3] == ("docker", "image", "inspect"):
+            return CommandResult(returncode=0, stdout=f'["postgres@{digest}"]\n', stderr="")
         return CommandResult(returncode=0, stdout="", stderr="")
 
     ContainerFixtureAdapter(executor).apply(
         {
             "container_name": "oak-fixture-demo",
             "image_reference": "postgres:17.6-alpine",
-            "image_digest": "sha256:" + "a" * 64,
+            "image_digest": digest,
             "isolation": "network-none-never-started",
         },
         120,
     )
-    assert calls[0][-1] == "postgres:17.6-alpine@sha256:" + "a" * 64
+    assert calls[0][-1] == "postgres:17.6-alpine@" + digest

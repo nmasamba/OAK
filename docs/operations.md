@@ -2,7 +2,7 @@
 
 # Operations runbook
 
-For the person running OAK Community `0.7.0`: install, configure, observe, back up,
+For the person running OAK Community `0.7.1`: install, configure, observe, back up,
 restore, upgrade, troubleshoot, export and remove it.
 
 **Scope.** OAK Community is a local-first developer release. It has no authentication,
@@ -40,8 +40,9 @@ queued forever with no error.
 
 The images apply their distribution's security updates at build time, so **rebuilding
 picks up patches**. `make scan-images` reports what a build currently carries. As of
-`0.7.0` the web image is clean and the API image has 3 CRITICAL and 14 HIGH with no vendor
-fix available ([container-scan.md](release/0.7.0/container-scan.md)).
+`0.7.1` the web image reports no findings at any severity and the API image has 3 CRITICAL
+and 14 HIGH with no vendor fix available
+([container-scan.md](release/0.7.1/container-scan.md)).
 
 Verify the release artifacts you downloaded before installing them — see
 [release-process.md](release-process.md#verifying-a-release). Remember that OAK
@@ -114,7 +115,7 @@ directory that is not in either.
 | Signing keys and trust anchors | `$OAK_TRUST_DIRECTORY` (default `~/.oak/trust`) | A **separate**, protected copy |
 | Outbound dispatch mailbox | `$OAK_DISPATCH_MAILBOX` (default `~/.oak/mailbox`) | A filesystem copy, if leases are in flight |
 | Extension quarantine and activations | `$OAK_EXTENSIONS_DIRECTORY` (default `~/.oak/extensions`) | A filesystem copy |
-| Runner identity, journal and consumed nonces | `$OAK_RUNNER_HOME` (default `~/.oak/runner`) | A **separate**, protected copy — it holds the runner's own Ed25519 private key |
+| Runner identity, journal, consumed nonces and the revocation-sequence mark | `$OAK_RUNNER_HOME` (default `~/.oak/runner`) | A **separate**, protected copy — it holds the runner's own Ed25519 private key |
 
 > **A `pg_dump` alone is not a backup.** Artifact bytes are read *only* from the artifact
 > root; the JSONB copy in `artifact_versions.canonical_document` is never read back at
@@ -251,14 +252,14 @@ its `downgrade()` deliberately raises — pinned by
 
 ### A file workspace
 
-There is no file-workspace format migration, and none is planned for `0.7.0`. A
+There is no file-workspace format migration, and none is planned for `0.7.1`. A
 workspace whose manifest carries a `schema_version` this build does not know is refused
 with `OAK-WORKSPACE-CORRUPT` — on **every** command, including `export`, so it cannot be
 rescued after the fact
 (`tests/integration/test_backup_restore.py::test_a_workspace_written_by_an_unknown_format_fails_closed`).
 
 **Therefore: `oak export` before upgrading.** The exported tree is the migration unit.
-`0.7.0` does not move any manifest `schema_version`, so upgrading to it needs nothing —
+`0.7.1` does not move any manifest `schema_version`, so upgrading to it needs nothing —
 but make exporting first a habit before it does. Recorded as `RR-017`.
 
 ### Rollback limits
@@ -279,6 +280,8 @@ success, `2` refusal or invalid input, `4` version or idempotency conflict.
 |---|---|---|
 | An operation never leaves `queued` | No worker running | Start `oak-worker`; check `pending_events` on the lag endpoint |
 | `OAK-WORKSPACE-CORRUPT` on every command | Manifest unreadable, or a schema version this build does not know | Run `scripts/verify_deployment.py --workspace`; if the manifest version is foreign, you need the build that wrote it |
+| `OAK-RUNNER-REPLAY` on every dispatch | The consumed-nonce ledger `$OAK_RUNNER_HOME/consumed-nonces.json` is corrupt; it deliberately refuses rather than reading as empty | Inspect the file. Remove it only if you accept that previously burned nonces become replayable — for the local fixture that is usually acceptable; record the decision |
+| `OAK-RUNNER-REVOCATION` on every dispatch | The mailbox's `revocations/manifest.json` is missing, the notice set does not match it, or the runner's recorded sequence is ahead of it | Re-publish the revocation state from the control plane (`oak revoke-approval`, or a fresh dispatch establishes an empty manifest). Do not hand-delete notices — the mismatch is the protection working |
 | `OAK-EXPECTED-VERSION` | Someone else advanced the case | Re-read the case and retry with the current version. This is a normal concurrency refusal, not a fault |
 | `OAK-IDEMPOTENCY-CONFLICT` | An idempotency key was reused with different input | Use a new key, or send the original input |
 | `OAK-REMOTE-UNSUPPORTED` | A local-only command was run with `--server` | Signing, approval, dispatch, keys, extensions and policy are local-only by design |
@@ -308,6 +311,11 @@ edge into the bundle spine.
 
 ## Securing a local deployment
 
+- **Compose ships hardened; overrides can silently undo it.** Every service runs with
+  `cap_drop: [ALL]`, `no-new-privileges`, a read-only root filesystem where the image
+  tolerates one, and memory/CPU ceilings (postgres adds back exactly the six ownership
+  and identity capabilities its entrypoint needs). A `compose.override.yaml` that
+  redefines a service replaces these keys — re-state them in the override if you add one.
 - **Keep the bind on loopback.** `OAK_ALLOW_NON_LOOPBACK` exists for containers on an
   internal network, and Compose uses it because the containers publish only to
   `127.0.0.1` on the host. Setting it on a host interface publishes an unauthenticated
@@ -365,8 +373,8 @@ Global toolchain caches are shared with other projects and are **not** OAK's to 
 them yourself.
 
 The same applies to the third-party images OAK causes Docker to pull: `postgres:17.6-alpine`,
-`python:3.13.12-slim`, `node:24.18.0-alpine`, `nginx:1.29.1-alpine`, and `aquasec/trivy` if
-you ran `make scan-images`. Neither the commands above nor
+`python:3.13.12-slim`, `node:24.18.0-alpine`, `nginxinc/nginx-unprivileged:1.29.1-alpine`,
+and `aquasec/trivy` if you ran `make scan-images`. Neither the commands above nor
 `scripts/check_clean_machine.py` touches or reports them, because they are shared Docker
 state rather than OAK's. Remove them with `docker image rm` if you want the disk back.
 

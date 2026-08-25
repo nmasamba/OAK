@@ -96,3 +96,21 @@ ALLOWED_KINDS_BY_ADAPTER: dict[str, frozenset[str]] = {
     REVIEW_ADAPTER_ID: frozenset({"inventory", "validate", "render", "plan", "verify"}),
     CONTAINER_ADAPTER_ID: frozenset({"apply", "rollback", "destroy"}),
 }
+
+
+def registry_host(reference: str) -> str:
+    """Return the registry host a Docker image reference resolves to.
+
+    Docker's own resolution rule: the first path component names a registry only
+    when it contains a dot or a colon or is exactly ``localhost``; every other
+    reference is a Docker Hub name and resolves to ``docker.io``. The runner uses
+    this to enforce a target profile's ``execution.allowed_registries`` before any
+    adapter exists (RR-003, TM-08).
+    """
+
+    head, separator, _ = reference.partition("/")
+    if not separator:
+        return "docker.io"
+    if head == "localhost" or "." in head or ":" in head:
+        return head
+    return "docker.io"

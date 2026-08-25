@@ -8,12 +8,13 @@ import os
 from pathlib import Path
 from typing import Any
 
-from oak.domain import canonical_json_bytes
+from oak.domain import OAKError, canonical_json_bytes
 from oak.runner.identity import RunnerIdentity
 
 MAXIMUM_DOCUMENT_BYTES = 1_048_576
 DISPATCH_DIRECTORY = "dispatches"
 REVOCATION_DIRECTORY = "revocations"
+REVOCATION_MANIFEST_NAME = "manifest.json"
 MESSAGE_DIRECTORY = "messages"
 PROCESSED_MARKER = ".processed"
 
@@ -58,32 +59,129 @@ class RunnerMailbox:
         marker.parent.mkdir(parents=True, exist_ok=True)
         marker.write_text("processed\n", encoding="utf-8")
 
-    def revoked_approval_ids(self) -> frozenset[str]:
+    def revocation_documents(self) -> tuple[dict[str, Any] | None, tuple[dict[str, Any], ...]]:
+        """Read the revocation manifest and every notice, failing closed on anything odd.
+
+        The channel used to fail open four ways: a missing directory, an unreadable or
+        oversized file, and a malformed document all read as "nothing revoked", so
+        deleting a notice restored a revoked approval (RR-001). Every one of those is now
+        a refusal — a runner that cannot prove what is revoked must not guess. The
+        manifest (a signed inventory of the whole set) is returned separately for
+        verification; its absence is an acceptable state only for a mailbox that has
+        never carried a dispatch, which verification decides, not this reader. Hidden
+        files are ignored (no valid notice can be named with a leading dot; the producer
+        refuses such names), so stray filesystem metadata cannot brick the channel.
+        """
+
         directory = self._root / REVOCATION_DIRECTORY
-        if not directory.is_dir():
-            return frozenset()
-        revoked: set[str] = set()
-        for path in directory.glob("*.json"):
-            document = _read_document(path)
-            if document is not None and isinstance(document.get("approval_id"), str):
-                revoked.add(document["approval_id"])
-        return frozenset(revoked)
+        try:
+            entries = sorted(directory.iterdir())
+        except OSError as error:
+            raise OAKError(
+                "OAK-RUNNER-REVOCATION",
+                "revocation directory is missing or unreadable",
+            ) from error
+        manifest: dict[str, Any] | None = None
+        documents: list[dict[str, Any]] = []
+        for path in entries:
+            if path.name.startswith("."):
+                continue
+            if not path.is_file() or path.suffix != ".json":
+                raise OAKError(
+                    "OAK-RUNNER-REVOCATION",
+                    "revocation directory contains an entry that is not a notice",
+                )
+            try:
+                if path.stat().st_size > MAXIMUM_DOCUMENT_BYTES:
+                    raise OAKError(
+                        "OAK-RUNNER-REVOCATION",
+                        "revocation notice exceeds the mailbox bound",
+                    )
+                document = json.loads(path.read_text(encoding="utf-8"))
+            except OAKError:
+                raise
+            except (OSError, ValueError) as error:
+                raise OAKError(
+                    "OAK-RUNNER-REVOCATION",
+                    "revocation notice is unreadable",
+                ) from error
+            if not isinstance(document, dict):
+                raise OAKError(
+                    "OAK-RUNNER-REVOCATION",
+                    "revocation notice is not a document",
+                )
+            if path.name == REVOCATION_MANIFEST_NAME:
+                manifest = document
+            else:
+                documents.append(document)
+        return manifest, tuple(documents)
+
+    def last_revocation_sequence(self) -> int:
+        """The highest manifest sequence this runner has accepted; -1 before any.
+
+        Persisted in the runner's own home so a mailbox rolled back to an older —
+        validly signed — revocation set is refused rather than believed. An unreadable
+        record fails closed like the ledger it protects.
+        """
+
+        path = self._home / "revocation-sequence.json"
+        if not path.is_file():
+            return -1
+        try:
+            value = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as error:
+            raise OAKError(
+                "OAK-RUNNER-REVOCATION",
+                "the recorded revocation-manifest sequence is unreadable",
+            ) from error
+        if not isinstance(value, int):
+            raise OAKError(
+                "OAK-RUNNER-REVOCATION",
+                "the recorded revocation-manifest sequence is not a number",
+            )
+        return value
+
+    def record_revocation_sequence(self, sequence: int) -> None:
+        path = self._home / "revocation-sequence.json"
+        path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        scratch = path.with_name(path.name + ".tmp")
+        scratch.write_text(json.dumps(int(sequence)) + "\n", encoding="utf-8")
+        os.replace(scratch, path)
 
     def consumed_lease_nonces(self) -> frozenset[str]:
+        """The replay ledger, failing closed on corruption.
+
+        This used to return an empty set for an unreadable or malformed file — and
+        because `consume_lease_nonce` rewrites the file from this reader's result, one
+        corrupt read did not merely fail open once: the next consume permanently erased
+        every previously burned nonce. A ledger that cannot be read now refuses
+        (`OAK-RUNNER-REPLAY`) until an operator inspects or removes it deliberately.
+        """
+
         path = self._home / "consumed-nonces.json"
         if not path.is_file():
             return frozenset()
         try:
             values = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            return frozenset()
-        return frozenset(str(value) for value in values if isinstance(value, str))
+        except (OSError, ValueError) as error:
+            raise OAKError(
+                "OAK-RUNNER-REPLAY",
+                "the consumed-nonce ledger is unreadable; refusing to treat it as empty",
+            ) from error
+        if not isinstance(values, list) or not all(isinstance(value, str) for value in values):
+            raise OAKError(
+                "OAK-RUNNER-REPLAY",
+                "the consumed-nonce ledger is malformed; refusing to treat it as empty",
+            )
+        return frozenset(values)
 
     def consume_lease_nonce(self, nonce: str) -> None:
         nonces = sorted({*self.consumed_lease_nonces(), nonce})
         path = self._home / "consumed-nonces.json"
         path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-        path.write_text(json.dumps(nonces) + "\n", encoding="utf-8")
+        scratch = path.with_name(path.name + ".tmp")
+        scratch.write_text(json.dumps(nonces) + "\n", encoding="utf-8")
+        os.replace(scratch, path)
 
     def publish_message(
         self,

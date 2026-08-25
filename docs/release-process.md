@@ -33,7 +33,10 @@ paired with a different build.
 
 ## Versioning
 
-`0.7.0` is the first Community release. It is not `0.1.0`, and the reason is recorded in
+`0.7.1` is the current release candidate. `0.7.0` was approved on 2026-08-22 but never
+published anywhere, and was re-cut as `0.7.1` when the pre-launch hardening work made a
+deliberate digest-shifting change (see `CHANGELOG.md`); the `0.7.0` record stays as
+history. The `0.7.x` numbering is not `0.1.0`, and the reason is recorded in
 [ADR-0002](adr/0002-release-versioning.md): `0.1.0` sorts *below* the `0.6.0.dev6`
 development builds that already existed, so releasing it would have been an ordering
 regression.
@@ -80,8 +83,8 @@ is the point rather than a loophole.
 Then tag, which triggers `.github/workflows/release.yml`:
 
 ```bash
-git tag v0.7.0
-git push origin v0.7.0
+git tag v0.7.1
+git push origin v0.7.1
 ```
 
 That workflow runs `make check` before `make release`, so a release cannot be cut from a
@@ -135,7 +138,11 @@ recorded as `RR-005` in [security/residual-risk.md](security/residual-risk.md).
 ## Images
 
 `.github/workflows/release.yml` builds the API and web images for `linux/amd64`, runs
-`oak --version` inside the API image, and records the resulting image IDs.
+`oak --version` inside the API image, records the resulting image IDs, and runs
+`scripts/scan_images.py` — the same gate as `make scan-images` — which emits one
+CycloneDX SBOM per image plus an unsigned `image-provenance.json` into the
+`image-evidence` artifact and fails the job on any *fixable* CRITICAL or HIGH finding.
+Locally the same evidence lands under `docs/release/<version>/` and is committed there.
 
 Two honest caveats:
 
@@ -150,18 +157,19 @@ Two honest caveats:
   treat it as a record of what one build produced.
 
 Base images *are* pinned by tag **and** immutable `sha256` digest in both Dockerfiles and
-in `compose.yaml`, and `make toolchain-check` fails if the `uv`, Python or Node base
-pins drift from the rest of the toolchain.
+in `compose.yaml`, and `make toolchain-check` fails if the `uv`, Python, Node,
+unprivileged-nginx runtime or Compose PostgreSQL pins drift — and separately if the
+running Python or the pnpm-provisioned Node differs from the pins.
 
 To build the images locally, matching what the workflow does:
 
 ```bash
-docker buildx build --platform linux/amd64 --file deploy/images/api.Dockerfile --tag oak-community/api:0.7.0 --load .
+docker buildx build --platform linux/amd64 --file deploy/images/api.Dockerfile --tag oak-community/api:0.7.1 --load .
 ```
 
 ## Publication
 
-**OAK Community `0.7.0` publishes nothing.** It is not on PyPI, not in a container
+**OAK Community `0.7.1` publishes nothing.** It is not on PyPI, not in a container
 registry, and not attached to a GitHub release. `make release` produces artifacts and the
 evidence describing them; where those artifacts go is a separate decision that belongs to
 a named maintainer, not to the build.
@@ -183,5 +191,5 @@ tested and honest on the day that changes.
 - [ ] Known limitations published and current
       ([security/residual-risk.md](security/residual-risk.md))
 - [ ] Named maintainer, security and licence approvals recorded — see
-      [release/0.7.0/release-decision.md](release/0.7.0/release-decision.md). This is a
+      [release/0.7.1/release-decision.md](release/0.7.1/release-decision.md). This is a
       human decision and cannot be self-approved by the person or agent doing the build

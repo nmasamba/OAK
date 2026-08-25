@@ -60,7 +60,11 @@ def build_compiled_case(
     target_name: str = "local-fixture.yaml",
     now: str | None = None,
 ) -> ReleaseHarness:
-    """Drive a fresh workspace to bundle_compiled against the named target."""
+    """Drive a fresh workspace to bundle_compiled against the named target.
+
+    ``target_name`` is a filename under ``examples/targets``, or an absolute path for
+    tests that need a variant profile written outside the repository.
+    """
 
     stamp = now or _stamp(0)
     workspace = tmp_path / "workspace"
@@ -84,9 +88,12 @@ def build_compiled_case(
     planning.evaluate("candidate-03", _context(stamp, "harness-evaluate-000001", "0.1.3"))
     planning.select("candidate-03", "balanced", _context(stamp, "harness-select-000001", "0.1.4"))
     planning.assure("candidate-03", _context(stamp, "harness-assure-000001", "0.1.5"))
-    target = load_yaml_document(
-        (ROOT / "examples/targets" / target_name).read_text(encoding="utf-8")
+    target_path = (
+        Path(target_name)
+        if Path(target_name).is_absolute()
+        else ROOT / "examples/targets" / target_name
     )
+    target = load_yaml_document(target_path.read_text(encoding="utf-8"))
     planning.plan_document("candidate-03", target, _context(stamp, "harness-plan-000001", "0.1.6"))
 
     release = ReleaseService(

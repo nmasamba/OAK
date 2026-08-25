@@ -31,7 +31,18 @@ ADAPTER_ID = REVIEW_ADAPTER_ID
 ADAPTER_VERSION = REVIEW_ADAPTER_VERSION
 ADAPTER_DIGEST = REVIEW_ADAPTER_DIGEST
 PARAMETER_SCHEMA_DIGEST = REVIEW_PARAMETER_SCHEMA_DIGEST
-MUTATION_KINDS = ("apply", "verify", "rollback", "destroy")
+# Canonical presentation order for operation kinds wherever compiled content lists them;
+# the target profile's `permissions.allowed_operations` decides which of these appear.
+OPERATION_KIND_ORDER = (
+    "inventory",
+    "validate",
+    "render",
+    "plan",
+    "verify",
+    "apply",
+    "rollback",
+    "destroy",
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -69,6 +80,11 @@ def compile_review_plan(
             f"target failed required compiler preflight: {', '.join(blocked)}",
         )
     target_fingerprint = content_digest(canonical_json_bytes(target))
+    allowed_kinds = [
+        kind
+        for kind in OPERATION_KIND_ORDER
+        if kind in set(target["permissions"]["allowed_operations"])
+    ]
     semantic = _review_artifact(
         f"semantic.{candidate.id}.{target['id']}",
         "semantic_manifest",
@@ -87,7 +103,7 @@ def compile_review_plan(
                 }
                 for item in candidate_document["components"]
             ],
-            "operation_kinds": ["inventory", "validate", "render", "plan", "verify"],
+            "operation_kinds": allowed_kinds,
         },
         registry,
     )
@@ -126,19 +142,26 @@ def compile_review_plan(
         "signature_marker",
         "not_signed",
         {
-            "reason": "Sprint 2 compiles review artifacts only; signing is not implemented.",
+            "reason": (
+                "Compilation emits an inert, unsigned draft; execution authority is a "
+                "separately signed plan signature plus per-action approvals, verified "
+                "independently by the runner."
+            ),
             "authorizes_execution": False,
         },
         registry,
     )
+    # The policy is a function of the target, not a constant: the runner enforces these
+    # clauses per requested operation kind, so a policy claiming read-only for a
+    # mutation-capable target would deny the very plan this compile emits (RR-032).
     verification_policy = _review_artifact(
-        "verification-policy.draft-local-review",
+        f"verification-policy.{target['id']}",
         "verification_policy",
         "draft",
         {
             "allowed_status": "draft",
-            "allowed_operation_kinds": ["inventory", "validate", "render", "plan", "verify"],
-            "mutation_allowed": False,
+            "allowed_operation_kinds": allowed_kinds,
+            "mutation_allowed": target["permissions"]["mutation_allowed"] is True,
             "requires_signature_before_dispatch": True,
             "requires_approval_before_dispatch": True,
         },
@@ -293,7 +316,10 @@ def _bundle_document(
         ],
         "procedures": {
             "plan": ["Inspect the normalized semantic manifest and produce a read-only diff."],
-            "install": ["Deferred until signed-plan, approval and runner gates are implemented."],
+            "install": [
+                "Not provided by this bundle: execution requires a separately signed "
+                "plan, per-action approvals, and independent runner verification."
+            ],
             "verify": [
                 "Validate digests, target identity, no-egress policy and offline fixture results."
             ],
@@ -319,18 +345,40 @@ def _bundle_document(
             "digest_bound": True,
         },
         "compatibility": {
-            "minimum_oak_version": "0.5.0.dev5",
-            "target_constraints": [
-                "Non-production local target with mutation_allowed=false",
-                "Only inventory, validate, render, plan and verify operations",
-            ],
+            # A literal on purpose: tracking the repository version here would shift
+            # every compiled digest on every release.
+            "minimum_oak_version": "0.7.1",
+            "target_constraints": _target_constraints(target),
             "known_incompatibilities": [
-                "This Sprint 2 bundle is not authorized or signed for target execution."
+                "This bundle is not authorized for target execution on its own: dispatch "
+                "requires a separately signed plan signature, current approvals, and "
+                "independent runner verification."
             ],
         },
         "expires_at": _offset_timestamp(created_at, days=7),
         "extensions": {"oak.community/preflight_results": preflight_results},
     }
+
+
+def _target_constraints(target: dict[str, Any]) -> list[str]:
+    """Describe what the target actually permits, in its declared terms."""
+
+    allowed = [
+        kind
+        for kind in OPERATION_KIND_ORDER
+        if kind in set(target["permissions"]["allowed_operations"])
+    ]
+    listed = (
+        " and ".join([", ".join(allowed[:-1]), allowed[-1]]) if len(allowed) > 1 else allowed[0]
+    )
+    mutation = target["permissions"]["mutation_allowed"] is True
+    first = (
+        "Non-production local target with mutation_allowed=true, acknowledged as "
+        f"{target['execution']['mutation_acknowledgement']}"
+        if mutation
+        else "Non-production local target with mutation_allowed=false"
+    )
+    return [first, f"Only {listed} operations"]
 
 
 def _runner_plan_document(

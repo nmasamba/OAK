@@ -35,6 +35,8 @@ EXAMPLE_BY_SCHEMA = {
     "policy-pack.schema.json": "example-policy-pack.yaml",
     "regulatory-nexus.schema.json": "example-regulatory-nexus.yaml",
     "regulatory-profile.schema.json": "example-eu-regulatory-profile.yaml",
+    "revocation-manifest.schema.json": "example-revocation-manifest.yaml",
+    "revocation.schema.json": "example-revocation.yaml",
     "runner-envelope.schema.json": "example-runner-envelope.yaml",
     "runner-message.schema.json": "example-runner-message.yaml",
     "runner-plan.schema.json": "example-runner-plan.yaml",

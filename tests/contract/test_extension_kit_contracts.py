@@ -95,9 +95,18 @@ def test_adapter_binding_templates_reference_registered_identities() -> None:
 
 def test_container_adapter_passes_argv_and_rollback_kit_checks() -> None:
     calls: list[tuple[str, ...]] = []
+    digest = "sha256:" + "a" * 64
 
     def recording_executor(argv: tuple[str, ...], timeout_seconds: int) -> CommandResult:
         calls.append(argv)
+        if argv[:2] == ("docker", "inspect"):
+            return CommandResult(returncode=0, stdout="sha256:imageid\n", stderr="")
+        if argv[:3] == ("docker", "image", "inspect"):
+            return CommandResult(
+                returncode=0,
+                stdout=f'["registry.example.invalid/fixture@{digest}"]\n',
+                stderr="",
+            )
         return CommandResult(returncode=0, stdout="", stderr="")
 
     adapter = ContainerFixtureAdapter(recording_executor)

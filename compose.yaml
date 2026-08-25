@@ -1,6 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
 name: oak-community
 
+# Container hardening (RR-037): every service drops all capabilities it does not need,
+# refuses privilege escalation, runs with a read-only root filesystem where the image
+# tolerates one, and carries a memory and CPU ceiling so a runaway local stack cannot
+# take the machine with it. The limits are local-development guardrails, not capacity
+# statements.
 services:
   postgres:
     image: postgres:17.6-alpine@sha256:ef257d85f76e48da1c64832459b59fcaba1a4dac97bf5d7450c77753542eee94
@@ -15,6 +20,18 @@ services:
       retries: 20
     volumes:
       - oak-postgres-data:/var/lib/postgresql/data
+    tmpfs:
+      - /tmp
+      - /var/run/postgresql
+    # The official entrypoint starts as root, fixes ownership, then drops to the
+    # postgres user, so it needs exactly the ownership/identity capabilities below;
+    # everything else is dropped. Verified against a fresh data volume.
+    cap_drop: [ALL]
+    cap_add: [CHOWN, SETUID, SETGID, FOWNER, DAC_OVERRIDE, DAC_READ_SEARCH]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 1g
+    cpus: 2
     networks:
       - control-plane
 
@@ -47,6 +64,14 @@ services:
       retries: 20
     ports:
       - "127.0.0.1:8080:8080"
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 1g
+    cpus: 2
     networks:
       - control-plane
     volumes:
@@ -62,6 +87,14 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 512m
+    cpus: 1
     networks:
       - control-plane
 
@@ -79,6 +112,14 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 1g
+    cpus: 2
     networks:
       - control-plane
     volumes:
@@ -98,6 +139,14 @@ services:
       retries: 20
     ports:
       - "127.0.0.1:5173:8080"
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 256m
+    cpus: 1
     networks:
       - control-plane
 

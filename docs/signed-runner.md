@@ -48,14 +48,32 @@ Then ingest the result; delivery is never treated as success:
 oak ingest --output json
 ```
 
-`oak revoke-approval apply --reason "..."` publishes a revocation the runner honors on its
-next verification pass, and `oak gitops --output ./gitops` renders deterministic
+`oak revoke-approval apply --reason "..."` re-signs the approval as revoked and publishes
+a **signed revocation notice** plus a **signed revocation manifest** — an inventory of
+the complete notice set by canonical digest, with a strictly monotonic sequence — into
+the mailbox's `revocations/` directory; the runner honors them on its next verification
+pass. The channel fails closed: every notice and the manifest must be schema-valid and
+verify against a pinned `approver` anchor, the notice set must match the manifest
+exactly, the sequence may never regress below the high-water mark the runner records in
+its own home, and a missing manifest on a dispatched mailbox, a missing directory, an
+unreadable, oversized or malformed entry, or anything unexpected denies every pending
+dispatch (`OAK-RUNNER-REVOCATION`). Deleting a notice — one file or the whole set — no
+longer restores a revoked approval. `oak … dispatch` establishes an empty signed manifest
+with the first dispatch, so from then on "no manifest" and "no notices" are
+distinguishable states. The runner's consumed-nonce replay ledger likewise
+fails closed: an unreadable ledger refuses (`OAK-RUNNER-REPLAY`) rather than reading as
+empty and being silently rewritten. `oak gitops --output ./gitops` renders deterministic
 branch-ready manifests with a patch description that promotes nothing automatically.
 
 ## What the runner checks before touching a target
 
 In this order, and any failure denies the dispatch before an adapter is constructed:
 
+0. **Revocation set.** Before the envelope is read, the signed revocation manifest is
+   schema-validated and anchor-verified, its sequence checked against the high-water
+   mark the runner records in its own home, and the notices on disk matched to its
+   inventory both ways by canonical digest; any failure — including a missing manifest
+   on a dispatched mailbox — denies every pending dispatch (`OAK-RUNNER-REVOCATION`).
 1. **Protocol and schema.** The envelope's `protocol_version` must be supported, and the
    envelope, plan, deployment bundle and plan signature must each be schema-valid.
 2. **Attachment digests** for the plan, bundle, plan signature, verification policy and
@@ -65,20 +83,24 @@ In this order, and any failure denies the dispatch before an adapter is construc
 4. **Identity**: tenant, environment, target identity, and a target fingerprint recomputed
    locally rather than taken from the envelope. The plan must be in a dispatchable state
    (`OAK-RUNNER-PLAN-STATE`) and not expired (`OAK-RUNNER-PLAN-EXPIRED`).
-5. **Lease**: validity window, expiry, policy bound on lease duration, and nonce replay.
+5. **Lease**: validity window, expiry, policy bound on lease duration, and nonce replay —
+   with the consumed-nonce ledger failing closed (`OAK-RUNNER-REPLAY`) if it cannot be
+   read, never reading as empty.
 6. **Separation of duties** between the signing and approving identities.
-7. **Operations**: adapter identity and parameter-schema digest against the code-level
+7. **Verification policy.** The attachment is schema-validated before any operation is
+   admitted, its clauses are read from `content`, and a policy that contradicts the
+   signing or approval requirements is refused. The compiler derives the policy from the
+   target profile, and the runner enforces it: a requested kind outside
+   `allowed_operation_kinds`, a mutating kind under `mutation_allowed: false`, or a
+   malformed clause denies the dispatch (`OAK-RUNNER-POLICY`) before any adapter exists.
+8. **Operations**: adapter identity and parameter-schema digest against the code-level
    allowlist; typed parameters against the adapter schema with execution fields rejected
-   recursively; empty secret references within the target allowance; empty network
-   destinations.
-8. **Approval** for any mutating kind — current, unrevoked, and bound to the digest,
-   target, action class and expiry.
-9. **Verification policy.** The attachment is schema-validated, its clauses are read from
-   `content`, and a policy that contradicts the signing or approval requirements is
-   refused. Two clauses it carries — `mutation_allowed` and `allowed_operation_kinds` —
-   are **not** enforced; see `RR-032` in
-   [security/residual-risk.md](security/residual-risk.md) for why, and what would have to
-   change first.
+   recursively; if the target profile declares `execution.allowed_registries`, any image
+   whose registry resolves outside it is denied (`OAK-RUNNER-REGISTRY`); empty secret
+   references within the target allowance; empty network destinations.
+9. **Approval** — current, unrevoked, and bound to the digest, target, action class and
+   expiry: each mutating kind requires its own action's approval, and every other
+   requested kind requires the `dry_run` approval.
 
 ## Mutation profile
 
@@ -88,7 +110,12 @@ with `status: non-production-local`, `permissions.mutation_allowed: true`, and a
 then emits typed `apply`, `rollback`, and `destroy` operations whose failure actions are
 `rollback` and `manual_recovery`. The container adapter runs
 `docker create --network=none --label oak.fixture=true --name <name> <image>@<digest>`;
-the container is never started, and rollback removes exactly the journaled name.
+the container is never started, and rollback removes exactly the journaled name. After
+creation the adapter reads back what the daemon actually resolved and requires a
+`RepoDigests` entry carrying the approved digest — an inspect failure, an image that
+cannot prove its identity (no repo digest), or a mismatch removes the container and
+denies with `OAK-RUNNER-IMAGE`, closing the time-of-use half of TM-08 that the create
+argv's pin alone cannot.
 
 ## Reading `oak-runner status`
 

@@ -9,6 +9,7 @@ PNPM := pnpm
 bootstrap:
 	$(UV) sync --frozen
 	$(PNPM) install --frozen-lockfile
+	$(PNPM) exec node --version
 
 lock:
 	$(UV) lock

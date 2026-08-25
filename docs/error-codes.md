@@ -41,7 +41,7 @@ documented flow uses it.
 
 ## Full index
 
-265 codes across 15 families.
+269 codes across 15 families.
 
 ### Workspace, artifacts and import/export (22)
 
@@ -129,8 +129,8 @@ documented flow uses it.
 | `OAK-SELECT-RATIONALE` | --rationale-file is required; selection rationale is required and bounded | `src/oak/application/candidate_planning.py:268` |
 | `OAK-SELECT-STATE` | selection requires candidates_ready state | `src/oak/application/candidate_planning.py:288` |
 | `OAK-TARGET-CAPABILITY` | target does not allow every required read-only planning operation | `src/oak/application/candidate_planning.py:416` |
-| `OAK-TARGET-EXECUTION` | mutation-capable target profile is missing its execution block | `src/oak/compiler/planning.py:446` |
-| `OAK-TARGET-INCOMPATIBLE` | *dynamic message* | `src/oak/compiler/planning.py:67` |
+| `OAK-TARGET-EXECUTION` | mutation-capable target profile is missing its execution block | `src/oak/compiler/planning.py:494` |
+| `OAK-TARGET-INCOMPATIBLE` | *dynamic message* | `src/oak/compiler/planning.py:78` |
 | `OAK-TARGET-INVALID` | target profile failed bounded validation | `src/oak/adapters/targets/local_profile.py:51` |
 | `OAK-TARGET-PATH` | target profile must be a regular file | `src/oak/adapters/targets/local_profile.py:24` |
 | `OAK-TARGET-TENANT` | target tenant does not match the command authority | `src/oak/application/candidate_planning.py:410` |
@@ -198,53 +198,57 @@ documented flow uses it.
 | `OAK-EXTENSION-VERSION` | version has no comparable numbers | `src/oak/application/extensions.py:469` |
 | `OAK-EXTENSION-VERSION-ACTIVE` | *dynamic message* | `src/oak/adapters/extensions/store.py:154` |
 
-### Runner, signing, approval and dispatch (43)
+### Runner, signing, approval and dispatch (47)
 
 | Code | Meaning | First raise site |
 |---|---|---|
-| `OAK-APPROVAL-ACTION` | approval action is not recognized | `src/oak/application/release.py:153` |
-| `OAK-APPROVAL-EXPIRY` | approval expiry must be in the future | `src/oak/application/release.py:174` |
-| `OAK-APPROVAL-MISSING` | no approval exists for that action | `src/oak/application/release.py:249` |
-| `OAK-APPROVAL-REVOKED` | approval is already revoked | `src/oak/application/release.py:253` |
-| `OAK-APPROVAL-STATE` | approval requires a compiled bundle | `src/oak/application/release.py:167` |
-| `OAK-DISPATCH-APPROVAL` | approval action does not match dispatch; approval binds a different bundle digest; approval binds a different plan digest; and 3 more (some dynamic) | `src/oak/application/release.py:355` |
-| `OAK-DISPATCH-EXISTS` | dispatch envelope was already delivered | `src/oak/adapters/dispatch/mailbox.py:40` |
-| `OAK-DISPATCH-KINDS` | dispatch requested an unclassified kind; dispatch requested kinds absent from the compiled plan; dispatch requires at least one operation kind | `src/oak/application/release.py:307` |
-| `OAK-DISPATCH-NAME` | mailbox document name is unsafe | `src/oak/adapters/dispatch/mailbox.py:93` |
-| `OAK-DISPATCH-SIGNATURE` | plan signature binds a different plan; plan signature does not verify | `src/oak/application/release.py:337` |
-| `OAK-DISPATCH-SIZE` | dispatch document exceeds the mailbox bound | `src/oak/adapters/dispatch/mailbox.py:84` |
-| `OAK-DISPATCH-STATE` | dispatch requires a compiled bundle | `src/oak/application/release.py:322` |
+| `OAK-APPROVAL-ACTION` | approval action is not recognized | `src/oak/application/release.py:154` |
+| `OAK-APPROVAL-EXPIRY` | approval expiry must be in the future | `src/oak/application/release.py:175` |
+| `OAK-APPROVAL-MISSING` | no approval exists for that action | `src/oak/application/release.py:250` |
+| `OAK-APPROVAL-REVOKED` | approval is already revoked | `src/oak/application/release.py:254` |
+| `OAK-APPROVAL-STATE` | approval requires a compiled bundle | `src/oak/application/release.py:168` |
+| `OAK-DISPATCH-APPROVAL` | approval action does not match dispatch; approval binds a different bundle digest; approval binds a different plan digest; and 3 more (some dynamic) | `src/oak/application/release.py:378` |
+| `OAK-DISPATCH-EXISTS` | dispatch envelope was already delivered | `src/oak/adapters/dispatch/mailbox.py:51` |
+| `OAK-DISPATCH-KINDS` | dispatch requested an unclassified kind; dispatch requested kinds absent from the compiled plan; dispatch requires at least one operation kind | `src/oak/application/release.py:330` |
+| `OAK-DISPATCH-NAME` | mailbox document name is unsafe; notice id collides with the manifest | `src/oak/adapters/dispatch/mailbox.py:132` |
+| `OAK-DISPATCH-SIGNATURE` | plan signature binds a different plan; plan signature does not verify | `src/oak/application/release.py:360` |
+| `OAK-DISPATCH-SIZE` | dispatch document exceeds the mailbox bound | `src/oak/adapters/dispatch/mailbox.py:123` |
+| `OAK-DISPATCH-STATE` | dispatch requires a compiled bundle | `src/oak/application/release.py:345` |
 | `OAK-GITOPS-OUTPUT` | --output is required | `src/oak/interfaces/cli/main.py:1120` |
 | `OAK-KEYS-ACTION` | keys action must be init or show | `src/oak/interfaces/cli/main.py:927` |
-| `OAK-RUNNER-ADAPTER` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:317` |
-| `OAK-RUNNER-APPLY` | fixture container creation failed | `src/oak/runner/adapters.py:95` |
-| `OAK-RUNNER-APPROVAL` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:366` |
-| `OAK-RUNNER-ATTACHMENT` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:188` |
-| `OAK-RUNNER-CONFIG` | OAK_RUNNER_TARGET_PROFILE could not be read; OAK_RUNNER_TARGET_PROFILE is not a valid target profile; the runner home, mailbox or trust anchors are unreadable | `src/oak/runner/main.py:40` |
-| `OAK-RUNNER-DIGEST` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:497` |
+| `OAK-RUNNER-ADAPTER` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:426` |
+| `OAK-RUNNER-APPLY` | fixture container creation failed | `src/oak/runner/adapters.py:97` |
+| `OAK-RUNNER-APPROVAL` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:482` |
+| `OAK-RUNNER-ATTACHMENT` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:245` |
+| `OAK-RUNNER-CONFIG` | OAK_RUNNER_TARGET_PROFILE could not be read; OAK_RUNNER_TARGET_PROFILE is not a valid target profile; the runner home, mailbox or trust anchors are unreadable | `src/oak/runner/main.py:45` |
+| `OAK-RUNNER-DIGEST` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:596` |
 | `OAK-RUNNER-DRIFT` | target state digest drifted during execution | `src/oak/runner/execution.py:209` |
-| `OAK-RUNNER-ENVIRONMENT` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:233` |
-| `OAK-RUNNER-EXECUTABLE` | executable is not allowlisted (some dynamic) | `src/oak/runner/adapters.py:126` |
+| `OAK-RUNNER-ENVIRONMENT` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:290` |
+| `OAK-RUNNER-EXECUTABLE` | executable is not allowlisted (some dynamic) | `src/oak/runner/adapters.py:190` |
+| `OAK-RUNNER-IMAGE` | resolved image could not be verified against the approved digest; resolved image does not carry the approved digest | `src/oak/runner/adapters.py:140` |
 | `OAK-RUNNER-KEY` | runner key length is invalid; runner key must be a private regular file | `src/oak/runner/identity.py:44` |
-| `OAK-RUNNER-LEASE` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:261` |
-| `OAK-RUNNER-NETWORK` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:352` |
+| `OAK-RUNNER-LEASE` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:318` |
+| `OAK-RUNNER-NETWORK` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:468` |
 | `OAK-RUNNER-OPERATION` | operation kind is not supported | `src/oak/runner/execution.py:217` |
-| `OAK-RUNNER-PARAMETERS` | container name is not permitted; image digest is not permitted; image reference is not permitted; and 2 more | `src/oak/runner/adapters.py:135` |
-| `OAK-RUNNER-PLAN-EXPIRED` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:253` |
-| `OAK-RUNNER-PLAN-STATE` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:248` |
-| `OAK-RUNNER-POLICY` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:394` |
-| `OAK-RUNNER-PROTOCOL` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:166` |
-| `OAK-RUNNER-REPLAY` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:266` |
-| `OAK-RUNNER-ROLLBACK` | *dynamic message* | `src/oak/runner/adapters.py:121` |
-| `OAK-RUNNER-SCHEMA` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:506` |
-| `OAK-RUNNER-SECRETS` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:341` |
-| `OAK-RUNNER-SEPARATION` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:283` |
-| `OAK-RUNNER-SIGNATURE` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:109` |
-| `OAK-RUNNER-TARGET` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:218` |
-| `OAK-RUNNER-TARGET-CAPABILITY` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:360` |
-| `OAK-RUNNER-TENANT` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:228` |
-| `OAK-RUNNER-TRUST` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:112` |
-| `OAK-SIGN-STATE` | plan signing requires a compiled bundle | `src/oak/application/release.py:94` |
+| `OAK-RUNNER-PARAMETERS` | container name is not permitted; image digest is not permitted; image reference is not permitted; and 2 more | `src/oak/runner/adapters.py:211` |
+| `OAK-RUNNER-PLAN-EXPIRED` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:310` |
+| `OAK-RUNNER-PLAN-STATE` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:305` |
+| `OAK-RUNNER-POLICY` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:354` |
+| `OAK-RUNNER-PROTOCOL` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:223` |
+| `OAK-RUNNER-REGISTRY` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:452` |
+| `OAK-RUNNER-REPLAY` | the consumed-nonce ledger is malformed; refusing to treat it as empty; the consumed-nonce ledger is unreadable; refusing to treat it as empty | `src/oak/runner/mailbox.py:167` |
+| `OAK-RUNNER-REVOCATION` | revocation directory contains an entry that is not a notice; revocation directory is missing or unreadable; revocation notice exceeds the mailbox bound; and 4 more | `src/oak/runner/mailbox.py:104` |
+| `OAK-RUNNER-ROLLBACK` | *dynamic message* | `src/oak/runner/adapters.py:185` |
+| `OAK-RUNNER-SCHEMA` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:605` |
+| `OAK-RUNNER-SECRETS` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:457` |
+| `OAK-RUNNER-SEPARATION` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:340` |
+| `OAK-RUNNER-SIGNATURE` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:110` |
+| `OAK-RUNNER-SUBPROCESS` | docker invocation failed before completing | `src/oak/runner/adapters.py:200` |
+| `OAK-RUNNER-TARGET` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:275` |
+| `OAK-RUNNER-TARGET-CAPABILITY` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:476` |
+| `OAK-RUNNER-TENANT` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:285` |
+| `OAK-RUNNER-TRUST` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:113` |
+| `OAK-SIGN-STATE` | plan signing requires a compiled bundle | `src/oak/application/release.py:95` |
 
 ### Rendering and deployment (6)
 
@@ -376,7 +380,7 @@ documented flow uses it.
 | `OAK-JOURNAL-TAMPERED` | journal hash chain does not verify (some dynamic) | `src/oak/runner/journal.py:103` |
 | `OAK-NOT-FOUND` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/api/app.py:319` |
 | `OAK-OUTPUT-EXISTS` | GitOps output directory already exists; output directory already exists; render output directory already exists | `src/oak/application/gitops.py:36` |
-| `OAK-REVOCATION-REASON` | revocation requires a reason | `src/oak/application/release.py:236` |
+| `OAK-REVOCATION-REASON` | revocation requires a reason | `src/oak/application/release.py:237` |
 | `OAK-SAFE-BIND` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/api/server.py:61` |
 | `OAK-SIGNING-KEY-INVALID` | signing key length is invalid; signing key must be a regular file | `src/oak/adapters/signing/local_ed25519.py:75` |
 | `OAK-SIGNING-KEY-MISSING` | signing key does not exist; run oak keys init | `src/oak/adapters/signing/local_ed25519.py:70` |

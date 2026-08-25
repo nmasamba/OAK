@@ -40,6 +40,7 @@ PLAN_SIGNATURE_MEDIA_TYPE = "application/vnd.oak.plan-signature+json"
 APPROVAL_MEDIA_TYPE = "application/vnd.oak.approval+json"
 ENVELOPE_MEDIA_TYPE = "application/vnd.oak.runner-envelope+json"
 RUNNER_MESSAGE_MEDIA_TYPE = "application/vnd.oak.runner-message+json"
+REVOCATION_MEDIA_TYPE = "application/vnd.oak.revocation+json"
 
 APPROVAL_ACTIONS = ("dry_run", "apply", "rollback", "destroy")
 READ_ONLY_KINDS = frozenset({"inventory", "validate", "render", "plan", "verify"})
@@ -281,16 +282,38 @@ class ReleaseService:
             input_digest=input_digest,
             artifacts=(artifact,),
         )
-        self._transport.publish_revocation(
+        # The notice is signed in the approver role so the runner can refuse anything an
+        # anchor did not issue: an unsigned file in the revocation channel used to be
+        # honoured on its say-so, and its deletion restored the approval (RR-001). The
+        # notice is a mailbox protocol document, not a workspace artifact — the workspace
+        # record of the revocation is the re-signed approval above. The accompanying
+        # signed manifest inventories the complete notice set, so deleting one valid
+        # notice denies every pending dispatch instead of restoring the approval.
+        notice = self._signed_artifact(
             {
+                "schema_version": "0.1.0",
                 "id": f"revocation.{artifact.reference.id}",
+                "version": "0.1.0",
                 "approval_id": artifact.reference.id,
                 "approval_digest": artifact.reference.digest,
                 "action": action,
                 "revoked_at": context.occurred_at,
                 "reason": reason.strip(),
-            }
+                "extensions": {},
+            },
+            role="approver",
+            schema="revocation.schema.json",
+            kind="revocation_notice",
+            media_type=REVOCATION_MEDIA_TYPE,
         )
+        notice_document = self._artifact_document(notice)
+        previous_manifest, existing_notices = self._transport.revocation_state()
+        manifest = self._revocation_manifest(
+            notices=(*existing_notices, notice_document),
+            previous=previous_manifest,
+            context=context,
+        )
+        self._transport.publish_revocation(notice_document, manifest)
         return ReleaseResult(
             case=published,
             document=self._artifact_document(artifact),
@@ -423,6 +446,10 @@ class ReleaseService:
             artifacts=(artifact,),
         )
         self._transport.deliver(envelope_document, attachments)
+        # The runner refuses a mailbox holding dispatches without a revocation manifest,
+        # so an empty signed manifest is established with the first dispatch: from then
+        # on, "no manifest" and "no notices" are distinguishable tampering states.
+        self._ensure_revocation_manifest(context)
         return ReleaseResult(case=published, document=envelope_document, duplicate=False)
 
     def ingest_runner_messages(self, context: CommandContext) -> IngestResult:
@@ -563,6 +590,57 @@ class ReleaseService:
             raise OAKError("OAK-DISPATCH-APPROVAL", "approval binds a different bundle digest")
         if _parse_time(approval["expires_at"]) <= _parse_time(now):
             raise OAKError("OAK-DISPATCH-APPROVAL", "approval has expired")
+
+    def _revocation_manifest(
+        self,
+        *,
+        notices: tuple[dict[str, Any], ...],
+        previous: dict[str, Any] | None,
+        context: CommandContext,
+    ) -> dict[str, Any]:
+        """Sign an inventory of the complete revocation-notice set.
+
+        The sequence is strictly monotonic so the runner can refuse a set rolled back
+        to an older signed state; each entry binds a notice's exact canonical bytes so
+        a deleted or substituted notice is a set mismatch, not an absence.
+        """
+
+        entries = sorted(
+            (
+                {
+                    "id": str(document["id"]),
+                    "digest": content_digest(canonical_json_bytes(document)),
+                }
+                for document in notices
+            ),
+            key=lambda entry: entry["id"],
+        )
+        sequence = int(previous["sequence"]) + 1 if isinstance(previous, dict) else 0
+        artifact = self._signed_artifact(
+            {
+                "schema_version": "0.1.0",
+                "id": "revocation-manifest",
+                "version": "0.1.0",
+                "sequence": sequence,
+                "revoked": entries,
+                "updated_at": context.occurred_at,
+                "extensions": {},
+            },
+            role="approver",
+            schema="revocation-manifest.schema.json",
+            kind="revocation_manifest",
+            media_type=REVOCATION_MEDIA_TYPE,
+        )
+        return self._artifact_document(artifact)
+
+    def _ensure_revocation_manifest(self, context: CommandContext) -> None:
+        previous_manifest, existing_notices = self._transport.revocation_state()
+        if previous_manifest is not None:
+            return
+        manifest = self._revocation_manifest(
+            notices=existing_notices, previous=None, context=context
+        )
+        self._transport.publish_revocation(None, manifest)
 
     def _signed_artifact(
         self,

@@ -76,7 +76,7 @@ when you harden a runner environment. Recorded as `RR-033`.
 | Variable | Default | Meaning | Safety-relevant |
 |---|---|---|---|
 | `OAK_RUNNER_MAILBOX` | *(none — required)* | Mailbox directory the runner reads dispatched leases from | Yes |
-| `OAK_RUNNER_HOME` | `~/.oak/runner` | Runner state: journal, consumed nonces, processed dispatches | Yes |
+| `OAK_RUNNER_HOME` | `~/.oak/runner` | Runner state: journal, consumed nonces, processed dispatches, recorded revocation-manifest sequence | Yes |
 | `OAK_RUNNER_TRUST_ANCHORS` | *(none — required)* | Directory of pinned public identities the runner verifies signatures against. **Never** a key carried inside the document being checked | Yes |
 | `OAK_RUNNER_TARGET_PROFILE` | *(none — required)* | Path to the target profile the runner is permitted to act against | Yes |
 | `OAK_RUNNER_ID` | `runner.local-fixture-runner` | Runner identity recorded in leases and evidence | Yes |

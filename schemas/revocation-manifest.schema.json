@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://oak.example/schemas/revocation-manifest.schema.json",
+  "title": "Revocation manifest",
+  "description": "Signed inventory of the complete revocation-notice set. The runner refuses a mailbox whose notices do not match the manifest exactly, and refuses a manifest whose sequence regresses below the highest it has recorded, so deleting an individual notice — or rolling the whole set back to an older signed state — denies every pending dispatch instead of silently restoring an approval.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "id",
+    "version",
+    "sequence",
+    "revoked",
+    "updated_at",
+    "signature",
+    "extensions"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "0.1.0"
+    },
+    "id": {
+      "const": "revocation-manifest"
+    },
+    "version": {
+      "$ref": "common.schema.json#/$defs/semver"
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "revoked": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "digest"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "common.schema.json#/$defs/identifier"
+          },
+          "digest": {
+            "$ref": "common.schema.json#/$defs/digest"
+          }
+        }
+      }
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "signature": {
+      "$ref": "common.schema.json#/$defs/signatureBlock"
+    },
+    "extensions": {
+      "$ref": "common.schema.json#/$defs/extensions"
+    }
+  }
+}

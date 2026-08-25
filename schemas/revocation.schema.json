@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://oak.example/schemas/revocation.schema.json",
+  "title": "Revocation notice",
+  "description": "Signed out-of-band notice that an approval is revoked. The runner refuses to honour a notice that is unsigned, schema-invalid, or signed by anything but a pinned approver anchor, and treats an unreadable revocation channel as denial, never as an empty one.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "id",
+    "version",
+    "approval_id",
+    "approval_digest",
+    "action",
+    "revoked_at",
+    "reason",
+    "signature",
+    "extensions"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "0.1.0"
+    },
+    "id": {
+      "$ref": "common.schema.json#/$defs/identifier"
+    },
+    "version": {
+      "$ref": "common.schema.json#/$defs/semver"
+    },
+    "approval_id": {
+      "$ref": "common.schema.json#/$defs/identifier"
+    },
+    "approval_digest": {
+      "$ref": "common.schema.json#/$defs/digest"
+    },
+    "action": {
+      "enum": [
+        "dry_run",
+        "apply",
+        "rollback",
+        "destroy"
+      ]
+    },
+    "revoked_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    },
+    "signature": {
+      "$ref": "common.schema.json#/$defs/signatureBlock"
+    },
+    "extensions": {
+      "$ref": "common.schema.json#/$defs/extensions"
+    }
+  }
+}
