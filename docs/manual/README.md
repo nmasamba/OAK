@@ -28,6 +28,9 @@ pnpm --dir web exec node ../docs/manual/build_manual.mjs
 Regenerate both whenever the workspace UI or the documented commands change. The
 capture spec (`web/e2e/manual-screens.spec.ts`) is gated behind `OAK_MANUAL_SCREENS=1`:
 `make web-e2e` collects it but reports it as skipped. The PDF rebuild uses the pinned
-Chromium already installed for the e2e suite, so identical source renders the same
-document on any machine; the PDF's embedded creation timestamp is the one field that
-differs between rebuilds, which is why the HTML source, not the PDF, is authoritative.
+Chromium already installed for the e2e suite, so a rebuild on the same platform from
+unchanged source reproduces the same document apart from the PDF's embedded creation
+timestamp. It is not byte-reproducible across machines: the stylesheet names system
+font families (Georgia, Helvetica Neue, SF Mono) with generic fallbacks, so a host
+without them substitutes fonts and can repaginate. That is why the HTML source, not
+the PDF, is authoritative — the PDF is a convenience rendering.

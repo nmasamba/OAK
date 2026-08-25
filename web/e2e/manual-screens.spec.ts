@@ -152,5 +152,17 @@ test("capture the manual screenshots from the reference journey", async ({
 
   await page.getByRole("link", { name: "Back to the case" }).click();
   await expect(page.getByText("bundle_compiled").first()).toBeVisible();
+  // Shoot the timeline itself, not the top of the case page: the audit entries are the
+  // subject of this figure and they sit below the fold at this viewport.
+  // This figure's subject is the audit entries, so wait for them and put them on screen.
+  // Two traps: the entries are fetched after the case document resolves, so shooting on
+  // `bundle_compiled` alone races the trail into "No audit events are recorded yet"; and
+  // scrollIntoViewIfNeeded is a no-op because the heading already sits at the bottom
+  // edge, which leaves the entries themselves below the fold.
+  const timeline = page.getByRole("heading", { name: "Audit timeline" });
+  await expect(page.locator("ol.timeline li").first()).toBeVisible();
+  await timeline.evaluate((element) =>
+    element.scrollIntoView({ block: "start", behavior: "instant" }),
+  );
   await shoot(page, "10-timeline");
 });

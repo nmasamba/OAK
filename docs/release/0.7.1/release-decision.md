@@ -52,7 +52,8 @@ schema shape changed; stored workspaces remain valid and importable.
 
 ## What changed since the 0.7.0 approval
 
-Seven register entries closed, each with adversarial tests; nothing else moved:
+Seven register entries closed, each with adversarial tests; no other code, contract,
+schema or canonical surface moved:
 
 - **`RR-001`** — revocation notices are signed (`approver` role, `revocation.schema.json`)
   and a signed revocation manifest inventories the complete set with a monotonic,
@@ -77,6 +78,13 @@ The runner protocol tightened accordingly (signed revocations; three new denial 
 Nothing was published under the old protocol, so no deprecation window was owed;
 [compatibility.md](../../compatibility.md) now states the publication-boundary reading
 explicitly.
+
+After the hardening merged, a documentation-only final sweep added the illustrated user
+manual ([docs/manual/](../../manual/)), neutralized the AI-vendor names in the completed
+exec plans' author descriptions, and brought the manual's HTML source under the
+document-policy gates. It touched no code path a release artifact is built from except
+those gates and the configuration-reference test, and the four reference digests above
+were re-verified by direct recompilation afterwards — byte-identical.
 
 ## Evidence
 

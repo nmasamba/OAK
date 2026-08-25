@@ -341,7 +341,7 @@ uv run oak import ../case-export --directory ../restored
   <figure><img src="assets/07-candidates.png" alt="Candidate comparison with an infeasible variant"><figcaption>Candidate comparison. Note the infeasible candidate staying visible with its constraint failure — rejection reasons are first-class.</figcaption></figure>
   <figure><img src="assets/08-decision-assurance.png" alt="Decision and assurance plan"><figcaption>The immutable decision with evaluation evidence, plus the assurance plan's controls and gate blockers.</figcaption></figure>
   <figure><img src="assets/09-bundle.png" alt="Compiled bundle review"><figcaption>Bundle review. Plan, approval and apply are deliberately separated — and apply is marked unavailable here: the web surface holds no runner execution authority.</figcaption></figure>
-  <figure><img src="assets/10-timeline.png" alt="Audit timeline"><figcaption>The audit timeline: every command, actor and artifact from case creation to <em>bundle_compiled</em>, exportable as a canonical JSON bundle.</figcaption></figure>
+  <figure><img src="assets/10-timeline.png" alt="Audit timeline"><figcaption>The audit timeline: every recorded event from <em>case_created</em> to <em>bundle_compiled</em>, each with its sequence number, actor, interface origin, case version and timestamp — and downloadable as a canonical JSON export.</figcaption></figure>
   <p>Stop the stack with <code>docker compose down</code> (add <code>--volumes</code> to also drop the local database and artifact store).</p>
 </section>
 
@@ -454,8 +454,8 @@ uv run oak-runner run-once
     actually resolved and refuses on any mismatch, verifies, rolls back — removing
     exactly what it created — and publishes a signed completion message. Then:
   </p>
-  <pre><code>uv run oak ingest --output json
-uv run oak-runner status
+  <pre><code>uv run oak ingest --output json</code></pre>
+  <pre><code>OAK_RUNNER_HOME=$PWD/runner-home uv run oak-runner status
 <span class="out">{
   "journals": [
     {
@@ -469,8 +469,11 @@ uv run oak-runner status
   <p>
     <code>ingest</code> verifies the runner's signed messages — delivery never implies
     success — and <code>status</code> reports the journal's hash-chain integrity and
-    any manual-recovery state. (<code>status</code> needs the same
-    <code>OAK_RUNNER_*</code> variables as <code>run-once</code>.)
+    any manual-recovery state. <code>status</code> reads
+    <code>OAK_RUNNER_HOME</code> — pass it as shown, because the variables above were
+    prefixes on the <code>run-once</code> command and do not persist. Without it,
+    <code>status</code> reads the default home (<code>~/.oak/runner</code>) and reports
+    an empty journal list rather than failing.
   </p>
   <h2>What a denial means</h2>
   <p>
@@ -548,10 +551,30 @@ uv run oak-runner status
     from outside the checkout, and emits an SBOM, a licence inventory, and
     <code>SHA256SUMS</code>. On the consuming side:
   </p>
-  <pre><code>make verify-release</code></pre>
+  <pre><code># in a checkout, against the build you just made
+make verify-release
+
+# what a consumer actually runs, against a downloaded directory
+python scripts/verify_release.py ./downloaded-release
+<span class="out">OK  THIRD-PARTY-LICENCES.md
+OK  oak-community-0.7.1.cdx.json
+OK  oak_community-0.7.1-py3-none-any.whl
+OK  oak_community-0.7.1.tar.gz
+
+verified 4 artifact(s) against SHA256SUMS
+Checksums prove the bytes match the manifest. They do not prove who produced
+them: OAK Community release artifacts are unsigned.</span></code></pre>
+  <div class="note">
+    <code>make verify-release</code> is the in-checkout convenience: it runs the same
+    script against <code>dist/release</code>. If you received artifacts rather than this
+    repository, you have no Makefile — use the script directly (it is standard-library
+    only, imports nothing from OAK, and needs no installed OAK), or the equivalent
+    <code>shasum -a 256 -c SHA256SUMS</code> on macOS /
+    <code>sha256sum -c SHA256SUMS</code> on Linux. Exit codes: 0 verified, 2
+    verification failed, 3 the manifest or a listed file is missing or malformed.
+  </div>
   <p>
-    is a dependency-free verifier for the <code>SHA256SUMS</code> manifest. Be aware of
-    what this does and does not prove: checksums prove the bytes match the manifest;
+    Be aware of what this does and does not prove: checksums prove the bytes match the manifest;
     they do not prove who produced them. Release artifacts are deliberately not signed
     yet (<code>RR-005</code> in the residual-risk register), and the container images
     are not byte-reproducible (<code>RR-006</code>) — their SBOMs and provenance under
@@ -589,28 +612,34 @@ docker rm -f $(docker ps -aq --filter "label=oak.fixture=true") 2&gt;/dev/null |
 # 2 · Home-directory state: PRIVATE KEYS, runner journals, consumed nonces
 rm -rf ~/.oak
 
-# 3 · Workspaces you created (you chose these paths; OAK does not track them)
-rm -rf ./workspace ./runner-demo ./case-export ./restored
+# 3 · Workspaces you created (you chose these paths; OAK does not track them),
+#     and chapter 5's trust directory and mailbox, which hold DEVELOPMENT PRIVATE KEYS
+rm -rf ./workspace ./runner-demo ./case-export ./restored ./trust ./mailbox
 
-# 4 · The repository, its venv and caches
+# 4 · Build output, venv and caches inside the checkout
+make clean-all
+
+# 5 · Confirm — run this BEFORE step 6, which deletes the script itself
+python scripts/check_clean_machine.py
+
+# 6 · Finally the checkout, if you no longer want the source
 cd .. &amp;&amp; rm -rf OAK</code></pre>
   <p>
     <code>~/.oak</code> holds private signing keys, the runner's journal, consumed
     nonces and its revocation-sequence mark — export anything you want to keep first.
-    (Chapter 5's demonstration kept its trust directory, mailbox and runner home inside
-    the working directories, so step 3 removes those.) Shared caches
+    Chapter 5 placed its trust directory and mailbox in the repository root and its
+    runner home inside <code>runner-demo/</code>: <code>trust/</code> holds development
+    private keys, which is why step 3 names it explicitly rather than leaving it to the
+    checkout's removal. Shared caches
     (<code>~/.cache/uv</code>, the pnpm store, Playwright browsers) and
     the third-party images OAK pulled (<code>postgres:17.6-alpine</code>,
     <code>python:3.13.12-slim</code>, <code>node:24.18.0-alpine</code>,
     <code>nginxinc/nginx-unprivileged:1.29.1-alpine</code>) are shared Docker and
     toolchain state, yours to keep or remove with <code>docker image rm</code>. The full
     runbook version, including the named-volume and release-image variants, is
-    <code>docs/operations.md</code> § Uninstall. Then confirm the machine is actually
-    clean:
-  </p>
-  <pre><code>python scripts/check_clean_machine.py</code></pre>
-  <p>
-    which reports any OAK-related state that survived.
+    <code>docs/operations.md</code> § Uninstall. Step 5 reports any OAK-related state
+    that survived — run it while the checkout still exists, because step 6 removes the
+    script along with everything else.
   </p>
 </section>
 
