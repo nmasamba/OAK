@@ -144,6 +144,9 @@ compose.override.yml
 sbom/
 *.spdx.json
 *.cdx.json
+# Release evidence is the exception: the blanket SBOM ignore above silently kept the
+# 0.7.1 image SBOMs out of the commit the release record cited them from.
+!docs/release/**/*.cdx.json
 .terraform/
 *.tfstate
 *.tfstate.*

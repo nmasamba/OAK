@@ -2,7 +2,7 @@
 
 # Supported platforms
 
-This is the authoritative statement of where OAK Community `0.7.0` is supported, what
+This is the authoritative statement of where OAK Community `0.7.1` is supported, what
 "supported" means for each row, and what is deliberately out of scope. Prerequisites that
 used to be scattered across [README.md](../README.md), [development.md](development.md) and
 [dependencies.md](dependencies.md) are consolidated here.

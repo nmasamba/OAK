@@ -13,7 +13,15 @@ class DispatchTransport(Protocol):
         attachments: dict[str, dict[str, Any]],
     ) -> None: ...
 
-    def publish_revocation(self, notice: dict[str, Any]) -> None: ...
+    def revocation_state(
+        self,
+    ) -> tuple[dict[str, Any] | None, tuple[dict[str, Any], ...]]:
+        """Return the published (manifest, notices) so a successor can be built."""
+        ...
+
+    def publish_revocation(self, notice: dict[str, Any] | None, manifest: dict[str, Any]) -> None:
+        """Write the notice (when given) and the signed manifest covering the set."""
+        ...
 
     def read_messages(self) -> tuple[dict[str, Any], ...]: ...
 

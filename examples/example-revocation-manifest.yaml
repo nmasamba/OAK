@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: Apache-2.0
+extensions: {}
+id: revocation-manifest
+revoked:
+- digest: sha256:bfb4fbd107c586b88f507473bf2ef96a174db6a943d0879a91971f24c1cd4017
+  id: revocation.approval.dry-run.bundle.candidate-03.target.local-fixture
+schema_version: 0.1.0
+sequence: 1
+signature:
+  algorithm: ed25519
+  key_id: sha256:aeb84137b88f8adf1b221229c9de60aef4adf71837c00358b590d07b6b6ac918
+  public_key_base64: jJVEwwQEJFuw/fRFwVNphOo7/f4I0HuyBqn4dHRaZe0=
+  role: approver
+  signature_base64: D6Vq67COayvKqhz4aWXNpp5LJbt+7gTVC6l1gyiS3OP6Ehd1KBp0CNfe9TGHKtpwH/8vPq4DD0dasuPdnFLNCw==
+  trust_level: development
+updated_at: '2026-08-18T12:00:00Z'
+version: 0.1.0

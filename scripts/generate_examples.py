@@ -38,6 +38,7 @@ SIGNED_OUTPUTS = (
     "example-approval.yaml",
     "example-runner-envelope.yaml",
     "example-revocation.yaml",
+    "example-revocation-manifest.yaml",
 )
 
 
@@ -78,18 +79,23 @@ def main() -> int:
             "Example: the dry-run approval is withdrawn.",
             harness.context("revoke-dryrun-00001", "0.1.10"),
         )
-        notices = sorted((harness.mailbox_root / "revocations").glob("*.json"))
+        revocation_dir = harness.mailbox_root / "revocations"
+        notices = sorted(
+            path for path in revocation_dir.glob("*.json") if path.name != "manifest.json"
+        )
         if len(notices) != 1:
             raise SystemExit(f"expected exactly one revocation notice, found {len(notices)}")
         import json
 
         notice = json.loads(notices[0].read_text(encoding="utf-8"))
+        manifest = json.loads((revocation_dir / "manifest.json").read_text(encoding="utf-8"))
 
         _write("example-runner-envelope.yaml", envelope)
         _write("example-plan-signature.yaml", attachments["plan-signature"])
         _write("example-approval.yaml", attachments["approval-dry-run"])
         _write("example-runner-plan.yaml", attachments["plan"])
         _write("example-revocation.yaml", notice)
+        _write("example-revocation-manifest.yaml", manifest)
     return 0
 
 

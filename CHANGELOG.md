@@ -35,8 +35,11 @@ compatibility promises in [compatibility.md](docs/compatibility.md).
   `runner_plan` from `sha256:5e0a65ba…` to
   `sha256:fad309590f1d09da0019f52dce9bd3d31da5b6285f5246d899657a8f161e18c4`;
   `selected_candidate` (`sha256:576b0ca6…`) and `semantic_manifest` (`sha256:2ef34758…`)
-  were recompiled on both sides and are byte-identical, bounding the blast radius to the
-  two documents that embed the corrected content. No schema shape changed, previously
+  were recompiled on both sides and are byte-identical. Stated fully: the corrected
+  review artifacts themselves (the signature marker and the verification policy) change
+  digest, as does the mutation-target semantic manifest whose `operation_kinds` is now
+  target-derived; the two *spine* documents above are the ones the recorded reference
+  baseline tracks, and the two untouched reference digests bound the blast radius. No schema shape changed, previously
   stored workspaces remain valid and importable, and nothing was ever published under the
   old digests. The runner now enforces the policy it is handed: a requested operation
   kind outside `allowed_operation_kinds`, a mutating kind under
@@ -45,14 +48,20 @@ compatibility promises in [compatibility.md](docs/compatibility.md).
 
 ### Security
 
-- **Revocation notices are signed and the channel fails closed** (`RR-001`, closed —
-  one of the two standing conditions on the `0.7.0` approval). `oak revoke-approval`
-  now publishes a notice signed in the `approver` role against the new
-  `revocation.schema.json`; the runner verifies every notice against pinned anchors and
-  treats a missing revocation directory, or any unreadable, oversized, malformed or
-  unsigned notice, as denial of every pending dispatch (`OAK-RUNNER-REVOCATION`).
-  Deleting a notice no longer restores a revoked approval; the original attack is a
-  regression test.
+- **Revocation notices are signed, inventoried, and the channel fails closed**
+  (`RR-001`, closed — one of the two standing conditions on the `0.7.0` approval).
+  `oak revoke-approval` publishes a notice signed in the `approver` role against the new
+  `revocation.schema.json` **and a signed revocation manifest**
+  (`revocation-manifest.schema.json`) inventorying the complete set by canonical digest
+  with a strictly monotonic sequence. The runner verifies everything against pinned
+  anchors and denies every pending dispatch (`OAK-RUNNER-REVOCATION`) on: a notice set
+  that does not match the manifest, a sequence regressing below the high-water mark the
+  runner records in its own home, a missing manifest on a dispatched mailbox, a missing
+  directory, or any unreadable, oversized, malformed or unsigned entry. The manifest
+  exists because the closing audit refuted the first fix: signing the notices alone
+  still let deletion of one *valid* notice restore its approval. Every variant of the
+  attack — single-notice deletion, whole-set deletion, set rollback — is a regression
+  test.
 - **The runner verifies what the container runtime actually resolved** (`RR-003`,
   closed — the other standing condition). After `docker create`, the adapter requires a
   `RepoDigests` entry carrying the approved digest and removes the container on
@@ -99,6 +108,38 @@ compatibility promises in [compatibility.md](docs/compatibility.md).
 - The signed protocol examples were regenerated with post-migration digests.
 - `docs/compatibility.md` states explicitly that its promises bind external consumers
   from the first published artifact, and that no `0.7.x` artifact has been published.
+
+### Found and fixed by the closing adversarial audit
+
+The plan's closing audit (eight finder lenses, one independent refute-by-default skeptic
+per finding) raised 23 findings; the skeptics and a manual pass over the unjudged
+remainder confirmed 15. Every confirmed finding is fixed below or recorded in the exec
+plan's audit section; the most consequential:
+
+- **The revocation manifest above** — the audit's highest-value finding refuted the
+  first RR-001 fix's central claim.
+- **The consumed-nonce replay ledger failed open and could erase itself.** A corrupt
+  `consumed-nonces.json` read as an empty set, and the next consume rewrote the file
+  from that read — permanently destroying every previously burned nonce. Both the read
+  and the consume now refuse (`OAK-RUNNER-REPLAY`) until an operator intervenes, and the
+  rewrite is atomic (`os.replace`).
+- **A hung docker command could leak an unverified container and kill the runner.**
+  `subprocess.TimeoutExpired`/`OSError` from any docker invocation now surfaces as
+  `OAK-RUNNER-SUBPROCESS` (a typed denial the journal and failure actions handle) rather
+  than a raw traceback, and *any* failure between `docker create` and a verified digest
+  — including a timeout raised mid-inspection — removes the container before denying
+  with `OAK-RUNNER-IMAGE`.
+- **The image SBOMs never made it into version control.** `.gitignore`'s blanket
+  `*.cdx.json` silently excluded the very evidence the committed release record cited;
+  release evidence under `docs/release/` is now explicitly un-ignored and the SBOMs are
+  committed.
+- **The evidence's image identity is now the scanner's own config digest.**
+  `docker image inspect {{.Id}}` is store-dependent (manifest digest under containerd)
+  and contradicted the `ImageID` the scanner records inside the same SBOM; the
+  `oak:image` stamp and the provenance now bind to the scanner's value, so the evidence
+  set is mutually verifiable from the artifacts alone. Provenance also records
+  `images_rebuilt`, and the dirty-tree computation excludes whatever directory the
+  evidence is being written to, so a clean CI checkout no longer reports itself dirty.
 
 ## 0.7.0 — 2026-08-21
 

@@ -55,7 +55,11 @@ schema shape changed; stored workspaces remain valid and importable.
 Seven register entries closed, each with adversarial tests; nothing else moved:
 
 - **`RR-001`** — revocation notices are signed (`approver` role, `revocation.schema.json`)
-  and the channel fails closed; deleting a notice no longer restores an approval.
+  and a signed revocation manifest inventories the complete set with a monotonic,
+  runner-recorded sequence; the channel fails closed, and deleting a notice — one file,
+  the whole set, or a rollback to an older signed state — no longer restores an
+  approval. The manifest was added after the plan's closing audit refuted the first
+  fix's claim; the audit record in the exec plan has the full history.
 - **`RR-003`** — post-create resolved-digest verification (`OAK-RUNNER-IMAGE`) and a
   target-profile registry allowlist (`OAK-RUNNER-REGISTRY`); TM-08 moved to **direct**
   in [threat-coverage.md](../../security/threat-coverage.md).
@@ -86,7 +90,7 @@ explicitly.
 | Are the dependency closures clean? | `make audit` re-run clean at `0.7.1` (`pip-audit` + `pnpm audit`) |
 | How fast is it? | Inherited from `0.7.0`: [performance.md](../../performance.md) / [../0.7.0/performance.json](../0.7.0/performance.json). The migration changed compiled *content*, not the compile path; figures were not re-measured |
 | Was a clean-room rehearsal re-run? | **No** — inherited from `0.7.0` ([../0.7.0/clean-room.md](../0.7.0/clean-room.md)). The install path (wheel, packaged data) is unchanged; the web image base changed and is covered by the rescan and `make web-e2e` instead. An approver who weighs the rehearsal heavily may ask for a re-run |
-| What does it *not* defend against? | [security/residual-risk.md](../../security/residual-risk.md) — 38 entries with stable ids, seven now closed |
+| What does it *not* defend against? | [security/residual-risk.md](../../security/residual-risk.md) — 38 entries with stable ids, of which eight rows are closed (seven by this work; `RR-035` previously) |
 | Was it externally reviewed? | **No.** As for `0.7.0`, no external security review was commissioned; the wording restrictions recorded in the [`0.7.0` decision](../0.7.0/release-decision.md#external-review) apply to this release unchanged |
 
 ## The register count, made legible
@@ -118,4 +122,4 @@ signature.
 |---|---|---|---|
 | Maintainer | The release is functionally what it claims to be, and the evidence above is sufficient | *(unsigned)* | — |
 | Security | The residual-risk register is complete and correctly scoped, including the seven closures and the digest migration made since `0.7.0` | *(unsigned)* | — |
-| Licence | The Apache-2.0 declaration and the generated third-party inventory are correct; no dependency changed since the `0.7.0` licence approval | *(unsigned)* | — |
+| Licence | The Apache-2.0 declaration and the generated third-party inventory are correct. The Python and web dependency closures are unchanged since the `0.7.0` licence approval, but two adjacent things did change and are recorded in [dependencies.md](../../dependencies.md): the web runtime base image moved from the Docker Official `nginx` to NGINX's `nginxinc/nginx-unprivileged` community image, and `pnpm-lock.yaml` now locks the Node.js 24.18.0 runtime itself (MIT-licensed, integrity-pinned per platform) for pnpm's managed-runtime provisioning | *(unsigned)* | — |

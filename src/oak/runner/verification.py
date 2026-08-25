@@ -150,26 +150,60 @@ class VerifiedDispatch:
     """Exactly the operations verification approved, in plan order."""
 
 
-def verified_revocation_ids(
+@dataclass(frozen=True, slots=True)
+class VerifiedRevocations:
+    approval_ids: frozenset[str]
+    sequence: int
+
+
+def verified_revocations(
+    manifest: dict[str, Any] | None,
     documents: tuple[dict[str, Any], ...],
     *,
     registry: SchemaRegistry,
     anchors: TrustAnchors,
-) -> frozenset[str]:
-    """Return the approval ids named by schema-valid, anchor-signed revocation notices.
+    minimum_sequence: int,
+) -> VerifiedRevocations:
+    """Verify the revocation set as a whole, then every notice in it (RR-001).
 
-    A notice that fails validation or signature verification denies the whole read
-    rather than being skipped: an attacker who can plant one malformed file in the
-    revocation channel must not thereby suppress the valid notices beside it, and a
-    channel containing anything unverifiable cannot prove what is revoked (RR-001).
+    Three properties, each fail-closed: the signed manifest must be present and
+    anchor-verified (a dispatched mailbox always carries one, so absence is tampering);
+    its sequence must not regress below the highest this runner has recorded (a rollback
+    to an older, validly signed set is refused); and the notices on disk must match the
+    manifest's inventory exactly, both ways, by canonical digest — so deleting one valid
+    notice, or planting one malformed file, denies every pending dispatch rather than
+    restoring an approval or suppressing the valid notices beside it.
     """
 
+    if manifest is None:
+        raise RunnerDenialError(
+            "OAK-RUNNER-REVOCATION",
+            "revocation manifest is missing; a dispatched mailbox always carries one",
+        )
+    _validate(registry, "revocation-manifest.schema.json", manifest, "revocation manifest")
+    _verify_against_anchor(manifest, anchors, "approver", "revocation manifest")
+    sequence = int(manifest["sequence"])
+    _check(
+        sequence >= minimum_sequence,
+        "OAK-RUNNER-REVOCATION",
+        "revocation manifest sequence regressed below the recorded high-water mark",
+    )
+    listed = {(str(entry["id"]), str(entry["digest"])) for entry in manifest["revoked"]}
+    present = {
+        (str(document.get("id")), content_digest(canonical_json_bytes(document)))
+        for document in documents
+    }
+    _check(
+        listed == present,
+        "OAK-RUNNER-REVOCATION",
+        "revocation notices do not match the signed manifest",
+    )
     revoked: set[str] = set()
     for document in documents:
         _validate(registry, "revocation.schema.json", document, "revocation notice")
         _verify_against_anchor(document, anchors, "approver", "revocation notice")
         revoked.add(str(document["approval_id"]))
-    return frozenset(revoked)
+    return VerifiedRevocations(approval_ids=frozenset(revoked), sequence=sequence)
 
 
 def verify_dispatch(

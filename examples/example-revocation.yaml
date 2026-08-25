@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 action: dry_run
-approval_digest: sha256:2529e6d36ed0324be0bad5bbaa3705429a67a3b95bcadc7e3a1802b16555d393
+approval_digest: sha256:ab82b77d1a4c92416ab09529fce6b58ddc70443cbd235ce2e9b6a73599ef074b
 approval_id: approval.dry-run.bundle.candidate-03.target.local-fixture
 extensions: {}
 id: revocation.approval.dry-run.bundle.candidate-03.target.local-fixture
@@ -9,9 +9,9 @@ revoked_at: '2026-08-18T12:00:00Z'
 schema_version: 0.1.0
 signature:
   algorithm: ed25519
-  key_id: sha256:ac81ef1d9bb39d4f7db6e230e577ed49385f46eb423149f1cdd4f41f7fa20bec
-  public_key_base64: b6nQeEgBrHOxgSgoyVyioFit9lVemiB1sGseyaGb2eo=
+  key_id: sha256:aeb84137b88f8adf1b221229c9de60aef4adf71837c00358b590d07b6b6ac918
+  public_key_base64: jJVEwwQEJFuw/fRFwVNphOo7/f4I0HuyBqn4dHRaZe0=
   role: approver
-  signature_base64: hjQSRfs6GXn5/QBcoYrfaJrj7qrrMkHFn2CKUSCFmmCD7pIiJjp63GUYX5YZ9akOJlAFXHptsYzjH6O6OHWHCw==
+  signature_base64: H+skY92rcviKcH4yQx+QSGaMJqOdRCAiMGVRmHJpxukCpElrjiIjEL3a440LOVbb1H6aNsIHc0CwZw9vc/R/Cg==
   trust_level: development
 version: 0.1.0

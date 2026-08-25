@@ -98,8 +98,9 @@ tracked as `RR-036`.
 
 ## Supported versions
 
-`0.7.1` is the first release; `0.7.0` was approved but never published and was re-cut.
-Only the latest release is supported; there is no backport policy yet.
+`0.7.1` is the first release candidate; nothing has been published yet, and `0.7.0` was
+approved but never published and was re-cut. Once released, only the latest release is
+supported; there is no backport policy yet.
 
 ## Dependencies
 

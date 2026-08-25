@@ -49,14 +49,19 @@ oak ingest --output json
 ```
 
 `oak revoke-approval apply --reason "..."` re-signs the approval as revoked and publishes
-a **signed revocation notice** into the mailbox's `revocations/` directory; the runner
-honors it on its next verification pass. The channel fails closed: every notice must be
-schema-valid and verify against a pinned `approver` anchor, and a missing revocation
-directory, an unreadable, oversized or malformed notice, or any unexpected entry denies
-every pending dispatch (`OAK-RUNNER-REVOCATION`) rather than reading as "nothing
-revoked" — deleting a notice no longer restores a revoked approval. `oak gitops
---output ./gitops` renders deterministic branch-ready manifests with a patch description
-that promotes nothing automatically.
+a **signed revocation notice** plus a **signed revocation manifest** — an inventory of
+the complete notice set by canonical digest, with a strictly monotonic sequence — into
+the mailbox's `revocations/` directory; the runner honors them on its next verification
+pass. The channel fails closed: every notice and the manifest must be schema-valid and
+verify against a pinned `approver` anchor, the notice set must match the manifest
+exactly, the sequence may never regress below the high-water mark the runner records in
+its own home, and a missing manifest on a dispatched mailbox, a missing directory, an
+unreadable, oversized or malformed entry, or anything unexpected denies every pending
+dispatch (`OAK-RUNNER-REVOCATION`). Deleting a notice — one file or the whole set — no
+longer restores a revoked approval. The runner's consumed-nonce replay ledger likewise
+fails closed: an unreadable ledger refuses (`OAK-RUNNER-REPLAY`) rather than reading as
+empty and being silently rewritten. `oak gitops --output ./gitops` renders deterministic
+branch-ready manifests with a patch description that promotes nothing automatically.
 
 ## What the runner checks before touching a target
 

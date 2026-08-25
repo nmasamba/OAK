@@ -103,6 +103,44 @@ def test_apply_fails_closed_when_the_inspection_itself_fails() -> None:
     assert calls[-1] == ("docker", "rm", "--force", "oak-fixture-demo")
 
 
+def test_an_inspection_timeout_removes_the_container_and_denies() -> None:
+    """The audit's enforcement finding, as a regression.
+
+    A TimeoutExpired raised mid-inspection used to escape apply() before any removal
+    ran: the unverified container survived and the raw exception killed the runner.
+    Now any failure between create and a verified digest removes the container and
+    denies with a stable code.
+    """
+
+    import subprocess
+
+    calls: list[tuple[str, ...]] = []
+
+    def executor(argv: tuple[str, ...], timeout_seconds: int) -> CommandResult:
+        calls.append(argv)
+        if argv[:2] == ("docker", "inspect"):
+            raise subprocess.TimeoutExpired(cmd=argv, timeout=timeout_seconds)
+        return CommandResult(returncode=0, stdout="", stderr="")
+
+    with pytest.raises(OAKError) as caught:
+        _apply(ContainerFixtureAdapter(executor))
+    assert caught.value.code == "OAK-RUNNER-IMAGE"
+    assert calls[-1] == ("docker", "rm", "--force", "oak-fixture-demo")
+
+
+def test_a_subprocess_failure_becomes_a_typed_denial_not_a_traceback() -> None:
+    """TimeoutExpired and OSError from any docker call surface as OAK-RUNNER-SUBPROCESS."""
+
+    import subprocess
+
+    def executor(argv: tuple[str, ...], timeout_seconds: int) -> CommandResult:
+        raise subprocess.TimeoutExpired(cmd=argv, timeout=timeout_seconds)
+
+    with pytest.raises(OAKError) as caught:
+        _apply(ContainerFixtureAdapter(executor))
+    assert caught.value.code == "OAK-RUNNER-SUBPROCESS"
+
+
 @pytest.mark.parametrize(
     ("reference", "host"),
     [

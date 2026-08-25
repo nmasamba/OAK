@@ -162,6 +162,7 @@ def _provenance_document(
     source_tree_dirty: bool,
     docker_server: str,
     images: dict[str, dict[str, Any]],
+    images_rebuilt: bool = True,
 ) -> dict[str, Any]:
     """Shape follows scripts/build_release.py::_write_provenance for the Python dist."""
 
@@ -169,6 +170,10 @@ def _provenance_document(
         "artifact_version": version,
         "source_commit": source_commit,
         "source_tree_dirty": source_tree_dirty,
+        # Whether this run rebuilt the images it scanned. Without --build the scan
+        # describes whatever images the store already held, and source_commit then
+        # describes the tree at scan time, not necessarily the tree that built them.
+        "images_rebuilt": images_rebuilt,
         "builder": {
             "docker_server": docker_server,
             "machine": host_platform.machine(),
@@ -231,11 +236,21 @@ def _stamp_sbom_subject(path: Path, tag: str, image_id: str) -> None:
     path.write_text(json.dumps(document, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
-def _image_id(tag: str) -> str:
-    inspected = _run(["docker", "image", "inspect", tag, "--format", "{{.Id}}"])
-    if inspected.returncode != 0:
-        raise SystemExit(f"could not inspect {tag}:\n{inspected.stderr[-2000:]}")
-    return inspected.stdout.strip()
+def _sbom_image_id(path: Path) -> str:
+    """The scanner's own ImageID for the scanned tarball — the image config digest.
+
+    `docker image inspect --format {{.Id}}` is store-dependent: under the containerd
+    image store it returns the manifest digest, which contradicts the config digest the
+    scanner records inside the very SBOM this evidence set ships. Binding everything to
+    the scanner's value keeps the SBOM, the `oak:image` stamp and the provenance
+    mutually verifiable from the artifacts alone.
+    """
+
+    document = json.loads(path.read_text(encoding="utf-8"))
+    for prop in document.get("metadata", {}).get("component", {}).get("properties", []):
+        if prop.get("name") == "aquasecurity:trivy:ImageID":
+            return str(prop.get("value"))
+    raise SystemExit(f"{path.name} carries no aquasecurity:trivy:ImageID property")
 
 
 def _git_output(arguments: list[str]) -> str:
@@ -313,7 +328,7 @@ def main() -> int:
                     sbom_path = evidence_dir / _sbom_name(name, VERSION)
                     print(f"writing SBOM for {tag}", file=sys.stderr)
                     _sbom(tag, archive, workspace, cache, sbom_path)
-                    image_id = _image_id(tag)
+                    image_id = _sbom_image_id(sbom_path)
                     _stamp_sbom_subject(sbom_path, tag, image_id)
                     dockerfile_text = (ROOT / dockerfile).read_text(encoding="utf-8")
                     provenance_images[name] = {
@@ -328,19 +343,26 @@ def main() -> int:
         return 3
 
     if evidence_dir is not None:
+        # The evidence this run writes — docs/release/ locally, an untracked directory
+        # such as image-evidence/ in CI — must not count as source dirt, or every run
+        # would report the tree it just wrote to as dirty. Dirtiness here describes the
+        # sources the images were built from.
+        exclusions = ["--", ":(exclude)docs/release"]
+        try:
+            relative_evidence = evidence_dir.resolve().relative_to(ROOT)
+            exclusions.append(f":(exclude){relative_evidence.as_posix()}")
+        except ValueError:
+            pass
         provenance = _provenance_document(
             version=VERSION,
             requested_platform=arguments.platform,
             source_commit=_git_output(["rev-parse", "HEAD"]),
-            # The evidence this run writes lands under docs/release/, so counting it
-            # would make every regeneration report the tree it just wrote to as dirty.
-            # Dirtiness here describes the sources the images were built from.
             source_tree_dirty=bool(
-                _git_output(["status", "--porcelain", "--", ":(exclude)docs/release"])
-                not in ("", "unknown")
+                _git_output(["status", "--porcelain", *exclusions]) not in ("", "unknown")
             ),
             docker_server=_docker_server_version(),
             images=provenance_images,
+            images_rebuilt=bool(arguments.build),
         )
         provenance_path = evidence_dir / "image-provenance.json"
         provenance_path.parent.mkdir(parents=True, exist_ok=True)

@@ -20,8 +20,19 @@ from oak.domain import OAKError, canonical_json_bytes
 MAXIMUM_MESSAGE_BYTES = 1_048_576
 DISPATCH_DIRECTORY = "dispatches"
 REVOCATION_DIRECTORY = "revocations"
+MANIFEST_NAME = "manifest.json"
 MESSAGE_DIRECTORY = "messages"
 ACKNOWLEDGED_DIRECTORY = "acknowledged"
+
+
+def _read_json(path: Path) -> dict[str, Any] | None:
+    try:
+        if path.stat().st_size > MAXIMUM_MESSAGE_BYTES:
+            return None
+        document = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return document if isinstance(document, dict) else None
 
 
 class FilesystemMailbox:
@@ -48,12 +59,36 @@ class FilesystemMailbox:
             _check_component(name)
             _write_document(directory / f"{name}.json", document)
 
-    def publish_revocation(self, notice: dict[str, Any]) -> None:
+    def revocation_state(
+        self,
+    ) -> tuple[dict[str, Any] | None, tuple[dict[str, Any], ...]]:
+        directory = self._root / REVOCATION_DIRECTORY
+        if not directory.is_dir():
+            return None, ()
+        manifest: dict[str, Any] | None = None
+        notices: list[dict[str, Any]] = []
+        for path in sorted(directory.glob("*.json")):
+            document = _read_json(path)
+            if path.name == MANIFEST_NAME:
+                manifest = document
+            elif document is not None:
+                notices.append(document)
+        return manifest, tuple(notices)
+
+    def publish_revocation(self, notice: dict[str, Any] | None, manifest: dict[str, Any]) -> None:
+        # The manifest is the tamper-evidence for the whole set: the runner refuses a
+        # notice set that does not match it exactly, so deleting one valid notice no
+        # longer silently restores an approval (RR-001). It is rewritten on every
+        # publication; the notices themselves are write-once per id.
         directory = self._root / REVOCATION_DIRECTORY
         directory.mkdir(parents=True, exist_ok=True, mode=0o700)
-        name = str(notice["id"])
-        _check_component(name)
-        _write_document(directory / f"{name}.json", notice, overwrite=True)
+        if notice is not None:
+            name = str(notice["id"])
+            _check_component(name)
+            if name == MANIFEST_NAME.removesuffix(".json"):
+                raise OAKError("OAK-DISPATCH-NAME", "notice id collides with the manifest")
+            _write_document(directory / f"{name}.json", notice, overwrite=True)
+        _write_document(directory / MANIFEST_NAME, manifest, overwrite=True)
 
     def read_messages(self) -> tuple[dict[str, Any], ...]:
         directory = self._root / MESSAGE_DIRECTORY

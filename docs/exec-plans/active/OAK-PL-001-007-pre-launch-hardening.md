@@ -561,6 +561,28 @@ observed immediately during Milestone 3.
   `STATUS.md` header/phase/next-task rewritten (date drift and the "How to resume"
   contradiction fixed), `IMPLEMENT.md` hand-off updated so a fresh agent cannot redo
   landed work.
+- [x] 2026-08-25 M10 (adversarial audit + remediation): the audit ran as an
+  eight-lens multi-agent workflow with one independent refute-by-default skeptic per
+  finding (twice interrupted by usage limits and resumed from the workflow journal;
+  the runtime lens and six refutations completed by hand). 23 raised, 15 confirmed,
+  8 refuted — full record in the Post-implementation audit section. Remediation:
+  the signed revocation manifest (`revocation-manifest.schema.json`, monotonic
+  sequence recorded in the runner home, established at first dispatch) completes the
+  RR-001 closure the audit refuted; the consumed-nonce ledger fails closed
+  (`OAK-RUNNER-REPLAY`) and writes atomically; executor exceptions become
+  `OAK-RUNNER-SUBPROCESS` and every admission-failure path removes the created
+  container; the image SBOMs are un-gitignored and committed; evidence identity binds
+  to the scanner's config digest; CI provenance excludes its own evidence directory
+  from the dirty computation and records `images_rebuilt`; plus the confirmed doc
+  corrections (register, platforms, SECURITY, compiler-flow, CHANGELOG blast radius,
+  decision record licence row and closed-row count, a `docs/dependencies.md`
+  maintenance review for the base-image publisher change and the managed Node
+  runtime). Runtime-honesty lens executed directly against the final tree: uid 101
+  nginx master, all hardening keys live, read-only rootfs enforced, `make web-e2e`
+  4/4. Evidence regenerated with the fixed pipeline (provenance == scanner ImageID ==
+  `oak:image`, zero fixable findings, verdict unchanged). Full `make check` green
+  (419 + 191/4 + 42); the four reference digests recompiled and equal to the recorded
+  post-migration set.
 
 ## Decisions
 
@@ -612,7 +634,103 @@ observed immediately during Milestone 3.
 
 ## Post-implementation audit
 
-*(empty until the audit runs)*
+Run 2026-08-25 as a multi-agent workflow: eight finder lenses — enforcement ordering,
+migration replay, runtime honesty, supply-chain evidence honesty, release
+integrity/honesty, a repo-wide latent sweep, and register-versus-code in both directions
+— each finding handed to an independent skeptic instructed to refute by default, then
+every survivor re-verified by hand before any fix. Two usage-limit interruptions were
+resumed from the workflow journal; the runtime-honesty lens and six refutations were
+completed by hand. 23 findings were raised; 15 were confirmed (11 by skeptics, 4 by the
+manual pass over the unjudged remainder); 8 were refuted.
+
+### Fixed
+
+- **The RR-001 closure was incomplete — the audit's highest-value finding (high).**
+  Signing the notices and refusing malformed state still let deletion of one *valid*
+  notice from a healthy directory restore its approval: the remaining set was perfectly
+  verifiable and simply no longer named it. Fixed with the signed revocation manifest
+  (`revocation-manifest.schema.json`): a complete inventory of the notice set by
+  canonical digest, a strictly monotonic sequence the runner records in its own home
+  (refusing rollback to older signed sets), established as an empty manifest at first
+  dispatch so absence is tampering. Single-notice deletion, whole-set deletion, manifest
+  deletion, set rollback and a tampered notice are all regression tests in
+  `tests/integration/test_runner_revocation.py`. Residual and stated in the register: a
+  rollback the runner never observed newer state than is indistinguishable from delivery
+  never having happened.
+- **The consumed-nonce replay ledger failed open and could erase itself (high).** A
+  corrupt `consumed-nonces.json` read as an empty frozenset, and `consume_lease_nonce`
+  rewrote the file from that read — one corrupt read plus one consume permanently
+  destroyed every previously burned nonce. Both paths now refuse with
+  `OAK-RUNNER-REPLAY` until an operator intervenes, the corrupt bytes stay on disk, and
+  the rewrite is atomic via `os.replace`.
+- **Post-create digest verification could leak an unverified container and kill the
+  runner (medium, refuter-confirmed with reproduction).** `subprocess.TimeoutExpired` or
+  `OSError` raised during the read-back inspections escaped `apply()` before any
+  `docker rm`, skipped the operation's declared `failure_action`, and terminated the
+  runner with a raw traceback — contradicting both the RR-003 closure text and the
+  entrypoint's stable-code contract. `_run` now converts executor exceptions to
+  `OAK-RUNNER-SUBPROCESS`, and every failure path between `docker create` and a verified
+  digest removes the container (best-effort, denial standing regardless) before raising
+  `OAK-RUNNER-IMAGE`. The refuter's own sharpening is recorded: the nonce is burned
+  before execution, so post-crash retries were denied as replays while the unverified
+  container survived — the leak was worse than first described.
+- **The image SBOMs never entered version control (high).** `.gitignore`'s blanket
+  `*.cdx.json` silently kept both SBOM files out of the commit whose release record
+  cited them as "in this directory". Release evidence under `docs/release/` is now
+  explicitly un-ignored and the SBOMs are committed.
+- **Evidence image identity was store-dependent (low).** `docker image inspect {{.Id}}`
+  returns the manifest digest under the containerd store, contradicting the
+  `aquasecurity:trivy:ImageID` (config digest) inside the same SBOM. The `oak:image`
+  stamp and provenance now bind to the scanner's own value, making the evidence set
+  mutually verifiable from the artifacts alone.
+- **CI provenance would always report a clean checkout as dirty (medium).** The
+  dirty-tree exclusion covered only `docs/release/`, but the release workflow writes
+  evidence to untracked `image-evidence/`. The exclusion now covers whatever directory
+  the evidence is written to, and provenance records `images_rebuilt` so a scan of
+  pre-existing images cannot masquerade as a build record.
+- **Register and doc precision (low/medium, several):** `RR-017` still anchored its
+  claim to `0.7.0` in a register retitled `0.7.1`; `platforms.md` still declared itself
+  authoritative for `0.7.0`; `SECURITY.md` called `0.7.1` "the first release" while it
+  is an unsigned candidate; `compiler-flow.md`'s "No operation may mutate the target"
+  contradicted the mutation operations the same paragraph describes (reworded to the
+  compile-time truth); the decision record's register row said "seven now closed" where
+  the register carries eight closed rows (`RR-035` predating this work); the CHANGELOG's
+  blast-radius sentence undercounted what changed (the corrected review artifacts and
+  the mutation-target semantic manifest also shift; stated fully now); the licence
+  approval row claimed "no dependency changed" while the web base image publisher
+  changed and `pnpm-lock.yaml` now locks the Node runtime — both now recorded in a
+  `docs/dependencies.md` maintenance review; the governance `STATUS.md` dropped the
+  audit/PR steps from its next-task line.
+
+### Confirmed as designed, no change
+
+- The decision record cites this plan at `docs/exec-plans/completed/` while it is still
+  under `active/`: the move happens at close-out in the same PR, so the reference is
+  correct in every state a reader of the merged record can see.
+
+### Refuted (by independent skeptics)
+
+- "`RR-033`'s enumeration is stale — the substitutable schema registry now also gates
+  the revocation channel": the entry's operative claim already covers every schema in
+  the directory, and the attacker model adds nothing beyond the accepted risk.
+- "`RR-031` omits the new per-dispatch revocation re-verification": within RR-031's
+  scale framing; the entry's list was never exhaustive.
+- "`RR-023`'s mechanism claim is wrong": the entry's description matches the code at the
+  granularity it claims.
+- "Compiler crashes on a schema-valid profile with empty `allowed_operations`": the
+  schema's conditional clauses make such a profile unreachable through any loader.
+- "Decision record points at a completed/ path that does not exist": see above —
+  resolved by the close-out move in the same PR.
+- Duplicates of the exec-plan-path and gitignore findings raised under second lenses.
+
+### Verified by hand (runtime-honesty lens, run directly)
+
+`docker compose up -d --build` from the branch, then: web container uid 101, api and
+worker 10001 (`docker compose exec id -u`); `docker inspect` confirms
+`ReadonlyRootfs: true`, `CapDrop: [ALL]`, `no-new-privileges` and the memory/CPU
+ceilings on the running containers, with postgres carrying exactly the six declared
+`CapAdd`s; writes inside a read-only rootfs fail while `/tmp` succeeds; `/version`
+serves through both ports; `make web-e2e` green including the uid assertions.
 
 ## Discoveries and follow-ups
 

@@ -28,7 +28,7 @@ from oak.runner.schemas import load_registry
 from oak.runner.verification import (
     RunnerDenialError,
     TrustAnchors,
-    verified_revocation_ids,
+    verified_revocations,
     verify_dispatch,
 )
 
@@ -94,17 +94,22 @@ def run_once(*, cancellation_requested: bool = False) -> int:
         lease_id = lease.get("lease_id") if isinstance(lease, dict) else None
         correlation = str(lease_id or dispatch_id) if isinstance(lease_id, str) else dispatch_id
         try:
+            manifest, notices = mailbox.revocation_documents()
+            revocations = verified_revocations(
+                manifest,
+                notices,
+                registry=registry,
+                anchors=anchors,
+                minimum_sequence=mailbox.last_revocation_sequence(),
+            )
+            mailbox.record_revocation_sequence(revocations.sequence)
             verified = verify_dispatch(
                 envelope=envelope,
                 attachments=attachments,
                 registry=registry,
                 anchors=anchors,
                 target_document=target_document,
-                revoked_approval_ids=verified_revocation_ids(
-                    mailbox.revocation_documents(),
-                    registry=registry,
-                    anchors=anchors,
-                ),
+                revoked_approval_ids=revocations.approval_ids,
                 seen_lease_nonces=mailbox.consumed_lease_nonces(),
                 now=now,
             )

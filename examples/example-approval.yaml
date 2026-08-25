@@ -16,10 +16,10 @@ revoked_at: null
 schema_version: 0.1.0
 signature:
   algorithm: ed25519
-  key_id: sha256:ac81ef1d9bb39d4f7db6e230e577ed49385f46eb423149f1cdd4f41f7fa20bec
-  public_key_base64: b6nQeEgBrHOxgSgoyVyioFit9lVemiB1sGseyaGb2eo=
+  key_id: sha256:aeb84137b88f8adf1b221229c9de60aef4adf71837c00358b590d07b6b6ac918
+  public_key_base64: jJVEwwQEJFuw/fRFwVNphOo7/f4I0HuyBqn4dHRaZe0=
   role: approver
-  signature_base64: 1P2JQ+G0qhNrs99Htxu/+r4gBVqP8TwcaDv2wYAyh/rm0AeTlJCzptmujsVtAOudDkTsCERQF95K+iVP8c4dAg==
+  signature_base64: CWboryFlYo3iWHWnsiRVN3IyvL8ilP3S2N2A5HPipbs9biXjfNyrWZeW2+mUHBARsjVa6N3U4+uhvVYfmPPPCg==
   trust_level: development
 target_fingerprint: sha256:7cd2b29057fc061f1c82bd627b305176fa347e73feaed0fc8d6838fd7d8ddcfb
 target_id: target.local-fixture

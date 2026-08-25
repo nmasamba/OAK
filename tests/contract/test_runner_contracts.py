@@ -74,6 +74,7 @@ def test_the_signed_examples_actually_verify() -> None:
         "example-runner-envelope",
         "example-runner-message",
         "example-revocation",
+        "example-revocation-manifest",
     ):
         document = load_yaml_document(
             (ROOT / "examples" / f"{name}.yaml").read_text(encoding="utf-8")

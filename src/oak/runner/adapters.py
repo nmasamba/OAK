@@ -8,6 +8,7 @@ shell interpreter is involved anywhere, and command output is size-bounded.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import platform
@@ -107,35 +108,56 @@ class ContainerFixtureAdapter:
         The digest pin in the create argv is an input assertion: it constrains what the
         daemon is asked for, not what it resolved (RR-003, TM-08 time-of-use). This reads
         back the created container's image and demands a `RepoDigests` entry ending in
-        the approved digest. Anything else — an inspect failure, an image with no repo
-        digest (for example one loaded from a tarball, which cannot prove its identity),
-        or a mismatch — removes the container and denies, so no unproven container
-        survives a failed admission.
+        the approved digest. Anything else — an inspect failure of any kind, including a
+        timeout raised mid-inspection, an image with no repo digest (for example one
+        loaded from a tarball, which cannot prove its identity), or a mismatch — removes
+        the container and denies, so no unproven container survives a failed admission.
         """
 
-        inspected = self._run(
-            ("docker", "inspect", "--format", "{{.Image}}", name), timeout_seconds
-        )
-        image_id = inspected.stdout.strip()
-        entries: list[Any] = []
-        if inspected.returncode == 0 and image_id:
-            listed = self._run(
-                ("docker", "image", "inspect", "--format", "{{json .RepoDigests}}", image_id),
-                timeout_seconds,
+        try:
+            inspected = self._run(
+                ("docker", "inspect", "--format", "{{.Image}}", name), timeout_seconds
             )
-            if listed.returncode == 0:
-                try:
-                    parsed = json.loads(listed.stdout)
-                except ValueError:
-                    parsed = None
-                if isinstance(parsed, list):
-                    entries = parsed
-        if not any(isinstance(entry, str) and entry.endswith(f"@{digest}") for entry in entries):
-            self._run(("docker", "rm", "--force", name), timeout_seconds)
+            image_id = inspected.stdout.strip()
+            entries: list[Any] = []
+            if inspected.returncode == 0 and image_id:
+                listed = self._run(
+                    ("docker", "image", "inspect", "--format", "{{json .RepoDigests}}", image_id),
+                    timeout_seconds,
+                )
+                if listed.returncode == 0:
+                    try:
+                        parsed = json.loads(listed.stdout)
+                    except ValueError:
+                        parsed = None
+                    if isinstance(parsed, list):
+                        entries = parsed
+            verified = any(
+                isinstance(entry, str) and entry.endswith(f"@{digest}") for entry in entries
+            )
+        except OAKError as error:
+            self._remove_unverified(name, timeout_seconds)
+            raise OAKError(
+                "OAK-RUNNER-IMAGE",
+                "resolved image could not be verified against the approved digest",
+            ) from error
+        if not verified:
+            self._remove_unverified(name, timeout_seconds)
             raise OAKError(
                 "OAK-RUNNER-IMAGE",
                 "resolved image does not carry the approved digest",
             )
+
+    def _remove_unverified(self, name: str, timeout_seconds: int) -> None:
+        """Best-effort removal of a container whose image admission failed.
+
+        Removal runs on every verification failure path; if the removal itself fails
+        the denial below still stands — the operation is journaled as failed and the
+        container name is recorded, so the leak is visible rather than silent.
+        """
+
+        with contextlib.suppress(OAKError):
+            self._run(("docker", "rm", "--force", name), timeout_seconds)
 
     def verify_present(self, parameters: dict[str, Any], timeout_seconds: int) -> dict[str, Any]:
         name, _ = self._validated(parameters)
@@ -166,7 +188,19 @@ class ContainerFixtureAdapter:
     def _run(self, argv: tuple[str, ...], timeout_seconds: int) -> CommandResult:
         if argv[0] not in ALLOWLISTED_EXECUTABLES:
             raise OAKError("OAK-RUNNER-EXECUTABLE", "executable is not allowlisted")
-        return self._executor(argv, timeout_seconds)
+        # A hung daemon raises subprocess.TimeoutExpired and a broken one OSError;
+        # neither is an OAKError, so before this guard they escaped execute_dispatch's
+        # handler, skipped the operation's declared failure_action, and killed the
+        # runner with a raw traceback instead of a stable `CODE: message`.
+        try:
+            return self._executor(argv, timeout_seconds)
+        except OAKError:
+            raise
+        except (subprocess.TimeoutExpired, OSError) as error:
+            raise OAKError(
+                "OAK-RUNNER-SUBPROCESS",
+                "docker invocation failed before completing",
+            ) from error
 
     @staticmethod
     def _validated(parameters: dict[str, Any]) -> tuple[str, str]:

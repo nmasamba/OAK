@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 approval_refs:
-- digest: sha256:f5e199e4291b8e7ab16af2b14f238c1d53e5d3d9daa8973cb843d855cf20d0d0
+- digest: sha256:c77db9de8d343588b5020e6197ed83eaed0607c5ad1418087de53508e4bf2c1e
   id: approval.dry-run.bundle.candidate-03.target.local-fixture
   media_type: application/vnd.oak.approval+json
   uri: null
@@ -30,7 +30,7 @@ plan_ref:
   uri: null
   version: 0.1.0
 plan_signature_ref:
-  digest: sha256:97e2af8f2064d063fb16b3d9f4eae47b423fbfd02751d9beccd292105058c579
+  digest: sha256:9299a6c531c2579f94246d7d876cbdd02741ec35ec5bc41f4ec4a9929675eedc
   id: plan-signature.bundle.candidate-03.target.local-fixture
   media_type: application/vnd.oak.plan-signature+json
   uri: null
@@ -45,10 +45,10 @@ requested_kinds:
 schema_version: 0.1.0
 signature:
   algorithm: ed25519
-  key_id: sha256:061b02aa544eca7d584b872ce6284f3ca3db7a644b3ac5c20bd757fecb122776
-  public_key_base64: utmitn9T6j3Tbto5beStV1Qb3A40HII9bNAritaD0Ho=
+  key_id: sha256:6cb6e116fd981a4394a96c0cec5396adcba892389fc8378a720404c09e9a5077
+  public_key_base64: ZETFag/nkn2Q+VEueCUzWYA7H9st8K++kUDtqhb6KEM=
   role: plan-signer
-  signature_base64: dDO18ddT1koQM8dBcteKL8UEuIqNNrTQSPAgBCpr5KRMs13OzDg4CrwmNOV9Z02okq9aa5561u4P2cSU17HRAA==
+  signature_base64: vZagbgIPcxJRQVLeGVKx769Xl4+MNtCOfuOJGa7G7VilRrC9A5cEe/FyDxfmEPAXEIzjlnJ5hsujIdQmRju+Bw==
   trust_level: development
 target_fingerprint: sha256:7cd2b29057fc061f1c82bd627b305176fa347e73feaed0fc8d6838fd7d8ddcfb
 target_id: target.local-fixture

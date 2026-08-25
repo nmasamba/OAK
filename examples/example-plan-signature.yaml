@@ -19,10 +19,10 @@ plan_ref:
 schema_version: 0.1.0
 signature:
   algorithm: ed25519
-  key_id: sha256:061b02aa544eca7d584b872ce6284f3ca3db7a644b3ac5c20bd757fecb122776
-  public_key_base64: utmitn9T6j3Tbto5beStV1Qb3A40HII9bNAritaD0Ho=
+  key_id: sha256:6cb6e116fd981a4394a96c0cec5396adcba892389fc8378a720404c09e9a5077
+  public_key_base64: ZETFag/nkn2Q+VEueCUzWYA7H9st8K++kUDtqhb6KEM=
   role: plan-signer
-  signature_base64: L94+lpHaXWkBT4tHvZ1osc2cViyhw6+rhkTD8djQdqvkgwpk1w1oeEMvtk//ke/hhFHtnAti+NDSDA9BAGm8Cg==
+  signature_base64: 4QfQiCR11nDYYCygygPiG5Gt579VoKnnd/lNZewL0zsNt+slnjbm51T40MEEr5OGWqm5PFT/xhukHi5FW89NBQ==
   trust_level: development
 signed_at: '2026-08-18T12:00:00Z'
 target_fingerprint: sha256:7cd2b29057fc061f1c82bd627b305176fa347e73feaed0fc8d6838fd7d8ddcfb

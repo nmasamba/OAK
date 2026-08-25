@@ -131,6 +131,39 @@ introduced, and Community ships no webhook dispatcher.
 Reviews outside a sprint boundary are recorded here, newest first, under the same standard
 as a sprint dependency review.
 
+### 2026-08-25 unprivileged nginx base image and the pnpm-managed Node runtime
+
+Two supply-chain changes from the pre-launch hardening, neither a Python or web package.
+
+**Web runtime base image.** The capability gap was running the web image unprivileged
+(`RR-037`): the Docker Official `nginx` image's master process runs as root and its
+entrypoint writes root-owned paths. `nginxinc/nginx-unprivileged:1.29.1-alpine` was
+selected — NGINX's own community-maintained unprivileged variant of the same nginx OSS
+(BSD-2-Clause), differing only in uid 101, port 8080 defaults and `/tmp`-relocated
+runtime paths — and pinned by tag plus immutable digest, with the pin guarded by
+`make toolchain-check`. The alternative, patching the official image in the Dockerfile
+(`USER nginx` plus pre-chowned cache/pid paths), was rejected as re-implementing what the
+publisher already maintains. The publisher changes from the Docker Official Images
+programme to the `nginxinc` organisation — the upstream NGINX maintainers themselves —
+and the image lags Alpine's patch stream exactly as the official one did, so the
+`apk upgrade` layer and the scan gate carry over unchanged. The `0.7.1` scan reports no
+findings at any severity for the rebuilt image. Rollback is restoring the previous `FROM`
+line and its pin.
+
+**pnpm-managed Node.js runtime.** The capability gap was `RR-034`: nothing made the Node
+that builds the web artifacts be the pinned one. `devEngines.runtime` in `package.json`
+makes pnpm download and run Node 24.18.0 itself, and `pnpm-lock.yaml` now locks that
+runtime per platform with sha256 integrity — official `nodejs.org` builds, plus the
+project's `unofficial-builds.nodejs.org` musl variants, all MIT-licensed. It is a
+development-time runtime, not a package: it ships in no artifact, and the image build
+strips it (`deploy/images/strip-managed-node.cjs`) because the build container already
+*is* the pinned Node. Known residual weakness: the musl variants come from the Node.js
+project's unofficial-builds infrastructure — integrity-pinned by the lockfile but outside
+the primary release channel; nothing in OAK's builds fetches them (the image build strips
+the entry first). Rollback is deleting `devEngines` and re-running `pnpm install` to drop
+the lockfile entry. No canonical document, digest, or schema changes from either item:
+the reference case was verified byte-stable through both.
+
 ### 2026-08-22 container image scanner
 
 `OAK-S8-003` requires container scans, and nothing in the repository performed one. The
