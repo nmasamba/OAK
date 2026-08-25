@@ -115,7 +115,7 @@ directory that is not in either.
 | Signing keys and trust anchors | `$OAK_TRUST_DIRECTORY` (default `~/.oak/trust`) | A **separate**, protected copy |
 | Outbound dispatch mailbox | `$OAK_DISPATCH_MAILBOX` (default `~/.oak/mailbox`) | A filesystem copy, if leases are in flight |
 | Extension quarantine and activations | `$OAK_EXTENSIONS_DIRECTORY` (default `~/.oak/extensions`) | A filesystem copy |
-| Runner identity, journal and consumed nonces | `$OAK_RUNNER_HOME` (default `~/.oak/runner`) | A **separate**, protected copy — it holds the runner's own Ed25519 private key |
+| Runner identity, journal, consumed nonces and the revocation-sequence mark | `$OAK_RUNNER_HOME` (default `~/.oak/runner`) | A **separate**, protected copy — it holds the runner's own Ed25519 private key |
 
 > **A `pg_dump` alone is not a backup.** Artifact bytes are read *only* from the artifact
 > root; the JSONB copy in `artifact_versions.canonical_document` is never read back at
@@ -280,6 +280,8 @@ success, `2` refusal or invalid input, `4` version or idempotency conflict.
 |---|---|---|
 | An operation never leaves `queued` | No worker running | Start `oak-worker`; check `pending_events` on the lag endpoint |
 | `OAK-WORKSPACE-CORRUPT` on every command | Manifest unreadable, or a schema version this build does not know | Run `scripts/verify_deployment.py --workspace`; if the manifest version is foreign, you need the build that wrote it |
+| `OAK-RUNNER-REPLAY` on every dispatch | The consumed-nonce ledger `$OAK_RUNNER_HOME/consumed-nonces.json` is corrupt; it deliberately refuses rather than reading as empty | Inspect the file. Remove it only if you accept that previously burned nonces become replayable — for the local fixture that is usually acceptable; record the decision |
+| `OAK-RUNNER-REVOCATION` on every dispatch | The mailbox's `revocations/manifest.json` is missing, the notice set does not match it, or the runner's recorded sequence is ahead of it | Re-publish the revocation state from the control plane (`oak revoke-approval`, or a fresh dispatch establishes an empty manifest). Do not hand-delete notices — the mismatch is the protection working |
 | `OAK-EXPECTED-VERSION` | Someone else advanced the case | Re-read the case and retry with the current version. This is a normal concurrency refusal, not a fault |
 | `OAK-IDEMPOTENCY-CONFLICT` | An idempotency key was reused with different input | Use a new key, or send the original input |
 | `OAK-REMOTE-UNSUPPORTED` | A local-only command was run with `--server` | Signing, approval, dispatch, keys, extensions and policy are local-only by design |

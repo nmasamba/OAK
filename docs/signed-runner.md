@@ -58,7 +58,9 @@ exactly, the sequence may never regress below the high-water mark the runner rec
 its own home, and a missing manifest on a dispatched mailbox, a missing directory, an
 unreadable, oversized or malformed entry, or anything unexpected denies every pending
 dispatch (`OAK-RUNNER-REVOCATION`). Deleting a notice — one file or the whole set — no
-longer restores a revoked approval. The runner's consumed-nonce replay ledger likewise
+longer restores a revoked approval. `oak … dispatch` establishes an empty signed manifest
+with the first dispatch, so from then on "no manifest" and "no notices" are
+distinguishable states. The runner's consumed-nonce replay ledger likewise
 fails closed: an unreadable ledger refuses (`OAK-RUNNER-REPLAY`) rather than reading as
 empty and being silently rewritten. `oak gitops --output ./gitops` renders deterministic
 branch-ready manifests with a patch description that promotes nothing automatically.
@@ -67,6 +69,11 @@ branch-ready manifests with a patch description that promotes nothing automatica
 
 In this order, and any failure denies the dispatch before an adapter is constructed:
 
+0. **Revocation set.** Before the envelope is read, the signed revocation manifest is
+   schema-validated and anchor-verified, its sequence checked against the high-water
+   mark the runner records in its own home, and the notices on disk matched to its
+   inventory both ways by canonical digest; any failure — including a missing manifest
+   on a dispatched mailbox — denies every pending dispatch (`OAK-RUNNER-REVOCATION`).
 1. **Protocol and schema.** The envelope's `protocol_version` must be supported, and the
    envelope, plan, deployment bundle and plan signature must each be schema-valid.
 2. **Attachment digests** for the plan, bundle, plan signature, verification policy and
@@ -76,7 +83,9 @@ In this order, and any failure denies the dispatch before an adapter is construc
 4. **Identity**: tenant, environment, target identity, and a target fingerprint recomputed
    locally rather than taken from the envelope. The plan must be in a dispatchable state
    (`OAK-RUNNER-PLAN-STATE`) and not expired (`OAK-RUNNER-PLAN-EXPIRED`).
-5. **Lease**: validity window, expiry, policy bound on lease duration, and nonce replay.
+5. **Lease**: validity window, expiry, policy bound on lease duration, and nonce replay —
+   with the consumed-nonce ledger failing closed (`OAK-RUNNER-REPLAY`) if it cannot be
+   read, never reading as empty.
 6. **Separation of duties** between the signing and approving identities.
 7. **Verification policy.** The attachment is schema-validated before any operation is
    admitted, its clauses are read from `content`, and a policy that contradicts the
@@ -89,8 +98,9 @@ In this order, and any failure denies the dispatch before an adapter is construc
    recursively; if the target profile declares `execution.allowed_registries`, any image
    whose registry resolves outside it is denied (`OAK-RUNNER-REGISTRY`); empty secret
    references within the target allowance; empty network destinations.
-9. **Approval** for any mutating kind — current, unrevoked, and bound to the digest,
-   target, action class and expiry.
+9. **Approval** — current, unrevoked, and bound to the digest, target, action class and
+   expiry: each mutating kind requires its own action's approval, and every other
+   requested kind requires the `dry_run` approval.
 
 ## Mutation profile
 

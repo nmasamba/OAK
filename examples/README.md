@@ -18,7 +18,7 @@ Key build fixtures:
 
 The executable Sprint 2 fixture uses `candidate-00` as the simpler baseline and `candidate-03` as the selected balanced candidate. A compiled runner plan is inert until it is separately signed, approved and independently verified by the runner.
 
-The signed protocol examples (`example-plan-signature`, `example-approval`, `example-runner-envelope`, `example-runner-plan`, `example-revocation`) are **generated, not hand-written**: `uv run python scripts/generate_examples.py` drives the fixed-clock reference harness through compile, sign, approve, dispatch and revoke, and writes what actually landed in the mailbox, so their digests and Ed25519 signatures are real and re-verify. A contract test fails if any signed example stops verifying.
+The signed protocol examples (`example-plan-signature`, `example-approval`, `example-runner-envelope`, `example-runner-plan`, `example-revocation`, `example-revocation-manifest`) are **generated, not hand-written**: `uv run python scripts/generate_examples.py` drives the fixed-clock reference harness through compile, sign, approve, dispatch and revoke (which also publishes the signed revocation manifest), and writes what actually landed in the mailbox, so their digests and Ed25519 signatures are real and re-verify. A contract test fails if any signed example stops verifying.
 
 ## Interface and portal starters
 

@@ -94,18 +94,22 @@ Signing never edits a compiled artifact. The control plane signs an immutable
 `plan-signature` document that binds the plan digest, bundle digest, target identity, and
 locally recomputed target fingerprint; approvals are separate signed documents bound to one
 action, digest pair, target, actor, nonce, and expiry, and revocation publishes a **signed**
-notice the runner verifies against a pinned anchor over a fail-closed channel — an
-unreadable or unsigned notice denies every pending dispatch rather than reading as "nothing
-revoked". A dispatch envelope carries the lease, the requested operation kinds, and
+notice plus a **signed manifest** inventorying the whole notice set by canonical digest
+with a monotonic sequence the runner records in its own home — so an unreadable or
+unsigned notice, a deleted or planted notice, or a set rolled back to an older signed
+state denies every pending dispatch rather than reading as "nothing revoked". A dispatch
+envelope carries the lease, the requested operation kinds, and
 content-addressed references to plan, bundle, policy, signature, and approvals. Signer and
 approver hold distinct key roles, and the runner enforces that their identities differ.
 
 `oak-runner` is a separate trust domain: it imports only `oak.contracts` and `oak.domain`,
 holds no database credential, opens no listening socket, and reads its mailbox, trust
 anchors, and own copy of the target profile. Before any target access it independently
-verifies protocol version, schema validity, every attachment digest, all signatures against
+verifies the signed revocation manifest and its notice set, protocol version, schema
+validity, every attachment digest, all signatures against
 pinned anchors, tenant/environment/target identity and fingerprint, lease window and nonce
-replay, separation of duties, the compiled verification policy's clauses
+replay (the replay ledger failing closed when unreadable), separation of duties, the
+compiled verification policy's clauses
 (`allowed_operation_kinds` and `mutation_allowed`, derived from the target and enforced per
 requested kind), adapter identity and parameter-schema digests against a code-level
 allowlist, the target's registry allowlist when it declares one, permission envelopes and

@@ -97,8 +97,9 @@ compatibility promises in [compatibility.md](docs/compatibility.md).
   live fixed-clock compile-sign-approve-dispatch-revoke run, and a contract test now
   verifies every signed example cryptographically, so the examples' digests and
   signatures can no longer silently rot after a compiler change.
-- **`schemas/revocation.schema.json`** with a generated, really-signed
-  `examples/example-revocation.yaml`.
+- **`schemas/revocation.schema.json` and `schemas/revocation-manifest.schema.json`**,
+  with generated, really-signed `examples/example-revocation.yaml` and
+  `examples/example-revocation-manifest.yaml`.
 
 ### Changed
 

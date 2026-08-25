@@ -31,7 +31,7 @@ HOME_PATHS: tuple[tuple[str, str], ...] = (
     ("~/.oak/trust", "Ed25519 PRIVATE signing keys and trust anchors"),
     ("~/.oak/mailbox", "outbound dispatch mailbox"),
     ("~/.oak/extensions", "extension quarantine and activations"),
-    ("~/.oak/runner", "runner journal, consumed nonces, processed dispatches"),
+    ("~/.oak/runner", "runner journal, consumed nonces, revocation sequence, processed dispatches"),
     ("~/.oak", "OAK home-directory state"),
 )
 

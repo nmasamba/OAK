@@ -138,7 +138,11 @@ recorded as `RR-005` in [security/residual-risk.md](security/residual-risk.md).
 ## Images
 
 `.github/workflows/release.yml` builds the API and web images for `linux/amd64`, runs
-`oak --version` inside the API image, and records the resulting image IDs.
+`oak --version` inside the API image, records the resulting image IDs, and runs
+`scripts/scan_images.py` — the same gate as `make scan-images` — which emits one
+CycloneDX SBOM per image plus an unsigned `image-provenance.json` into the
+`image-evidence` artifact and fails the job on any *fixable* CRITICAL or HIGH finding.
+Locally the same evidence lands under `docs/release/<version>/` and is committed there.
 
 Two honest caveats:
 
