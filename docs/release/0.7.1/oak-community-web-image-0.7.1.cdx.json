@@ -3,7 +3,7 @@
   "bomFormat": "CycloneDX",
   "components": [
     {
-      "bom-ref": "aec48db3-273f-43de-ad40-d952f36c9f49",
+      "bom-ref": "07af8b57-a23e-4a06-a4a8-ce81eb55b90f",
       "name": "alpine",
       "properties": [
         {
@@ -3617,12 +3617,6 @@
   "dependencies": [
     {
       "dependsOn": [
-        "aec48db3-273f-43de-ad40-d952f36c9f49"
-      ],
-      "ref": "9fb87fa7-fa67-4991-91e4-137cfd85f19b"
-    },
-    {
-      "dependsOn": [
         "pkg:apk/alpine/alpine-baselayout@3.7.0-r0?arch=x86_64&distro=3.22.2",
         "pkg:apk/alpine/alpine-release@3.22.5-r0?arch=x86_64&distro=3.22.2",
         "pkg:apk/alpine/apk-tools@2.14.10-r0?arch=x86_64&distro=3.22.2",
@@ -3637,7 +3631,13 @@
         "pkg:apk/alpine/ssl_client@1.37.0-r20?arch=x86_64&distro=3.22.2",
         "pkg:apk/alpine/tzdata@2026c-r0?arch=x86_64&distro=3.22.2"
       ],
-      "ref": "aec48db3-273f-43de-ad40-d952f36c9f49"
+      "ref": "07af8b57-a23e-4a06-a4a8-ce81eb55b90f"
+    },
+    {
+      "dependsOn": [
+        "07af8b57-a23e-4a06-a4a8-ce81eb55b90f"
+      ],
+      "ref": "e2ebe45a-e51f-4111-99ed-9f781c2b5f29"
     },
     {
       "dependsOn": [],
@@ -4151,7 +4151,7 @@
   ],
   "metadata": {
     "component": {
-      "bom-ref": "9fb87fa7-fa67-4991-91e4-137cfd85f19b",
+      "bom-ref": "e2ebe45a-e51f-4111-99ed-9f781c2b5f29",
       "name": "/work/oak-community_web_0.7.1.tar",
       "properties": [
         {
@@ -4265,7 +4265,7 @@
       ],
       "type": "container"
     },
-    "timestamp": "2026-08-25T08:45:22+00:00",
+    "timestamp": "2026-08-25T09:05:32+00:00",
     "tools": {
       "components": [
         {
@@ -4280,7 +4280,7 @@
       ]
     }
   },
-  "serialNumber": "urn:uuid:475ca3e2-e604-4299-93ba-491fb83a87a5",
+  "serialNumber": "urn:uuid:445e127d-3ce3-4c40-9c81-174f98d97976",
   "specVersion": "1.7",
   "version": 1,
   "vulnerabilities": []
