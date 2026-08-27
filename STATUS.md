@@ -19,7 +19,7 @@
   completed plans' author descriptions, and aligned every status document with the
   post-merge state; the four reference digests were re-verified byte-stable afterwards.
   That sweep is **merged** (`ca160a7`, PR #15), so `main` now carries the manual and the
-  whole corpus states the post-merge reality. What remains is the owner's: approve
+  neutralized author descriptions. What remains is the owner's: approve
   `docs/release/0.7.1/release-decision.md` (unsigned draft), then tag `v0.7.1` and
   decide where — if anywhere — to publish
 

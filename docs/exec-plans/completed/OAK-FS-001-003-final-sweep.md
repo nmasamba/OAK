@@ -64,11 +64,11 @@ close-out record describing the deletion of those branches.
 - `docs/manual/`: authoritative `manual.html`, rendered PDF, ten live screenshots,
   `build_manual.mjs`, capture spec `web/e2e/manual-screens.spec.ts` (gated by
   `OAK_MANUAL_SCREENS=1`), rebuild documentation.
-- Post-merge truth pass: `STATUS.md` (both repositories), governance `IMPLEMENT.md`
-  and `docs/roadmap.md`, `CHANGELOG.md`, the `0.7.1` release-decision draft's
-  "what changed" section.
-- Deletion of the merged `claude/*`/`codex/*` remote branches (done; origin now serves
-  only `main` and this sweep's own branch).
+- Post-merge truth pass: `STATUS.md` (both repositories), governance `IMPLEMENT.md`,
+  `CHANGELOG.md`, the `0.7.1` release-decision draft's "what changed" section
+  (governance `docs/roadmap.md` was reviewed and needed no change).
+- Deletion of the merged `claude/*`/`codex/*` remote branches (done; none remain on
+  origin).
 - Document-policy gates extended to the manual's file types (`.html` under the
   assurance-vocabulary and product-reference scans; `.html`/`.mjs` under the secret
   scan); `OAK_MANUAL_SCREENS` documented in `docs/configuration.md` and pinned by the
@@ -101,8 +101,9 @@ The four reference digests were recompiled after the sweep and are byte-identica
   set puts `.html` under the document-policy scans.
 - Proof: the sweep grep described under Outcome; `uv run python
   tools/check_repository.py` exits 0 over the whole tree including `manual.html`;
-  `git ls-remote --heads origin` lists no `claude/*` or `codex/*` ref — since the sweep
-  merged (`ca160a7`) and its branch was deleted, only `refs/heads/main` remains.
+  `git ls-remote --heads origin` lists no `claude/*` or `codex/*` ref (the sweep's own
+  `release/final-sweep` was deleted when it merged as `ca160a7`; whatever review branch
+  is open at any moment is beside the point this proves).
 - Rollback: revert the branch; remote branch deletion is reversible only by re-push
   from local refs (which the clone retains).
 
@@ -125,7 +126,8 @@ The four reference digests were recompiled after the sweep and are byte-identica
 
 ### Milestone 3 — OAK-FS-003: post-merge truth pass and close-out
 
-- Work: both `STATUS.md` files, governance `IMPLEMENT.md`/`docs/roadmap.md`,
+- Work: both `STATUS.md` files, governance `IMPLEMENT.md` (`docs/roadmap.md` was
+  reviewed and needed no change),
   `CHANGELOG.md` (0.7.1 Added/Changed), release-decision "what changed" amendment
   recording the docs-only sweep, `OAK_MANUAL_SCREENS` reference row, this plan,
   session memory updated for the post-merge state.
@@ -210,10 +212,14 @@ the PR.
   on the reasoning that they matched the existing history (80 merged commits carry
   them) and that rewriting is the owner's call. **Superseded 2026-08-27 by the owner's
   instruction:** no vendor attribution on this or any future merge, while
-  already-merged trailers stay. The four branch commits were rewritten to drop the
-  trailers and force-pushed; the rewrite was proven content-neutral (tree hash
+  already-merged trailers stay. The four branch commits that existed at that point were
+  rewritten to drop the trailers and force-pushed, and the later staleness-sweep commit
+  was authored trailer-free under the same instruction, so all five non-merge commits in
+  the merged range carry no vendor attribution; the rewrite was proven content-neutral (tree hash
   `37a9d28456fc…` identical before and after, empty `git diff` against a backup ref),
-  and the same attribution line was removed from the PR description. Merged history on
+  and the same attribution line was removed from the PR description (its body's own
+  claim that the commits still
+  carried trailers was corrected after the merge, once it had become false). Merged history on
   `main` is untouched, exactly as the prompt requires.
 
 ## Post-implementation audit
