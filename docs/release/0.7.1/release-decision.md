@@ -2,8 +2,7 @@
 
 # Release decision record — OAK Community 0.7.1
 
-**Status: draft — awaiting owner approval. Do not release against this document until
-the approvals table below carries names and dates.**
+**Status: approved by `nmasamba` on 2026-08-27, all three roles.**
 
 This document assembles the evidence a maintainer needs to decide whether to declare
 `0.7.1` released, and records who signed. It was prepared by the pre-launch hardening
@@ -128,6 +127,12 @@ signature.
 
 | Role | Approving that | Name | Date |
 |---|---|---|---|
-| Maintainer | The release is functionally what it claims to be, and the evidence above is sufficient | *(unsigned)* | — |
-| Security | The residual-risk register is complete and correctly scoped, including the seven closures and the digest migration made since `0.7.0` | *(unsigned)* | — |
-| Licence | The Apache-2.0 declaration and the generated third-party inventory are correct. The Python and web dependency closures are unchanged since the `0.7.0` licence approval, but two adjacent things did change and are recorded in [dependencies.md](../../dependencies.md): the web runtime base image moved from the Docker Official `nginx` to NGINX's `nginxinc/nginx-unprivileged` community image, and `pnpm-lock.yaml` now locks the Node.js 24.18.0 runtime itself (MIT-licensed, integrity-pinned per platform) for pnpm's managed-runtime provisioning | *(unsigned)* | — |
+| Maintainer | The release is functionally what it claims to be, and the evidence above is sufficient | `nmasamba` | 2026-08-27 |
+| Security | The residual-risk register is complete and correctly scoped, including the seven closures and the digest migration made since `0.7.0` | `nmasamba` | 2026-08-27 |
+| Licence | The Apache-2.0 declaration and the generated third-party inventory are correct. The Python and web dependency closures are unchanged since the `0.7.0` licence approval, but two adjacent things did change and are recorded in [dependencies.md](../../dependencies.md): the web runtime base image moved from the Docker Official `nginx` to NGINX's `nginxinc/nginx-unprivileged` community image, and `pnpm-lock.yaml` now locks the Node.js 24.18.0 runtime itself (MIT-licensed, integrity-pinned per platform) for pnpm's managed-runtime provisioning | `nmasamba` | 2026-08-27 |
+
+> **All three roles are held by one person.** That is a normal situation for a project
+> this size, and it is recorded rather than hidden: the security and licence judgements
+> were **not independent** of the maintainer judgement. A reader weighing this release
+> should read the three approvals as one person's, not three.
+

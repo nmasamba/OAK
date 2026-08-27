@@ -4,7 +4,7 @@
 
 - **Updated:** 2026-08-27
 - **Repository version:** `0.7.1`
-- **Phase:** Pre-launch hardening complete — `0.7.0` was approved as a local-first developer release but never published; the release is re-cut as `0.7.1`, awaiting a fresh owner approval
+- **Phase:** Pre-launch hardening complete — `0.7.0` was approved as a local-first developer release but never published; the release is re-cut as `0.7.1` and **approved by `nmasamba` on 2026-08-27**, still unpublished
 - **Completed plans:** `docs/exec-plans/completed/OAK-S0-001-009-walking-skeleton.md`, `docs/exec-plans/completed/OAK-S1-001-010-local-design-case.md`, `docs/exec-plans/completed/OAK-S2-001-011-candidate-planning.md`, `docs/exec-plans/completed/OAK-S3-001-009-persistent-rest-jobs.md`, `docs/exec-plans/completed/OAK-S4-001-009-web-workspace.md`, `docs/exec-plans/completed/OAK-S5-001-011-signed-runner.md`, `docs/exec-plans/completed/OAK-S6-001-008-policy-adapter-sdk.md`, `docs/exec-plans/completed/OAK-S7-001-008-mcp-portal-interface-parity.md`, `docs/exec-plans/completed/OAK-S8-001-009-community-release-hardening.md`, `docs/exec-plans/completed/OAK-PL-001-007-pre-launch-hardening.md`, and `docs/exec-plans/completed/OAK-FS-001-003-final-sweep.md`
 - **Active plan:** none — the pre-launch hardening plan and the final documentation sweep are complete
 - **Next task:** the pre-launch hardening PR (#13) is **merged** (`2d85322`), with its
@@ -13,14 +13,13 @@
   entries were closed by this work (`RR-001`, `RR-003`, `RR-011`, `RR-032`, `RR-034`,
   `RR-037`, `RR-038`; eight of the register's 38 rows are now closed, `RR-035`
   predating it), including both standing conditions from the `0.7.0` approval, with the
-  one sanctioned digest migration recorded in `CHANGELOG.md`. Nothing is published and
-  no tag is pushed. A documentation-only final sweep (`OAK-FS-001`–`003`) then added the
+  one sanctioned digest migration recorded in `CHANGELOG.md`. Nothing is published. A documentation-only final sweep (`OAK-FS-001`–`003`) then added the
   illustrated user manual at `docs/manual/`, neutralized the AI-vendor names in the
   completed plans' author descriptions, and aligned every status document with the
   post-merge state; the four reference digests were re-verified byte-stable afterwards.
   That sweep is **merged** (`ca160a7`, PR #15), so `main` now carries the manual and the
-  neutralized author descriptions. What remains is the owner's: approve
-  `docs/release/0.7.1/release-decision.md` (unsigned draft), then tag `v0.7.1` and
+  neutralized author descriptions. The decision record is **signed** (`nmasamba`,
+  2026-08-27, all three roles) and `v0.7.1` is tagged. What remains is the owner's:
   decide where — if anywhere — to publish
 
 ## Claimed work
