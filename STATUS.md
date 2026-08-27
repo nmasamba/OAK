@@ -5,17 +5,23 @@
 - **Updated:** 2026-08-25
 - **Repository version:** `0.7.1`
 - **Phase:** Pre-launch hardening complete — `0.7.0` was approved as a local-first developer release but never published; the release is re-cut as `0.7.1`, awaiting a fresh owner approval
-- **Completed plans:** `docs/exec-plans/completed/OAK-S0-001-009-walking-skeleton.md`, `docs/exec-plans/completed/OAK-S1-001-010-local-design-case.md`, `docs/exec-plans/completed/OAK-S2-001-011-candidate-planning.md`, `docs/exec-plans/completed/OAK-S3-001-009-persistent-rest-jobs.md`, `docs/exec-plans/completed/OAK-S4-001-009-web-workspace.md`, `docs/exec-plans/completed/OAK-S5-001-011-signed-runner.md`, `docs/exec-plans/completed/OAK-S6-001-008-policy-adapter-sdk.md`, `docs/exec-plans/completed/OAK-S7-001-008-mcp-portal-interface-parity.md`, `docs/exec-plans/completed/OAK-S8-001-009-community-release-hardening.md`, and `docs/exec-plans/completed/OAK-PL-001-007-pre-launch-hardening.md`
-- **Active plan:** none — the pre-launch hardening plan is complete
-- **Next task:** the pre-launch hardening plan is complete, including its closing
-  adversarial audit (23 findings raised, 15 confirmed and fixed or dispositioned, 8
-  refuted — see the completed plan's audit section). Seven register entries were closed
-  by this work (`RR-001`, `RR-003`, `RR-011`, `RR-032`, `RR-034`, `RR-037`, `RR-038`;
-  eight of the register's 38 rows are now closed, `RR-035` predating it), including
-  both standing conditions from the `0.7.0` approval, with the one sanctioned digest
-  migration recorded in `CHANGELOG.md`. Nothing is published and no tag is pushed.
-  What remains: merge the PR once remote CI is green, then the owner's fresh approval
-  of `docs/release/0.7.1/release-decision.md` (unsigned draft)
+- **Completed plans:** `docs/exec-plans/completed/OAK-S0-001-009-walking-skeleton.md`, `docs/exec-plans/completed/OAK-S1-001-010-local-design-case.md`, `docs/exec-plans/completed/OAK-S2-001-011-candidate-planning.md`, `docs/exec-plans/completed/OAK-S3-001-009-persistent-rest-jobs.md`, `docs/exec-plans/completed/OAK-S4-001-009-web-workspace.md`, `docs/exec-plans/completed/OAK-S5-001-011-signed-runner.md`, `docs/exec-plans/completed/OAK-S6-001-008-policy-adapter-sdk.md`, `docs/exec-plans/completed/OAK-S7-001-008-mcp-portal-interface-parity.md`, `docs/exec-plans/completed/OAK-S8-001-009-community-release-hardening.md`, `docs/exec-plans/completed/OAK-PL-001-007-pre-launch-hardening.md`, and `docs/exec-plans/completed/OAK-FS-001-003-final-sweep.md`
+- **Active plan:** none — the pre-launch hardening plan and the final documentation sweep are complete
+- **Next task:** the pre-launch hardening PR (#13) is **merged** (`2d85322`), with its
+  closing adversarial audit complete (23 findings raised, 15 confirmed and fixed or
+  dispositioned, 8 refuted — see the completed plan's audit section). Seven register
+  entries were closed by this work (`RR-001`, `RR-003`, `RR-011`, `RR-032`, `RR-034`,
+  `RR-037`, `RR-038`; eight of the register's 38 rows are now closed, `RR-035`
+  predating it), including both standing conditions from the `0.7.0` approval, with the
+  one sanctioned digest migration recorded in `CHANGELOG.md`. Nothing is published and
+  no tag is pushed. A documentation-only final sweep (`OAK-FS-001`–`003`) then added the
+  illustrated user manual at `docs/manual/`, neutralized the AI-vendor names in the
+  completed plans' author descriptions, and aligned every status document with the
+  post-merge state; the four reference digests were re-verified byte-stable afterwards.
+  **That sweep is open as PR #15 and not yet merged** — this file describes the tree on
+  `release/final-sweep`, which is ahead of `main` (`2d85322`). What remains is the
+  owner's: merge PR #15, approve `docs/release/0.7.1/release-decision.md` (unsigned
+  draft), then tag `v0.7.1` and decide where — if anywhere — to publish
 
 ## Claimed work
 
@@ -112,6 +118,9 @@
 | `OAK-PL-005` | complete | Post-create resolved-digest verification (`OAK-RUNNER-IMAGE`) and target-profile registry allowlist (`OAK-RUNNER-REGISTRY`); TM-08 direct (`RR-003` closed) |
 | `OAK-PL-006` | complete | Verification policy derived from the target and enforced per requested kind (`OAK-RUNNER-POLICY`); the one sanctioned digest migration, recorded in `CHANGELOG.md` (`RR-032`/`RR-011` closed); signed examples regenerated and cryptographically gated |
 | `OAK-PL-007` | complete | Per-image CycloneDX SBOMs and unsigned provenance from `make scan-images` and the release workflow; `0.7.1` rescan: zero fixable findings, web image clean at every severity (`RR-038` closed, `RR-036` re-confirmed) |
+| `OAK-FS-001` | complete | AI-vendor names neutralized in the completed plans' `Owner/agent:` descriptions (agent-versus-human distinction preserved); historical branch identifiers kept as repository facts; the merged agent-named remote branches deleted; document-policy gates extended to `.html`/`.mjs` |
+| `OAK-FS-002` | complete | Illustrated user manual at `docs/manual/` — authoritative HTML source, rendered PDF, live-capture screenshot spec — its chapter 3 and chapter 5 commands verified by running the CLI and signed-runner journeys end to end against the tree, with the expected output captured from those runs |
+| `OAK-FS-003` | complete | Post-merge truth pass: both repositories' status documents, `CHANGELOG.md`, and the `0.7.1` release-decision draft state the merged reality; `OAK_MANUAL_SCREENS` documented and pinned by the configuration-reference gate |
 
 ## Verification evidence
 
@@ -363,8 +372,9 @@
   and both images apply distribution security updates at build time. Result: the web image
   is entirely clean, the API image has 3 CRITICAL and 14 HIGH all with **no vendor fix
   available**, and **zero fixable findings remain** in either. `make scan-images` makes it
-  repeatable and fails on anything fixable; `RR-036` tracks the residue and `RR-037` records
-  that the web image still runs nginx as root.
+  repeatable and fails on anything fixable; `RR-036` tracks the residue, and `RR-037` recorded
+  that the web image still ran nginx as root — closed at `0.7.1` by rebasing onto
+  `nginxinc/nginx-unprivileged` (uid 101, verified in the running container).
 - `OAK-S8-009` was decided by a human, not by the agent that prepared it. `nmasamba`
   approved `0.7.0` on 2026-08-22 in all three roles — maintainer, security and licence —
   after review. All three roles being held by one person is recorded in the decision record
@@ -391,6 +401,25 @@
   adversarially tested, including a full `run_once` denial that leaves no journal.
   The release awaits a fresh human approval in
   `docs/release/0.7.1/release-decision.md`.
+- The final documentation sweep (`OAK-FS-001`–`003`, 2026-08-25) was verified rather
+  than assumed: a six-dimension multi-agent review of the sweep branch (vendor-reference
+  completeness including PDF/PNG binary content, manual coverage and truthfulness
+  against `SECURITY.md` and the intake/interpreter sources, every manual command against
+  the tree, gate and CI risk, post-merge truth in both repositories, and close-out
+  discipline) raised three blockers — a leftover YAML-first diagram label, a
+  nonexistent `oak import --workspace` flag, and a prerequisites row claiming Intel
+  macOS support that `docs/platforms.md` denies — all fixed, with the full CLI journey
+  and the complete signed-runner journey (keys, sign, approve, dispatch, `run-once`
+  against the mutation fixture, ingest, status, revoke) executed live to capture the
+  manual's expected-output excerpts. `make check` passed on the sweep tree (verified by
+  counting `make: ***` lines), and direct recompilation reproduced all four reference
+  digests byte-identically. The closing adversarial audit (five lenses, independent
+  refute-by-default skeptics) raised 47 findings, 21 confirmed and fixed, 26 refuted —
+  see the completed plan's audit section. It found, among others, that chapter 8 told
+  the reader to run a script it had just deleted, that chapter 6 gave consumers a
+  command needing a checkout they do not have, and that the audit-timeline screenshot
+  had raced its own data fetch; the screenshots were re-captured from a live stack
+  reporting `0.7.1`.
 
 ## Safety boundary
 

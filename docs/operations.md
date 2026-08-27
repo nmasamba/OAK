@@ -374,7 +374,8 @@ them yourself.
 
 The same applies to the third-party images OAK causes Docker to pull: `postgres:17.6-alpine`,
 `python:3.13.12-slim`, `node:24.18.0-alpine`, `nginxinc/nginx-unprivileged:1.29.1-alpine`,
-and `aquasec/trivy` if you ran `make scan-images`. Neither the commands above nor
+`ghcr.io/astral-sh/uv:0.10.8` (a build stage of the API image), and `aquasec/trivy` if you
+ran `make scan-images`. Neither the commands above nor
 `scripts/check_clean_machine.py` touches or reports them, because they are shared Docker
 state rather than OAK's. Remove them with `docker image rm` if you want the disk back.
 

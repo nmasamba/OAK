@@ -44,7 +44,10 @@ uv run oak-api        # http://127.0.0.1:8080
 uv run oak-worker     # drains durable operations
 ```
 
-Or the whole stack through Compose: `docker compose up -d --build postgres migrate api worker web
+Or the whole stack through Compose:
+
+```bash
+docker compose up -d --build postgres migrate api worker web
 curl --fail http://127.0.0.1:8080/version   # --build is not optional; see operations.md#install
 ```
 
@@ -54,8 +57,6 @@ browsers at `/docs` and `/redoc`. Those three are **not** part of the `/v1` cont
 are not covered by the compatibility policy — they are debugging affordances that come
 with the framework. They bind to the same address as everything else, so on a non-loopback
 bind they are exposed too.
-
-```bash`.
 
 ### Remote CLI
 

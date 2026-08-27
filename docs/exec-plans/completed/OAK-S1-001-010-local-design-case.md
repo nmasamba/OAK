@@ -4,7 +4,7 @@
 
 ## Status
 
-- Owner/agent: Codex
+- Owner/agent: owner-directed coding agent
 - Started: 2026-08-17
 - Last updated: 2026-08-17
 - State: complete

@@ -4,7 +4,7 @@
 
 ## Status
 
-- Owner/agent: Codex (final verification completed by Claude)
+- Owner/agent: owner-directed coding agent (final verification by a second agent)
 - Started: 2026-08-17
 - Last updated: 2026-08-18 13:05 BST
 - State: done

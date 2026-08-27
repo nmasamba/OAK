@@ -4,7 +4,7 @@
 
 ## Status
 
-- Owner/agent: Claude
+- Owner/agent: owner-directed coding agent
 - Started: 2026-08-18
 - Last updated: 2026-08-18 21:40 BST
 - State: done

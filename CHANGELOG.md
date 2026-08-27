@@ -93,6 +93,13 @@ compatibility promises in [compatibility.md](docs/compatibility.md).
 
 ### Added
 
+- **An illustrated user manual** at [docs/manual/](docs/manual/): the end-to-end journey
+  from a clean machine through the CLI pipeline, the browser workspace (with screenshots
+  captured from a live Compose stack), the signed runner including what each denial
+  family means, artifact verification, troubleshooting, and complete uninstall. The
+  authoritative source is `manual.html`; the committed PDF is a rendering of it, and
+  the chapters 3 and 5 commands were verified by running those journeys end to end
+  against the tree, and the expected-output excerpts are what those runs printed.
 - **`scripts/generate_examples.py`** regenerates the signed protocol examples from a
   live fixed-clock compile-sign-approve-dispatch-revoke run, and a contract test now
   verifies every signed example cryptographically, so the examples' digests and
@@ -109,6 +116,12 @@ compatibility promises in [compatibility.md](docs/compatibility.md).
 - The signed protocol examples were regenerated with post-migration digests.
 - `docs/compatibility.md` states explicitly that its promises bind external consumers
   from the first published artifact, and that no `0.7.x` artifact has been published.
+- The completed exec plans' `Owner/agent:` lines describe the author neutrally
+  ("owner-directed coding agent") instead of naming an AI vendor; historical branch-name
+  identifiers inside the progress logs are repository facts and stay. The
+  document-policy gate (`tools/check_repository.py`) now scans `.html` documents for
+  assurance vocabulary and product references, and `.html`/`.mjs` files for secret
+  patterns, so the user manual sits under the same honesty gates as the markdown corpus.
 
 ### Found and fixed by the closing adversarial audit
 

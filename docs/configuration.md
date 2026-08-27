@@ -96,3 +96,4 @@ when you harden a runner environment. Recorded as `RR-033`.
 | `OAK_E2E_DOCKER` | *(none)* | Set by `make web-e2e` to enable the Compose-backed browser journey | No |
 | `OAK_WEB_BASE_URL` | `http://127.0.0.1:5173` | Origin the Playwright suite drives. Read by `web/playwright.config.ts`, not by Python | No |
 | `OAK_API_BASE_URL` | `http://127.0.0.1:8080` | API origin the Playwright suite calls directly. Read by `web/e2e/support.ts`, not by Python | No |
+| `OAK_MANUAL_SCREENS` | *(none)* | Set to `1` to run the user-manual screenshot capture spec (`web/e2e/manual-screens.spec.ts`) against a healthy Compose stack; otherwise it is collected but skipped. Read by TypeScript, not by Python | No |
