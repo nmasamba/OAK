@@ -6,7 +6,7 @@
 
 - Owner/agent: owner-directed coding agent
 - Started: 2026-08-25
-- Last updated: 2026-08-25
+- Last updated: 2026-08-27
 - State: complete
 
 One plan covers three task IDs because the sweep is one coherent, documentation-only
@@ -27,8 +27,8 @@ document in both repositories states the post-merge reality (PR #13 merged as
 Demonstrations: `open docs/manual/OAK-Community-Manual.pdf`;
 `git grep -iE 'claude|codex|anthropic|copilot|openai'` returns only ignore-file
 hygiene entries, defensive filename lists in `tools/check_repository.py`, historical
-branch identifiers inside completed exec plans' progress records, and the close-out
-records — this plan and `STATUS.md` — describing the deletion of those branches.
+branch identifiers inside completed exec plans' progress records, and this plan's own
+close-out record describing the deletion of those branches.
 
 ## Context and invariants
 
@@ -68,7 +68,7 @@ records — this plan and `STATUS.md` — describing the deletion of those branc
   and `docs/roadmap.md`, `CHANGELOG.md`, the `0.7.1` release-decision draft's
   "what changed" section.
 - Deletion of the merged `claude/*`/`codex/*` remote branches (done; origin now serves
-  only `main`).
+  only `main` and this sweep's own branch).
 - Document-policy gates extended to the manual's file types (`.html` under the
   assurance-vocabulary and product-reference scans; `.html`/`.mjs` under the secret
   scan); `OAK_MANUAL_SCREENS` documented in `docs/configuration.md` and pinned by the
@@ -76,7 +76,10 @@ records — this plan and `STATUS.md` — describing the deletion of those branc
 
 ### Out
 
-- Rewriting merged history to strip commit trailers (owner's call; destructive).
+- Rewriting **merged** history to strip commit trailers (destructive; the owner's
+  call, and not taken). The owner did later direct that this branch's own unmerged
+  commits drop their trailers, which is a safe rewrite of unpublished commits — see
+  the Decisions log.
 - A real model interpreter adapter (natural next work item, separately scoped).
 - Any code, schema, or contract change beyond the two gate files above.
 - README authorship lines (the owner adds their own).
@@ -98,7 +101,8 @@ The four reference digests were recompiled after the sweep and are byte-identica
   set puts `.html` under the document-policy scans.
 - Proof: the sweep grep described under Outcome; `uv run python
   tools/check_repository.py` exits 0 over the whole tree including `manual.html`;
-  `git ls-remote --heads origin` lists only `refs/heads/main`.
+  `git ls-remote --heads origin` lists no `claude/*` or `codex/*` ref (only `main` and,
+  until it merges, this sweep's own `release/final-sweep`).
 - Rollback: revert the branch; remote branch deletion is reversible only by re-push
   from local refs (which the clone retains).
 
@@ -202,10 +206,15 @@ the PR.
   exercised by the two e2e suites; rather than adding test scope to a docs-only
   sweep, the colophon names the revocation integration suite that covers it, and the
   command was verified by direct execution.
-- 2026-08-25 **The sweep's own commits keep their `Co-Authored-By` trailers.**
-  Consistent with the facts-not-falsification stance and the existing history (80
-  merged commits carry such trailers); if the owner wants a trailer-free history,
-  that is the history-rewrite decision the prompt already reserves to them.
+- 2026-08-25 The sweep's own commits initially kept their `Co-Authored-By` trailers,
+  on the reasoning that they matched the existing history (80 merged commits carry
+  them) and that rewriting is the owner's call. **Superseded 2026-08-27 by the owner's
+  instruction:** no vendor attribution on this or any future merge, while
+  already-merged trailers stay. The four branch commits were rewritten to drop the
+  trailers and force-pushed; the rewrite was proven content-neutral (tree hash
+  `37a9d28456fc…` identical before and after, empty `git diff` against a backup ref),
+  and the same attribution line was removed from the PR description. Merged history on
+  `main` is untouched, exactly as the prompt requires.
 
 ## Post-implementation audit
 

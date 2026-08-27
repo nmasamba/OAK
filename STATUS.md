@@ -14,13 +14,14 @@
   `RR-037`, `RR-038`; eight of the register's 38 rows are now closed, `RR-035`
   predating it), including both standing conditions from the `0.7.0` approval, with the
   one sanctioned digest migration recorded in `CHANGELOG.md`. Nothing is published and
-  no tag is pushed. What remains is the owner's: approve
-  `docs/release/0.7.1/release-decision.md` (unsigned draft), then tag `v0.7.1` and
-  decide where — if anywhere — to publish. A documentation-only final sweep
-  (`OAK-FS-001`–`003`) then added the illustrated user manual at `docs/manual/`,
-  neutralized the AI-vendor names in the completed plans' author descriptions, and
-  aligned every status document with the post-merge state; the four reference digests
-  were re-verified byte-stable afterwards
+  no tag is pushed. A documentation-only final sweep (`OAK-FS-001`–`003`) then added the
+  illustrated user manual at `docs/manual/`, neutralized the AI-vendor names in the
+  completed plans' author descriptions, and aligned every status document with the
+  post-merge state; the four reference digests were re-verified byte-stable afterwards.
+  **That sweep is open as PR #15 and not yet merged** — this file describes the tree on
+  `release/final-sweep`, which is ahead of `main` (`2d85322`). What remains is the
+  owner's: merge PR #15, approve `docs/release/0.7.1/release-decision.md` (unsigned
+  draft), then tag `v0.7.1` and decide where — if anywhere — to publish
 
 ## Claimed work
 
@@ -371,8 +372,9 @@
   and both images apply distribution security updates at build time. Result: the web image
   is entirely clean, the API image has 3 CRITICAL and 14 HIGH all with **no vendor fix
   available**, and **zero fixable findings remain** in either. `make scan-images` makes it
-  repeatable and fails on anything fixable; `RR-036` tracks the residue and `RR-037` records
-  that the web image still runs nginx as root.
+  repeatable and fails on anything fixable; `RR-036` tracks the residue, and `RR-037` recorded
+  that the web image still ran nginx as root — closed at `0.7.1` by rebasing onto
+  `nginxinc/nginx-unprivileged` (uid 101, verified in the running container).
 - `OAK-S8-009` was decided by a human, not by the agent that prepared it. `nmasamba`
   approved `0.7.0` on 2026-08-22 in all three roles — maintainer, security and licence —
   after review. All three roles being held by one person is recorded in the decision record

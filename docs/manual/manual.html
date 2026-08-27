@@ -288,9 +288,12 @@ uv run oak assure candidate-03 --output ./assurance
   <p>
     The target profile is explicit invocation data — OAK never treats your machine as
     the target. Compilation validates the profile, binds it to the tenant, checks the
-    candidate's platform and capacity requirements against it, and emits the canonical
-    files: the semantic manifest, the deployment bundle, and a <code>draft</code> typed
-    runner plan whose verification policy is derived from that exact target. For this
+    candidate's platform and capacity requirements against it, and emits five canonical
+    files into the output directory — <code>architecture-decision.json</code>,
+    <code>assurance-plan.json</code>, <code>semantic-manifest.json</code>,
+    <code>deployment-bundle.json</code> and a <code>draft</code> typed
+    <code>runner-plan.json</code> whose verification policy is derived from that exact
+    target. For this
     read-only fixture the plan contains only <code>inventory</code>,
     <code>validate</code>, <code>render</code>, <code>plan</code> and
     <code>verify</code> operations.
@@ -339,7 +342,7 @@ uv run oak import ../case-export --directory ../restored
   <figure><img src="assets/05-questions.png" alt="The five ranked confirmation questions"><figcaption>The five ranked questions. Confirm, correct (with a value), reject, or accept-risk — each with a recorded rationale.</figcaption></figure>
   <figure><img src="assets/06-operation.png" alt="A durable operation in progress"><figcaption>Long stages run as durable operations: they survive restarts, can be cancelled cooperatively, and record their outcome.</figcaption></figure>
   <figure><img src="assets/07-candidates.png" alt="Candidate comparison with an infeasible variant"><figcaption>Candidate comparison. Note the infeasible candidate staying visible with its constraint failure — rejection reasons are first-class.</figcaption></figure>
-  <figure><img src="assets/08-decision-assurance.png" alt="Decision and assurance plan"><figcaption>The immutable decision with evaluation evidence, plus the assurance plan's controls and gate blockers.</figcaption></figure>
+  <figure><img src="assets/08-decision-assurance.png" alt="Decision and assurance plan"><figcaption>The immutable decision: the selected candidate with its recorded rationale and decider, every alternative with the reason it was not selected (<code>candidate-04</code> carries its unconfirmed hardware constraint), and the evaluation evidence beneath. The assurance plan's controls and gate blockers follow further down the same screen.</figcaption></figure>
   <figure><img src="assets/09-bundle.png" alt="Compiled bundle review"><figcaption>Bundle review. Plan, approval and apply are deliberately separated — and apply is marked unavailable here: the web surface holds no runner execution authority.</figcaption></figure>
   <figure><img src="assets/10-timeline.png" alt="Audit timeline"><figcaption>The audit timeline: every recorded event from <em>case_created</em> to <em>bundle_compiled</em>, each with its sequence number, actor, interface origin, case version and timestamp — and downloadable as a canonical JSON export.</figcaption></figure>
   <p>Stop the stack with <code>docker compose down</code> (add <code>--volumes</code> to also drop the local database and artifact store).</p>
@@ -449,10 +452,13 @@ uv run oak-runner run-once
     and signature against its own pinned anchors, the target fingerprint it recomputes
     locally, the lease and nonce, the compiled verification policy's clauses, the
     adapter allowlist and typed parameters, and the approvals — all before touching
-    anything. It then creates the fixture container with
-    <code>docker create --network=none</code>, reads back the image digest the daemon
-    actually resolved and refuses on any mismatch, verifies, rolls back — removing
-    exactly what it created — and publishes a signed completion message. Then:
+    anything. It then executes the requested operations in
+    plan order, which puts <code>verify</code> first: it verifies, then applies —
+    creating the fixture container with <code>docker create --network=none</code>,
+    reading back the image digest the daemon actually resolved and refusing on any
+    mismatch — then rolls back, removing exactly what it created, and publishes a
+    signed completion message recording
+    <code>"applied_kinds": ["verify", "apply", "rollback"]</code>. Then:
   </p>
   <pre><code>uv run oak ingest --output json</code></pre>
   <pre><code>OAK_RUNNER_HOME=$PWD/runner-home uv run oak-runner status
@@ -494,9 +500,9 @@ uv run oak-runner run-once
     <tr><td>Lease and replay</td><td><code>OAK-RUNNER-LEASE</code>, <code>OAK-RUNNER-REPLAY</code></td><td>The lease is outside its validity window or its nonce was already consumed; an unreadable nonce ledger refuses rather than reading as empty</td></tr>
     <tr><td>Separation of duties</td><td><code>OAK-RUNNER-SEPARATION</code></td><td>The signing and approving identities are the same key — re-sign and re-approve with separated roles</td></tr>
     <tr><td>Verification policy</td><td><code>OAK-RUNNER-POLICY</code></td><td>A requested kind is outside the target-derived <code>allowed_operation_kinds</code>, or a mutating kind was requested where the target forbids mutation</td></tr>
-    <tr><td>Operations and adapters</td><td><code>OAK-RUNNER-ADAPTER</code>, <code>OAK-RUNNER-PARAMETERS</code>, <code>OAK-RUNNER-REGISTRY</code></td><td>An operation names an adapter or parameters outside the code-level allowlist and schema, or an image registry outside the target's allowance</td></tr>
+    <tr><td>Operations and adapters</td><td><code>OAK-RUNNER-ADAPTER</code>, <code>OAK-RUNNER-PARAMETERS</code>, <code>OAK-RUNNER-REGISTRY</code>, <code>OAK-RUNNER-SECRETS</code>, <code>OAK-RUNNER-NETWORK</code>, <code>OAK-RUNNER-TARGET-CAPABILITY</code></td><td>An operation names an adapter or parameters outside the code-level allowlist and schema, an image registry outside the target's allowance, a secret reference or network destination the target does not permit, or a capability the target does not have</td></tr>
     <tr><td>Approvals</td><td><code>OAK-RUNNER-APPROVAL</code></td><td>The approval for the requested action is missing, revoked, expired, or bound to different digests or a different target</td></tr>
-    <tr><td>Execution time</td><td><code>OAK-RUNNER-IMAGE</code>, <code>OAK-RUNNER-SUBPROCESS</code>, <code>OAK-RUNNER-DRIFT</code></td><td>After every verification passed: the image digest the daemon actually resolved does not match the approved one (the container is removed), the docker invocation itself failed, or target state drifted mid-run</td></tr>
+    <tr><td>Execution time</td><td><code>OAK-RUNNER-IMAGE</code>, <code>OAK-RUNNER-SUBPROCESS</code>, <code>OAK-RUNNER-DRIFT</code>, <code>OAK-RUNNER-APPLY</code>, <code>OAK-RUNNER-ROLLBACK</code></td><td>After every verification passed: the image digest the daemon actually resolved does not match the approved one (the container is removed), the docker invocation itself failed, target state drifted mid-run, or the fixture apply or its rollback failed — a failed rollback is what raises <code>manual_recovery_required</code></td></tr>
   </table>
   <p>
     Every code is documented with its raise site in <code>docs/error-codes.md</code>,

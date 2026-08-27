@@ -109,7 +109,7 @@ pnpm --dir web exec playwright install --with-deps chromium
 
 ## Kubernetes
 
-**OAK Community `0.7.0` ships no Kubernetes profile, and this is a decision rather than an
+**OAK Community `0.7.1` ships no Kubernetes profile, and this is a decision rather than an
 omission.** `OAK-S8-001` asks for "a documented lightweight Kubernetes profile where
 feasible"; it is not feasible for this release, for four specific reasons:
 
