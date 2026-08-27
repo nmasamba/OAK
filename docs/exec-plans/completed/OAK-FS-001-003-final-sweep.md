@@ -101,8 +101,8 @@ The four reference digests were recompiled after the sweep and are byte-identica
   set puts `.html` under the document-policy scans.
 - Proof: the sweep grep described under Outcome; `uv run python
   tools/check_repository.py` exits 0 over the whole tree including `manual.html`;
-  `git ls-remote --heads origin` lists no `claude/*` or `codex/*` ref (only `main` and,
-  until it merges, this sweep's own `release/final-sweep`).
+  `git ls-remote --heads origin` lists no `claude/*` or `codex/*` ref — since the sweep
+  merged (`ca160a7`) and its branch was deleted, only `refs/heads/main` remains.
 - Rollback: revert the branch; remote branch deletion is reversible only by re-push
   from local refs (which the clone retains).
 
