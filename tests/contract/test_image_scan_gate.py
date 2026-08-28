@@ -11,6 +11,7 @@ on it would be silenced within a week. These tests pin both halves — fixable b
 unfixable reports — so neither can quietly invert.
 """
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +23,7 @@ from scripts.scan_images import (
     _from_lines,
     _provenance_document,
     _sbom_name,
+    _stamp_sbom_subject,
 )
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -155,3 +157,27 @@ def test_image_provenance_is_marked_unsigned_and_unreproducible() -> None:
     assert "RR-006" in document["reproducibility_note"]
     assert document["artifact_version"] == "0.7.1"
     assert document["images"]["api"]["tag"] == "oak-community/api:0.7.1"
+
+
+def test_the_sbom_stamp_survives_a_file_the_process_cannot_write(tmp_path: Path) -> None:
+    """The scanner writes the SBOM from a container running as root.
+
+    On Linux that file lands owned by root while the stamping process is not, so
+    reopening it for writing raises `PermissionError` — which is exactly how the
+    `v0.7.1` tag build failed, after every local run on macOS had passed because Docker
+    Desktop maps container-root writes back to the host user. Renaming a fresh file over
+    the old one needs permission on the directory, which the caller owns, so that is
+    what the stamp does. Read-only mode reproduces the same failure without needing root.
+    """
+
+    sbom = tmp_path / "api.cdx.json"
+    sbom.write_text(json.dumps({"bomFormat": "CycloneDX", "metadata": {}}) + "\n")
+    sbom.chmod(0o444)
+
+    _stamp_sbom_subject(sbom, "oak-community/api:0.7.1", "sha256:feedface")
+
+    document = json.loads(sbom.read_text(encoding="utf-8"))
+    assert document["metadata"]["component"]["properties"] == [
+        {"name": "oak:image", "value": "oak-community/api:0.7.1=sha256:feedface"}
+    ]
+    assert not list(tmp_path.glob("*.stamping")), "the temporary stamp file must not survive"
