@@ -13,7 +13,7 @@
         "python:3.13.12-slim@sha256:f1927c75e81efd1e091dbd64b6c0ecaa5630b38635a3d1c04034ac636e1f94c8"
       ],
       "final_stage_base": "python:3.13.12-slim@sha256:f1927c75e81efd1e091dbd64b6c0ecaa5630b38635a3d1c04034ac636e1f94c8",
-      "image_id": "sha256:8c1d75e61a886aa957c2fb25f24da51bd472e2822653c9823809920efcd4ea64",
+      "image_id": "sha256:be2723f54b676e129cd9c9b0900376aecaa50ceab4a8b8c25f74c436d757b1af",
       "sbom": "oak-community-api-image-0.7.1.cdx.json",
       "tag": "oak-community/api:0.7.1"
     },
@@ -22,7 +22,7 @@
         "node:24.18.0-alpine@sha256:a0b9bf06e4e6193cf7a0f58816cc935ff8c2a908f81e6f1a95432d679c54fbfd"
       ],
       "final_stage_base": "nginxinc/nginx-unprivileged:1.29.1-alpine@sha256:27985295bdb22a1ef8f712863210bd5877c0f3006494a593e86b3fe0fa55467e",
-      "image_id": "sha256:6aa19f1a8253539173c520f2a7816a3e434722087e6a1c4af44fcbce71012483",
+      "image_id": "sha256:2a7e137303108f86a3a3ceac1a10589906169ac6bd4d3a984e1525a22094079e",
       "sbom": "oak-community-web-image-0.7.1.cdx.json",
       "tag": "oak-community/web:0.7.1"
     }
@@ -31,6 +31,6 @@
   "reproducibility_note": "Container image builds are not byte-reproducible (RR-006): the distribution-update layers depend on when the build ran.",
   "signed": false,
   "signing_note": "Image provenance is unsigned and excluded from every checksum manifest. It records what one build produced \u2014 bases, builder, image identifiers \u2014 not who produced it. See docs/release-process.md.",
-  "source_commit": "9a33bf95062905869b5c132e7cfdb34ff3801596",
+  "source_commit": "7aba177a80dc5a0fbc1d7c76cdf28d1762405ff5",
   "source_tree_dirty": false
 }

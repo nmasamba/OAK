@@ -32,15 +32,24 @@ image that ships — including its final-stage base — not a build stage.
 
 | Image | CRITICAL | HIGH | MEDIUM | LOW | UNKNOWN | Fixable CRITICAL/HIGH |
 |---|---|---|---|---|---|---|
-| API | 3 | 14 | 49 | 58 | 8 | **0** |
+| API | 3 | 13 | 53 | 58 | 4 | **0** |
 | Web | **0** | **0** | **0** | **0** | **0** | **0** |
 
 **Zero fixable findings.** Debian has published no fix for any of the API image's
-CRITICAL or HIGH findings since the `0.7.0` scan on 2026-08-22 — the residue is the same
-set `RR-036` records: `perl-base` accounts for all three CRITICALs (plus five HIGHs), with
-single HIGHs in `openssl`/`libssl3t64`/`openssl-provider-legacy`, the `ncurses` family,
-`gzip` and `libacl1`. The eight UNKNOWN entries are advisories the scanner's database now
-carries without a severity assignment; none is fixable.
+remaining CRITICAL or HIGH findings — the residue is the set `RR-036` records:
+`perl-base` accounts for all three CRITICALs (plus five HIGHs), with single HIGHs in the
+`ncurses` family, `gzip`, `libacl1` and `libsqlite3-0`. The UNKNOWN entries are
+advisories the scanner's database carries without a severity assignment; none is fixable.
+
+**Rescanned 2026-08-27** against a moved vulnerability database, which is why the counts
+differ from the 2026-08-24 scan (HIGH 14 → 13, MEDIUM 49 → 53, UNKNOWN 8 → 4). One
+change is substantive rather than bookkeeping: the OpenSSL advisory that was an
+unfixable HIGH on 2026-08-24 now **has** a Debian fix (`3.5.7-1~deb13u2`), and the
+image's build-time `apt-get upgrade` installs it, so those findings are gone rather than
+merely reclassified. The web image picked up the equivalent Alpine fix
+(`libcrypto3`/`libssl3` `3.5.8-r0`). This is the scan that matters for a release built
+today: the images are rebuilt from their pinned bases on every build, so what ships is
+what this scan judged.
 
 The web image — rebased onto `nginxinc/nginx-unprivileged:1.29.1-alpine` and running as
 uid 101 — reports **no findings at any severity**.
