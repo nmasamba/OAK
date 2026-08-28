@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import platform as host_platform
 import re
 import shutil
@@ -226,14 +227,26 @@ def _sbom(tag: str, archive: Path, workspace: Path, cache: Path, destination: Pa
 
 
 def _stamp_sbom_subject(path: Path, tag: str, image_id: str) -> None:
-    """Bind the SBOM to the image it describes, mirroring the distribution convention."""
+    """Bind the SBOM to the image it describes, mirroring the distribution convention.
+
+    Written through a temporary file and renamed rather than opened for writing in
+    place. The scanner produces this file from inside a container running as root, so
+    on Linux it lands owned by root while the process doing the stamping is not —
+    opening it for writing raises `PermissionError`. Renaming needs write permission on
+    the *directory*, which the caller owns, not on the file. Docker Desktop on macOS
+    maps container-root writes back to the host user, which is why this only ever
+    failed on a Linux runner: the `v0.7.1` tag build was the first time this job ran
+    there. The replace is atomic, which an evidence file wants anyway.
+    """
 
     document = json.loads(path.read_text(encoding="utf-8"))
     metadata = document.setdefault("metadata", {})
     component = metadata.setdefault("component", {})
     properties = component.setdefault("properties", [])
     properties.append({"name": "oak:image", "value": f"{tag}={image_id}"})
-    path.write_text(json.dumps(document, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    temporary = path.with_name(path.name + ".stamping")
+    temporary.write_text(json.dumps(document, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    os.replace(temporary, path)
 
 
 def _sbom_image_id(path: Path) -> str:
