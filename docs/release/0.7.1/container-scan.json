@@ -5,10 +5,10 @@
     "api": {
       "counts": {
         "CRITICAL": 3,
-        "HIGH": 14,
+        "HIGH": 13,
         "LOW": 58,
-        "MEDIUM": 49,
-        "UNKNOWN": 8
+        "MEDIUM": 53,
+        "UNKNOWN": 4
       },
       "fixable": [],
       "tag": "oak-community/api:0.7.1",
@@ -22,8 +22,9 @@
         "libncursesw6": [
           "HIGH CVE-2025-69720"
         ],
-        "libssl3t64": [
-          "HIGH CVE-2026-14456"
+        "libsqlite3-0": [
+          "HIGH CVE-2026-11822",
+          "HIGH CVE-2026-11824"
         ],
         "libtinfo6": [
           "HIGH CVE-2025-69720"
@@ -33,12 +34,6 @@
         ],
         "ncurses-bin": [
           "HIGH CVE-2025-69720"
-        ],
-        "openssl": [
-          "HIGH CVE-2026-14456"
-        ],
-        "openssl-provider-legacy": [
-          "HIGH CVE-2026-14456"
         ],
         "perl-base": [
           "CRITICAL CVE-2026-13221",

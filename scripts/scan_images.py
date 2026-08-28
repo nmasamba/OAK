@@ -71,12 +71,27 @@ def _require_docker() -> None:
 
 
 def _build(tag: str, dockerfile: str, platform: str) -> None:
+    """Build the image the scan will judge, without reusing any cached layer.
+
+    `--no-cache` and `--pull` are the difference between a security scan and a
+    guess. Both Dockerfiles apply distro security updates at build time, and that
+    `RUN` layer caches: a rebuild days later reuses the package set from whenever the
+    layer was first created. That is how a local rescan reported five fixable HIGH
+    findings for CVE-2026-14456 (OpenSSL) against images that were clean — the cached
+    upgrade predated the fix, while a fresh build installed the patched packages. CI
+    runners start empty and never saw it. Cached layers fail toward false alarms
+    rather than missed findings, but a scan nobody can trust is worth no build time
+    saved.
+    """
+
     print(f"building {tag} for {platform}", file=sys.stderr)
     result = _run(
         [
             "docker",
             "buildx",
             "build",
+            "--no-cache",
+            "--pull",
             "--platform",
             platform,
             "--file",
