@@ -10,12 +10,13 @@ repository version (`VERSION`, a `0.x` series) signals that breaking change is s
 possible — but never silent.
 
 These promises bind external consumers operationally from the **first published
-artifact**. No `0.7.x` artifact has been published anywhere — no package index, no image
-registry, no tag, no release — so no external consumer yet exists to be bound. The
-`0.7.1` re-cut deliberately used that window for one digest-shifting change (the `RR-032`
-verification-policy migration), recorded in the changelog exactly as rule 4 below
-requires rather than made silently. From the first published artifact, every rule here
-binds as written with no such window remaining.
+artifact**. That artifact exists: `0.7.1` was published as a GitHub Release on
+2026-09-03 (tag `v0.7.1`; wheel and sdist with `SHA256SUMS`), so every rule here now
+binds as written. Before that, no `0.7.x` artifact had been published anywhere, and the
+`0.7.1` re-cut deliberately used that window for one digest-shifting change (the
+`RR-032` verification-policy migration), recorded in the changelog exactly as rule 4
+below requires rather than made silently. No such window remains. Publication is to
+GitHub Releases only: nothing is on a package index or in an image registry.
 
 ## Versioning model
 

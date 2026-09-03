@@ -136,3 +136,30 @@ signature.
 > were **not independent** of the maintainer judgement. A reader weighing this release
 > should read the three approvals as one person's, not three.
 
+## Publication
+
+Approval was not publication, and the record above did not decide it. That decision was
+taken separately: on 2026-09-03 the owner published `0.7.1` as a GitHub Release —
+<https://github.com/nmasamba/OAK/releases/tag/v0.7.1> — attaching the wheel, sdist,
+CycloneDX SBOM, licence inventory, `SHA256SUMS` and build provenance produced by the
+`v0.7.1` run of `release.yml`, each verified against `SHA256SUMS` before upload and again
+anonymously after publication.
+
+Two things happened between approval and publication, and neither changed what was
+approved. The `v0.7.1` tag was re-cut from `4754c85` to `c614414` with the owner's
+approval, to pick up two image-tooling fixes — the SBOM stamp that crashed the first tag
+build on a root-owned file, and cache-free scan builds — and a refreshed image scan from
+a clean tree; the wheel, sdist and all four canonical reference digests are identical
+across the two. And the first tag build's alarm about a fixable OpenSSL finding was traced
+to a cached local build, not to the images: a cache-free build installs the patched
+packages, and the refreshed evidence in this directory records zero fixable findings.
+
+Published digests:
+
+```
+d75526f8ebe86fed3e4c9a8cbd3592a5296d7fb70b628160f3ea6463afd22385  oak_community-0.7.1-py3-none-any.whl
+b68fe34f627f9c73c0ccf09c4923914a4c24ff4361881c8e17ffd6e033a449f0  oak_community-0.7.1.tar.gz
+```
+
+Not on PyPI and not in a container registry; both remain separate decisions.
+

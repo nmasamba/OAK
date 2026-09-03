@@ -160,6 +160,7 @@ The canonical schemas and public synthetic examples live in `schemas/` and `exam
 | | |
 |---|---|
 | [manual/OAK-Community-Manual.pdf](docs/manual/OAK-Community-Manual.pdf) | An illustrated end-to-end walkthrough, from install to uninstall (source in [manual/](docs/manual/)) |
+| [Releases](https://github.com/nmasamba/OAK/releases) | Published artifacts — wheel, sdist, SBOM, `SHA256SUMS`; checksummed, not signed, so verify with `scripts/verify_release.py` before installing |
 | [platforms.md](docs/platforms.md) | Where OAK is supported, and where it is not |
 | [operations.md](docs/operations.md) | Install, observe, back up, restore, upgrade, troubleshoot, uninstall |
 | [configuration.md](docs/configuration.md) | Every `OAK_*` environment variable |

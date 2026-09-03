@@ -169,14 +169,17 @@ docker buildx build --platform linux/amd64 --file deploy/images/api.Dockerfile -
 
 ## Publication
 
-**OAK Community `0.7.1` publishes nothing.** It is not on PyPI, not in a container
-registry, and not attached to a GitHub release. `make release` produces artifacts and the
-evidence describing them; where those artifacts go is a separate decision that belongs to
-a named maintainer, not to the build.
+**OAK Community `0.7.1` is published as a GitHub Release and nowhere else.** The wheel,
+sdist, SBOM, licence inventory, `SHA256SUMS` and build provenance produced by the
+`v0.7.1` run of `release.yml` were verified against `SHA256SUMS` and attached to
+<https://github.com/nmasamba/OAK/releases/tag/v0.7.1> on 2026-09-03 by a named
+maintainer — not by the build, which still publishes nothing by itself. It is not on
+PyPI and not in a container registry; each of those remains a separate decision.
 
-Consequently there is no "latest" to resolve, no index page to poison, and no published
-artifact to substitute. The verification instructions above exist so that they are ready,
-tested and honest on the day that changes.
+Consequently there is now a published artifact to substitute and a release page to
+poison, which is exactly why the verification instructions above matter: obtain
+`SHA256SUMS` over a channel you trust independently of the artifacts, and remember that
+checksums prove the bytes match the manifest, not who produced them (`RR-005`).
 
 ## Release checklist
 

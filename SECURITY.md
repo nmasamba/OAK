@@ -98,8 +98,8 @@ tracked as `RR-036`.
 
 ## Supported versions
 
-`0.7.1` is the current release candidate; nothing has been published yet, and `0.7.0` was
-approved but never published and was re-cut. Once released, only the latest release is
+`0.7.1` is the current release, published as a GitHub Release on 2026-09-03 (`v0.7.1`);
+`0.7.0` was approved but never published and was re-cut. Only the latest release is
 supported; there is no backport policy yet.
 
 ## Dependencies
