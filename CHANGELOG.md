@@ -8,13 +8,26 @@ All notable changes to OAK Community are recorded here.
 
 Nothing yet.
 
-## 0.7.1 — approved 2026-08-27, unpublished
+## 0.7.1 — approved 2026-08-27, published 2026-09-03
 
 Pre-launch hardening of the approved-but-never-published `0.7.0`. `0.7.0` was approved on
 2026-08-22 as a local-first developer release and never published — no PyPI upload, no
 image push, no tag, no GitHub release. This re-cut closes residual risks that `0.7.0`
-deliberately recorded rather than fixed, while no published artifact yet binds the
-compatibility promises in [compatibility.md](docs/compatibility.md).
+deliberately recorded rather than fixed. Published as a GitHub Release on 2026-09-03 —
+the first published artifact, from which the compatibility promises in
+[compatibility.md](docs/compatibility.md) now bind.
+
+### Published
+
+- **GitHub Release `v0.7.1`** (<https://github.com/nmasamba/OAK/releases/tag/v0.7.1>),
+  2026-09-03: wheel, sdist, CycloneDX SBOM, licence inventory, `SHA256SUMS` and build
+  provenance from the `v0.7.1` run of `release.yml`, verified against `SHA256SUMS` before
+  attachment and again anonymously afterwards. Wheel `sha256:d75526f8…`, sdist
+  `sha256:b68fe34f…`. Not on PyPI and not in a container registry — each a separate
+  decision. The tag was re-cut from `4754c85` to `c614414` with the owner's approval to
+  pick up two image-tooling fixes (`scripts/scan_images.py`: the SBOM stamp survives a
+  root-owned file; scans build without cache) and a clean-tree rescan; the wheel, sdist
+  and all four canonical reference digests are identical across the two.
 
 ### Versioning
 
