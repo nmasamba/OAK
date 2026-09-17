@@ -4,11 +4,11 @@
 
 - **Updated:** 2026-09-17
 - **Repository version:** `0.7.1`
-- **Phase:** Sprint 9 in progress — optional model provider and natural-language intake (`OAK-S9-001`–`009`), authorized by the owner on 2026-09-17. `0.7.1` was approved by `nmasamba` on 2026-08-27 and **published as a GitHub Release on 2026-09-03**; nothing about it changes in this sprint
-- **Completed plans:** `docs/exec-plans/completed/OAK-S0-001-009-walking-skeleton.md`, `docs/exec-plans/completed/OAK-S1-001-010-local-design-case.md`, `docs/exec-plans/completed/OAK-S2-001-011-candidate-planning.md`, `docs/exec-plans/completed/OAK-S3-001-009-persistent-rest-jobs.md`, `docs/exec-plans/completed/OAK-S4-001-009-web-workspace.md`, `docs/exec-plans/completed/OAK-S5-001-011-signed-runner.md`, `docs/exec-plans/completed/OAK-S6-001-008-policy-adapter-sdk.md`, `docs/exec-plans/completed/OAK-S7-001-008-mcp-portal-interface-parity.md`, `docs/exec-plans/completed/OAK-S8-001-009-community-release-hardening.md`, `docs/exec-plans/completed/OAK-PL-001-007-pre-launch-hardening.md`, and `docs/exec-plans/completed/OAK-FS-001-003-final-sweep.md`
-- **Active plan:** `docs/exec-plans/completed/OAK-S9-001-009-model-provider-intake.md`
-- **Next task:** none — Sprint 9 is complete and awaiting review (branch
-  `model-provider-intake` from `62bc7a1`), then the Sprint 9 milestones in order. The
+- **Phase:** Sprint 9 delivered — optional model provider and natural-language intake (`OAK-S9-001`–`009`), authorized by the owner on 2026-09-17 and merged as PR #21 (`88fa876`). `0.7.1` was approved by `nmasamba` on 2026-08-27 and **published as a GitHub Release on 2026-09-03**; nothing about it changes in this sprint
+- **Completed plans:** `docs/exec-plans/completed/OAK-S0-001-009-walking-skeleton.md`, `docs/exec-plans/completed/OAK-S1-001-010-local-design-case.md`, `docs/exec-plans/completed/OAK-S2-001-011-candidate-planning.md`, `docs/exec-plans/completed/OAK-S3-001-009-persistent-rest-jobs.md`, `docs/exec-plans/completed/OAK-S4-001-009-web-workspace.md`, `docs/exec-plans/completed/OAK-S5-001-011-signed-runner.md`, `docs/exec-plans/completed/OAK-S6-001-008-policy-adapter-sdk.md`, `docs/exec-plans/completed/OAK-S7-001-008-mcp-portal-interface-parity.md`, `docs/exec-plans/completed/OAK-S8-001-009-community-release-hardening.md`, `docs/exec-plans/completed/OAK-PL-001-007-pre-launch-hardening.md`, `docs/exec-plans/completed/OAK-FS-001-003-final-sweep.md`, and `docs/exec-plans/completed/OAK-S9-001-009-model-provider-intake.md`
+- **Active plan:** none. The most recent is `docs/exec-plans/completed/OAK-S9-001-009-model-provider-intake.md`
+- **Next task:** none — Sprint 9 is merged (PR #21 → `88fa876`; `origin/main` carries no
+  branch but `main`), and the next scope decision is the owner's. The
   pre-launch hardening (PR #13, `2d85322`), the documentation sweep (PR #15 `ca160a7`, PR #16
   `3f9122f`), the `0.7.1` approval and tag (`c614414`), the image-tooling fixes (PRs #18, #19)
   and the publication truth pass (PR #20, `62bc7a1`) are all merged; the register carries 41

@@ -6,9 +6,10 @@ All notable changes to OAK Community are recorded here.
 
 ## Unreleased
 
-Sprint 9 — optional model provider and natural-language intake (`OAK-S9-001`–`009`), in
-progress. Every entry below holds the four reference digests byte-stable unless it says
-otherwise.
+Sprint 9 — optional model provider and natural-language intake (`OAK-S9-001`–`009`), merged
+on 2026-09-17 as PR #21 (`88fa876`). It is unreleased because no version has been cut for it:
+`0.7.1` remains the published release and nothing here changes it. Every entry below holds
+the four reference digests byte-stable unless it says otherwise.
 
 ### Added
 
