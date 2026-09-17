@@ -23,6 +23,7 @@ justification a reader cannot resolve is worse than no citation.
 | ADR | Decision | Why it is cited here |
 |---|---|---|
 | [0005](architecture/0005-deployment-substrates.md) | Deployment substrates | The second renderer backend in [extension-sdk.md](../extension-sdk.md) |
+| [0009](architecture/0009-model-provider-abstraction.md) | Model providers behind capability contracts | Why the optional model provider is a port with deterministic validation around every response, and why no provider SDK ships ([dependencies.md](../dependencies.md), Sprint 9 review) |
 | [0011](architecture/0011-open-component-policy.md) | Open component policy | Every dependency review in [dependencies.md](../dependencies.md) |
 | [0012](architecture/0012-control-plane-distributions.md) | One control-plane contract across distributions | Why Community has no Kubernetes profile and why its local tenant is not tenant isolation |
 | [0013](architecture/0013-community-implementation-stack.md) | Python core and TypeScript web workspace | The choice of stack behind the dependency record |

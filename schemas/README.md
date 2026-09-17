@@ -12,6 +12,7 @@ All schemas use JSON Schema Draft 2020-12. YAML examples are parsed to the equiv
 | `audit-event.schema.json` | Append-only local command lineage | `examples/example-audit-event.yaml` |
 | `confirmation-answers.schema.json` | Bounded confirmation input | `examples/briefs/public-manual-qa-answers.yaml` |
 | `interpretation-proposal.schema.json` | Untrusted provider-neutral claim proposal | `examples/example-interpretation-proposal.yaml` |
+| `model-configuration.schema.json` | The user's non-secret model-provider selection and discovery snapshot; carries no credential by construction | `examples/example-model-configuration.yaml` |
 | `system-intent.schema.json` | `SystemIntentSpec` | `examples/example-intent.yaml` |
 | `decision-cost-model.schema.json` | `DecisionCostModel` | `examples/example-decision-cost-model.yaml` |
 | `regulatory-nexus.schema.json` | `RegulatoryNexus` | `examples/example-regulatory-nexus.yaml` |
@@ -44,7 +45,7 @@ All schemas use JSON Schema Draft 2020-12. YAML examples are parsed to the equiv
 
 `common.schema.json` contains shared identifiers, evidence, provenance, constraints, approvals and artifact references.
 
-Object schema versions are per-object and are deliberately not aligned to one number: twelve schemas (including `design-case`, `runner-plan`, `audit-event`, `architecture-decision`, `assurance-plan`, and `catalogue-snapshot`) pin `0.4.0`, ten (including `system-intent`, `deployment-bundle`, `architecture-candidate`, and `component-manifest`) remain at `0.3.0`, and the schemas introduced from Sprint 5 onward (`plan-signature`, `approval`, `revocation`, `revocation-manifest`, `runner-envelope`, `runner-message`, `policy-pack`, `policy-decision`, `extension-manifest`, `extension-activation`, `webhook-envelope`) start at `0.1.0`. Each object retains its own version until a breaking or additive migration is deliberately defined; the repository version and the object schema versions are related but never assumed identical. [Compatibility rules for changing any of them are in ../docs/compatibility.md](../docs/compatibility.md).
+Object schema versions are per-object and are deliberately not aligned to one number: twelve schemas (including `design-case`, `runner-plan`, `audit-event`, `architecture-decision`, `assurance-plan`, and `catalogue-snapshot`) pin `0.4.0`, ten (including `system-intent`, `deployment-bundle`, `architecture-candidate`, and `component-manifest`) remain at `0.3.0`, and the schemas introduced from Sprint 5 onward (`plan-signature`, `approval`, `revocation`, `revocation-manifest`, `runner-envelope`, `runner-message`, `policy-pack`, `policy-decision`, `extension-manifest`, `extension-activation`, `webhook-envelope`, `model-configuration`) start at `0.1.0`. Each object retains its own version until a breaking or additive migration is deliberately defined; the repository version and the object schema versions are related but never assumed identical. [Compatibility rules for changing any of them are in ../docs/compatibility.md](../docs/compatibility.md).
 
 `DeploymentBundle.procedures` contains human-review lifecycle descriptions. It is never executable input. The runner accepts only a `RunnerPlan` operation whose kind and adapter parameters validate against pinned schemas; command/shell fields are absent by design.
 

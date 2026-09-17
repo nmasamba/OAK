@@ -6,6 +6,8 @@ from __future__ import annotations
 import base64
 import hashlib
 import os
+import secrets
+import urllib.parse
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -18,7 +20,11 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from oak.application import CommandContext, CommunityControlPlane, SystemInformationService
-from oak.bootstrap import create_persistent_control_plane, create_system_information_service
+from oak.bootstrap import (
+    create_persistent_control_plane,
+    create_system_information_service,
+    read_model_token,
+)
 from oak.domain import OAKError
 from oak.interfaces.api.models import (
     ArtifactListResponse,
@@ -51,6 +57,19 @@ ExpectedVersionHeader = Annotated[str, Header(alias="If-Match", min_length=3, ma
 CorrelationHeader = Annotated[
     str | None, Header(alias="X-Correlation-ID", min_length=8, max_length=160)
 ]
+ModelTokenHeader = Annotated[
+    str | None, Header(alias="X-OAK-Model-Token", min_length=16, max_length=256)
+]
+
+# The loopback names the API answers to by construction. `OAK_ALLOWED_HOSTS` may add exact
+# hostnames for an acknowledged non-loopback bind; nothing ever disables the check, and
+# `*.localhost` names are deliberately not loopback (a page at `attacker.localhost` is
+# same-site with a page at `localhost`).
+LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
+# Routes that store, remove, discover, or select model-provider credentials: loopback `Host`
+# only, whatever the allowlist says, and a browser must be same-origin, not merely same-site.
+CREDENTIAL_ROUTE_PREFIXES = ("/v1/models/credentials/", "/v1/models/selection")
+HOST_CHECK_EXEMPT_PATHS = frozenset({"/healthz", "/readyz"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -127,6 +146,142 @@ class _BoundedRequestMiddleware:
             return {"type": "http.request", "body": bytes(body), "more_body": False}
 
         await self._app(scope, replay, send)
+
+
+def _hostname(authority: str) -> str | None:
+    """Return the lower-cased hostname of a `Host` or `Origin` authority, port removed."""
+
+    value = authority.strip().lower()
+    if value.startswith("["):
+        end = value.find("]")
+        return value[1:end] or None if end != -1 else None
+    if value.count(":") > 1:
+        return None
+    if ":" in value:
+        value = value.rsplit(":", 1)[0]
+    return value or None
+
+
+def _origin_hostname(origin: str) -> str | None:
+    parsed = urllib.parse.urlsplit(origin.strip())
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        return None
+    return _hostname(parsed.netloc)
+
+
+def is_credential_route(path: str) -> bool:
+    return path.startswith(CREDENTIAL_ROUTE_PREFIXES) or (
+        path.startswith("/v1/models/") and path.endswith(":discover")
+    )
+
+
+def parse_allowed_hosts(value: str) -> frozenset[str]:
+    """Split `OAK_ALLOWED_HOSTS`: exact lower-cased hostnames, no wildcards, no ports."""
+
+    hosts: set[str] = set()
+    for item in value.split(","):
+        candidate = item.strip().lower()
+        if not candidate or "*" in candidate:
+            continue
+        hostname = _hostname(candidate)
+        if hostname is not None:
+            hosts.add(hostname)
+    return frozenset(hosts)
+
+
+class _LoopbackGuardMiddleware:
+    """Refuse requests a same-machine browser page or a rebound name could forge.
+
+    The API has no authentication; the local actor is a header claim. What keeps a page
+    served from any other origin from driving it is that browsers always send `Origin` and
+    `Sec-Fetch-Site` on cross-site requests and cannot forge `Host`. So: the `Host` must be a
+    loopback name (or an exact `OAK_ALLOWED_HOSTS` entry), an `Origin`, when present, must be
+    loopback too and never `null`, and fetch metadata must say `same-origin` or `none`. The
+    checks run before routing, add no parameter to the OpenAPI contract, and never echo the
+    offending header value.
+    """
+
+    def __init__(self, app: ASGIApp, *, allowed_hosts: frozenset[str]) -> None:
+        self._app = app
+        self._allowed_hosts = allowed_hosts
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self._app(scope, receive, send)
+            return
+        headers = {
+            name.decode("latin-1").lower(): value.decode("latin-1")
+            for name, value in scope.get("headers", [])
+        }
+        problem = self._refusal(scope.get("path", ""), headers)
+        if problem is not None:
+            await _problem_response(problem)(scope, receive, send)
+            return
+        await self._app(scope, receive, send)
+
+    def _refusal(self, path: str, headers: dict[str, str]) -> Problem | None:
+        credential_route = is_credential_route(path)
+        permitted = LOOPBACK_HOSTS | self._allowed_hosts
+        if path not in HOST_CHECK_EXEMPT_PATHS:
+            host = headers.get("host")
+            hostname = _hostname(host) if host else None
+            if hostname is None or hostname not in permitted:
+                return self._host_problem()
+            if credential_route and hostname not in LOOPBACK_HOSTS:
+                return self._host_problem()
+        origin = headers.get("origin")
+        if origin is not None:
+            origin_hostname = _origin_hostname(origin)
+            if origin_hostname is None or origin_hostname not in permitted:
+                return self._origin_problem()
+        site = headers.get("sec-fetch-site")
+        if site is not None and site.strip().lower() not in {"same-origin", "none"}:
+            return self._origin_problem()
+        same_origin = (site or "").strip().lower() == "same-origin"
+        if credential_route and origin is not None and not same_origin:
+            return self._origin_problem()
+        return None
+
+    @staticmethod
+    def _host_problem() -> Problem:
+        return Problem(
+            title="Host not permitted",
+            status=400,
+            code="OAK-HOST-DENIED",
+            detail=(
+                "The request named a host this local API does not answer to. Use a loopback "
+                "name, or list the host in OAK_ALLOWED_HOSTS."
+            ),
+        )
+
+    @staticmethod
+    def _origin_problem() -> Problem:
+        return Problem(
+            title="Cross-origin request refused",
+            status=403,
+            code="OAK-ORIGIN-DENIED",
+            detail=(
+                "Requests from another origin are refused; this local API serves its own "
+                "loopback workspace only."
+            ),
+        )
+
+
+def verify_model_token(presented: str | None, expected: str | None) -> None:
+    """Refuse unless the presented capability token equals the one this process minted."""
+
+    if not expected or presented is None:
+        raise OAKError(
+            "OAK-MODEL-TOKEN-REQUIRED",
+            "this operation requires the X-OAK-Model-Token header; run `oak models token` "
+            "to read the token this server minted",
+        )
+    if not secrets.compare_digest(presented.encode("utf-8"), expected.encode("utf-8")):
+        raise OAKError(
+            "OAK-MODEL-TOKEN-REQUIRED",
+            "the X-OAK-Model-Token header does not match the token this server minted; run "
+            "`oak models token` to read the current one",
+        )
 
 
 def _field_problems(errors: Sequence[dict[str, Any]]) -> tuple[FieldProblem, ...]:
@@ -211,8 +366,12 @@ def _operation_response(record: Any, *, duplicate: bool = False) -> OperationRes
 
 
 def _error_status(error: OAKError) -> int:
-    if error.code == "OAK-ACTOR-DENIED":
+    if error.code in {"OAK-ACTOR-DENIED", "OAK-ORIGIN-DENIED", "OAK-MODEL-TOKEN-REQUIRED"}:
         return 403
+    if error.code == "OAK-HOST-DENIED":
+        return 400
+    if error.code == "OAK-MODEL-RATE-LIMITED":
+        return 429
     if error.code in {
         "OAK-CASE-NOT-FOUND",
         "OAK-CANDIDATE-NOT-FOUND",
@@ -239,10 +398,35 @@ def create_app(
     control_plane: CommunityControlPlane | None = None,
     *,
     clock: Callable[[], str] = _utc_now,
+    allowed_hosts: frozenset[str] | None = None,
+    model_token: str | Callable[[], str | None] | None = None,
 ) -> FastAPI:
+    """Build the API.
+
+    ``allowed_hosts`` defaults to the exact names in ``OAK_ALLOWED_HOSTS`` (loopback names are
+    always accepted). ``model_token`` is the capability token guarding model configuration:
+    a fixed string for tests, or a callable read per request; by default the token file the
+    serving process minted is read, so a server restart rotates it without a reload.
+    """
+
     application_service = service or create_system_information_service()
     persistent_service = control_plane
     information = application_service.get_information()
+    permitted_hosts = (
+        allowed_hosts
+        if allowed_hosts is not None
+        else parse_allowed_hosts(os.getenv("OAK_ALLOWED_HOSTS", ""))
+    )
+    if model_token is None:
+        token_provider: Callable[[], str | None] = read_model_token
+    elif isinstance(model_token, str):
+        fixed_token = model_token
+
+        def token_provider() -> str | None:
+            return fixed_token
+
+    else:
+        token_provider = model_token
     api = FastAPI(
         title="OAK Community API",
         summary="Local persistent Community control plane",
@@ -255,6 +439,14 @@ def create_app(
         openapi_version="3.1.0",
     )
     api.add_middleware(_BoundedRequestMiddleware, maximum_bytes=MAXIMUM_REQUEST_BYTES)
+    # Added last so it runs first: nothing is buffered or routed for a refused host/origin.
+    api.add_middleware(_LoopbackGuardMiddleware, allowed_hosts=permitted_hosts)
+
+    def require_model_token(token: ModelTokenHeader = None) -> None:
+        verify_model_token(token, token_provider())
+
+    ModelTokenDependency = Annotated[None, Depends(require_model_token)]  # noqa: N806
+    api.state.model_token_dependency = ModelTokenDependency
 
     def plane() -> CommunityControlPlane:
         nonlocal persistent_service

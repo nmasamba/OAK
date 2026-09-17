@@ -8,6 +8,14 @@ from pathlib import Path
 
 from oak import __version__
 from oak.adapters.catalogue import LocalCatalogue
+from oak.adapters.credentials import (
+    EnvironmentCredentialReference,
+    FileCredentialStore,
+    KeychainCredentialStore,
+    ModelConfigurationFileStore,
+    read_api_token,
+    write_api_token,
+)
 from oak.adapters.deployment import HelmKubernetesRenderer, LocalManifestRenderer
 from oak.adapters.dispatch import FilesystemMailbox
 from oak.adapters.extensions import LocalExtensionStore
@@ -30,6 +38,7 @@ from oak.application import (
     CommunityWorker,
     DesignCaseService,
     ExtensionService,
+    ModelConfigurationService,
     OperationService,
     OperationWorker,
     PolicyService,
@@ -256,6 +265,62 @@ def default_mailbox_directory() -> Path:
     if configured:
         return Path(configured).absolute()
     return Path.home() / ".oak" / "mailbox"
+
+
+def default_credentials_directory() -> Path:
+    """Where provider keys and the per-process model token live (owner-only files)."""
+
+    configured = os.getenv("OAK_CREDENTIALS_DIRECTORY")
+    if configured:
+        return Path(configured).absolute()
+    return Path.home() / ".oak" / "credentials"
+
+
+def default_models_directory() -> Path:
+    """Where the non-secret model selection and discovery snapshot live."""
+
+    configured = os.getenv("OAK_MODELS_DIRECTORY")
+    if configured:
+        return Path(configured).absolute()
+    return Path.home() / ".oak" / "models"
+
+
+def mint_model_token() -> str:
+    """Write a fresh per-process capability token and return it."""
+
+    return write_api_token(default_credentials_directory())
+
+
+def read_model_token() -> str | None:
+    """Read the current capability token; ``None`` when no server has minted one."""
+
+    return read_api_token(default_credentials_directory())
+
+
+def create_model_configuration_service() -> ModelConfigurationService:
+    """The user's model selection and credential backends; nothing here touches a network."""
+
+    credentials_directory = default_credentials_directory()
+    registry = SchemaRegistry.from_directory(canonical_schema_directory())
+    file_store = FileCredentialStore(credentials_directory)
+    return ModelConfigurationService(
+        ModelConfigurationFileStore(default_models_directory(), registry),
+        {
+            "keychain": KeychainCredentialStore(),
+            "file": file_store,
+            "env": EnvironmentCredentialReference(),
+        },
+        clock=_utc_now,
+        token_reader=read_model_token,
+        credentials_location=str(credentials_directory),
+        under_compose=os.getenv("OAK_ARTIFACT_ROOT", "").startswith("/var/lib/oak/"),
+    )
+
+
+def _utc_now() -> str:
+    from datetime import UTC, datetime
+
+    return datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
 def initialize_local_trust() -> tuple[dict[str, str], ...]:

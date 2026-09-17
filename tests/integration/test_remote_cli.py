@@ -305,6 +305,7 @@ def test_local_only_commands_fail_closed_in_remote_mode(live_server: _LiveServer
         ["policy", "packs"],
         ["render", "--adapter", "renderer.local-manifests", "--output", "unused"],
         ["extensions", "list"],
+        ["models", "status"],
     ):
         result = _invoke(live_server.url, *arguments)
         assert result.exit_code == 2, (arguments, result.output)

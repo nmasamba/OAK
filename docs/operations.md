@@ -284,7 +284,7 @@ success, `2` refusal or invalid input, `4` version or idempotency conflict.
 | `OAK-RUNNER-REVOCATION` on every dispatch | The mailbox's `revocations/manifest.json` is missing, the notice set does not match it, or the runner's recorded sequence is ahead of it | Re-publish the revocation state from the control plane (`oak revoke-approval`, or a fresh dispatch establishes an empty manifest). Do not hand-delete notices — the mismatch is the protection working |
 | `OAK-EXPECTED-VERSION` | Someone else advanced the case | Re-read the case and retry with the current version. This is a normal concurrency refusal, not a fault |
 | `OAK-IDEMPOTENCY-CONFLICT` | An idempotency key was reused with different input | Use a new key, or send the original input |
-| `OAK-REMOTE-UNSUPPORTED` | A local-only command was run with `--server` | Signing, approval, dispatch, keys, extensions and policy are local-only by design |
+| `OAK-REMOTE-UNSUPPORTED` | A local-only command was run with `--server` | Signing, approval, dispatch, keys, model-provider configuration, extensions and policy are local-only by design |
 | `OAK-REMOTE-UNAVAILABLE` | The control plane is unreachable | Check the URL and that `oak-api` is up |
 | Server refuses to start | `OAK_DATABASE_URL` unset (`oak-worker`, `oak-db-migrate`, `oak-mcp`), or a non-loopback bind without `OAK_ALLOW_NON_LOOPBACK` | See [configuration.md](configuration.md) |
 | `oak-api` runs but every `/v1` call returns 500 | `OAK_DATABASE_URL` unset — `oak-api` starts regardless | `curl /readyz`: it returns 503 in exactly this case |
@@ -320,7 +320,11 @@ edge into the bundle spine.
   internal network, and Compose uses it because the containers publish only to
   `127.0.0.1` on the host. Setting it on a host interface publishes an unauthenticated
   control plane. The actor and tenant are headers; anyone who can reach the port can
-  claim any actor.
+  claim any actor. What the API does defend against is a web page: it refuses any request
+  whose `Host` is not a loopback name or an exact `OAK_ALLOWED_HOSTS` entry, and any
+  request whose `Origin` or `Sec-Fetch-Site` header comes from another site
+  (`OAK-HOST-DENIED`, `OAK-ORIGIN-DENIED`). If you acknowledge a non-loopback bind, list
+  the names clients will use in `OAK_ALLOWED_HOSTS`; the server warns when it is empty.
 - **Protect `~/.oak/trust`.** It holds Ed25519 private keys, created `0600`. It is not in
   your database backup. Anyone who reads it can sign plans and approvals as you.
 - **Give the runner its own anchors.** The single-host walkthrough points

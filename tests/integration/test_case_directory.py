@@ -115,7 +115,7 @@ async def test_directory_lists_ordered_tenant_scoped_case_summaries(
     control_plane = postgresql_control_plane
     application = create_app(control_plane=control_plane, clock=lambda: NOW)
     transport = httpx.ASGITransport(app=application, raise_app_exceptions=False)
-    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+    async with httpx.AsyncClient(transport=transport, base_url="http://127.0.0.1") as client:
         empty = await client.get("/v1/design-cases")
         assert empty.status_code == 200
         assert empty.json() == {"items": [], "next_cursor": None}
@@ -176,7 +176,7 @@ async def test_audit_trail_returns_ordered_events_and_hides_missing_cases(
     control_plane = postgresql_control_plane
     application = create_app(control_plane=control_plane, clock=lambda: NOW)
     transport = httpx.ASGITransport(app=application, raise_app_exceptions=False)
-    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+    async with httpx.AsyncClient(transport=transport, base_url="http://127.0.0.1") as client:
         created = await client.post(
             "/v1/design-cases",
             headers=_headers("directory-audit-create-0001"),

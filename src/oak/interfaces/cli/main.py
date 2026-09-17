@@ -7,6 +7,7 @@ import os
 import re
 import shutil
 import stat
+import sys
 import tempfile
 import unicodedata
 from datetime import UTC, datetime
@@ -32,7 +33,7 @@ from oak.bootstrap import (
     create_system_information_service,
 )
 from oak.contracts import ContractValidationError, load_json_document, load_yaml_document
-from oak.domain import OAKError
+from oak.domain import OAKError, SecretValue
 
 
 class OutputFormat(StrEnum):
@@ -829,11 +830,18 @@ def serve(
     if _REMOTE_SERVER is not None:
         _abort(OAKError("OAK-REMOTE-UNSUPPORTED", "serve is local-only"))
 
+    from oak.bootstrap import mint_model_token
     from oak.interfaces.api.server import run_server
 
     try:
-        run_server(host=host, port=port, allow_non_loopback=allow_non_loopback)
-    except ValueError as error:
+        token = mint_model_token()
+        typer.echo(
+            "Model-configuration token (paste it into Settings → Models, or open the web "
+            f"workspace at http://127.0.0.1:5173/#token={token}): {token}",
+            err=True,
+        )
+        run_server(host=host, port=port, allow_non_loopback=allow_non_loopback, model_token=token)
+    except (ValueError, OAKError) as error:
         typer.echo(f"OAK-SAFE-BIND: {error}", err=True)
         raise typer.Exit(code=2) from error
 
@@ -1332,6 +1340,233 @@ def extensions(
         raise OAKError("OAK-EXTENSION-ACTION", "extensions action is not recognized")
     except (OAKError, ContractValidationError, OSError, RuntimeError, ValueError) as error:
         _abort(error)
+
+
+@app.command()
+def models(
+    action: Annotated[
+        str,
+        typer.Argument(
+            help="families, status, set-key, remove-key, select, clear, discover, or token."
+        ),
+    ],
+    family: Annotated[
+        str | None, typer.Argument(help="Model family (see `oak models families`).")
+    ] = None,
+    model_id: Annotated[
+        str | None, typer.Argument(help="Model identifier within the family (select).")
+    ] = None,
+    store: Annotated[
+        str,
+        typer.Option(
+            "--store",
+            help="Where set-key keeps the key: auto (keychain, else file), keychain, file, "
+            "or env (read OAK_MODEL_KEY_<FAMILY> at call time; stores nothing).",
+        ),
+    ] = "auto",
+    stdin: Annotated[
+        bool,
+        typer.Option("--stdin", help="Read the key from standard input instead of a prompt."),
+    ] = False,
+    acknowledge_data_use: Annotated[
+        bool,
+        typer.Option(
+            "--acknowledge-data-use",
+            help="Select a model whose provider may train on your prompts.",
+        ),
+    ] = False,
+    interpreter: Annotated[
+        str,
+        typer.Option(
+            "--interpreter",
+            help="Default interpreter once this model is selected: model or deterministic.",
+        ),
+    ] = "model",
+    output: Annotated[
+        OutputFormat, typer.Option("--output", help="Output format.")
+    ] = OutputFormat.HUMAN,
+) -> None:
+    """Configure the optional model provider. Keys stay on this machine and are never printed."""
+
+    try:
+        _require_local("models")
+        from oak.application import validate_key_input
+        from oak.bootstrap import create_model_configuration_service
+
+        service = create_model_configuration_service()
+        if action == "families":
+            rows = service.families()
+            _emit(
+                {"families": list(rows)},
+                output,
+                human="\n".join(
+                    f"{row['family']:<12} {row['display_name']} [{row['licence_class']}]"
+                    + (" (default)" if row["default"] else "")
+                    for row in rows
+                ),
+            )
+            return
+        if action == "status":
+            status = service.status()
+            _emit(status, output, human=_models_status_text(status))
+            return
+        if action == "token":
+            token = service.token()
+            if token is None:
+                raise OAKError(
+                    "OAK-MODEL-TOKEN-MISSING",
+                    "no model-configuration token exists; start `oak serve` or `oak-api` first",
+                )
+            _emit({"token": token}, output, human=token)
+            return
+        if action == "clear":
+            service.clear_selection()
+            _emit({"selection": None}, output, human="Model selection cleared.")
+            return
+        if action not in {"set-key", "remove-key", "select", "discover"}:
+            raise OAKError("OAK-MODEL-ACTION", "models action is not recognized")
+        if family is None:
+            raise OAKError("OAK-MODEL-FAMILY-REQUIRED", f"models {action} requires a family")
+        if action == "set-key":
+            chosen = store
+            if store == "env":
+                # Nothing is read or stored: the backend checks the documented variable is set.
+                status_document = service.set_key(family, SecretValue(""), source="env")
+            else:
+                secret = validate_key_input(_read_key(stdin))
+                if chosen == "auto":
+                    try:
+                        status_document = service.set_key(family, secret, source="keychain")
+                        chosen = "keychain"
+                    except OAKError as error:
+                        if not error.code.startswith("OAK-MODEL-KEYCHAIN-"):
+                            raise
+                        typer.echo(
+                            f"{error.code}: {error.message}. Storing the key in the file "
+                            "backend instead.",
+                            err=True,
+                        )
+                        status_document = service.set_key(family, secret, source="file")
+                        chosen = "file"
+                elif chosen in {"keychain", "file"}:
+                    status_document = service.set_key(family, secret, source=chosen)
+                else:
+                    raise OAKError(
+                        "OAK-MODEL-CREDENTIAL-SOURCE",
+                        "--store must be auto, keychain, file, or env",
+                    )
+            document = status_document.to_document()
+            _emit(
+                document,
+                output,
+                human=(
+                    f"Stored the {family} key in the {document['source']} backend "
+                    f"(fingerprint {document['fingerprint']}, {document['length']} characters)."
+                    if document["fingerprint"]
+                    else f"The {family} key will be read from the environment at call time."
+                ),
+            )
+            return
+        if action == "remove-key":
+            removed = service.remove_key(family)
+            _emit(
+                {"family": family, "removed": removed},
+                output,
+                human=f"Removed the {family} key." if removed else f"No {family} key was stored.",
+            )
+            return
+        if action == "select":
+            if model_id is None:
+                raise OAKError("OAK-MODEL-ID", "models select requires a model identifier")
+            selection = service.select(
+                family,
+                model_id,
+                default_interpreter=interpreter,
+                acknowledge_data_use=acknowledge_data_use,
+            )
+            _emit(
+                selection.to_document(),
+                output,
+                human=(
+                    f"Selected {selection.family}/{selection.model_id}; plain-language briefs "
+                    f"now default to the {selection.default_interpreter} interpreter."
+                ),
+            )
+            return
+        if action == "discover":
+            snapshot = service.discover(family)
+            _emit(
+                {"family": family, "discovery": snapshot},
+                output,
+                human=_discovery_text(family, snapshot),
+            )
+            return
+        raise OAKError("OAK-MODEL-ACTION", "models action is not recognized")
+    except (OAKError, ContractValidationError, OSError, RuntimeError, ValueError) as error:
+        _abort(error)
+
+
+def _read_key(from_stdin: bool) -> str:
+    if from_stdin:
+        line = sys.stdin.buffer.readline(1_025)
+        if not line or len(line) > 1_024:
+            raise OAKError("OAK-MODEL-KEY-INPUT", "read no usable key from standard input")
+        return line.decode("utf-8", errors="strict")
+    if not sys.stdin.isatty():
+        raise OAKError(
+            "OAK-MODEL-KEY-INPUT",
+            "no terminal to prompt on; pipe the key with --stdin (it is never accepted as an "
+            "argument)",
+        )
+    value: str = typer.prompt("API key", hide_input=True)
+    return value
+
+
+def _models_status_text(status: dict[str, Any]) -> str:
+    lines: list[str] = []
+    selection = status["selection"]
+    if selection is None:
+        lines.append("Deterministic interpretation (no model selected).")
+    else:
+        lines.append(
+            f"Model: {selection['family']}/{selection['model_id']} — plain-language briefs "
+            f"default to the {selection['default_interpreter']} interpreter"
+            + ("" if status["configured"] else " (its key is missing; interpretation will refuse)")
+        )
+    for family, credential in status["credentials"].items():
+        if credential["configured"]:
+            lines.append(
+                f"  {family}: key stored in {credential['source']} "
+                f"(fingerprint {credential['fingerprint']}, {credential['length']} characters)"
+            )
+    stores = status["stores"]
+    lines.append(f"Credential store: {stores['credentials']}")
+    lines.append(f"Configuration: {stores['configuration']}")
+    if stores["under_compose"]:
+        lines.append(
+            "Running under Compose: the web workspace uses the api service's own model-state "
+            "volume; configure it from Settings → Models or with "
+            "`docker compose exec -T api oak models set-key <family> --stdin`."
+        )
+    return "\n".join(lines)
+
+
+def _discovery_text(family: str, snapshot: dict[str, Any]) -> str:
+    lines = [
+        f"{family}: {len(snapshot['models'])} model(s) from the {snapshot['source']} catalogue "
+        f"at {snapshot['fetched_at']}; {snapshot['filtered_out_count']} filtered out"
+    ]
+    for model in snapshot["models"]:
+        marker = " (recommended)" if model["id"] == snapshot["recommended"] else ""
+        providers = ", ".join(
+            provider["provider"] + ("*" if provider["supports_structured_output"] else "")
+            for provider in model["providers"]
+        )
+        lines.append(
+            f"  {model['id']}{marker} [{model['licence']}]"
+            + (f" via {providers}" if providers else "")
+        )
+    return "\n".join(lines)
 
 
 def _release_service() -> ReleaseService:

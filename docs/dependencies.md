@@ -23,6 +23,7 @@ substitute for those locks.
 | TypeScript | Strict web type checking | web development | Apache-2.0 |
 | Playwright | Browser end-to-end harness | web development only | Apache-2.0 |
 | axe-core (via @axe-core/playwright) | Automated accessibility checks | web development only | MPL-2.0 |
+| keyring (optional extra `keychain`) | OS credential store for user-supplied model-provider keys | credentials adapter only; lazily imported; file store is the fallback | MIT (Linux pulls SecretStorage BSD-3-Clause and jeepney MIT; Windows pywin32-ctypes BSD-3-Clause) |
 
 The core domain and compiler packages do not import interface or persistence frameworks.
 Development-only format, lint, type, test, audit, and SBOM tools are locked but do not ship as
@@ -125,6 +126,43 @@ seam is `oak.interfaces.cli.remote.RemoteClient`.
 Webhook envelope verification reuses the existing `cryptography` Ed25519 primitives and the
 in-tree `oak.contracts.signatures` verifier; no new signing or HTTP-server dependency was
 introduced, and Community ships no webhook dispatcher.
+
+## Sprint 9 model-provider review
+
+The capability gap is keeping a user-supplied provider API key on the user's machine without
+writing it to a plain file when the operating system offers a credential store. Two decisions
+were made here, and one dependency was refused.
+
+**No runtime HTTP dependency was added.** The provider adapters speak to six hosted APIs and a
+local OpenAI-compatible server with one bounded request per interpretation, through a single
+standard-library `urllib.request` transport that pins the host allowlist, refuses redirects,
+ignores environment proxies and reads against a total deadline. The Sprint 7 argument for the
+remote CLI (`httpx` "remains a development-only dependency") holds unchanged: one bounded
+request per command does not justify enlarging the released closure, and a provider SDK per
+family — six of them — would dominate it while ADR-0009 rejects "one provider SDK
+throughout" in any case.
+
+**`keyring` 25.7.0 (MIT) is the optional extra `keychain`.** It is the only cross-platform
+way to reach macOS Keychain, the freedesktop Secret Service and the Windows Credential
+Locker from Python, and it is what `gh`, `docker` and the coding-agent CLIs converge on. It is
+confined to `oak.adapters.credentials.keychain_store`, imported lazily inside the store's
+methods, so the deterministic journey never loads it and an installation without the extra
+gets a stable `OAK-MODEL-KEYCHAIN-UNAVAILABLE` rather than an import error. Two behaviours
+are deliberate: a missing backend is reported, never silently downgraded to a file (the
+`gh` behaviour its users complain about most), and the `keyrings.alt` plaintext backends are
+refused (`OAK-MODEL-KEYCHAIN-UNSAFE`) because they store the key base64-encoded while
+claiming to be a keychain. Transitive closure on this platform: `jaraco.classes`,
+`jaraco.context`, `jaraco.functools`, `more-itertools` (all MIT); Linux adds `SecretStorage`
+(BSD-3-Clause), `jeepney` (MIT) and `cryptography`, already present; Windows adds
+`pywin32-ctypes` (BSD-3-Clause). The release SBOM and licence inventory export the extra
+(`scripts/build_release.py`, `uv export --extra keychain`) so the inventory describes
+everything the wheel can install.
+
+**Replacement seam:** `CredentialStorePort`. The file store (`0700` directory, `0600` file,
+`O_EXCL | O_NOFOLLOW`, atomic rename, owner and mode checked on every read) is always
+available and is the only backend inside the Compose containers. **Rollback:** remove the
+extra from `pyproject.toml`, `uv lock`, and `KeychainCredentialStore` becomes permanently
+"unavailable"; no stored document changes.
 
 ## Maintenance reviews
 

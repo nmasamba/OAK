@@ -22,7 +22,9 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE = ROOT / "src" / "oak"
 
-# Network-capable standard-library and third-party clients.
+# Network-capable standard-library and third-party clients, plus the model-provider SDKs
+# and their transports. An SDK import is a network client by another name: without these
+# entries a provider adapter could reach the network without tripping this gate.
 NETWORK_MODULES = frozenset(
     {
         "http.client",
@@ -30,14 +32,31 @@ NETWORK_MODULES = frozenset(
         "urllib.error",
         "socket",
         "socketserver",
+        "ssl",
         "asyncio.streams",
         "ftplib",
         "smtplib",
         "telnetlib",
         "httpx",
+        "httpcore",
+        "urllib3",
+        "anyio",
+        "h11",
+        "h2",
         "requests",
         "aiohttp",
         "websockets",
+        "openai",
+        "anthropic",
+        "google.genai",
+        "google.generativeai",
+        "google.auth",
+        "huggingface_hub",
+        "boto3",
+        "botocore",
+        "ollama",
+        "mistralai",
+        "cohere",
     }
 )
 

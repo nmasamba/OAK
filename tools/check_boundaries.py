@@ -18,12 +18,29 @@ INTERNAL_ALLOWED: dict[str, frozenset[str]] = {
     "contracts": frozenset(),
 }
 
+# HTTP clients, model-provider SDKs and the OS credential store belong to adapters only.
+# The domain, compiler, ports, application services and the runner never reach a provider
+# or a keychain themselves (AGENTS.md architecture rules; ADR-0009).
+_PROVIDER_ROOTS = frozenset(
+    {
+        "anthropic",
+        "google",
+        "httpcore",
+        "httpx",
+        "huggingface_hub",
+        "keyring",
+        "openai",
+        "urllib3",
+    }
+)
+_FRAMEWORK_ROOTS = frozenset({"fastapi", "sqlalchemy", "typer", "uvicorn"})
+
 THIRD_PARTY_FORBIDDEN: dict[str, frozenset[str]] = {
-    "domain": frozenset({"fastapi", "pydantic", "sqlalchemy", "typer", "uvicorn"}),
-    "compiler": frozenset({"fastapi", "sqlalchemy", "typer", "uvicorn"}),
-    "ports": frozenset({"fastapi", "sqlalchemy", "typer", "uvicorn"}),
-    "application": frozenset({"fastapi", "sqlalchemy", "typer", "uvicorn"}),
-    "runner": frozenset({"fastapi", "sqlalchemy", "typer", "uvicorn"}),
+    "domain": _FRAMEWORK_ROOTS | {"pydantic"} | _PROVIDER_ROOTS,
+    "compiler": _FRAMEWORK_ROOTS | _PROVIDER_ROOTS,
+    "ports": _FRAMEWORK_ROOTS | _PROVIDER_ROOTS,
+    "application": _FRAMEWORK_ROOTS | _PROVIDER_ROOTS,
+    "runner": _FRAMEWORK_ROOTS | _PROVIDER_ROOTS,
 }
 
 

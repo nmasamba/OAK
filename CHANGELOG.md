@@ -6,7 +6,62 @@ All notable changes to OAK Community are recorded here.
 
 ## Unreleased
 
-Nothing yet.
+Sprint 9 — optional model provider and natural-language intake (`OAK-S9-001`–`009`), in
+progress. Every entry below holds the four reference digests byte-stable unless it says
+otherwise.
+
+### Added
+
+- `tests/integration/test_reference_digests.py` pins the four reference digests recorded at
+  `0.7.1` and the canonical bytes of the deterministic intent for the structured brief and a
+  new prose brief (`examples/briefs/public-manual-qa-prose.md`), so a change to the
+  no-model path cannot pass unnoticed (`OAK-S9-001`).
+- `tests/conftest.py` points every test at throwaway model-state directories so no test can
+  read or leave behind a developer's provider credential (`OAK-S9-001`).
+- `tests/contract/test_secret_shapes.py` proves the secret scan recognises model-provider key
+  shapes and that no committed file contains one (`OAK-S9-001`).
+
+- The API refuses requests a same-machine web page or a rebound DNS name could forge
+  (`OAK-S9-002`): the `Host` must be a loopback name or an exact `OAK_ALLOWED_HOSTS` entry
+  (`OAK-HOST-DENIED`, 400), an `Origin` or `Sec-Fetch-Site` from another site is refused
+  (`OAK-ORIGIN-DENIED`, 403), health probes are exempt from the host rule, and the
+  model-configuration routes require a loopback host and a same-origin browser. The checks
+  are middleware and add nothing to the OpenAPI contract; `tests/integration/
+  test_loopback_hardening.py` pins them.
+- `oak-api` and `oak serve` mint a per-process capability token into
+  `$OAK_CREDENTIALS_DIRECTORY/api-token` (owner-only) at start; `X-OAK-Model-Token` is
+  verified with a constant-time comparison (`OAK-MODEL-TOKEN-REQUIRED`, 403) on the model
+  routes that later milestones add (`OAK-S9-002`).
+- `OAK_ALLOWED_HOSTS`, `OAK_CREDENTIALS_DIRECTORY` and `OAK_MODELS_DIRECTORY` are documented
+  in `docs/configuration.md`; the first two join the safety-relevant tuple the contract test
+  pins (`OAK-S9-002`).
+- The web image's nginx sends `X-Frame-Options: DENY` and a `frame-ancestors 'none'`
+  content-security policy, so the workspace cannot be framed (`OAK-S9-002`).
+
+- `oak models` (local-only): `families`, `status`, `set-key <family> [--store auto|keychain|file|env] [--stdin]`, `remove-key`, `select <family> <model_id> [--acknowledge-data-use]`, `clear`, `token`. A key is read from a hidden prompt or standard input and is never accepted as an argument or printed; status shows a salted fingerprint and the backend only (`OAK-S9-003`).
+- Credential backends behind `CredentialStorePort`: the operating-system keychain through the optional extra `oak-community[keychain]` (`keyring`, MIT; `keyrings.alt` plaintext backends refused, a missing backend reported and never silently downgraded), an owner-only file store (`0700` directory, `0600` file, atomic rename, owner and mode checked on every read), and documented environment references `OAK_MODEL_KEY_<FAMILY>` that store nothing (`OAK-S9-003`).
+- New canonical schema `model-configuration.schema.json` with `examples/example-model-configuration.yaml`: the user's family, model, provider route, default interpreter and discovery snapshot, written owner-only under `OAK_MODELS_DIRECTORY`; it can hold no credential by construction and a test proves the schema has no such property (`OAK-S9-003`).
+- `SecretValue` in `oak.domain`: every rendering is `<redacted>`, equality is constant-time, pickling and hashing are refused (`OAK-S9-003`).
+- Register `RR-040` (a stored provider key is readable by same-user processes and usable by any local principal that reaches the loopback port and reads the token; backups that include the credential directory contain the key) — count 38 → 39, narrated in `docs/release/0.7.1/release-decision.md` under "The register count, made legible" (`OAK-S9-003`).
+
+### Changed
+
+- The release SBOM and licence inventory export the `keychain` extra so they describe everything the wheel can install; `docs/dependencies.md` carries the Sprint 9 review and records that no runtime HTTP dependency was added (`OAK-S9-003`).
+- `models` joins the local-only command list in every document that states it and in the remote-CLI refusal test (`OAK-S9-003`).
+- An acknowledged non-loopback bind now prints a warning naming the `Host` allowlist instead
+  of returning silently; `RR-027` and `SECURITY.md` describe the browser boundary
+  (`OAK-S9-002`).
+- `docs/error-codes.md` gains the families "Model provider and interpretation proposals"
+  and "Request host and origin guard"; the five existing `OAK-INTERPRETER-*` codes move out
+  of "Everything else" (`OAK-S9-002`).
+- `tools/check_repository.py` scans for OpenAI, Anthropic, Google, Hugging Face and xAI key
+  shapes in addition to private keys, AWS access keys and GitHub tokens (`OAK-S9-001`).
+- `tools/check_boundaries.py` forbids the domain, compiler, ports, application and runner
+  packages from importing HTTP clients, model-provider SDKs or the OS credential store, with a
+  fixture proving the rule fires (`OAK-S9-001`).
+- `tests/integration/test_offline_boundary.py` treats `ssl`, HTTP transports and provider
+  SDKs as network clients, so a provider adapter cannot reach the network by another name
+  (`OAK-S9-001`).
 
 ## 0.7.1 — approved 2026-08-27, published 2026-09-03
 
@@ -213,7 +268,7 @@ customer readiness claim, and no external security review was commissioned for i
 - **Security record**: [SECURITY.md](SECURITY.md),
   [threat-coverage.md](docs/security/threat-coverage.md) mapping all nineteen threat ids to
   the tests that exercise them, and [residual-risk.md](docs/security/residual-risk.md) with
-  38 stable-id entries. A build gate now rejects unqualified assurance vocabulary.
+  39 stable-id entries. A build gate now rejects unqualified assurance vocabulary.
 - **Measurements**: [performance.md](docs/performance.md) and a provenance-stamped
   `scripts/benchmark.py`. Reference compiler 8.66 s median against a 120 s requirement;
   interactive read p95 30 ms against 500 ms; workspace manifest reads grow from 3.8 ms at

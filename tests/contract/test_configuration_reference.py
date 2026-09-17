@@ -65,14 +65,16 @@ def test_the_reference_documents_nothing_the_source_does_not_read() -> None:
 
 
 def test_the_safety_relevant_variables_are_marked_as_such() -> None:
-    """These four are the ones that move a trust boundary if changed."""
+    """These six are the ones that move a trust boundary if changed."""
 
     text = REFERENCE.read_text(encoding="utf-8")
     for name in (
         "OAK_ALLOW_NON_LOOPBACK",
+        "OAK_ALLOWED_HOSTS",
         "OAK_TRUST_DIRECTORY",
         "OAK_RUNNER_TRUST_ANCHORS",
         "OAK_DATABASE_URL",
+        "OAK_CREDENTIALS_DIRECTORY",
     ):
         row = next(line for line in text.splitlines() if line.startswith(f"| `{name}`"))
         assert row.rstrip().endswith("| Yes |"), f"{name} must be marked safety-relevant"
@@ -181,7 +183,7 @@ def test_web_side_environment_variables_are_documented_too() -> None:
 
 
 def test_documents_that_quote_the_residual_risk_count_agree_with_the_register() -> None:
-    """Four documents quote this number and it drifted three times in one sprint.
+    """Six documents quote this number and it drifted three times in one sprint.
 
     A count restated by hand in four places is a fact with four chances to be wrong.
     Pinning it is cheaper than noticing.

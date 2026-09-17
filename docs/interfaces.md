@@ -142,13 +142,14 @@ prohibition).
 | Approve / revoke approval | ● | ✕ | — | ✕ | — |
 | Dispatch runner / ingest | ● | ✕ | — | ✕ | — |
 | Manage keys / extensions / policy | ● | ✕ | — | ✕ | — |
+| Store / remove a user-supplied model-provider key | ● | ✕ | — | ✕ | — |
 | Resolve a secret | ✕ | ✕ | ✕ | ✕ | ✕ |
 | Run a generic command / read a file | ✕ | ✕ | ✕ | ✕ | ✕ |
 | Apply to a production target | ✕ | ✕ | ✕ | ✕ | ✕ |
 
 Notes:
 
-- The **local-only** commands are `init`, `serve`, `mcp serve`, `keys`, `sign`, `approve`, `revoke-approval`, `dispatch`, `ingest`, `gitops`, `policy`, `render`, `extensions` and `validate`.
+- The **local-only** commands are `init`, `serve`, `mcp serve`, `keys`, `models`, `sign`, `approve`, `revoke-approval`, `dispatch`, `ingest`, `gitops`, `policy`, `render`, `extensions` and `validate`.
   With `--server` set they fail closed with `OAK-REMOTE-UNSUPPORTED` rather than
   acting on local state, and none of them is reachable over REST or MCP.
 - The MCP tool set is exactly the ten interface-contract tools plus the

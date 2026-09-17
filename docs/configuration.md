@@ -2,8 +2,11 @@
 
 # Configuration reference
 
-Every environment variable OAK Community reads. There is no configuration file: the
-environment is the whole surface.
+Every environment variable OAK Community reads. The environment is almost the whole
+surface: the one file OAK writes for itself is the non-secret model selection under
+`OAK_MODELS_DIRECTORY`, written by `oak models` and holding no credential by construction;
+provider keys live in the operating-system keychain, an owner-only file under
+`OAK_CREDENTIALS_DIRECTORY`, or one of the `OAK_MODEL_KEY_*` variables below.
 
 A contract test (`tests/contract/test_configuration_reference.py`) fails if a variable is
 read by the source and missing from this table, or listed here and read nowhere — so this
@@ -21,6 +24,7 @@ changing one.
 | `OAK_ARTIFACT_ROOT` | `.oak/server-artifacts` | Directory holding content-addressed artifact bytes. **Relative by default**, so it resolves against the process working directory — see the warning below | Yes |
 | `OAK_HOST` | `127.0.0.1` | Bind address for `oak-api` | Yes |
 | `OAK_PORT` | `8080` | Bind port for `oak-api` | No |
+| `OAK_ALLOWED_HOSTS` | *(empty)* | Comma-separated **exact** hostnames the API accepts in the `Host` header in addition to `localhost`, `127.0.0.1` and `::1`. Every request is checked before routing; a request naming any other host is refused with `OAK-HOST-DENIED`, and `Origin`/`Sec-Fetch-Site` from another site are refused with `OAK-ORIGIN-DENIED`. Meaningful only with `OAK_ALLOW_NON_LOOPBACK`; wildcards are not accepted and `*.localhost` names are deliberately not loopback. Credential, discovery and selection routes require a loopback `Host` whatever this lists | Yes |
 | `OAK_ALLOW_NON_LOOPBACK` | `false` | Permits a non-loopback bind. The API refuses one otherwise. Accepted true values are `1`, `true`, `yes` (case-insensitive). **Setting this exposes a service with no authentication** — the actor and tenant are headers, not credentials | Yes |
 | `OAK_LOCAL_ACTOR` | `local-user` | Identity the API and MCP server bind requests to. This is a local development identity, not an authenticated principal | Yes |
 | `OAK_LOCAL_TENANT` | `local` | Tenant the API, MCP server and worker operate within | Yes |
@@ -62,6 +66,19 @@ schemas, catalogue entries or policy packs.
 |---|---|---|---|
 | `OAK_TRUST_DIRECTORY` | `~/.oak/trust` | Holds the control plane's Ed25519 **private keys** and the public identity files used as trust anchors. Back it up separately and protect it like a credential store | Yes |
 | `OAK_DISPATCH_MAILBOX` | `~/.oak/mailbox` | Outbound-only mailbox that dispatched leases are written into | Yes |
+
+## Optional model provider
+
+| Variable | Default | Meaning | Safety-relevant |
+|---|---|---|---|
+| `OAK_CREDENTIALS_DIRECTORY` | `~/.oak/credentials` | Owner-only directory (`0700`) holding user-supplied provider keys stored in the file backend (`<family>.key`, `0600`) and the per-process model-configuration token `api-token` that `oak-api`/`oak serve` mint at start. Never back it up with the artifact store; under Compose it lives on the api service's own volume | Yes |
+| `OAK_MODELS_DIRECTORY` | `~/.oak/models` | Owner-only directory holding the non-secret model selection and the discovery snapshot. Contains no key by construction | Yes |
+| `OAK_MODEL_KEY_HUGGINGFACE` | *(none)* | The Hugging Face key, read at call time when `oak models set-key huggingface --store env` chose the environment source. Nothing is persisted; the variable must be present in the process that interprets (for the web workspace, the `oak-api` process). No other variable name is accepted as a credential reference | Yes |
+| `OAK_MODEL_KEY_OPENAI` | *(none)* | The OpenAI key, read at call time when `oak models set-key openai --store env` chose the environment source. Nothing is persisted; the variable must be present in the process that interprets (for the web workspace, the `oak-api` process). No other variable name is accepted as a credential reference | Yes |
+| `OAK_MODEL_KEY_ANTHROPIC` | *(none)* | The Anthropic key, read at call time when `oak models set-key anthropic --store env` chose the environment source. Nothing is persisted; the variable must be present in the process that interprets (for the web workspace, the `oak-api` process). No other variable name is accepted as a credential reference | Yes |
+| `OAK_MODEL_KEY_GEMINI` | *(none)* | The Google Gemini key, read at call time when `oak models set-key gemini --store env` chose the environment source. Nothing is persisted; the variable must be present in the process that interprets (for the web workspace, the `oak-api` process). No other variable name is accepted as a credential reference | Yes |
+| `OAK_MODEL_KEY_META` | *(none)* | The Meta Model API key, read at call time when `oak models set-key meta --store env` chose the environment source. Nothing is persisted; the variable must be present in the process that interprets (for the web workspace, the `oak-api` process). No other variable name is accepted as a credential reference | Yes |
+| `OAK_MODEL_KEY_XAI` | *(none)* | The xAI key, read at call time when `oak models set-key xai --store env` chose the environment source. Nothing is persisted; the variable must be present in the process that interprets (for the web workspace, the `oak-api` process). No other variable name is accepted as a credential reference | Yes |
 
 ## Runner (`oak-runner`)
 

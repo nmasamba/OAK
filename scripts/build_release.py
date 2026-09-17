@@ -110,6 +110,10 @@ def _export_runtime_closure(destination: Path) -> Path:
             "uv",
             "export",
             "--no-default-groups",
+            # The optional `keychain` extra is part of what the wheel can install, so the
+            # SBOM and licence inventory describe it too rather than omitting it silently.
+            "--extra",
+            "keychain",
             "--no-emit-project",
             "--format",
             "requirements-txt",

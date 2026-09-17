@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://oak.example/schemas/model-configuration.schema.json",
+  "title": "ModelConfiguration",
+  "description": "The user's non-secret model-provider selection and discovery snapshot. By construction no property may carry a credential: keys live in the operating-system keychain, an owner-only file, or a documented environment variable, and this document records only which.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "id", "selection", "credential_sources", "provider_policy", "discovery", "extensions"],
+  "properties": {
+    "schema_version": {"const": "0.1.0"},
+    "id": {"$ref": "common.schema.json#/$defs/identifier"},
+    "selection": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["family", "model_id", "provider_route", "default_interpreter", "data_use_acknowledged", "selected_at"],
+          "properties": {
+            "family": {"$ref": "#/$defs/family"},
+            "model_id": {"$ref": "#/$defs/modelId"},
+            "provider_route": {"oneOf": [{"type": "null"}, {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,63}$"}]},
+            "default_interpreter": {"enum": ["model", "deterministic"]},
+            "data_use_acknowledged": {"type": "boolean"},
+            "selected_at": {"type": "string", "format": "date-time"}
+          }
+        }
+      ]
+    },
+    "credential_sources": {
+      "type": "object",
+      "additionalProperties": false,
+      "propertyNames": {"$ref": "#/$defs/family"},
+      "patternProperties": {
+        "^[a-z]+$": {"enum": ["keychain", "file", "env", "none"]}
+      }
+    },
+    "provider_policy": {"enum": ["cheapest", "fastest"]},
+    "discovery": {
+      "type": "object",
+      "additionalProperties": false,
+      "propertyNames": {"$ref": "#/$defs/family"},
+      "patternProperties": {
+        "^[a-z]+$": {"$ref": "#/$defs/discoverySnapshot"}
+      }
+    },
+    "extensions": {"$ref": "common.schema.json#/$defs/extensions"}
+  },
+  "$defs": {
+    "family": {"enum": ["huggingface", "openai", "anthropic", "gemini", "meta", "xai", "local"]},
+    "modelId": {"type": "string", "minLength": 1, "maxLength": 256, "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]*$"},
+    "discoverySnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fetched_at", "source", "recommended", "filtered_out_count", "models"],
+      "properties": {
+        "fetched_at": {"type": "string", "format": "date-time"},
+        "source": {"enum": ["live", "pinned"]},
+        "recommended": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/modelId"}]},
+        "filtered_out_count": {"type": "integer", "minimum": 0},
+        "models": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "display_name", "created", "licence", "data_use", "providers"],
+            "properties": {
+              "id": {"$ref": "#/$defs/modelId"},
+              "display_name": {"type": "string", "minLength": 1, "maxLength": 200},
+              "created": {"oneOf": [{"type": "null"}, {"type": "string", "format": "date-time"}]},
+              "licence": {"enum": ["apache-2.0", "mit", "bsd-3-clause", "other", "unknown"]},
+              "data_use": {"enum": ["trains_on_inputs", "not_used_for_training", "unknown"]},
+              "providers": {
+                "type": "array",
+                "maxItems": 32,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["provider", "supports_structured_output", "output_price_per_million"],
+                  "properties": {
+                    "provider": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,63}$"},
+                    "supports_structured_output": {"type": "boolean"},
+                    "output_price_per_million": {"oneOf": [{"type": "null"}, {"type": "number", "minimum": 0}]}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

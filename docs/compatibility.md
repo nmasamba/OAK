@@ -76,6 +76,14 @@ mechanical migration; **breaking** otherwise.
   existing code may not change meaning or disappear while any documented flow uses it.
 - Headers (`Idempotency-Key`, `If-Match`, `X-Correlation-ID`, `X-OAK-Actor`,
   `X-OAK-Tenant`) and their bounds are stable; tightening a bound is breaking.
+  `X-OAK-Model-Token` (Sprint 9) is required only on the model-configuration routes it was
+  introduced with and on `:interpret` when the configured model is used; it is never a
+  required parameter of a pre-existing operation.
+- The loopback guard (Sprint 9) — `Host` allowlist, `Origin` and `Sec-Fetch-Site` checks —
+  runs as middleware before routing. It adds no parameter to the OpenAPI contract and is
+  therefore outside this baseline; its behaviour is documented in
+  [configuration.md](configuration.md) (`OAK_ALLOWED_HOSTS`) and pinned by
+  `tests/integration/test_loopback_hardening.py`.
 
 ## CLI
 
