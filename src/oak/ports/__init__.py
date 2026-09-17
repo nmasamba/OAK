@@ -8,6 +8,11 @@ from oak.ports.events import OutboxLag, OutboxMessage, OutboxStore
 from oak.ports.extensions import ExtensionEntry, ExtensionStorePort
 from oak.ports.intake import BriefIntakePort
 from oak.ports.interpreter import ModelInterpreterPort, ProposalLimits
+from oak.ports.model_configuration import (
+    CredentialStatus,
+    CredentialStorePort,
+    ModelConfigurationStorePort,
+)
 from oak.ports.operations import (
     EnqueuedOperation,
     OperationLease,
@@ -31,10 +36,13 @@ __all__ = [
     "CaseDirectoryPort",
     "CatalogueDocuments",
     "CataloguePort",
+    "CredentialStatus",
+    "CredentialStorePort",
     "DispatchTransport",
     "EnqueuedOperation",
     "ExtensionEntry",
     "ExtensionStorePort",
+    "ModelConfigurationStorePort",
     "ModelInterpreterPort",
     "OperationLease",
     "OperationRecord",

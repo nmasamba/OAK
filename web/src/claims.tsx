@@ -7,6 +7,7 @@ export type ClaimClass =
   | "correction"
   | "inference"
   | "default"
+  | "proposal"
   | "unknown";
 
 const SOURCE_CLASSES: Record<string, ClaimClass> = {
@@ -14,6 +15,7 @@ const SOURCE_CLASSES: Record<string, ClaimClass> = {
   user_correction: "correction",
   inferred_from_brief: "inference",
   domain_default: "default",
+  model_proposed: "proposal",
 };
 
 const CLASS_LABELS: Record<ClaimClass, string> = {
@@ -21,6 +23,7 @@ const CLASS_LABELS: Record<ClaimClass, string> = {
   correction: "Corrected by reviewer",
   inference: "Inference",
   default: "Domain default",
+  proposal: "Proposed by model",
   unknown: "Unknown",
 };
 

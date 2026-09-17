@@ -2,8 +2,11 @@
 
 # Configuration reference
 
-Every environment variable OAK Community reads. There is no configuration file: the
-environment is the whole surface.
+Every environment variable OAK Community reads. The environment is almost the whole
+surface: the one file OAK writes for itself is the non-secret model selection under
+`OAK_MODELS_DIRECTORY`, written by `oak models` and holding no credential by construction;
+provider keys live in the operating-system keychain, an owner-only file under
+`OAK_CREDENTIALS_DIRECTORY`, or one of the `OAK_MODEL_KEY_*` variables below.
 
 A contract test (`tests/contract/test_configuration_reference.py`) fails if a variable is
 read by the source and missing from this table, or listed here and read nowhere — so this
@@ -21,6 +24,7 @@ changing one.
 | `OAK_ARTIFACT_ROOT` | `.oak/server-artifacts` | Directory holding content-addressed artifact bytes. **Relative by default**, so it resolves against the process working directory — see the warning below | Yes |
 | `OAK_HOST` | `127.0.0.1` | Bind address for `oak-api` | Yes |
 | `OAK_PORT` | `8080` | Bind port for `oak-api` | No |
+| `OAK_ALLOWED_HOSTS` | *(empty)* | Comma-separated **exact** hostnames the API accepts in the `Host` header in addition to `localhost`, `127.0.0.1` and `::1`. Every request is checked before routing; a request naming any other host is refused with `OAK-HOST-DENIED`, and `Origin`/`Sec-Fetch-Site` from another site are refused with `OAK-ORIGIN-DENIED`. Meaningful only with `OAK_ALLOW_NON_LOOPBACK`; wildcards are not accepted and `*.localhost` names are deliberately not loopback. Credential, discovery and selection routes require a loopback `Host` whatever this lists | Yes |
 | `OAK_ALLOW_NON_LOOPBACK` | `false` | Permits a non-loopback bind. The API refuses one otherwise. Accepted true values are `1`, `true`, `yes` (case-insensitive). **Setting this exposes a service with no authentication** — the actor and tenant are headers, not credentials | Yes |
 | `OAK_LOCAL_ACTOR` | `local-user` | Identity the API and MCP server bind requests to. This is a local development identity, not an authenticated principal | Yes |
 | `OAK_LOCAL_TENANT` | `local` | Tenant the API, MCP server and worker operate within | Yes |
@@ -41,6 +45,7 @@ changing one.
 |---|---|---|---|
 | `OAK_SERVER` | *(none)* | Base URL for remote mode; equivalent to `--server`. When set, design-journey commands run against a control plane and local-only commands refuse with `OAK-REMOTE-UNSUPPORTED` | Yes |
 | `OAK_ACTOR` | `local-user` | Actor the CLI claims; sent as `X-OAK-Actor` in remote mode. **In remote mode it must equal the server's `OAK_LOCAL_ACTOR`** or every command fails with `OAK-ACTOR-DENIED` — the actor is a claim the server checks, not a credential it accepts | Yes |
+| `OAK_MODEL_TOKEN` | *(none)* | Capability token the remote CLI sends as `X-OAK-Model-Token` when `oak design` resolves to the configured model. Print it on the serving machine with `oak models token` (under Compose: `docker compose exec -T api oak models token`). Never needed for deterministic interpretation; without it a model-mode interpret is refused with `OAK-MODEL-TOKEN-REQUIRED` and nothing is committed | Yes |
 | `OAK_REMOTE_TIMEOUT` | `120` | Seconds to wait for a bounded durable operation to reach a terminal state. It does **not** change the per-request HTTP timeout, which is fixed at 30 s and not configurable. A value outside `0 < n <= 3600`, or one that is not a number, is ignored and the default used | No |
 
 ## Packaged data locations
@@ -62,6 +67,22 @@ schemas, catalogue entries or policy packs.
 |---|---|---|---|
 | `OAK_TRUST_DIRECTORY` | `~/.oak/trust` | Holds the control plane's Ed25519 **private keys** and the public identity files used as trust anchors. Back it up separately and protect it like a credential store | Yes |
 | `OAK_DISPATCH_MAILBOX` | `~/.oak/mailbox` | Outbound-only mailbox that dispatched leases are written into | Yes |
+
+## Optional model provider
+
+| Variable | Default | Meaning | Safety-relevant |
+|---|---|---|---|
+| `OAK_CREDENTIALS_DIRECTORY` | `~/.oak/credentials` | Owner-only directory (`0700`) holding user-supplied provider keys stored in the file backend (`<family>.key`, `0600`) and the per-process model-configuration token `api-token` that `oak-api`/`oak serve` mint at start. Never back it up with the artifact store; under Compose it lives on the api service's own volume | Yes |
+| `OAK_MODELS_DIRECTORY` | `~/.oak/models` | Owner-only directory holding the non-secret model selection and the discovery snapshot. Contains no key by construction | Yes |
+| `OAK_MODEL_KEY_HUGGINGFACE` | *(none)* | The Hugging Face key, read at call time when `oak models set-key huggingface --store env` chose the environment source. Nothing is persisted; the variable must be present in the process that interprets (for the web workspace, the `oak-api` process). No other variable name is accepted as a credential reference | Yes |
+| `OAK_MODEL_KEY_OPENAI` | *(none)* | The OpenAI key, read at call time when `oak models set-key openai --store env` chose the environment source. Nothing is persisted; the variable must be present in the process that interprets (for the web workspace, the `oak-api` process). No other variable name is accepted as a credential reference | Yes |
+| `OAK_MODEL_KEY_ANTHROPIC` | *(none)* | The Anthropic key, read at call time when `oak models set-key anthropic --store env` chose the environment source. Nothing is persisted; the variable must be present in the process that interprets (for the web workspace, the `oak-api` process). No other variable name is accepted as a credential reference | Yes |
+| `OAK_MODEL_KEY_GEMINI` | *(none)* | The Google Gemini key, read at call time when `oak models set-key gemini --store env` chose the environment source. Nothing is persisted; the variable must be present in the process that interprets (for the web workspace, the `oak-api` process). No other variable name is accepted as a credential reference | Yes |
+| `OAK_MODEL_KEY_META` | *(none)* | The Meta Model API key, read at call time when `oak models set-key meta --store env` chose the environment source. Nothing is persisted; the variable must be present in the process that interprets (for the web workspace, the `oak-api` process). No other variable name is accepted as a credential reference | Yes |
+| `OAK_MODEL_KEY_XAI` | *(none)* | The xAI key, read at call time when `oak models set-key xai --store env` chose the environment source. Nothing is persisted; the variable must be present in the process that interprets (for the web workspace, the `oak-api` process). No other variable name is accepted as a credential reference | Yes |
+| `OAK_MODEL_ENDPOINT_LOCAL` | `http://127.0.0.1:11434/v1` | Base URL of the OpenAI-compatible server the `local` family talks to (Ollama, vLLM, llama.cpp). **It must be a loopback address**; anything else, or a URL carrying credentials, is refused with `OAK-MODEL-ENDPOINT-INVALID` before a connection is attempted. Plain `http` is accepted here and only here, because the bytes never leave the machine | Yes |
+| `OAK_MODEL_TIMEOUT_SECONDS` | `30` | Total budget for one provider request, including the one permitted rate-limit retry and every read of the response. Values are clamped to 1–55 seconds: the shipped nginx proxy gives up at 60, so a longer budget would let the browser see a failure for an interpretation the API went on to commit. The interpretation's own proposal limit is derived from this value, so raising it raises the effective budget | No |
+| `OAK_MODEL_DISCOVERY_CACHE_SECONDS` | `21600` | How long a stored discovery snapshot is treated as current before `oak models status` reports it stale. Nothing refreshes it implicitly; `oak models discover <family>` is the only thing that contacts a catalogue | No |
 
 ## Runner (`oak-runner`)
 
@@ -97,3 +118,4 @@ when you harden a runner environment. Recorded as `RR-033`.
 | `OAK_WEB_BASE_URL` | `http://127.0.0.1:5173` | Origin the Playwright suite drives. Read by `web/playwright.config.ts`, not by Python | No |
 | `OAK_API_BASE_URL` | `http://127.0.0.1:8080` | API origin the Playwright suite calls directly. Read by `web/e2e/support.ts`, not by Python | No |
 | `OAK_MANUAL_SCREENS` | *(none)* | Set to `1` to run the user-manual screenshot capture spec (`web/e2e/manual-screens.spec.ts`) against a healthy Compose stack; otherwise it is collected but skipped. Read by TypeScript, not by Python | No |
+| `OAK_LIVE_MODEL_TESTS` | *(none)* | Set to `1` to run `tests/live/` against the provider keys stored on this machine. **These tests send a synthetic brief to a real provider and spend real credit**, so they are skipped by default and never run in `make check` or CI | No |

@@ -2,27 +2,17 @@
 
 # Build status
 
-- **Updated:** 2026-09-03
+- **Updated:** 2026-09-17
 - **Repository version:** `0.7.1`
-- **Phase:** Pre-launch hardening complete — `0.7.0` was approved as a local-first developer release but never published; the release is re-cut as `0.7.1` approved by `nmasamba` on 2026-08-27 and **published as a GitHub Release on 2026-09-03**
+- **Phase:** Sprint 9 in progress — optional model provider and natural-language intake (`OAK-S9-001`–`009`), authorized by the owner on 2026-09-17. `0.7.1` was approved by `nmasamba` on 2026-08-27 and **published as a GitHub Release on 2026-09-03**; nothing about it changes in this sprint
 - **Completed plans:** `docs/exec-plans/completed/OAK-S0-001-009-walking-skeleton.md`, `docs/exec-plans/completed/OAK-S1-001-010-local-design-case.md`, `docs/exec-plans/completed/OAK-S2-001-011-candidate-planning.md`, `docs/exec-plans/completed/OAK-S3-001-009-persistent-rest-jobs.md`, `docs/exec-plans/completed/OAK-S4-001-009-web-workspace.md`, `docs/exec-plans/completed/OAK-S5-001-011-signed-runner.md`, `docs/exec-plans/completed/OAK-S6-001-008-policy-adapter-sdk.md`, `docs/exec-plans/completed/OAK-S7-001-008-mcp-portal-interface-parity.md`, `docs/exec-plans/completed/OAK-S8-001-009-community-release-hardening.md`, `docs/exec-plans/completed/OAK-PL-001-007-pre-launch-hardening.md`, and `docs/exec-plans/completed/OAK-FS-001-003-final-sweep.md`
-- **Active plan:** none — the pre-launch hardening plan and the final documentation sweep are complete
-- **Next task:** the pre-launch hardening PR (#13) is **merged** (`2d85322`), with its
-  closing adversarial audit complete (23 findings raised, 15 confirmed and fixed or
-  dispositioned, 8 refuted — see the completed plan's audit section). Seven register
-  entries were closed by this work (`RR-001`, `RR-003`, `RR-011`, `RR-032`, `RR-034`,
-  `RR-037`, `RR-038`; eight of the register's 38 rows are now closed, `RR-035`
-  predating it), including both standing conditions from the `0.7.0` approval, with the
-  one sanctioned digest migration recorded in `CHANGELOG.md`. A documentation-only final sweep (`OAK-FS-001`–`003`) then added the
-  illustrated user manual at `docs/manual/`, neutralized the AI-vendor names in the
-  completed plans' author descriptions, and aligned every status document with the
-  post-merge state; the four reference digests were re-verified byte-stable afterwards.
-  That sweep is **merged** (`ca160a7`, PR #15), so `main` now carries the manual and the
-  neutralized author descriptions. The decision record is **signed** (`nmasamba`,
-  2026-08-27, all three roles); `v0.7.1` is tagged at `c614414` (re-cut after two
-  image-tooling fixes) with `release.yml` green on it; and `0.7.1` is **published as a
-  GitHub Release on 2026-09-03** — the project's first published artifact. PyPI and a
-  container registry remain separate owner decisions; the next work is post-`0.7.1`
+- **Active plan:** `docs/exec-plans/completed/OAK-S9-001-009-model-provider-intake.md`
+- **Next task:** none — Sprint 9 is complete and awaiting review (branch
+  `model-provider-intake` from `62bc7a1`), then the Sprint 9 milestones in order. The
+  pre-launch hardening (PR #13, `2d85322`), the documentation sweep (PR #15 `ca160a7`, PR #16
+  `3f9122f`), the `0.7.1` approval and tag (`c614414`), the image-tooling fixes (PRs #18, #19)
+  and the publication truth pass (PR #20, `62bc7a1`) are all merged; the register carries 41
+  entries with eight closed (`RR-040` added in this sprint). PyPI and a container registry remain separate owner decisions
 
 ## Claimed work
 
@@ -122,6 +112,15 @@
 | `OAK-FS-001` | complete | AI-vendor names neutralized in the completed plans' `Owner/agent:` descriptions (agent-versus-human distinction preserved); historical branch identifiers kept as repository facts; the merged agent-named remote branches deleted; document-policy gates extended to `.html`/`.mjs` |
 | `OAK-FS-002` | complete | Illustrated user manual at `docs/manual/` — authoritative HTML source, rendered PDF, live-capture screenshot spec — its chapter 3 and chapter 5 commands verified by running the CLI and signed-runner journeys end to end against the tree, with the expected output captured from those runs |
 | `OAK-FS-003` | complete | Post-merge truth pass: both repositories' status documents, `CHANGELOG.md`, and the `0.7.1` release-decision draft state the merged reality; `OAK_MANUAL_SCREENS` documented and pinned by the configuration-reference gate |
+| `OAK-S9-001` | complete | Reference digests and deterministic intent bytes pinned by a test; provider state isolated in tests; secret-scan, boundary and egress gates widened before any adapter exists |
+| `OAK-S9-002` | complete | Loopback hardening (Host/Origin/Fetch-Metadata) and a per-process capability token for credential, discovery, selection and model-mode interpretation |
+| `OAK-S9-003` | complete | Keychain and 0600 file credential stores, closed model-configuration schema, `oak models` local-only command |
+| `OAK-S9-004` | complete | Proposal merge inside `interpret` with `model_proposed` provenance, per-section confirmation questions, all interfaces plumbed (`--interpreter`, REST query + token, MCP opt-in) and a byte-identical deterministic path |
+| `OAK-S9-005` | complete | Standard-library transport with a fixed egress allowlist, seven provider profiles, hosted interpreter, Hugging Face free-model lookup, egress gates rewritten, `TM-13` direct, `RR-039`/`RR-041` recorded |
+| `OAK-S9-006` | complete | Additive `/v1/models` resources with the token as a dependency, regenerated OpenAPI and web client, api-only Compose volume, structural dependency gate, and the fixes from the provider-layer adversarial review |
+| `OAK-S9-007` | complete | Models settings page, natural-language default intake, provenance on the confirmation screen, model-failure recovery, browser tests |
+| `OAK-S9-008` | complete | Manual chapter and screenshot, ADR-0003 and ADR-0016, `TM-20`, security invariants, interface contract, `OAK-FR-INT-009`/`OAK-NFR-SEC-007`, `AGENTS.md`, `skills.md`, terminology, evidence |
+| `OAK-S9-009` | complete | Closing adversarial audit (20 findings, 11 confirmed, all fixed with regression tests), status and changelog in both repositories, PR |
 
 ## Verification evidence
 
@@ -327,7 +326,7 @@
   generated inventory now shows LGPL-3.0 Psycopg as the only copyleft entry.
 - Security review produced `docs/security/threat-coverage.md` (all nineteen threat ids mapped
   to tests: 8 direct, 9 partial, 2 structural, 0 uncovered, every cited test verified to
-  exist), `docs/security/residual-risk.md` (38 stable-id entries), and `SECURITY.md`. **No
+  exist), `docs/security/residual-risk.md` (41 stable-id entries), and `SECURITY.md`. **No
   external security review was commissioned**, and a build gate now fails on unqualified
   assurance vocabulary — it caught three of its own author's sentences on first run.
 - Four confidentiality defects were found and fixed, each reproduced before the fix:

@@ -150,6 +150,15 @@ class CandidatePlanningService:
             )
         intent_ref = self._required_reference(current_document, "intent_ref")
         intent = self._repository.read_json_artifact(intent_ref)
+        if any(
+            record.get("source") == "model_proposed" and record.get("confirmation_required")
+            for record in intent["provenance"].values()
+        ):
+            raise OAKError(
+                "OAK-CANDIDATES-STATE",
+                "candidates require every model-proposed value to be confirmed, "
+                "corrected or rejected first",
+            )
         catalogue = compile_catalogue(
             documents.manifests,
             documents.patterns,

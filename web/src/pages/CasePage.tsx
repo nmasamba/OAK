@@ -10,6 +10,7 @@ import {
   listCandidates,
   type JsonObject,
 } from "../generated/api";
+import { currentModelToken } from "../modelToken";
 import { ProblemAlert, toActionFailure, type ActionFailure } from "../problems";
 import { Link, useRouter } from "../router";
 import {
@@ -89,16 +90,27 @@ export function CasePage({ caseId }: { readonly caseId: string }) {
       .finally(() => setPendingAction(null));
   };
 
-  const onInterpret = () =>
-    runAction(
+  // The token is sent only when this browser has one; without it the API answers every
+  // request that would spend the operator's credential with OAK-MODEL-TOKEN-REQUIRED.
+  const interpretWith = (interpreter?: "model" | "deterministic") => {
+    const token = currentModelToken();
+    return runAction(
       "interpret",
       () =>
-        interpretDesignCase(caseId, {
-          idempotencyKey: newIdempotencyKey("interpret"),
-          etag: etagFor(version),
-        }),
+        interpretDesignCase(
+          caseId,
+          {
+            idempotencyKey: newIdempotencyKey("interpret"),
+            etag: etagFor(version),
+            ...(token === null ? {} : { modelToken: token }),
+          },
+          interpreter,
+        ),
       load,
     );
+  };
+
+  const onInterpret = () => interpretWith();
 
   const onGenerateCandidates = () =>
     runAction(
@@ -179,7 +191,11 @@ export function CasePage({ caseId }: { readonly caseId: string }) {
         </div>
         <div aria-live="polite">
           {failure !== null && (
-            <ProblemAlert failure={failure} onReload={load} />
+            <ProblemAlert
+              failure={failure}
+              onReload={load}
+              onInterpretWithoutModel={() => interpretWith("deterministic")}
+            />
           )}
         </div>
         {status === "needs_confirmation" && (

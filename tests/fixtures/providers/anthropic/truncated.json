@@ -1,0 +1,11 @@
+{
+  "content": [
+    {
+      "text": "{\"proposed_",
+      "type": "text"
+    }
+  ],
+  "role": "assistant",
+  "stop_reason": "max_tokens",
+  "type": "message"
+}

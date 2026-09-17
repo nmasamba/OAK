@@ -6,7 +6,127 @@ All notable changes to OAK Community are recorded here.
 
 ## Unreleased
 
-Nothing yet.
+Sprint 9 — optional model provider and natural-language intake (`OAK-S9-001`–`009`), in
+progress. Every entry below holds the four reference digests byte-stable unless it says
+otherwise.
+
+### Added
+
+- `tests/integration/test_reference_digests.py` pins the four reference digests recorded at
+  `0.7.1` and the canonical bytes of the deterministic intent for the structured brief and a
+  new prose brief (`examples/briefs/public-manual-qa-prose.md`), so a change to the
+  no-model path cannot pass unnoticed (`OAK-S9-001`).
+- `tests/conftest.py` points every test at throwaway model-state directories so no test can
+  read or leave behind a developer's provider credential (`OAK-S9-001`).
+- `tests/contract/test_secret_shapes.py` proves the secret scan recognises model-provider key
+  shapes and that no committed file contains one (`OAK-S9-001`).
+
+- The API refuses requests a same-machine web page or a rebound DNS name could forge
+  (`OAK-S9-002`): the `Host` must be a loopback name or an exact `OAK_ALLOWED_HOSTS` entry
+  (`OAK-HOST-DENIED`, 400), an `Origin` or `Sec-Fetch-Site` from another site is refused
+  (`OAK-ORIGIN-DENIED`, 403), health probes are exempt from the host rule, and the
+  model-configuration routes require a loopback host and a same-origin browser. The checks
+  are middleware and add nothing to the OpenAPI contract; `tests/integration/
+  test_loopback_hardening.py` pins them.
+- `oak-api` and `oak serve` mint a per-process capability token into
+  `$OAK_CREDENTIALS_DIRECTORY/api-token` (owner-only) at start; `X-OAK-Model-Token` is
+  verified with a constant-time comparison (`OAK-MODEL-TOKEN-REQUIRED`, 403) on the model
+  routes that later milestones add (`OAK-S9-002`).
+- `OAK_ALLOWED_HOSTS`, `OAK_CREDENTIALS_DIRECTORY` and `OAK_MODELS_DIRECTORY` are documented
+  in `docs/configuration.md`; the first two join the safety-relevant tuple the contract test
+  pins (`OAK-S9-002`).
+- The web image's nginx sends `X-Frame-Options: DENY` and a `frame-ancestors 'none'`
+  content-security policy, so the workspace cannot be framed (`OAK-S9-002`).
+
+- `oak models` (local-only): `families`, `status`, `set-key <family> [--store auto|keychain|file|env] [--stdin]`, `remove-key`, `select <family> <model_id> [--acknowledge-data-use]`, `clear`, `token`. A key is read from a hidden prompt or standard input and is never accepted as an argument or printed; status shows a salted fingerprint and the backend only (`OAK-S9-003`).
+- Credential backends behind `CredentialStorePort`: the operating-system keychain through the optional extra `oak-community[keychain]` (`keyring`, MIT; `keyrings.alt` plaintext backends refused, a missing backend reported and never silently downgraded), an owner-only file store (`0700` directory, `0600` file, atomic rename, owner and mode checked on every read), and documented environment references `OAK_MODEL_KEY_<FAMILY>` that store nothing (`OAK-S9-003`).
+- New canonical schema `model-configuration.schema.json` with `examples/example-model-configuration.yaml`: the user's family, model, provider route, default interpreter and discovery snapshot, written owner-only under `OAK_MODELS_DIRECTORY`; it can hold no credential by construction and a test proves the schema has no such property (`OAK-S9-003`).
+- `SecretValue` in `oak.domain`: every rendering is `<redacted>`, equality is constant-time, pickling and hashing are refused (`OAK-S9-003`).
+- Register `RR-040` (a stored provider key is readable by same-user processes and usable by any local principal that reaches the loopback port and reads the token; backups that include the credential directory contain the key) — count 38 → 39, narrated in `docs/release/0.7.1/release-decision.md` under "The register count, made legible" (`OAK-S9-003`).
+
+- The proposal merge seam (`OAK-S9-004`). `DeterministicBriefInterpreter.interpret` accepts an already validated interpretation proposal and merges it under fixed rules: only the 101 typed `spec` paths in `oak.contracts.intent_paths` are admissible, values are bounded (strings ≤ 4000 characters, arrays ≤ 64 items of ≤ 400 characters, flat objects only), explicit brief values win, every applied claim is re-validated against `system-intent.schema.json`, and every refusal is an `OAK-INT-PROPOSAL-REJECTED` finding. Each value the model contributed carries `model_proposed` provenance with the proposal identifier in `evidence_refs`; each touched section gains a `question.model.<section>` question whatever confidence the model reported, and a case stays in `needs_confirmation` — and `candidates` refuses — until every model-proposed value is confirmed, corrected or rejected. Every ranked question is now persisted; five are presented per round.
+- `DesignCaseService.interpret(interpreter="auto"|"model"|"deterministic")`: `auto` uses the configured model for a prose brief and the deterministic interpreter otherwise; `model` without a configured adapter refuses with `OAK-MODEL-NOT-CONFIGURED` and commits nothing. On the model path the proposal is stored as an `interpretation_proposal` artifact in the same mutation as intent, event and case, the intent references it under `oak.community/interpretation_proposal_ref`, and the audit event's `oak.community/interpreter` extension records family, model, route and proposal digest — never prompt or response content. The deterministic path emits none of these keys, and `tests/integration/test_reference_digests.py` shows its bytes unchanged (`OAK-S9-004`).
+- `oak design --interpreter auto|model|deterministic` locally and in remote mode (which sends `OAK_MODEL_TOKEN` as `X-OAK-Model-Token`); a prose brief interpreted deterministically because no model is configured gets one stderr hint, and a model failure after the case was created says so and names the deterministic retry. `oak questions` prints five open questions per round, counts the rest, and annotates a question whose value a model proposed with the model's confidence and rationale (`OAK-S9-004`).
+- REST `POST /v1/design-cases/{id}:interpret` gains the optional `interpreter` query parameter and the optional `X-OAK-Model-Token` header; the token is demanded exactly when the request resolves to the model, before anything is committed (`make openapi-compatibility` clean). MCP `oak_design_case_interpret` gains the optional `interpreter` argument (`deterministic` | `model`), default deterministic, with a description that says what `model` spends and sends (`OAK-S9-004`).
+- The provider layer that makes the model path real (`OAK-S9-005`). Seven families — Hugging Face Inference Providers, OpenAI, Anthropic, Google Gemini, Meta, xAI and a local OpenAI-compatible server — are described as data in `oak.adapters.models.providers`: hosts, request shape, catalogue parser, chat-candidate rule, preferred models with an `as_of` date, key-verification strategy, data-use note and a status map from every documented provider error to one stable `OAK-*` code. Provider text is parsed only to choose the code and is then discarded; no provider message, header or body reaches an error, a log or an interface.
+- `oak.adapters.models.transport` is the only module in OAK that opens a connection to a provider, and it is the only model module allowed to import a network client. It refuses any host outside the calling profile's fixed allowlist before touching a socket, speaks https except to a loopback address for the `local` family, never follows a redirect, ignores environment and system proxies, verifies TLS against the system trust store, reads the body in bounded packets against one monotonic deadline of at most 55 seconds, and converts every socket, TLS and protocol failure into a fixed OAK message (`OAK-S9-005`).
+- `oak.adapters.models.hosted_interpreter` sends exactly one request per interpretation, plus at most one retry on a documented rate limit if it fits inside the deadline. The key is read per call and never stored on the adapter; the brief travels as delimited data in the user turn under a system prompt that says it is untrusted; the model answers a strict JSON schema; and every claim it returns is bounded, deduplicated and counted before it becomes a proposal. The proposal records family, model, route, prompt and response digests and token usage — never a prompt or a response body (`OAK-S9-005`).
+- `oak models discover <family>` looks up what a key can actually reach. For Hugging Face the lookup is anonymous and needs no key: it reads the router's chat catalogue and the Hub's trending list, keeps only ungated models under Apache-2.0, MIT or BSD-3-Clause from a namespace allowlist with at least one live structured-output route, and recommends the best of them — falling back to a pinned chain (`openai/gpt-oss-120b`, `openai/gpt-oss-20b`, `Qwen/Qwen3-235B-A22B-Instruct-2507`) labelled `pinned` when a catalogue cannot be reached, rather than pretending the answer was looked up. Discovery is explicit only: `oak models status`, `GET /v1/models` and `interpret` never contact a catalogue (`OAK-S9-005`).
+- `OAK_MODEL_ENDPOINT_LOCAL`, `OAK_MODEL_TIMEOUT_SECONDS` and `OAK_MODEL_DISCOVERY_CACHE_SECONDS` are documented; the timeout is clamped to 1–55 seconds because the shipped nginx proxy gives up at 60 (`OAK-S9-005`).
+- Register `RR-039` (a configured hosted model receives the brief; opt-in, audited, and the provider's own retention and training terms are outside OAK's control) and `RR-041` (a model interpretation is individually bounded but nothing caps aggregate provider spend) — count 39 → 41 (`OAK-S9-005`).
+- The model-configuration REST resources (`OAK-S9-006`), all loopback-only, all `no-store`, and none of them able to return a stored key: `GET /v1/models` (families, selection, per-family backend and salted fingerprint, discovery age and staleness), `PUT`/`DELETE /v1/models/credentials/{family}`, `PUT`/`DELETE /v1/models/selection` and `POST /v1/models/{family}:discover`. The capability token is a dependency rather than a check inside each handler, so an unauthorised caller is refused before its body is parsed and is never told what was wrong with a request it was not entitled to make. `api_key` is `writeOnly` with `format: password` and no example, so it appears in no generated client and no rendered documentation. None of these routes takes an idempotency key, builds a command context, or appends an audit event: configuring a provider is machine-local state, not a case mutation.
+- The generated TypeScript client gains `getModels`, `putModelCredential`, `deleteModelCredential`, `putModelSelection`, `clearModelSelection` and `discoverModels`; the OpenAPI baseline is untouched and `make openapi-compatibility` stays clean (`OAK-S9-006`).
+- Under Compose, model state lives on the `api` service's own volume (`oak-model-state`), mounted at a path the image creates `0700` and `oak`-owned so the named volume cannot be created `root:root`. The worker does not mount it. `docs/operations.md` gains the Compose configuration procedure, excludes the volume from backups and removes it on uninstall; `web/e2e/hardening.spec.ts` asserts the live ownership and the worker's absence (`OAK-S9-006`).
+- The browser workspace leads with plain language (`OAK-S9-007`). The case list asks you to describe what you want to build, says which interpreter will read it, and keeps a structured YAML or JSON brief one checkbox away. A **Models** page configures the provider: it asks once for the capability token (accepting it from the `#token=` fragment `oak serve` prints, and stripping it from the address bar immediately), stores a key write-only, clears the field on submit, shows the backend and fingerprint but never the key, detects models, and offers one click back to deterministic interpretation. The masthead says which interpreter is in force.
+- The confirmation screen says where each value came from: a claim a model proposed is labelled **Proposed by model** with its confidence and reason, taken from the lowest-confidence record under the question's path. Five questions are presented per round and the rest are counted, matching what the CLI does (`OAK-S9-007`).
+- A model failure is a recovery point rather than a dead end: `OAK-MODEL-*` and `OAK-INTERPRETER-*` refusals render with "Interpret without the model" and a link to the model settings, and say that nothing was recorded (`OAK-S9-007`).
+- The manual gains an optional model-provider section in the workspace chapter with its own screenshot, and the passages that said this release ships no model adapter and makes zero model calls are corrected rather than left standing (`OAK-S9-008`).
+- Governance: ADR-0016 records why a user's own provider key is machine-local configuration and how it differs from a target secret, mirrored here as `docs/adr/architecture/0016-...`; `docs/adr/0003-optional-model-provider-credentials.md` records how this build implements it, including why the transport is `http.client` rather than `urllib.request`. `AGENTS.md` gains the boundary, the single-egress architecture rule and two Code Review Rules; `skills.md` gains a "Model provider integration" recipe; the threat model gains `TM-20` and a real mitigation column for `TM-13`; `OAK-FR-INT-009` and `OAK-NFR-SEC-007` are new requirements (`OAK-S9-008`).
+- `tests/live/test_provider_smoke.py`, run by hand with `OAK_LIVE_MODEL_TESTS=1` against the keys on the operator's own machine. It spends real credit, is never collected by `make check`, and exists because a recorded fixture cannot tell you that a provider changed its API (`OAK-S9-005`).
+- `tests/model_support.py` (a fake adapter that binds to the offered source record), `tests/unit/test_proposal_merge.py`, `tests/contract/test_intent_paths.py`, `tests/integration/test_model_interpretation_service.py` and `tests/integration/test_model_interface_conformance.py` (file, REST and MCP legs produce identical intent and proposal digests and question sets; every leg refuses an unconfigured model with one code; MCP stays deterministic unless asked) (`OAK-S9-004`).
+
+### Changed
+
+- The release SBOM and licence inventory export the `keychain` extra so they describe everything the wheel can install; `docs/dependencies.md` carries the Sprint 9 review and records that no runtime HTTP dependency was added (`OAK-S9-003`).
+- `models` joins the local-only command list in every document that states it and in the remote-CLI refusal test (`OAK-S9-003`).
+- An acknowledged non-loopback bind now prints a warning naming the `Host` allowlist instead
+  of returning silently; `RR-027` and `SECURITY.md` describe the browser boundary
+  (`OAK-S9-002`).
+- `docs/error-codes.md` gains the families "Model provider and interpretation proposals"
+  and "Request host and origin guard"; the five existing `OAK-INTERPRETER-*` codes move out
+  of "Everything else" (`OAK-S9-002`).
+- `tools/check_repository.py` scans for OpenAI, Anthropic, Google, Hugging Face and xAI key
+  shapes in addition to private keys, AWS access keys and GitHub tokens (`OAK-S9-001`).
+- `tools/check_boundaries.py` forbids the domain, compiler, ports, application and runner
+  packages from importing HTTP clients, model-provider SDKs or the OS credential store, with a
+  fixture proving the rule fires (`OAK-S9-001`).
+- `tests/integration/test_offline_boundary.py` treats `ssl`, HTTP transports and provider
+  SDKs as network clients, so a provider adapter cannot reach the network by another name
+  (`OAK-S9-001`).
+- Conditionally compatible schema additions (`OAK-S9-004`, called out per
+  `docs/compatibility.md`): `model_proposed` joins the provenance `source` enums in
+  `common.schema.json` and `design-case.schema.json` (governance mirrors updated),
+  `interpretation-proposal.schema.json` gains the optional `version` field, and
+  `interpretation_proposal` joins the workspace-manifest artifact kinds. A workspace that
+  never used the model path emits none of them.
+- A `reject` decision on a section-level question (`/spec/<section>`) removes the
+  model-proposed values in that section and keeps the brief's explicit values; a section with
+  no model-proposed value is emptied rather than deleted, which also fixes the latent failure
+  where rejecting `question.model-hardware` deleted a required section (`OAK-S9-004`).
+- The web claim badge vocabulary gains "Proposed by model" for `model_proposed` provenance
+  (`OAK-S9-004`).
+- `TM-13` (exfiltration to a model or document provider) moves from **structural** to
+  **direct** in `docs/security/threat-coverage.md`, and the tally from "8 direct, 9 partial,
+  2 structural" to "9 direct, 9 partial, 1 structural". The claim it rested on — that no
+  provider adapter ships — stopped being true, so it is replaced by narrower claims that are
+  each a test: OAK calls a provider only when a user configures one, only through one
+  module, only to that provider's own hosts, and never on the deterministic path
+  (`OAK-S9-005`).
+- The egress gates were rewritten rather than relaxed. The adapter set is pinned by name
+  instead of asserted to be empty, the four non-transport model modules are proved to import
+  no network client, and a new gate runs the deterministic journey in a fresh interpreter and
+  fails if a provider module was loaded at all (`OAK-S9-005`).
+- The egress gate also became structural. An adversarial review showed that a module
+  importing some *other* provider SDK passes a gate that enumerates the SDKs we thought of,
+  so a new gate resolves every top-level import under `src/oak` and fails on anything that is
+  neither the standard library, `oak` itself, nor a distribution `pyproject.toml` declares.
+  That is also the check which keeps `docs/dependencies.md`'s "no runtime HTTP dependency was
+  added" true rather than merely stated (`OAK-S9-006`).
+- A documentation sweep across both repositories, verified statement by statement against the code (`OAK-S9-009`). What it corrected, in descending order of how much a reader would have been misled: the implementation `README.md` did not mention the feature at all, and its "contains no hosted-provider requirement" sentence read as a promise that OAK holds no provider credential; the manual's pipeline figure still showed the removed five-question cap and claimed every stage is deterministic and offline; `docs/build/interface-contract.md` still listed `models` among the commands with no REST surface and omitted the `/v1/models` resources and the new MCP argument; `OAK-NFR-SEC-007` said a credential never appears in a request body when one route exists to receive it; the threat-coverage index had no `TM-20` row and counted nineteen threats; `CONTRIBUTING.md` named two of three pytest markers and omitted the provider-SDK import rule contributors now trip over; `docs/release-process.md` understated the SBOM's closure by eight packages; the published OpenAPI described the CLI's `auto` behaviour rather than the server's; and the manual's uninstall chapter did not mention that a key in the operating-system keychain survives `rm -rf ~/.oak`.
+- Fixes from the closing audit, each with a regression test (`OAK-S9-009`). A model proposal can no longer overwrite an explicit brief value that happens to be empty — provenance is recorded per scalar leaf, so `affected_non_users: []` left no record and read as unstated — and can no longer write an empty value of its own, which would have landed with nothing to confirm. Rejecting a section-level question now removes the claims OAK put up for review and keeps what the brief itself stated, on the deterministic path as well as the model path. A model proposing a value no longer deletes the named critical question about it: `question.production-use` is asked whether or not a model guessed at the production-data boundary, and the section question is additional. Discovery refuses before opening a connection when the family needs a key and none is stored, and a paged walk shares one deadline instead of spending one per page. A header value the request cannot carry — including a key that is not Latin-1 — is refused rather than reaching an exception. `GET /v1/models` joins the other model routes on the loopback-only footing the changelog already claimed for them, and the published document now marks the capability token required, which is what the server enforces.
+- Fixes from that review, each with a regression test (`OAK-S9-006`). A loopback host is now
+  decided by parsing the address rather than by a string prefix, so `127.evil.example.com` —
+  an ordinary DNS name its owner can point anywhere — is no longer accepted as this machine
+  for the `local` family, which speaks plain http. The request deadline now covers the status
+  line and headers, not only the body, so a provider that dribbles its response header cannot
+  hold a request open indefinitely. A provider's error `type` can no longer end with a newline
+  and reach the message. A model's answer can no longer crash interpretation with an
+  out-of-range confidence, a deeply nested value, or an unbounded claim path. A Hugging Face
+  price of `inf` no longer breaks the configuration save, a model the Hub lists as gated or
+  non-permissively licensed is no longer rescued by the pinned chain, a cumulative licence
+  list is judged by all of its entries rather than the first, and a snapshot built without a
+  usable Hub listing is labelled `pinned` rather than `live`. Discovery no longer borrows the
+  interpretation response cap, which was smaller than a real catalogue.
 
 ## 0.7.1 — approved 2026-08-27, published 2026-09-03
 
@@ -213,7 +333,7 @@ customer readiness claim, and no external security review was commissioned for i
 - **Security record**: [SECURITY.md](SECURITY.md),
   [threat-coverage.md](docs/security/threat-coverage.md) mapping all nineteen threat ids to
   the tests that exercise them, and [residual-risk.md](docs/security/residual-risk.md) with
-  38 stable-id entries. A build gate now rejects unqualified assurance vocabulary.
+  41 stable-id entries. A build gate now rejects unqualified assurance vocabulary.
 - **Measurements**: [performance.md](docs/performance.md) and a provenance-stamped
   `scripts/benchmark.py`. Reference compiler 8.66 s median against a 120 s requirement;
   interactive read p95 30 ms against 500 ms; workspace manifest reads grow from 3.8 ms at

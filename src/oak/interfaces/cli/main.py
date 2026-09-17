@@ -7,6 +7,7 @@ import os
 import re
 import shutil
 import stat
+import sys
 import tempfile
 import unicodedata
 from datetime import UTC, datetime
@@ -24,15 +25,17 @@ from oak.application import (
     CandidatePlanningService,
     CommandContext,
     DesignCaseService,
+    ModelInterpreterFactory,
     ReleaseService,
 )
 from oak.bootstrap import (
     create_candidate_planning_service,
     create_design_case_service,
+    create_model_interpreter,
     create_system_information_service,
 )
 from oak.contracts import ContractValidationError, load_json_document, load_yaml_document
-from oak.domain import OAKError
+from oak.domain import OAKError, SecretValue
 
 
 class OutputFormat(StrEnum):
@@ -40,6 +43,16 @@ class OutputFormat(StrEnum):
     JSON = "json"
     YAML = "yaml"
     TABLE = "table"
+
+
+class InterpreterChoice(StrEnum):
+    AUTO = "auto"
+    MODEL = "model"
+    DETERMINISTIC = "deterministic"
+
+
+STRUCTURED_BRIEF_SUFFIXES = frozenset({".yaml", ".yml", ".json"})
+QUESTIONS_PER_ROUND = 5
 
 
 app = typer.Typer(
@@ -92,7 +105,11 @@ def _remote() -> "RemoteClient | None":
         return None
     from oak.interfaces.cli.remote import RemoteClient
 
-    return RemoteClient(_REMOTE_SERVER, actor=os.getenv("OAK_ACTOR"))
+    return RemoteClient(
+        _REMOTE_SERVER,
+        actor=os.getenv("OAK_ACTOR"),
+        model_token=os.getenv("OAK_MODEL_TOKEN") or None,
+    )
 
 
 def _require_local(command: str) -> None:
@@ -157,19 +174,35 @@ def design(
         str | None,
         typer.Option("--idempotency-key", help="Stable retry key; derived from input by default."),
     ] = None,
+    interpreter: Annotated[
+        InterpreterChoice,
+        typer.Option(
+            "--interpreter",
+            help=(
+                "auto uses the configured model for a prose brief; model requires one; "
+                "deterministic never calls a provider."
+            ),
+        ),
+    ] = InterpreterChoice.AUTO,
 ) -> None:
-    """Ingest and deterministically interpret a local brief."""
+    """Ingest and interpret a local brief; deterministic unless a model is configured."""
 
     try:
         remote = _remote()
         if remote is not None:
-            _remote_design(remote, brief, idempotency_key, output)
+            _remote_design(remote, brief, idempotency_key, output, interpreter.value)
             return
-        service = _workspace_service()
-        result = service.design(
-            brief,
-            _context(idempotency_key=idempotency_key, expected_version=None),
-        )
+        service = _workspace_service(model_interpreter_factory=create_model_interpreter)
+        try:
+            result = service.design(
+                brief,
+                _context(idempotency_key=idempotency_key, expected_version=None),
+                interpreter=interpreter.value,
+            )
+        except OAKError as error:
+            if error.code.startswith(("OAK-MODEL-", "OAK-INTERPRETER-")):
+                _note_created_case(service, brief)
+            raise
         if result.intent is None:
             raise OAKError("OAK-INTENT-NOT-FOUND", "interpreted design has no intent artifact")
         _emit(
@@ -181,8 +214,81 @@ def design(
                 + (" (idempotent retry)" if result.duplicate else "")
             ),
         )
+        if (
+            interpreter is InterpreterChoice.AUTO
+            and result.interpreter == "deterministic"
+            and not result.duplicate
+            and brief.suffix.lower() not in STRUCTURED_BRIEF_SUFFIXES
+        ):
+            typer.echo(
+                "Hint: no model is configured, so this prose brief was interpreted "
+                "deterministically. Configure one with `oak models set-key <family>` and "
+                "`oak models select <family> <model_id>`, then re-run `oak design`.",
+                err=True,
+            )
     except (OAKError, ContractValidationError, OSError, RuntimeError, ValueError) as error:
         _abort(error)
+
+
+def _note_created_case(service: DesignCaseService, brief: Path) -> None:
+    """Tell the operator the case exists when only the model step failed."""
+
+    try:
+        case = service.current().case
+    except OAKError:
+        return
+    if case.get("status") != "draft":
+        return
+    typer.echo(
+        f"Design case {case['id']}@{case['version']} was created; interpretation with the "
+        f"model did not complete. Re-run `oak design {brief} --interpreter deterministic` "
+        "to continue without the model, or fix the model configuration and re-run.",
+        err=True,
+    )
+
+
+def _questions_human(questions: list[dict[str, Any]], intent: dict[str, Any] | None) -> str:
+    """Five open questions per round, each annotated when a model proposed its value."""
+
+    open_ids = [str(q["id"]) for q in questions if q.get("status") in {"open", "bounded"}]
+    deferred = set(open_ids[QUESTIONS_PER_ROUND:])
+    lines: list[str] = []
+    for question in questions:
+        if str(question["id"]) in deferred:
+            continue
+        lines.append(f"{question['id']}: {question['question']} [{question['status']}]")
+        lines.extend(_model_annotation(intent, str(question.get("path", ""))))
+    if deferred:
+        plural = "s" if len(deferred) != 1 else ""
+        lines.append(f"{len(deferred)} more open question{plural} after this round")
+    return "\n".join(lines)
+
+
+def _model_annotation(intent: dict[str, Any] | None, path: str) -> list[str]:
+    if not isinstance(intent, dict) or not path:
+        return []
+    provenance = intent.get("provenance")
+    if not isinstance(provenance, dict):
+        return []
+    records = [
+        (record_path, record)
+        for record_path, record in provenance.items()
+        if isinstance(record, dict)
+        and record.get("source") == "model_proposed"
+        and (record_path == path or str(record_path).startswith(f"{path}/"))
+    ]
+    if not records:
+        return []
+
+    def confidence(item: tuple[str, dict[str, Any]]) -> float:
+        value = item[1].get("confidence", 0)
+        return float(value) if isinstance(value, (int, float)) else 0.0
+
+    lowest_path, lowest = min(records, key=lambda item: (confidence(item), item[0]))
+    return [
+        f"  proposed by model (confidence {confidence((lowest_path, lowest)):.2f}): "
+        f"{lowest.get('rationale', '')}"
+    ]
 
 
 def _remote_design(
@@ -190,6 +296,7 @@ def _remote_design(
     brief: Path,
     idempotency_key: str | None,
     output: OutputFormat,
+    interpreter: str,
 ) -> None:
     from oak.interfaces.cli import remote as remote_mode
 
@@ -207,6 +314,7 @@ def _remote_design(
         str(remote_mode.require_field(created, "case", "id")),
         expected_version=str(remote_mode.require_field(created, "case", "version")),
         idempotency_key=remote_mode.derived_key("interpret", identity),
+        interpreter=interpreter,
     )
     case = remote_mode.require_field(interpreted, "case")
     intent = interpreted.get("intent")
@@ -241,7 +349,8 @@ def questions(
         if remote is not None:
             from oak.interfaces.cli import remote as remote_mode
 
-            case = remote_mode.require_field(remote.get_case(_remote_case_id(design_case)), "case")
+            response = remote.get_case(_remote_case_id(design_case))
+            case = remote_mode.require_field(response, "case")
             questions = remote_mode.require_field(case, "unresolved_questions")
             document = {
                 "case_id": str(remote_mode.require_field(case, "id")),
@@ -249,22 +358,27 @@ def questions(
                 "status": str(remote_mode.require_field(case, "status")),
                 "questions": list(questions) if isinstance(questions, list) else [],
             }
-            human = "\n".join(
-                f"{remote_mode.require_field(question, 'id')}: "
-                f"{remote_mode.require_field(question, 'question')} "
-                f"[{remote_mode.require_field(question, 'status')}]"
+            normalized = [
+                {
+                    "id": remote_mode.require_field(question, "id"),
+                    "question": remote_mode.require_field(question, "question"),
+                    "status": remote_mode.require_field(question, "status"),
+                    "path": question.get("path", "") if isinstance(question, dict) else "",
+                }
                 for question in document["questions"]
+            ]
+            remote_intent = response.get("intent")
+            human = _questions_human(
+                normalized, remote_intent if isinstance(remote_intent, dict) else None
             )
             _emit(document, output, human=human or "No open questions")
             return
-        result = _workspace_service().questions()
+        service = _workspace_service()
+        result = service.questions()
         if design_case is not None and design_case != result.case_id:
             raise OAKError("OAK-CASE-NOT-FOUND", "requested design case is not current")
         document = result.to_document()
-        human = "\n".join(
-            f"{question['id']}: {question['question']} [{question['status']}]"
-            for question in result.questions
-        )
+        human = _questions_human(list(result.questions), service.current().intent)
         _emit(document, output, human=human or "No open questions")
     except (OAKError, ContractValidationError, OSError, RuntimeError, ValueError) as error:
         _abort(error)
@@ -829,11 +943,18 @@ def serve(
     if _REMOTE_SERVER is not None:
         _abort(OAKError("OAK-REMOTE-UNSUPPORTED", "serve is local-only"))
 
+    from oak.bootstrap import mint_model_token
     from oak.interfaces.api.server import run_server
 
     try:
-        run_server(host=host, port=port, allow_non_loopback=allow_non_loopback)
-    except ValueError as error:
+        token = mint_model_token()
+        typer.echo(
+            "Model-configuration token (paste it into Settings → Models, or open the web "
+            f"workspace at http://127.0.0.1:5173/#token={token}): {token}",
+            err=True,
+        )
+        run_server(host=host, port=port, allow_non_loopback=allow_non_loopback, model_token=token)
+    except (ValueError, OAKError) as error:
         typer.echo(f"OAK-SAFE-BIND: {error}", err=True)
         raise typer.Exit(code=2) from error
 
@@ -1334,15 +1455,253 @@ def extensions(
         _abort(error)
 
 
+@app.command()
+def models(
+    action: Annotated[
+        str,
+        typer.Argument(
+            help="families, status, set-key, remove-key, select, clear, discover, or token."
+        ),
+    ],
+    family: Annotated[
+        str | None, typer.Argument(help="Model family (see `oak models families`).")
+    ] = None,
+    model_id: Annotated[
+        str | None, typer.Argument(help="Model identifier within the family (select).")
+    ] = None,
+    store: Annotated[
+        str,
+        typer.Option(
+            "--store",
+            help="Where set-key keeps the key: auto (keychain, else file), keychain, file, "
+            "or env (read OAK_MODEL_KEY_<FAMILY> at call time; stores nothing).",
+        ),
+    ] = "auto",
+    stdin: Annotated[
+        bool,
+        typer.Option("--stdin", help="Read the key from standard input instead of a prompt."),
+    ] = False,
+    acknowledge_data_use: Annotated[
+        bool,
+        typer.Option(
+            "--acknowledge-data-use",
+            help="Select a model whose provider may train on your prompts.",
+        ),
+    ] = False,
+    interpreter: Annotated[
+        str,
+        typer.Option(
+            "--interpreter",
+            help="Default interpreter once this model is selected: model or deterministic.",
+        ),
+    ] = "model",
+    output: Annotated[
+        OutputFormat, typer.Option("--output", help="Output format.")
+    ] = OutputFormat.HUMAN,
+) -> None:
+    """Configure the optional model provider. Keys stay on this machine and are never printed."""
+
+    try:
+        _require_local("models")
+        from oak.application import validate_key_input
+        from oak.bootstrap import create_model_configuration_service
+
+        service = create_model_configuration_service()
+        if action == "families":
+            rows = service.families()
+            _emit(
+                {"families": list(rows)},
+                output,
+                human="\n".join(
+                    f"{row['family']:<12} {row['display_name']} [{row['licence_class']}]"
+                    + (" (default)" if row["default"] else "")
+                    for row in rows
+                ),
+            )
+            return
+        if action == "status":
+            status = service.status()
+            _emit(status, output, human=_models_status_text(status))
+            return
+        if action == "token":
+            token = service.token()
+            if token is None:
+                raise OAKError(
+                    "OAK-MODEL-TOKEN-MISSING",
+                    "no model-configuration token exists; start `oak serve` or `oak-api` first",
+                )
+            _emit({"token": token}, output, human=token)
+            return
+        if action == "clear":
+            service.clear_selection()
+            _emit({"selection": None}, output, human="Model selection cleared.")
+            return
+        if action not in {"set-key", "remove-key", "select", "discover"}:
+            raise OAKError("OAK-MODEL-ACTION", "models action is not recognized")
+        if family is None:
+            raise OAKError("OAK-MODEL-FAMILY-REQUIRED", f"models {action} requires a family")
+        if action == "set-key":
+            chosen = store
+            if store == "env":
+                # Nothing is read or stored: the backend checks the documented variable is set.
+                status_document = service.set_key(family, SecretValue(""), source="env")
+            else:
+                secret = validate_key_input(_read_key(stdin))
+                if chosen == "auto":
+                    try:
+                        status_document = service.set_key(family, secret, source="keychain")
+                        chosen = "keychain"
+                    except OAKError as error:
+                        if not error.code.startswith("OAK-MODEL-KEYCHAIN-"):
+                            raise
+                        typer.echo(
+                            f"{error.code}: {error.message}. Storing the key in the file "
+                            "backend instead.",
+                            err=True,
+                        )
+                        status_document = service.set_key(family, secret, source="file")
+                        chosen = "file"
+                elif chosen in {"keychain", "file"}:
+                    status_document = service.set_key(family, secret, source=chosen)
+                else:
+                    raise OAKError(
+                        "OAK-MODEL-CREDENTIAL-SOURCE",
+                        "--store must be auto, keychain, file, or env",
+                    )
+            document = status_document.to_document()
+            _emit(
+                document,
+                output,
+                human=(
+                    f"Stored the {family} key in the {document['source']} backend "
+                    f"(fingerprint {document['fingerprint']}, {document['length']} characters)."
+                    if document["fingerprint"]
+                    else f"The {family} key will be read from the environment at call time."
+                ),
+            )
+            return
+        if action == "remove-key":
+            removed = service.remove_key(family)
+            _emit(
+                {"family": family, "removed": removed},
+                output,
+                human=f"Removed the {family} key." if removed else f"No {family} key was stored.",
+            )
+            return
+        if action == "select":
+            if model_id is None:
+                raise OAKError("OAK-MODEL-ID", "models select requires a model identifier")
+            selection = service.select(
+                family,
+                model_id,
+                default_interpreter=interpreter,
+                acknowledge_data_use=acknowledge_data_use,
+            )
+            _emit(
+                selection.to_document(),
+                output,
+                human=(
+                    f"Selected {selection.family}/{selection.model_id}; plain-language briefs "
+                    f"now default to the {selection.default_interpreter} interpreter."
+                ),
+            )
+            return
+        if action == "discover":
+            snapshot = service.discover(family)
+            _emit(
+                {"family": family, "discovery": snapshot},
+                output,
+                human=_discovery_text(family, snapshot),
+            )
+            return
+        raise OAKError("OAK-MODEL-ACTION", "models action is not recognized")
+    except (OAKError, ContractValidationError, OSError, RuntimeError, ValueError) as error:
+        _abort(error)
+
+
+def _read_key(from_stdin: bool) -> str:
+    if from_stdin:
+        line = sys.stdin.buffer.readline(1_025)
+        if not line or len(line) > 1_024:
+            raise OAKError("OAK-MODEL-KEY-INPUT", "read no usable key from standard input")
+        return line.decode("utf-8", errors="strict")
+    if not sys.stdin.isatty():
+        raise OAKError(
+            "OAK-MODEL-KEY-INPUT",
+            "no terminal to prompt on; pipe the key with --stdin (it is never accepted as an "
+            "argument)",
+        )
+    value: str = typer.prompt("API key", hide_input=True)
+    return value
+
+
+def _models_status_text(status: dict[str, Any]) -> str:
+    lines: list[str] = []
+    selection = status["selection"]
+    if selection is None:
+        lines.append("Deterministic interpretation (no model selected).")
+    else:
+        lines.append(
+            f"Model: {selection['family']}/{selection['model_id']} — plain-language briefs "
+            f"default to the {selection['default_interpreter']} interpreter"
+            + ("" if status["configured"] else " (its key is missing; interpretation will refuse)")
+        )
+    for family, credential in status["credentials"].items():
+        if credential["configured"]:
+            lines.append(
+                f"  {family}: key stored in {credential['source']} "
+                f"(fingerprint {credential['fingerprint']}, {credential['length']} characters)"
+            )
+    for family, snapshot in sorted(status.get("discovery", {}).items()):
+        age = " (stale)" if snapshot.get("stale") else ""
+        lines.append(
+            f"  {family}: {snapshot['model_count']} model(s) from the {snapshot['source']} "
+            f"catalogue at {snapshot['fetched_at']}{age}; "
+            f"recommended {snapshot['recommended'] or 'none'}"
+        )
+    stores = status["stores"]
+    lines.append(f"Credential store: {stores['credentials']}")
+    lines.append(f"Configuration: {stores['configuration']}")
+    if stores["under_compose"]:
+        lines.append(
+            "Running under Compose: the web workspace uses the api service's own model-state "
+            "volume; configure it from Settings → Models or with "
+            "`docker compose exec -T api oak models set-key <family> --stdin`."
+        )
+    return "\n".join(lines)
+
+
+def _discovery_text(family: str, snapshot: dict[str, Any]) -> str:
+    lines = [
+        f"{family}: {len(snapshot['models'])} model(s) from the {snapshot['source']} catalogue "
+        f"at {snapshot['fetched_at']}; {snapshot['filtered_out_count']} filtered out"
+    ]
+    for model in snapshot["models"]:
+        marker = " (recommended)" if model["id"] == snapshot["recommended"] else ""
+        providers = ", ".join(
+            provider["provider"] + ("*" if provider["supports_structured_output"] else "")
+            for provider in model["providers"]
+        )
+        lines.append(
+            f"  {model['id']}{marker} [{model['licence']}]"
+            + (f" via {providers}" if providers else "")
+        )
+    return "\n".join(lines)
+
+
 def _release_service() -> ReleaseService:
     from oak.bootstrap import create_release_service
 
     return create_release_service(FileWorkspaceRoot.discover(Path.cwd()))
 
 
-def _workspace_service() -> DesignCaseService:
+def _workspace_service(
+    *, model_interpreter_factory: ModelInterpreterFactory | None = None
+) -> DesignCaseService:
     root_path = FileWorkspaceRoot.discover(Path.cwd())
-    return create_design_case_service(root_path)
+    return create_design_case_service(
+        root_path, model_interpreter_factory=model_interpreter_factory
+    )
 
 
 def _planning_service() -> CandidatePlanningService:

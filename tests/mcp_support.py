@@ -17,7 +17,12 @@ from oak.adapters.catalogue import LocalCatalogue
 from oak.adapters.intake import LocalBriefIntake
 from oak.adapters.persistence import FileWorkspaceRepository
 from oak.adapters.targets import LocalTargetProfile
-from oak.application import CommunityControlPlane, OperationService, OperationWorker
+from oak.application import (
+    CommunityControlPlane,
+    ModelInterpreterFactory,
+    OperationService,
+    OperationWorker,
+)
 from oak.compiler import DeterministicBriefInterpreter
 from oak.contracts import SchemaRegistry
 from oak.domain import OAKError
@@ -265,6 +270,8 @@ class MemoryOperationStore:
 
 def build_file_control_plane(
     tmp_path: Path,
+    *,
+    model_interpreter_factory: ModelInterpreterFactory | None = None,
 ) -> tuple[CommunityControlPlane, MemoryOperationStore]:
     registry = SchemaRegistry.from_directory(ROOT / "schemas")
     workspaces = tmp_path / "workspaces"
@@ -287,6 +294,7 @@ def build_file_control_plane(
         LocalCatalogue(ROOT / "catalogue", registry),
         LocalTargetProfile(registry),
         registry,
+        model_interpreter_factory=model_interpreter_factory,
     )
     return control_plane, store
 

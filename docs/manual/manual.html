@@ -88,8 +88,8 @@
     constraints, written in plain language (Markdown or text) or as structured YAML or
     JSON —
     and it walks that brief through a deterministic pipeline: it
-    interprets the brief into typed claims with provenance, asks you at most five ranked
-    clarification questions, generates and compares candidate architectures against hard
+    interprets the brief into typed claims with provenance, asks you its ranked
+    clarification questions five at a time, generates and compares candidate architectures against hard
     constraints, evaluates the selected candidate against an evaluation contract,
     records an immutable decision with your rationale, attaches an assurance plan, and
     finally compiles a canonical <strong>deployment bundle</strong> and a typed,
@@ -103,7 +103,7 @@
       <g font-family="Helvetica, Arial, sans-serif" font-size="15">
         <rect x="8" y="60" width="102" height="52" rx="6" fill="#eef3ef" stroke="#38564a"/><text x="59" y="82" text-anchor="middle">brief</text><text x="59" y="100" text-anchor="middle" font-size="10" fill="#5a6b63">prose or structured</text>
         <rect x="134" y="60" width="112" height="52" rx="6" fill="#fff" stroke="#38564a"/><text x="190" y="82" text-anchor="middle">interpret</text><text x="190" y="100" text-anchor="middle" font-size="11" fill="#5a6b63">claims + origin</text>
-        <rect x="270" y="60" width="112" height="52" rx="6" fill="#fff" stroke="#38564a"/><text x="326" y="82" text-anchor="middle">confirm</text><text x="326" y="100" text-anchor="middle" font-size="11" fill="#5a6b63">≤ 5 questions</text>
+        <rect x="270" y="60" width="112" height="52" rx="6" fill="#fff" stroke="#38564a"/><text x="326" y="82" text-anchor="middle">confirm</text><text x="326" y="100" text-anchor="middle" font-size="11" fill="#5a6b63">5 questions a round</text>
         <rect x="406" y="60" width="118" height="52" rx="6" fill="#fff" stroke="#38564a"/><text x="465" y="82" text-anchor="middle">candidates</text><text x="465" y="100" text-anchor="middle" font-size="11" fill="#5a6b63">4 variants, Pareto</text>
         <rect x="548" y="60" width="112" height="52" rx="6" fill="#fff" stroke="#38564a"/><text x="604" y="82" text-anchor="middle">evaluate</text><text x="604" y="100" text-anchor="middle" font-size="11" fill="#5a6b63">contract run</text>
         <rect x="684" y="60" width="130" height="52" rx="6" fill="#fff" stroke="#38564a"/><text x="749" y="82" text-anchor="middle">select + assure</text><text x="749" y="100" text-anchor="middle" font-size="11" fill="#5a6b63">immutable decision</text>
@@ -116,7 +116,8 @@
         <line x1="660" y1="86" x2="680" y2="86" stroke="#38564a" stroke-width="1.6" marker-end="url(#arr)"/>
         <line x1="814" y1="72" x2="834" y2="62" stroke="#38564a" stroke-width="1.6" marker-end="url(#arr)"/>
         <line x1="814" y1="100" x2="834" y2="112" stroke="#38564a" stroke-width="1.6" marker-end="url(#arr)"/>
-        <text x="500" y="170" text-anchor="middle" font-size="12" fill="#5a6b63">Every stage is deterministic, offline, and writes immutable content-addressed artifacts with an audit trail.</text>
+        <text x="500" y="170" text-anchor="middle" font-size="12" fill="#5a6b63">Every stage writes immutable content-addressed artifacts with an audit trail. All of it is deterministic and offline,</text>
+        <text x="500" y="186" text-anchor="middle" font-size="12" fill="#5a6b63">except interpret when you have configured a model — see chapter 4.</text>
       </g>
     </svg>
     <figcaption>Figure 1 — the pipeline. The compiled plan is inert: executing anything requires the separate signing, approval and runner verification described in chapter 5.</figcaption>
@@ -127,7 +128,8 @@
     and two clean machines agree. <strong>Offline:</strong> after installation, nothing
     in this manual needs a hosted service or a model provider, and the whole CLI journey
     runs with the network disabled; only the Docker chapters (4 and 5) pull their pinned
-    base images once, on first build. <strong>Fail-closed:</strong> anything unknown, malformed, expired, unsigned or
+    base images once, on first build, and the optional model provider in chapter 4 — which
+    nothing requires — is the single feature that ever calls out. <strong>Fail-closed:</strong> anything unknown, malformed, expired, unsigned or
     mismatched is refused with a stable <code>OAK-*</code> error code, never skipped.
   </p>
   <h2>What it is not</h2>
@@ -208,19 +210,29 @@ cd workspace</code></pre>
     <li><strong>A structured brief</strong>, like the reference
       <code>public-manual-qa.yaml</code> used below, fills the typed intent directly
       field by field, which is what lets the rest of the pipeline run end-to-end with
-      no model involved.</li>
+      no model involved. With a model configured, the default (<code>--interpreter
+      auto</code>) still interprets a structured brief deterministically and offers only a
+      plain-language one to the model; <code>--interpreter model</code> overrides that and
+      offers either.</li>
   </ul>
   <div class="note">
-    <strong>Where a language model fits — and why this release has none.</strong> OAK's
-    design gives an LLM exactly one seat: the optional <em>interpretation proposal</em>
-    port, where a model adapter may propose the structured interpretation of a prose
-    brief. A proposal is bounded in size, schema-validated, digest-bound to the exact
-    quarantined source it interprets, and never bypasses your confirmation — the model
-    proposes, you decide, and the provenance records which is which. OAK Community
-    0.7.1 deliberately ships <em>no real model adapter</em> and makes <em>zero model
-    calls</em>: everything in this manual, including brief interpretation, is
-    deterministic and offline. If you want the prose-to-structure step automated, that
-    is the port to implement — the rest of the pipeline neither knows nor cares.
+    <strong>Where a language model fits.</strong> OAK's design gives an LLM exactly one
+    seat: the <em>interpretation proposal</em> port, where a model proposes the structured
+    interpretation of a prose brief. A proposal is bounded in size, schema-validated,
+    digest-bound to the exact quarantined source it interprets, and never bypasses your
+    confirmation — the model proposes, you decide, and the provenance records which is
+    which. Only the paths OAK's own intent schema declares can be written, explicit brief
+    values always win, and every section a model touched produces a question you must
+    answer before the design can reach candidates.
+    <br><br>
+    <strong>No model is configured by default, and this manual uses none.</strong> Every
+    command and screenshot below is deterministic and offline. If you want plain-language
+    briefs interpreted for you, <code>oak models set-key &lt;family&gt;</code> and
+    <code>oak models select &lt;family&gt; &lt;model&gt;</code> configure one from this
+    chapter's command line, and chapter 4 shows the same thing in the browser. Until you do,
+    OAK contacts nothing, and <code>--interpreter deterministic</code> keeps it that way
+    afterwards. Configuring one is a decision with a consequence worth stating plainly:
+    the brief's text is then sent to that provider, under that provider's terms.
   </div>
   <h2>1 · Ingest and interpret the brief</h2>
   <pre><code>uv run oak design ../examples/briefs/public-manual-qa.yaml
@@ -239,8 +251,10 @@ question.action-autonomy: Confirm the maximum action autonomy permitted for this
 question.data-classification: Confirm the highest data classification used by this design. [open]
 question.data-volume: What document volume and update cadence must the design support? [open]</span></code></pre>
   <p>
-    At most five ranked questions, each explaining why it matters to candidate choice.
-    Answers live in a small YAML file; the reference answers ship alongside the brief:
+    Five ranked questions a round, each explaining why it matters to candidate choice. This
+    brief produces exactly five; a brief a model interpreted can produce more, and the rest
+    follow in the next round. Answers live in a small YAML file; the reference answers ship
+    alongside the brief:
   </p>
   <pre><code>uv run oak confirm --answers ../examples/briefs/public-manual-qa-answers.yaml
 <span class="out">Recorded design-case.public-manual-qa@0.1.2 as ready_for_candidates</span></code></pre>
@@ -321,8 +335,9 @@ uv run oak import ../case-export --directory ../restored
   <p>
     The web workspace drives the same journey through a reviewer-friendly interface,
     backed by a persistent PostgreSQL control plane. It needs Docker with Compose (see
-    the prerequisites in chapter 2), and the first build pulls the pinned base images —
-    the one step in this chapter that uses the network. Start the stack:
+    the prerequisites in chapter 2), and the first build pulls the pinned base images.
+    That and the optional <em>Detect models</em> button at the end of this chapter are the
+    only steps here that use the network. Start the stack:
   </p>
   <pre><code>docker compose up -d --build</code></pre>
   <div class="warn">
@@ -338,14 +353,45 @@ uv run oak import ../case-export --directory ../restored
   <figure><img src="assets/01-case-list.png" alt="The design cases list screen"><figcaption>The case list. Paste a brief (or start from the reference brief) and create a case.</figcaption></figure>
   <figure><img src="assets/02-create-case.png" alt="Creating a case from a pasted brief"><figcaption>Creating a case: the brief file name and content, exactly as the CLI would ingest them.</figcaption></figure>
   <figure><img src="assets/03-case-detail.png" alt="Case detail after interpretation"><figcaption>After “Interpret brief” the case reaches <em>needs_confirmation</em>; the next actions are server-driven, so the UI can never invent a transition the control plane would refuse.</figcaption></figure>
-  <figure><img src="assets/04-brief-review.png" alt="Interpreted claims with provenance classes"><figcaption>Claim review: every value is labelled a fact from the brief, an inference, or a domain default, with the unknowns listed beneath.</figcaption></figure>
+  <figure><img src="assets/04-brief-review.png" alt="Interpreted claims with provenance classes"><figcaption>Claim review: every value is labelled a fact from the brief, an inference, or a domain default, with the unknowns listed beneath. A value a model proposed is labelled too, and carries the confidence and reason it gave.</figcaption></figure>
   <figure><img src="assets/05-questions.png" alt="The five ranked confirmation questions"><figcaption>The five ranked questions. Confirm, correct (with a value), reject, or accept-risk — each with a recorded rationale.</figcaption></figure>
   <figure><img src="assets/06-operation.png" alt="A durable operation in progress"><figcaption>Long stages run as durable operations: they survive restarts, can be cancelled cooperatively, and record their outcome.</figcaption></figure>
   <figure><img src="assets/07-candidates.png" alt="Candidate comparison with an infeasible variant"><figcaption>Candidate comparison. Note the infeasible candidate staying visible with its constraint failure — rejection reasons are first-class.</figcaption></figure>
   <figure><img src="assets/08-decision-assurance.png" alt="Decision and assurance plan"><figcaption>The immutable decision: the selected candidate with its recorded rationale and decider, every alternative with the reason it was not selected (<code>candidate-04</code> carries its unconfirmed hardware constraint), and the evaluation evidence beneath. The assurance plan's controls and gate blockers follow further down the same screen.</figcaption></figure>
   <figure><img src="assets/09-bundle.png" alt="Compiled bundle review"><figcaption>Bundle review. Plan, approval and apply are deliberately separated — and apply is marked unavailable here: the web surface holds no runner execution authority.</figcaption></figure>
   <figure><img src="assets/10-timeline.png" alt="Audit timeline"><figcaption>The audit timeline: every recorded event from <em>case_created</em> to <em>bundle_compiled</em>, each with its sequence number, actor, interface origin, case version and timestamp — and downloadable as a canonical JSON export.</figcaption></figure>
-  <p>Stop the stack with <code>docker compose down</code> (add <code>--volumes</code> to also drop the local database and artifact store).</p>
+
+  <h2>Optional: configure a model provider</h2>
+  <p>
+    Everything above is deterministic. If you would rather write briefs in plain language
+    and have them interpreted for you, <strong>Settings → Models</strong> is where you say
+    so. Nothing is configured by default, and nothing here is required by any other part of
+    the manual.
+  </p>
+  <p>
+    The page needs the capability token the API minted when it started — not a password, but
+    a capability that dies with that process. Print it on the machine running the API:
+  </p>
+<pre><code>docker compose exec -T api oak models token</code></pre>
+  <p>
+    Paste it once, then choose a family. Hugging Face is the default and its
+    <em>Detect models</em> button works with no key at all: it reads the public catalogue,
+    keeps only ungated models under a permissive licence with a live structured-output
+    route, and recommends one. Storing a key is a separate step, and the key never comes
+    back — the page shows only which backend holds it and a salted fingerprint.
+  </p>
+  <figure><img src="assets/11-models.png" alt="The model settings screen"><figcaption>Model settings, as they look before anything is configured: the current interpreter, where keys would be stored on this machine, the chosen family with its data-use note and licence class, and the key field. Once a key is stored this panel reports the backend holding it and a salted fingerprint — never the key — and <em>Detect models</em> fills in what that key can reach.</figcaption></figure>
+  <div class="note">
+    <strong>What changes once you select a model.</strong> A plain-language brief is sent to
+    that provider when you interpret it, under that provider's own retention and training
+    terms — OAK records which model ran and the digest of what came back, but it cannot
+    control what the provider then does. The values the model proposes are marked
+    <em>Proposed by model</em>, every section it touched raises a question, and candidates
+    are refused until you have answered them. A structured brief stays deterministic, and
+    <code>oak design --interpreter deterministic</code> always does.
+  </div>
+
+  <p>Stop the stack with <code>docker compose down</code> (add <code>--volumes</code> to also drop the local database, the artifact store, and the model-state volume holding any provider key you stored).</p>
 </section>
 
 <section class="chapter">
@@ -632,7 +678,12 @@ python scripts/check_clean_machine.py
 cd .. &amp;&amp; rm -rf OAK</code></pre>
   <p>
     <code>~/.oak</code> holds private signing keys, the runner's journal, consumed
-    nonces and its revocation-sequence mark — export anything you want to keep first.
+    nonces and its revocation-sequence mark — export anything you want to keep first. It
+    also holds any model-provider key stored in the file backend, under
+    <code>~/.oak/credentials</code>, plus the model selection in <code>~/.oak/models</code>.
+    A key stored in the operating-system keychain is <em>not</em> under
+    <code>~/.oak</code> and survives this: remove those first, one family at a time, with
+    <code>oak models remove-key &lt;family&gt;</code>.
     Chapter 5 placed its trust directory and mailbox in the repository root and its
     runner home inside <code>runner-demo/</code>: <code>trust/</code> holds development
     private keys, which is why step 3 names it explicitly rather than leaving it to the

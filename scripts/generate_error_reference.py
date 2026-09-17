@@ -107,6 +107,11 @@ FAMILIES: tuple[tuple[str, tuple[str, ...]], ...] = (
         ),
     ),
     (
+        "Model provider and interpretation proposals",
+        ("OAK-MODEL-", "OAK-INTERPRETER-"),
+    ),
+    ("Request host and origin guard", ("OAK-HOST-", "OAK-ORIGIN-")),
+    (
         "Concurrency, identity and requests",
         (
             "OAK-IDEMPOTENCY-",
@@ -164,7 +169,7 @@ documented flow uses it.
 | `OAK-WORKSPACE-NOT-FOUND` | There is no workspace at this location | Check the working directory, or run `oak init` |
 | `OAK-ARTIFACT-NOT-FOUND` | The workspace is present; this artifact reference did not match | Check the id, version and digest triple. The workspace is fine |
 | `OAK-WORKSPACE-CORRUPT` | The manifest or an indexed object failed verification | Run `python scripts/verify_deployment.py --workspace <dir>`. See [operations.md](operations.md#restore) |
-| `OAK-REMOTE-UNSUPPORTED` | A local-only command was run with `--server` | Signing, approval, dispatch, keys, extensions and policy are local-only by design |
+| `OAK-REMOTE-UNSUPPORTED` | A local-only command was run with `--server` | Signing, approval, dispatch, keys, model-provider configuration, extensions and policy are local-only by design |
 | `OAK-REMOTE-UNAVAILABLE` | The control plane could not be reached | Check the URL and that `oak-api` is running |
 | `OAK-TENANT-MISMATCH` | A different tenant was requested | Reported as not-found on purpose, so it leaks no existence information |
 | `OAK-ACTOR-DENIED` | A different actor was claimed | The local actor is bound by `OAK_LOCAL_ACTOR` |

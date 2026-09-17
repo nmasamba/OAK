@@ -6,7 +6,7 @@ Sprint 2 compiles a confirmed local `DesignCase` into review artifacts without c
 
 ## Run the reference journey
 
-Starting after `oak init`, `oak design`, and `oak confirm` from the local-design guide:
+Starting after `oak init`, `oak design`, and `oak confirm` from the local-design guide. Whether `oak design` interpreted the brief deterministically or merged a configured model's proposal makes no difference from here: `candidates` refuses (`OAK-CANDIDATES-STATE`) until every `model_proposed` value has been confirmed, corrected or rejected, and the stages below read only the confirmed intent.
 
 ```bash
 oak candidates --output table

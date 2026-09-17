@@ -125,7 +125,11 @@ export interface CommandOptions {
   readonly actor?: string;
   readonly tenantId?: string;
   readonly baseUrl?: string;
+  /** Capability token for model configuration and model-mode interpretation. */
+  readonly modelToken?: string;
 }
+
+export type InterpreterMode = "auto" | "model" | "deterministic";
 
 export class OakApiError extends Error {
   constructor(readonly problem: Problem) {
@@ -145,6 +149,8 @@ function commandHeaders(options: CommandOptions): HeadersInit {
   if (options.actor !== undefined) headers["X-OAK-Actor"] = options.actor;
   if (options.tenantId !== undefined)
     headers["X-OAK-Tenant"] = options.tenantId;
+  if (options.modelToken !== undefined)
+    headers["X-OAK-Model-Token"] = options.modelToken;
   return headers;
 }
 
@@ -221,12 +227,165 @@ export async function listAuditEvents(
   );
 }
 
+export interface ModelCredentialStatus {
+  readonly family: string;
+  readonly configured: boolean;
+  readonly source: "keychain" | "file" | "env" | "none";
+  readonly fingerprint: string | null;
+  readonly length: number | null;
+}
+
+export interface ModelFamily {
+  readonly family: string;
+  readonly display_name: string;
+  readonly licence_class: string;
+  readonly credential_required: boolean;
+  readonly environment_variable: string | null;
+  readonly key_hint: string;
+  readonly data_use_note: string;
+  readonly token_help_url: string | null;
+  readonly default: boolean;
+}
+
+export interface ModelDiscoverySummary {
+  readonly fetched_at: string;
+  readonly source: "live" | "pinned";
+  readonly recommended: string | null;
+  readonly model_count: number;
+  readonly stale: boolean;
+}
+
+export interface ModelStatusResponse {
+  readonly configured: boolean;
+  readonly selection: JsonObject | null;
+  readonly provider_policy: string;
+  readonly families: readonly ModelFamily[];
+  readonly credentials: readonly ModelCredentialStatus[];
+  readonly discovery: Readonly<Record<string, ModelDiscoverySummary>>;
+  readonly stores: JsonObject;
+}
+
+export interface ModelDiscoveryResponse {
+  readonly family: string;
+  readonly discovery: JsonObject;
+}
+
+export interface ModelSelectionInput {
+  readonly family: string;
+  readonly model_id: string;
+  readonly provider_route?: string | null;
+  readonly default_interpreter?: "model" | "deterministic";
+  readonly acknowledge_data_use?: boolean;
+}
+
+/**
+ * The model-configuration routes. Every one of them needs the capability token the
+ * serving process minted, and none of them ever returns a stored key.
+ */
+function modelHeaders(modelToken: string): HeadersInit {
+  return {
+    Accept: "application/json",
+    "Content-Type": "application/json",
+    "X-OAK-Model-Token": modelToken,
+  };
+}
+
+export async function getModels(
+  modelToken: string,
+  baseUrl = "",
+): Promise<ModelStatusResponse> {
+  return requestJson<ModelStatusResponse>(
+    "/v1/models",
+    { headers: modelHeaders(modelToken) },
+    baseUrl,
+  );
+}
+
+/** The key is sent once and never comes back; callers clear their input on success. */
+export async function putModelCredential(
+  family: string,
+  apiKey: string,
+  modelToken: string,
+  baseUrl = "",
+): Promise<void> {
+  const response = await fetch(
+    `${baseUrl}/v1/models/credentials/${encodeURIComponent(family)}`,
+    {
+      method: "PUT",
+      headers: modelHeaders(modelToken),
+      body: JSON.stringify({ api_key: apiKey }),
+    },
+  );
+  if (!response.ok) {
+    throw new OakApiError((await response.json()) as Problem);
+  }
+}
+
+export async function deleteModelCredential(
+  family: string,
+  modelToken: string,
+  baseUrl = "",
+): Promise<void> {
+  const response = await fetch(
+    `${baseUrl}/v1/models/credentials/${encodeURIComponent(family)}`,
+    { method: "DELETE", headers: modelHeaders(modelToken) },
+  );
+  if (!response.ok) {
+    throw new OakApiError((await response.json()) as Problem);
+  }
+}
+
+export async function putModelSelection(
+  selection: ModelSelectionInput,
+  modelToken: string,
+  baseUrl = "",
+): Promise<ModelStatusResponse> {
+  return requestJson<ModelStatusResponse>(
+    "/v1/models/selection",
+    {
+      method: "PUT",
+      headers: modelHeaders(modelToken),
+      body: JSON.stringify(selection),
+    },
+    baseUrl,
+  );
+}
+
+export async function clearModelSelection(
+  modelToken: string,
+  baseUrl = "",
+): Promise<ModelStatusResponse> {
+  return requestJson<ModelStatusResponse>(
+    "/v1/models/selection",
+    { method: "DELETE", headers: modelHeaders(modelToken) },
+    baseUrl,
+  );
+}
+
+/** The only model route that contacts a provider catalogue. */
+export async function discoverModels(
+  family: string,
+  modelToken: string,
+  baseUrl = "",
+): Promise<ModelDiscoveryResponse> {
+  return requestJson<ModelDiscoveryResponse>(
+    `/v1/models/${encodeURIComponent(family)}:discover`,
+    { method: "POST", headers: modelHeaders(modelToken) },
+    baseUrl,
+  );
+}
+
 export async function interpretDesignCase(
   caseId: string,
   options: CommandOptions,
+  interpreter?: InterpreterMode,
 ): Promise<DesignCaseResponse> {
+  const query =
+    interpreter === undefined
+      ? ""
+      : `?interpreter=${encodeURIComponent(interpreter)}`;
   return requestJson<DesignCaseResponse>(
-    `/v1/design-cases/${encodeURIComponent(caseId)}:interpret`,
+    `/v1/design-cases/${encodeURIComponent(caseId)}:interpret${query}`,
     { method: "POST", headers: commandHeaders(options) },
     options.baseUrl,
   );

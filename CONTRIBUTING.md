@@ -53,9 +53,10 @@ refusal easier to act on is worth more here than a new capability.
 | `tests/contract` | Agreements that must not drift: schemas against runtime models, the toolchain, the MCP registry, generated documents | none |
 | `tests/integration` | Real adapters wired together — file workspaces, live loopback servers, real MCP frames | `integration` |
 | `tests/e2e` | The installed entrypoints, as a subprocess | `e2e` |
+| `tests/live` | Real requests to whatever model provider this machine is configured for. **Spends real credit.** Skipped unless `OAK_LIVE_MODEL_TESTS=1`, and never collected by `make check` or CI | `live` |
 
-Only `integration` and `e2e` are registered, and `--strict-markers` is on, so an invented
-marker fails collection. Shared harnesses are `tests/runner_support.py`
+Only `integration`, `e2e` and `live` are registered, and `--strict-markers` is on, so an
+invented marker fails collection. Shared harnesses are `tests/runner_support.py`
 (`build_compiled_case` drives the whole reference journey) and `tests/mcp_support.py`
 (file-backed control plane, in-memory operation store, `MCPClient`).
 
@@ -125,6 +126,11 @@ people trip over first:
 - `oak.domain` may not import `fastapi`, `pydantic`, `sqlalchemy`, `typer` or `uvicorn`.
 - `oak.compiler`, `oak.ports`, `oak.application` and `oak.runner` may not import
   `fastapi`, `sqlalchemy`, `typer` or `uvicorn`.
+- None of those five layers may import an HTTP client, a model-provider SDK or the
+  operating-system credential store: `anthropic`, `google`, `httpcore`, `httpx`,
+  `huggingface_hub`, `keyring`, `openai` or `urllib3`. Reaching a provider or a keychain is
+  an adapter's job, and `src/oak/adapters/models/transport.py` is the only module in the
+  package that opens a connection to one.
 
 The point is that a framework choice stays replaceable: anything that would make the
 domain depend on how it is served does not belong in the domain.

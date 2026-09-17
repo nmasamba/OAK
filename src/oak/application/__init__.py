@@ -15,9 +15,15 @@ from oak.application.design_case import (
     CreateCaseResult,
     DesignCaseService,
     DesignResult,
+    ModelInterpreterFactory,
     QuestionResult,
 )
 from oak.application.extensions import ExtensionService, VerificationReport
+from oak.application.model_configuration import (
+    ModelConfigurationService,
+    ModelSelection,
+    validate_key_input,
+)
 from oak.application.operations import (
     CommunityWorker,
     OperationService,
@@ -43,6 +49,9 @@ __all__ = [
     "EvaluationResult",
     "ExtensionService",
     "IngestResult",
+    "ModelConfigurationService",
+    "ModelInterpreterFactory",
+    "ModelSelection",
     "OperationService",
     "OperationSubmission",
     "OperationWorker",
@@ -56,4 +65,5 @@ __all__ = [
     "SystemInformationService",
     "VerificationReport",
     "WorkerCycleResult",
+    "validate_key_input",
 ]

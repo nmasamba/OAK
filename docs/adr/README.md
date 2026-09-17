@@ -12,6 +12,7 @@ Decisions about how *this repository* is built. Owned here.
 |---|---|
 | [0001](0001-toolchain-and-runtime-contracts.md) | Pin supported toolchains and handwrite runtime contract wrappers |
 | [0002](0002-release-versioning.md) | Release the first OAK Community version as `0.7.0` |
+| [0003](0003-optional-model-provider-credentials.md) | How this build stores a model-provider credential and calls a provider |
 
 ## Architecture decisions (`architecture/`)
 
@@ -23,11 +24,13 @@ justification a reader cannot resolve is worse than no citation.
 | ADR | Decision | Why it is cited here |
 |---|---|---|
 | [0005](architecture/0005-deployment-substrates.md) | Deployment substrates | The second renderer backend in [extension-sdk.md](../extension-sdk.md) |
+| [0009](architecture/0009-model-provider-abstraction.md) | Model providers behind capability contracts | Why the optional model provider is a port with deterministic validation around every response, and why no provider SDK ships ([dependencies.md](../dependencies.md), Sprint 9 review) |
 | [0011](architecture/0011-open-component-policy.md) | Open component policy | Every dependency review in [dependencies.md](../dependencies.md) |
 | [0012](architecture/0012-control-plane-distributions.md) | One control-plane contract across distributions | Why Community has no Kubernetes profile and why its local tenant is not tenant isolation |
 | [0013](architecture/0013-community-implementation-stack.md) | Python core and TypeScript web workspace | The choice of stack behind the dependency record |
 | [0014](architecture/0014-design-case-interface-parity.md) | Design-case interface parity | Why every interface drives the same aggregate |
 | [0015](architecture/0015-typed-runner-operations.md) | Typed runner operations | The runner authority model behind [signed-runner.md](../signed-runner.md) |
+| [0016](architecture/0016-user-supplied-model-provider-credentials.md) | User-supplied model-provider credentials | Why a user's own provider key is machine-local configuration rather than control-plane state, and how it differs from a target secret |
 
 **Do not edit the mirrored copies.** Change the governance repository and re-mirror. They
 carry a header saying so. A contract test

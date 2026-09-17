@@ -36,10 +36,18 @@ ASSURANCE_PATTERNS = (
 )
 ASSURANCE_ESCAPE = "<!-- assurance-claim-reviewed:"
 
+# Provider API-key shapes are scanned too. The quantifiers are deliberately long enough
+# that the confidentiality-test marker `sk-live-DO-NOT-ECHO-THIS-VALUE` and the test
+# fixture convention `oak-test-key-<family>-<hex>` never match, while a real key does.
 SECRET_PATTERNS = (
     re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"),
     re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
     re.compile(r"\bghp_[A-Za-z0-9]{36}\b"),
+    re.compile(r"\bsk-(?:proj-|svcacct-|admin-)?[A-Za-z0-9]{32,}\b"),
+    re.compile(r"\bsk-ant-[A-Za-z0-9_-]{80,}\b"),
+    re.compile(r"\bAIza[0-9A-Za-z_-]{35}\b"),
+    re.compile(r"\bhf_[A-Za-z0-9]{30,}\b"),
+    re.compile(r"\bxai-[A-Za-z0-9]{60,}\b"),
 )
 TEXT_SUFFIXES = {
     ".md",

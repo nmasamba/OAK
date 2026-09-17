@@ -106,7 +106,7 @@
         "id": {"$ref": "common.schema.json#/$defs/identifier"},
         "path": {"type": "string", "pattern": "^/"},
         "statement": {"type": "string", "minLength": 1},
-        "source": {"enum": ["explicit", "inferred_from_brief", "domain_default", "policy", "measured", "unknown", "user_correction"]},
+        "source": {"enum": ["explicit", "inferred_from_brief", "domain_default", "policy", "measured", "unknown", "user_correction", "model_proposed"]},
         "confidence": {"type": "number", "minimum": 0, "maximum": 1},
         "materiality": {"enum": ["low", "medium", "high", "critical"]},
         "status": {"enum": ["proposed", "confirmed", "corrected", "rejected", "accepted_risk"]}

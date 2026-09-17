@@ -1,0 +1,13 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": null,
+        "refusal": "I cannot help with that.",
+        "role": "assistant"
+      }
+    }
+  ]
+}

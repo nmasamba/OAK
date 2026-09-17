@@ -6,9 +6,12 @@ from __future__ import annotations
 import base64
 import hashlib
 import os
+import secrets
+import urllib.parse
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from enum import StrEnum
 from typing import Annotated, Any
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response
@@ -17,8 +20,19 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from oak.application import CommandContext, CommunityControlPlane, SystemInformationService
-from oak.bootstrap import create_persistent_control_plane, create_system_information_service
+from oak.application import (
+    CommandContext,
+    CommunityControlPlane,
+    ModelConfigurationService,
+    SystemInformationService,
+    validate_key_input,
+)
+from oak.bootstrap import (
+    create_model_configuration_service,
+    create_persistent_control_plane,
+    create_system_information_service,
+    read_model_token,
+)
 from oak.domain import OAKError
 from oak.interfaces.api.models import (
     ArtifactListResponse,
@@ -35,6 +49,13 @@ from oak.interfaces.api.models import (
     EvaluateCandidateRequest,
     FieldProblem,
     HealthResponse,
+    ModelCredentialRequest,
+    ModelCredentialStatus,
+    ModelDiscoveryResponse,
+    ModelDiscoverySummary,
+    ModelFamily,
+    ModelSelectionRequest,
+    ModelStatusResponse,
     OperationResponse,
     OutboxLagResponse,
     Problem,
@@ -51,6 +72,19 @@ ExpectedVersionHeader = Annotated[str, Header(alias="If-Match", min_length=3, ma
 CorrelationHeader = Annotated[
     str | None, Header(alias="X-Correlation-ID", min_length=8, max_length=160)
 ]
+MODEL_TOKEN_HEADER = "X-OAK-Model-Token"
+ModelTokenHeader = Annotated[
+    str | None, Header(alias="X-OAK-Model-Token", min_length=16, max_length=256)
+]
+
+# The loopback names the API answers to by construction. `OAK_ALLOWED_HOSTS` may add exact
+# hostnames for an acknowledged non-loopback bind; nothing ever disables the check, and
+# `*.localhost` names are deliberately not loopback (a page at `attacker.localhost` is
+# same-site with a page at `localhost`).
+LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
+# Routes that store, remove, discover, or select model-provider credentials: loopback `Host`
+# only, whatever the allowlist says, and a browser must be same-origin, not merely same-site.
+HOST_CHECK_EXEMPT_PATHS = frozenset({"/healthz", "/readyz"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,6 +109,31 @@ def _local_authority(
 
 
 AuthorityDependency = Annotated[_Authority, Depends(_local_authority)]
+
+
+def _require_model_token(
+    request: Request,
+    presented: Annotated[
+        str | None, Header(alias=MODEL_TOKEN_HEADER, min_length=16, max_length=256)
+    ] = None,
+) -> None:
+    """Refuse before the body is read.
+
+    FastAPI resolves dependencies before it parses or validates a request body, so a caller
+    without the capability token never has its body examined and is never told what was
+    wrong with a request it was not entitled to make.
+
+    The header is declared optional here on purpose: a missing token is an authorisation
+    failure, and answering it with the stable `OAK-MODEL-TOKEN-REQUIRED` is more useful than
+    a generic "field required". The published document marks it required, which is the
+    truthful description of the contract; `create_app` corrects it there.
+    """
+
+    provider: Callable[[], str | None] = request.app.state.model_token_provider
+    verify_model_token(presented, provider())
+
+
+ModelTokenDependency = Annotated[None, Depends(_require_model_token)]
 
 
 def _problem_response(problem: Problem) -> JSONResponse:
@@ -127,6 +186,168 @@ class _BoundedRequestMiddleware:
             return {"type": "http.request", "body": bytes(body), "more_body": False}
 
         await self._app(scope, replay, send)
+
+
+def _hostname(authority: str) -> str | None:
+    """Return the lower-cased hostname of a `Host` or `Origin` authority, port removed."""
+
+    value = authority.strip().lower()
+    if value.startswith("["):
+        end = value.find("]")
+        return value[1:end] or None if end != -1 else None
+    if value.count(":") > 1:
+        return None
+    if ":" in value:
+        value = value.rsplit(":", 1)[0]
+    return value or None
+
+
+def _origin_hostname(origin: str) -> str | None:
+    parsed = urllib.parse.urlsplit(origin.strip())
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        return None
+    return _hostname(parsed.netloc)
+
+
+def is_credential_route(path: str) -> bool:
+    """Whether a path is part of the model-configuration surface.
+
+    Every `/v1/models` path qualifies, reads included: the status resource names the store
+    locations and the salted fingerprint of each stored key, which is not something a page
+    on another origin should be able to read even though it cannot change anything.
+    """
+
+    return path == "/v1/models" or path.startswith("/v1/models/")
+
+
+def parse_allowed_hosts(value: str) -> frozenset[str]:
+    """Split `OAK_ALLOWED_HOSTS`: exact lower-cased hostnames, no wildcards, no ports."""
+
+    hosts: set[str] = set()
+    for item in value.split(","):
+        candidate = item.strip().lower()
+        if not candidate or "*" in candidate:
+            continue
+        hostname = _hostname(candidate)
+        if hostname is not None:
+            hosts.add(hostname)
+    return frozenset(hosts)
+
+
+class _LoopbackGuardMiddleware:
+    """Refuse requests a same-machine browser page or a rebound name could forge.
+
+    The API has no authentication; the local actor is a header claim. What keeps a page
+    served from any other origin from driving it is that browsers always send `Origin` and
+    `Sec-Fetch-Site` on cross-site requests and cannot forge `Host`. So: the `Host` must be a
+    loopback name (or an exact `OAK_ALLOWED_HOSTS` entry), an `Origin`, when present, must be
+    loopback too and never `null`, and fetch metadata must say `same-origin` or `none`. The
+    checks run before routing, add no parameter to the OpenAPI contract, and never echo the
+    offending header value.
+    """
+
+    def __init__(self, app: ASGIApp, *, allowed_hosts: frozenset[str]) -> None:
+        self._app = app
+        self._allowed_hosts = allowed_hosts
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self._app(scope, receive, send)
+            return
+        headers = {
+            name.decode("latin-1").lower(): value.decode("latin-1")
+            for name, value in scope.get("headers", [])
+        }
+        problem = self._refusal(scope.get("path", ""), headers)
+        if problem is not None:
+            await _problem_response(problem)(scope, receive, send)
+            return
+        await self._app(scope, receive, send)
+
+    def _refusal(self, path: str, headers: dict[str, str]) -> Problem | None:
+        credential_route = is_credential_route(path)
+        permitted = LOOPBACK_HOSTS | self._allowed_hosts
+        if path not in HOST_CHECK_EXEMPT_PATHS:
+            host = headers.get("host")
+            hostname = _hostname(host) if host else None
+            if hostname is None or hostname not in permitted:
+                return self._host_problem()
+            if credential_route and hostname not in LOOPBACK_HOSTS:
+                return self._host_problem()
+        origin = headers.get("origin")
+        if origin is not None:
+            origin_hostname = _origin_hostname(origin)
+            if origin_hostname is None or origin_hostname not in permitted:
+                return self._origin_problem()
+        site = headers.get("sec-fetch-site")
+        if site is not None and site.strip().lower() not in {"same-origin", "none"}:
+            return self._origin_problem()
+        same_origin = (site or "").strip().lower() == "same-origin"
+        if credential_route and origin is not None and not same_origin:
+            return self._origin_problem()
+        return None
+
+    @staticmethod
+    def _host_problem() -> Problem:
+        return Problem(
+            title="Host not permitted",
+            status=400,
+            code="OAK-HOST-DENIED",
+            detail=(
+                "The request named a host this local API does not answer to. Use a loopback "
+                "name, or list the host in OAK_ALLOWED_HOSTS."
+            ),
+        )
+
+    @staticmethod
+    def _origin_problem() -> Problem:
+        return Problem(
+            title="Cross-origin request refused",
+            status=403,
+            code="OAK-ORIGIN-DENIED",
+            detail=(
+                "Requests from another origin are refused; this local API serves its own "
+                "loopback workspace only."
+            ),
+        )
+
+
+class InterpreterMode(StrEnum):
+    AUTO = "auto"
+    MODEL = "model"
+    DETERMINISTIC = "deterministic"
+
+
+InterpreterQuery = Annotated[
+    InterpreterMode | None,
+    Query(
+        description=(
+            "deterministic never calls a provider. model requires a configured model and "
+            "the X-OAK-Model-Token header, and is refused without it. auto (the default) "
+            "uses the configured model for a plain-language brief only when the request "
+            "also carries that header; without it, and for a structured brief, auto "
+            "interprets deterministically — so a client that predates the model path keeps "
+            "the behaviour it had."
+        ),
+    ),
+]
+
+
+def verify_model_token(presented: str | None, expected: str | None) -> None:
+    """Refuse unless the presented capability token equals the one this process minted."""
+
+    if not expected or presented is None:
+        raise OAKError(
+            "OAK-MODEL-TOKEN-REQUIRED",
+            "this operation requires the X-OAK-Model-Token header; run `oak models token` "
+            "to read the token this server minted",
+        )
+    if not secrets.compare_digest(presented.encode("utf-8"), expected.encode("utf-8")):
+        raise OAKError(
+            "OAK-MODEL-TOKEN-REQUIRED",
+            "the X-OAK-Model-Token header does not match the token this server minted; run "
+            "`oak models token` to read the current one",
+        )
 
 
 def _field_problems(errors: Sequence[dict[str, Any]]) -> tuple[FieldProblem, ...]:
@@ -211,8 +432,12 @@ def _operation_response(record: Any, *, duplicate: bool = False) -> OperationRes
 
 
 def _error_status(error: OAKError) -> int:
-    if error.code == "OAK-ACTOR-DENIED":
+    if error.code in {"OAK-ACTOR-DENIED", "OAK-ORIGIN-DENIED", "OAK-MODEL-TOKEN-REQUIRED"}:
         return 403
+    if error.code == "OAK-HOST-DENIED":
+        return 400
+    if error.code == "OAK-MODEL-RATE-LIMITED":
+        return 429
     if error.code in {
         "OAK-CASE-NOT-FOUND",
         "OAK-CANDIDATE-NOT-FOUND",
@@ -239,10 +464,39 @@ def create_app(
     control_plane: CommunityControlPlane | None = None,
     *,
     clock: Callable[[], str] = _utc_now,
+    allowed_hosts: frozenset[str] | None = None,
+    model_token: str | Callable[[], str | None] | None = None,
+    model_configuration: Callable[[], ModelConfigurationService] | None = None,
 ) -> FastAPI:
+    """Build the API.
+
+    ``allowed_hosts`` defaults to the exact names in ``OAK_ALLOWED_HOSTS`` (loopback names are
+    always accepted). ``model_token`` is the capability token guarding model configuration:
+    a fixed string for tests, or a callable read per request; by default the token file the
+    serving process minted is read, so a server restart rotates it without a reload.
+    ``model_configuration`` builds the service the `/v1/models` routes act on; it is called
+    per request so a key stored from the CLI is visible to the API without a restart.
+    """
+
     application_service = service or create_system_information_service()
     persistent_service = control_plane
     information = application_service.get_information()
+    permitted_hosts = (
+        allowed_hosts
+        if allowed_hosts is not None
+        else parse_allowed_hosts(os.getenv("OAK_ALLOWED_HOSTS", ""))
+    )
+    if model_token is None:
+        token_provider: Callable[[], str | None] = read_model_token
+    elif isinstance(model_token, str):
+        fixed_token = model_token
+
+        def token_provider() -> str | None:
+            return fixed_token
+
+    else:
+        token_provider = model_token
+    model_configuration_factory = model_configuration or create_model_configuration_service
     api = FastAPI(
         title="OAK Community API",
         summary="Local persistent Community control plane",
@@ -255,6 +509,35 @@ def create_app(
         openapi_version="3.1.0",
     )
     api.add_middleware(_BoundedRequestMiddleware, maximum_bytes=MAXIMUM_REQUEST_BYTES)
+    # Added last so it runs first: nothing is buffered or routed for a refused host/origin.
+    api.add_middleware(_LoopbackGuardMiddleware, allowed_hosts=permitted_hosts)
+
+    api.state.model_token_provider = token_provider
+
+    generated_openapi = api.openapi
+
+    def openapi() -> dict[str, Any]:
+        """The generated document, corrected on one point.
+
+        FastAPI derives `required` from the dependency's signature, where the token is
+        optional so that a missing one gets a stable refusal rather than a validation error.
+        On the model routes the server refuses every request without it, so leaving the
+        document saying "optional" would describe a contract the server does not honour and
+        would give generated clients an optional argument that never works.
+        """
+
+        document = generated_openapi()
+        for route, operations in document.get("paths", {}).items():
+            if not is_credential_route(route):
+                continue
+            for operation in operations.values():
+                for parameter in operation.get("parameters", []):
+                    if parameter.get("name") == MODEL_TOKEN_HEADER:
+                        parameter["required"] = True
+        api.openapi_schema = document
+        return document
+
+    api.openapi = openapi  # type: ignore[method-assign]
 
     def plane() -> CommunityControlPlane:
         nonlocal persistent_service
@@ -444,6 +727,8 @@ def create_app(
         expected: ExpectedVersionHeader,
         auth: AuthorityDependency,
         correlation_id: CorrelationHeader = None,
+        interpreter: InterpreterQuery = None,
+        model_token: ModelTokenHeader = None,
     ) -> DesignCaseResponse:
         context = command_context(
             request,
@@ -452,7 +737,22 @@ def create_app(
             expected_version=_expected_version(expected),
             correlation_id=correlation_id,
         )
-        result = plane().interpret(case_id, context)
+        # Resolve first so the capability token is demanded exactly when the operator's
+        # stored credential would be spent, and nothing is committed without it.
+        requested = (interpreter or InterpreterMode.AUTO).value
+        mode = plane().resolve_interpreter(
+            case_id, tenant_id=context.tenant_id, interpreter=requested
+        )
+        if mode == "model":
+            if requested == InterpreterMode.AUTO.value and model_token is None:
+                # `auto` is what a client written before the model path existed sends. It
+                # must keep meaning what it meant then rather than becoming a 403 the moment
+                # somebody configures a model, so with no token it stays deterministic.
+                # Asking for the model by name still requires the token.
+                mode = InterpreterMode.DETERMINISTIC.value
+            else:
+                verify_model_token(model_token, token_provider())
+        result = plane().interpret(case_id, context, interpreter=mode)
         response.headers["ETag"] = _etag(str(result.case["version"]))
         return DesignCaseResponse(
             case=result.case,
@@ -653,6 +953,148 @@ def create_app(
             context,
         )
         return _operation_response(result.operation, duplicate=result.duplicate)
+
+    def configuration() -> ModelConfigurationService:
+        return model_configuration_factory()
+
+    def _no_store(response: Response) -> None:
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["Pragma"] = "no-cache"
+
+    def _status_document(service: ModelConfigurationService) -> ModelStatusResponse:
+        status = service.status()
+        discovery = {
+            family: ModelDiscoverySummary(
+                fetched_at=str(summary["fetched_at"]),
+                source=str(summary["source"]),  # type: ignore[arg-type]
+                recommended=summary["recommended"],
+                model_count=int(summary["model_count"]),
+                stale=bool(summary["stale"]),
+            )
+            for family, summary in status["discovery"].items()
+        }
+        return ModelStatusResponse(
+            configured=bool(status["configured"]),
+            selection=status["selection"],
+            provider_policy=str(status["provider_policy"]),
+            families=tuple(ModelFamily(**family) for family in service.families()),
+            credentials=tuple(
+                # The domain says `None` for "no backend holds this"; the wire contract says
+                # `"none"`, the spelling `model-configuration.schema.json` already uses, which
+                # keeps the response free of a nullable enum.
+                ModelCredentialStatus(**{**credential, "source": credential["source"] or "none"})
+                for credential in status["credentials"].values()
+            ),
+            discovery=discovery,
+            stores=status["stores"],
+        )
+
+    @api.get("/v1/models", response_model=ModelStatusResponse, tags=["models"])
+    def get_models(
+        response: Response,
+        auth: AuthorityDependency,
+        _token: ModelTokenDependency = None,
+    ) -> ModelStatusResponse:
+        del auth, _token
+        _no_store(response)
+        return _status_document(configuration())
+
+    @api.put(
+        "/v1/models/credentials/{family}",
+        status_code=204,
+        response_class=Response,
+        tags=["models"],
+    )
+    def put_model_credential(
+        family: str,
+        body: ModelCredentialRequest,
+        response: Response,
+        auth: AuthorityDependency,
+        _token: ModelTokenDependency = None,
+    ) -> Response:
+        del auth, _token
+        service = configuration()
+        secret = validate_key_input(body.api_key)
+        try:
+            service.set_key(family, secret, source="keychain")
+        except OAKError as error:
+            if not error.code.startswith("OAK-MODEL-KEYCHAIN-"):
+                raise
+            # Never a silent downgrade: the store the key landed in is in the status the
+            # caller reads back, and the workspace shows it.
+            service.set_key(family, secret, source="file")
+        headers = {"Cache-Control": "no-store"}
+        del secret
+        return Response(status_code=204, headers=headers)
+
+    @api.delete(
+        "/v1/models/credentials/{family}",
+        status_code=204,
+        response_class=Response,
+        tags=["models"],
+    )
+    def delete_model_credential(
+        family: str,
+        auth: AuthorityDependency,
+        _token: ModelTokenDependency = None,
+    ) -> Response:
+        del auth, _token
+        configuration().remove_key(family)
+        return Response(status_code=204, headers={"Cache-Control": "no-store"})
+
+    @api.put("/v1/models/selection", response_model=ModelStatusResponse, tags=["models"])
+    def put_model_selection(
+        body: ModelSelectionRequest,
+        response: Response,
+        auth: AuthorityDependency,
+        _token: ModelTokenDependency = None,
+    ) -> ModelStatusResponse:
+        del auth, _token
+        service = configuration()
+        service.select(
+            body.family,
+            body.model_id,
+            provider_route=body.provider_route,
+            default_interpreter=body.default_interpreter,
+            acknowledge_data_use=body.acknowledge_data_use,
+        )
+        _no_store(response)
+        return _status_document(service)
+
+    @api.delete("/v1/models/selection", response_model=ModelStatusResponse, tags=["models"])
+    def clear_model_selection(
+        response: Response,
+        auth: AuthorityDependency,
+        _token: ModelTokenDependency = None,
+    ) -> ModelStatusResponse:
+        del auth, _token
+        service = configuration()
+        service.clear_selection()
+        _no_store(response)
+        return _status_document(service)
+
+    @api.post(
+        "/v1/models/{family}:discover",
+        response_model=ModelDiscoveryResponse,
+        tags=["models"],
+    )
+    def discover_models_for_family(
+        family: str,
+        response: Response,
+        auth: AuthorityDependency,
+        _token: ModelTokenDependency = None,
+    ) -> ModelDiscoveryResponse:
+        """Refresh one family's catalogue.
+
+        This and `:interpret` in model mode are the only operations in this API that make an
+        outbound request; every other route is answered from local state. Discovery is
+        explicit: nothing refreshes a catalogue on its own.
+        """
+
+        del auth, _token
+        snapshot = configuration().discover(family)
+        _no_store(response)
+        return ModelDiscoveryResponse(family=family, discovery=snapshot)
 
     @api.get(
         "/v1/operations/{operation_id}",

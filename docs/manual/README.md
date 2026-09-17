@@ -8,6 +8,9 @@ browser workspace, the signed runner journey including revocation, artifact
 verification, troubleshooting, and complete uninstall.
 
 The authoritative source is [`manual.html`](manual.html); the PDF is a rendering of it.
+The optional model-provider chapter's screenshot (`assets/11-models.png`) is captured the
+same way as the rest, with the stack's own capability token and no key stored, so the
+capture changes nothing about the running configuration.
 The screenshots in `assets/` are captured from a **real journey** against the Compose
 stack, the expected-output excerpts are what real runs of the documented journeys
 printed, and the repository's end-to-end suites exercise the same invocations

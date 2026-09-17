@@ -12,8 +12,11 @@ def test_real_source_respects_module_boundaries() -> None:
     assert check(ROOT / "src") == []
 
 
-def test_deliberate_application_to_adapter_import_is_rejected() -> None:
+def test_deliberate_violations_are_rejected() -> None:
     violations = check(ROOT / "tests" / "fixtures" / "import_violation")
+    messages = sorted(violation.message for violation in violations)
 
-    assert len(violations) == 1
-    assert "oak.application must not import oak.adapters" in violations[0].message
+    assert messages == [
+        "oak.application must not import oak.adapters",
+        "oak.compiler must not import httpx",
+    ]

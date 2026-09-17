@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useEffect, useState, type FormEvent } from "react";
 
-import { MaterialityBadge } from "../claims";
+import { ClaimBadge, MaterialityBadge, claimClassForSource } from "../claims";
 import {
   confirmDesignCase,
   getDesignCase,
@@ -12,6 +12,7 @@ import { ProblemAlert, toActionFailure, type ActionFailure } from "../problems";
 import { Link, useRouter } from "../router";
 import {
   asArray,
+  asNumber,
   asObject,
   asString,
   etagFor,
@@ -46,6 +47,59 @@ function parseValue(raw: string): unknown {
   } catch {
     return raw;
   }
+}
+
+const QUESTIONS_PER_ROUND = 5;
+
+/**
+ * Where a question's current value came from.
+ *
+ * A question at `/spec/<section>` covers every leaf under it, so the lowest-confidence
+ * model-proposed record under the path is the one worth showing: it is the claim the
+ * reviewer is most likely to want to correct.
+ */
+function ClaimOrigin({
+  intent,
+  path,
+}: {
+  readonly intent: JsonObject | null;
+  readonly path: string | null;
+}) {
+  if (intent === null || path === null) {
+    return null;
+  }
+  const provenance = asObject(intent["provenance"]);
+  if (provenance === null) {
+    return null;
+  }
+  let lowest: { confidence: number; rationale: string; source: string } | null =
+    null;
+  for (const [recordPath, value] of Object.entries(provenance)) {
+    if (recordPath !== path && !recordPath.startsWith(`${path}/`)) {
+      continue;
+    }
+    const record = asObject(value);
+    if (record === null) {
+      continue;
+    }
+    const source = asString(record["source"]) ?? "unknown";
+    const confidence = asNumber(record["confidence"]) ?? 0;
+    const rationale = asString(record["rationale"]) ?? "";
+    if (lowest === null || confidence < lowest.confidence) {
+      lowest = { confidence, rationale, source };
+    }
+  }
+  if (lowest === null) {
+    return null;
+  }
+  return (
+    <p className="hint">
+      <ClaimBadge claimClass={claimClassForSource(lowest.source)} />{" "}
+      {lowest.source === "model_proposed"
+        ? `Proposed by the model with confidence ${lowest.confidence.toFixed(2)}. ${lowest.rationale}`
+        : lowest.rationale}
+    </p>
+  );
 }
 
 export function ConfirmPage({ caseId }: { readonly caseId: string }) {
@@ -118,6 +172,11 @@ export function ConfirmPage({ caseId }: { readonly caseId: string }) {
     );
   }
 
+  // The case persists every ranked question; a round asks five, which is also the most
+  // the confirmation schema accepts in one submission.
+  const presented = openQuestions.slice(0, QUESTIONS_PER_ROUND);
+  const deferred = openQuestions.length - presented.length;
+
   const draftFor = (questionId: string, path: string | null): AnswerDraft =>
     drafts[questionId] ?? {
       decision: "",
@@ -144,7 +203,7 @@ export function ConfirmPage({ caseId }: { readonly caseId: string }) {
     setValidation(null);
     setFailure(null);
     const answers: JsonObject[] = [];
-    for (const question of openQuestions) {
+    for (const question of presented) {
       const id = asString(question["id"]) ?? "";
       const path = asString(question["path"]);
       const draft = draftFor(id, path);
@@ -203,10 +262,13 @@ export function ConfirmPage({ caseId }: { readonly caseId: string }) {
           Decisions are recorded with your local actor identity and a value
           digest. You can answer a subset now; unanswered questions stay open
           and the case remains awaiting confirmation.
+          {deferred > 0
+            ? ` Five are shown per round; ${deferred} more follow this one.`
+            : ""}
         </p>
         <form onSubmit={onSubmit}>
           <ol className="question-list">
-            {openQuestions.map((question) => {
+            {presented.map((question) => {
               const id = asString(question["id"]) ?? "";
               const path = asString(question["path"]);
               const draft = draftFor(id, path);
@@ -224,6 +286,7 @@ export function ConfirmPage({ caseId }: { readonly caseId: string }) {
                       {asString(question["blocking_stage"])}
                     </p>
                     <p className="hint">{asString(question["reason"])}</p>
+                    <ClaimOrigin intent={intent} path={path} />
                     <div
                       role="radiogroup"
                       aria-label={`Decision for ${id}`}

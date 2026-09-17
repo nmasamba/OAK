@@ -33,6 +33,11 @@ dependencies = [
   "uvicorn>=0.34,<1",
 ]
 
+[project.optional-dependencies]
+# The OS keychain backend for provider keys. Optional: the owner-only file store is always
+# available, and containers have no keychain. Reviewed in docs/dependencies.md (Sprint 9).
+keychain = ["keyring>=25.7,<26"]
+
 [project.scripts]
 oak = "oak.interfaces.cli.main:main"
 oak-api = "oak.interfaces.api.server:main"
@@ -96,6 +101,7 @@ pythonpath = ["."]
 markers = [
   "integration: local integration behavior",
   "e2e: installed-entrypoint behavior",
+  "live: sends a real request to a configured model provider; never part of `make check`",
 ]
 
 [tool.ruff]
@@ -116,3 +122,8 @@ python_version = "3.13"
 strict = true
 files = ["src", "tools", "scripts"]
 exclude = ["tests/fixtures/import_violation"]
+
+[[tool.mypy.overrides]]
+# `keyring` is an optional extra imported lazily; CI type-checks without extras installed.
+module = ["keyring", "keyring.*"]
+ignore_missing_imports = true

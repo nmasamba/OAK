@@ -139,7 +139,7 @@ oak validate webhook examples/example-webhook-envelope.yaml \
 The MCP surface is design/read only: it cannot approve, sign, dispatch, resolve a secret,
 override policy, select a candidate, run a command, or read a file. Remote mode maps only
 commands that have a REST surface. The local-only commands are
-`init`, `serve`, `mcp serve`, `keys`, `sign`, `approve`, `revoke-approval`, `dispatch`, `ingest`, `gitops`, `policy`, `render`, `extensions` and `validate`;
+`init`, `serve`, `mcp serve`, `keys`, `models`, `sign`, `approve`, `revoke-approval`, `dispatch`, `ingest`, `gitops`, `policy`, `render`, `extensions` and `validate`;
 with a server set they refuse with `OAK-REMOTE-UNSUPPORTED` rather than acting on local state.
 
 ## Signed runner

@@ -145,3 +145,72 @@ class OutboxLagResponse(StrictResponse):
     latest_sequence: int
     indexed_through: int
     sequence_lag: int
+
+
+class ModelCredentialRequest(StrictResponse):
+    """The one request body in the API that carries a secret.
+
+    ``api_key`` is ``writeOnly`` and rendered as a password field, and the model carries no
+    example, so the value cannot appear in the OpenAPI document, in generated clients, or in
+    documentation rendered from either. Validation failures on this field are answered with a
+    fixed message rather than the usual field echo.
+    """
+
+    api_key: str = Field(
+        min_length=16,
+        max_length=512,
+        json_schema_extra={"writeOnly": True, "format": "password"},
+    )
+
+
+class ModelSelectionRequest(StrictResponse):
+    family: str = Field(min_length=2, max_length=40)
+    model_id: str = Field(min_length=1, max_length=256)
+    provider_route: str | None = Field(default=None, max_length=64)
+    default_interpreter: Literal["model", "deterministic"] = "model"
+    acknowledge_data_use: bool = False
+
+
+class ModelCredentialStatus(StrictResponse):
+    family: str
+    configured: bool
+    source: Literal["keychain", "file", "env", "none"]
+    fingerprint: str | None = None
+    length: int | None = None
+
+
+class ModelFamily(StrictResponse):
+    family: str
+    display_name: str
+    licence_class: str
+    credential_required: bool
+    environment_variable: str | None
+    key_hint: str
+    data_use_note: str
+    token_help_url: str | None
+    default: bool
+
+
+class ModelDiscoverySummary(StrictResponse):
+    fetched_at: str
+    source: Literal["live", "pinned"]
+    recommended: str | None
+    model_count: int
+    stale: bool
+
+
+class ModelStatusResponse(StrictResponse):
+    """Everything the workspace needs to render the model settings, and no credential."""
+
+    configured: bool
+    selection: dict[str, Any] | None
+    provider_policy: str
+    families: tuple[ModelFamily, ...]
+    credentials: tuple[ModelCredentialStatus, ...]
+    discovery: dict[str, ModelDiscoverySummary]
+    stores: dict[str, Any]
+
+
+class ModelDiscoveryResponse(StrictResponse):
+    family: str
+    discovery: dict[str, Any]

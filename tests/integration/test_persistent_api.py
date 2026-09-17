@@ -204,7 +204,7 @@ async def test_rest_worker_reference_journey_is_durable_idempotent_and_tenant_sa
         },
     )
 
-    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+    async with httpx.AsyncClient(transport=transport, base_url="http://127.0.0.1") as client:
         created = await client.post(
             "/v1/design-cases",
             headers=_headers("api-create-public-manual-qa-0001"),
@@ -401,7 +401,7 @@ async def test_rest_cancellation_records_full_command_context(
     transport = httpx.ASGITransport(app=application, raise_app_exceptions=False)
     brief = (ROOT / "examples/briefs/public-manual-qa.yaml").read_text(encoding="utf-8")
 
-    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+    async with httpx.AsyncClient(transport=transport, base_url="http://127.0.0.1") as client:
         await client.post(
             "/v1/design-cases",
             headers=_headers("api-cancel-create-public-qa-0001"),

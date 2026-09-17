@@ -3,8 +3,11 @@
 
 import ipaddress
 import os
+import sys
 
 import uvicorn
+
+from oak.bootstrap import default_credentials_directory, mint_model_token
 
 
 def is_loopback_host(host: str) -> bool:
@@ -27,8 +30,47 @@ def ensure_safe_bind(host: str, *, allow_non_loopback: bool) -> None:
         )
 
 
-def run_server(host: str, port: int, *, allow_non_loopback: bool = False) -> None:
+def bind_warning(host: str, *, allow_non_loopback: bool, allowed_hosts: str) -> str | None:
+    """The warning owed for an acknowledged non-loopback bind, or ``None``."""
+
+    if is_loopback_host(host) or not allow_non_loopback:
+        return None
+    if allowed_hosts.strip():
+        return (
+            f"OAK-SAFE-BIND: binding {host} publishes an unauthenticated control plane; "
+            f"only Host values in OAK_ALLOWED_HOSTS ({allowed_hosts.strip()}) and loopback "
+            "names are served"
+        )
+    return (
+        f"OAK-SAFE-BIND: binding {host} publishes an unauthenticated control plane, and "
+        "OAK_ALLOWED_HOSTS is empty, so only requests naming a loopback Host will be served"
+    )
+
+
+def run_server(
+    host: str,
+    port: int,
+    *,
+    allow_non_loopback: bool = False,
+    model_token: str | None = None,
+) -> None:
+    """Bind the API after minting the per-process model-configuration token."""
+
     ensure_safe_bind(host, allow_non_loopback=allow_non_loopback)
+    warning = bind_warning(
+        host,
+        allow_non_loopback=allow_non_loopback,
+        allowed_hosts=os.getenv("OAK_ALLOWED_HOSTS", ""),
+    )
+    if warning is not None:
+        print(warning, file=sys.stderr)
+    if model_token is None:
+        mint_model_token()
+    print(
+        "Model-configuration token written to "
+        f"{default_credentials_directory() / 'api-token'}; run `oak models token` to read it.",
+        file=sys.stderr,
+    )
     uvicorn.run(
         "oak.interfaces.api.app:app",
         host=host,

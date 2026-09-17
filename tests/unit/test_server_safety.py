@@ -21,3 +21,14 @@ def test_non_loopback_bind_fails_closed(host: str) -> None:
 
 def test_non_loopback_bind_requires_explicit_acknowledgement() -> None:
     ensure_safe_bind("0.0.0.0", allow_non_loopback=True)
+
+
+def test_an_acknowledged_non_loopback_bind_warns_and_names_the_host_rule() -> None:
+    from oak.interfaces.api.server import bind_warning
+
+    assert bind_warning("127.0.0.1", allow_non_loopback=True, allowed_hosts="") is None
+    assert bind_warning("0.0.0.0", allow_non_loopback=False, allowed_hosts="") is None
+    empty = bind_warning("0.0.0.0", allow_non_loopback=True, allowed_hosts="")
+    listed = bind_warning("0.0.0.0", allow_non_loopback=True, allowed_hosts="api.internal")
+    assert empty is not None and "OAK_ALLOWED_HOSTS is empty" in empty
+    assert listed is not None and "api.internal" in listed

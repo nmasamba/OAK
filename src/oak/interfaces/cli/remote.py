@@ -56,6 +56,7 @@ class RemoteClient:
         *,
         actor: str | None = None,
         timeout: float = REQUEST_TIMEOUT_SECONDS,
+        model_token: str | None = None,
     ) -> None:
         normalized = base_url.strip().rstrip("/")
         if not normalized.startswith(("http://", "https://")):
@@ -63,6 +64,7 @@ class RemoteClient:
         self._base_url = normalized
         self._actor = actor
         self._timeout = timeout
+        self._model_token = model_token
 
     # -- transport -------------------------------------------------------------
 
@@ -74,10 +76,13 @@ class RemoteClient:
         body: dict[str, Any] | None = None,
         idempotency_key: str | None = None,
         expected_version: str | None = None,
+        model_token: bool = False,
     ) -> dict[str, Any]:
         headers: dict[str, str] = {"Accept": "application/json"}
         if self._actor:
             headers["X-OAK-Actor"] = self._actor
+        if model_token and self._model_token:
+            headers["X-OAK-Model-Token"] = self._model_token
         if idempotency_key is not None:
             if not 16 <= len(idempotency_key) <= 240:
                 raise OAKError("OAK-IDEMPOTENCY-KEY", "idempotency key is required")
@@ -163,13 +168,20 @@ class RemoteClient:
         )
 
     def interpret(
-        self, case_id: str, *, expected_version: str, idempotency_key: str
+        self,
+        case_id: str,
+        *,
+        expected_version: str,
+        idempotency_key: str,
+        interpreter: str = "auto",
     ) -> dict[str, Any]:
+        query = "" if interpreter == "auto" else f"?interpreter={interpreter}"
         return self._request(
             "POST",
-            f"/v1/design-cases/{case_id}:interpret",
+            f"/v1/design-cases/{case_id}:interpret{query}",
             idempotency_key=idempotency_key,
             expected_version=expected_version,
+            model_token=True,
         )
 
     def confirm(

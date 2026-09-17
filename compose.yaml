@@ -48,6 +48,10 @@ services:
       OAK_ENVIRONMENT_ID: local
       OAK_LOCAL_ACTOR: local-user
       OAK_LOCAL_TENANT: local
+      # Model state lives on the api service's own volume, never beside the artifact store:
+      # the worker has no reason to read a provider key and does not mount it.
+      OAK_CREDENTIALS_DIRECTORY: /var/lib/oak/model-state/credentials
+      OAK_MODELS_DIRECTORY: /var/lib/oak/model-state/models
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -76,6 +80,7 @@ services:
       - control-plane
     volumes:
       - oak-artifacts:/var/lib/oak/artifacts
+      - oak-model-state:/var/lib/oak/model-state
 
   migrate:
     build:
@@ -155,4 +160,7 @@ networks:
 
 volumes:
   oak-artifacts:
+  # Holds user-supplied provider keys in plain text. Exclude it from backups; see
+  # docs/operations.md and docs/security/residual-risk.md (RR-040).
+  oak-model-state:
   oak-postgres-data:

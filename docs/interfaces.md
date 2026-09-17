@@ -122,6 +122,7 @@ prohibition).
 | Create design case | ● | ● | ● | ● | ● |
 | Read case / intent | ○ | ○ | ○ | ○ | ○ |
 | Interpret brief | ● | ● | ● | ● | ● |
+| Interpret brief with the configured model | ● | ● | ● | ● (explicit `interpreter: "model"`) | ● |
 | List questions | ○ | ○ | ○ | ○ | ○ |
 | Confirm claims | ● | ● | ● | ● | ● |
 | Generate candidates | ● | ● | ● | ● | ● |
@@ -142,13 +143,16 @@ prohibition).
 | Approve / revoke approval | ● | ✕ | — | ✕ | — |
 | Dispatch runner / ingest | ● | ✕ | — | ✕ | — |
 | Manage keys / extensions / policy | ● | ✕ | — | ✕ | — |
+| Store / remove a user-supplied model-provider key | ● | ✕ | ● | ✕ | ● |
+| Detect the models a key can reach | ● | ✕ | ● | ✕ | ● |
+| Select the model to interpret with | ● | ✕ | ● | ✕ | ● |
 | Resolve a secret | ✕ | ✕ | ✕ | ✕ | ✕ |
 | Run a generic command / read a file | ✕ | ✕ | ✕ | ✕ | ✕ |
 | Apply to a production target | ✕ | ✕ | ✕ | ✕ | ✕ |
 
 Notes:
 
-- The **local-only** commands are `init`, `serve`, `mcp serve`, `keys`, `sign`, `approve`, `revoke-approval`, `dispatch`, `ingest`, `gitops`, `policy`, `render`, `extensions` and `validate`.
+- The **local-only** commands are `init`, `serve`, `mcp serve`, `keys`, `models`, `sign`, `approve`, `revoke-approval`, `dispatch`, `ingest`, `gitops`, `policy`, `render`, `extensions` and `validate`.
   With `--server` set they fail closed with `OAK-REMOTE-UNSUPPORTED` rather than
   acting on local state, and none of them is reachable over REST or MCP.
 - The MCP tool set is exactly the ten interface-contract tools plus the
@@ -191,7 +195,11 @@ These are deliberately absent; their presence would be a different product
   independently verified by the runner against an isolated non-production
   fixture.
 - Secret resolution through any interface. Canonical documents carry secret
-  *references* only; the runner resolves them locally after verification.
+  *references* only; the runner resolves them locally after verification. This is a
+  different thing from storing the user's own model-provider key, which the local CLI,
+  the loopback REST routes and the web workspace do support: that key is machine-local
+  configuration, never enters a canonical document, and is never returned by any
+  interface. It is permanently absent from MCP and from remote CLI mode.
 - Runner apply, approval, signing, or dispatch over REST, MCP, remote CLI, web,
   or portal. Runner apply is intentionally absent from the MCP surface entirely.
 - A generic command executor, arbitrary file reader, or policy-override tool on

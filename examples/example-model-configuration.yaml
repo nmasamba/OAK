@@ -1,0 +1,45 @@
+# SPDX-License-Identifier: Apache-2.0
+# Illustrative only. This document never carries a credential: it records where the
+# key for each family lives, not the key. Written by `oak models`, read by every interface.
+schema_version: 0.1.0
+id: model-configuration.local
+selection:
+  family: huggingface
+  model_id: openai/gpt-oss-120b
+  provider_route: deepinfra
+  default_interpreter: model
+  data_use_acknowledged: false
+  selected_at: '2026-09-17T10:00:00Z'
+credential_sources:
+  huggingface: file
+  openai: none
+provider_policy: cheapest
+discovery:
+  huggingface:
+    fetched_at: '2026-09-17T09:58:00Z'
+    source: live
+    recommended: openai/gpt-oss-120b
+    filtered_out_count: 87
+    models:
+      - id: openai/gpt-oss-120b
+        display_name: gpt-oss-120b
+        created: '2025-08-05T00:00:00Z'
+        licence: apache-2.0
+        data_use: unknown
+        providers:
+          - provider: deepinfra
+            supports_structured_output: true
+            output_price_per_million: 0.17
+          - provider: groq
+            supports_structured_output: true
+            output_price_per_million: 0.75
+      - id: openai/gpt-oss-20b
+        display_name: gpt-oss-20b
+        created: '2025-08-05T00:00:00Z'
+        licence: apache-2.0
+        data_use: unknown
+        providers:
+          - provider: deepinfra
+            supports_structured_output: true
+            output_price_per_million: 0.14
+extensions: {}

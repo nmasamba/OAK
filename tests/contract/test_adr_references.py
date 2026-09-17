@@ -11,6 +11,8 @@ honesty those citations were supposed to support.
 import re
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[2]
 CITATION = re.compile(r"ADR-(\d{4})")
 ADR_DIRECTORIES = ("docs/adr", "docs/adr/architecture")
@@ -94,3 +96,44 @@ def test_the_product_reference_exception_is_scoped_to_the_governance_mirror() ->
     assert not _is_governance_mirror(Path("docs/adr/0002-release-versioning.md"))
     assert not _is_governance_mirror(Path("README.md"))
     assert not _is_governance_mirror(Path("docs/interfaces.md"))
+
+
+def test_a_mirrored_adr_still_matches_its_governance_source() -> None:
+    """A mirror that has drifted is worse than no mirror.
+
+    The header says the governance repository holds the authoritative copy and that this one
+    must not be edited — but nothing stopped the *source* changing and leaving the copy
+    behind, which is how it actually drifts. Editing ADR-0009 and ADR-0016 in the governance
+    tree during the Sprint 9 documentation sweep left both mirrors a paragraph short, and
+    every existing check here passed.
+
+    The governance repository sits beside this one and is not always present (a release
+    tarball, a shallow CI checkout of this repo alone), so this skips rather than fails when
+    it is absent.
+    """
+
+    governance = ROOT.parent / "docs" / "adr"
+    if not governance.is_dir():
+        pytest.skip("the governance repository is not checked out beside this one")
+
+    drifted: list[str] = []
+    checked = 0
+    for mirror in sorted((ROOT / "docs" / "adr" / "architecture").glob("*.md")):
+        source = governance / mirror.name
+        if not source.is_file():
+            continue
+        checked += 1
+        # The mirror is the source with a provenance header prepended. The header is two
+        # HTML comments, so split on the *standalone* close of the second one rather than
+        # the first `-->`, which ends the single-line SPDX comment.
+        body = mirror.read_text(encoding="utf-8")
+        _, marker, mirrored = body.partition("\n-->\n")
+        assert marker, f"{mirror.name} has no mirror header"
+        if mirrored.lstrip("\n") != source.read_text(encoding="utf-8").lstrip("\n"):
+            drifted.append(mirror.name)
+
+    assert checked >= 5, f"only {checked} mirrors were compared; the layout has changed"
+    assert not drifted, (
+        "these mirrored ADRs no longer match the governance copy they name as "
+        f"authoritative; re-mirror them rather than editing the copy: {drifted}"
+    )
