@@ -322,9 +322,12 @@ InterpreterQuery = Annotated[
     InterpreterMode | None,
     Query(
         description=(
-            "auto (the default) uses the configured model for a prose brief and the "
-            "deterministic interpreter otherwise; model requires a configured model and the "
-            "X-OAK-Model-Token header; deterministic never calls a provider."
+            "deterministic never calls a provider. model requires a configured model and "
+            "the X-OAK-Model-Token header, and is refused without it. auto (the default) "
+            "uses the configured model for a plain-language brief only when the request "
+            "also carries that header; without it, and for a structured brief, auto "
+            "interprets deterministically — so a client that predates the model path keeps "
+            "the behaviour it had."
         ),
     ),
 ]
@@ -1081,7 +1084,12 @@ def create_app(
         auth: AuthorityDependency,
         _token: ModelTokenDependency = None,
     ) -> ModelDiscoveryResponse:
-        """Contact that family's catalogue. The only route here that reaches a network."""
+        """Refresh one family's catalogue.
+
+        This and `:interpret` in model mode are the only operations in this API that make an
+        outbound request; every other route is answered from local state. Discovery is
+        explicit: nothing refreshes a catalogue on its own.
+        """
 
         del auth, _token
         snapshot = configuration().discover(family)

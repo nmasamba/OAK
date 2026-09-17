@@ -26,6 +26,7 @@ A user-supplied model-provider credential is **machine-local configuration**, no
 - It is stored by an adapter behind a credential port: the operating system keychain where one exists, otherwise an owner-only file, or a reference to a documented environment variable that stores nothing. A missing keychain is reported, never silently downgraded.
 - It is read at the moment of use and not retained on the object that used it.
 - It is reachable only from the local CLI, from loopback REST routes guarded by a per-process capability token, and from the browser workspace those routes serve. It is permanently absent from MCP and from remote CLI mode, because neither is the operator's own machine.
+- Reading or changing a credential is a narrower thing than causing one to be spent, and the two are separated deliberately. An MCP client cannot store, read, remove or select a credential at all; it can ask for a model-mode interpretation, which spends whichever credential the operator already configured. That is the operator's own decision to have made, it is audited with the family, model and proposal digest, and it defaults to off: an MCP client that says nothing gets the deterministic interpreter.
 - Target-secret resolution is unchanged and stays outside the control plane entirely. This ADR grants no authority over it.
 
 ## Alternatives

@@ -57,7 +57,7 @@ Every setting is an environment variable; there is no configuration file.
 [configuration.md](configuration.md) is the complete list, and a contract test keeps it
 that way.
 
-The four that change a trust boundary rather than a path:
+The ones that change a trust boundary rather than a path:
 
 | Variable | Why it matters |
 |---|---|
@@ -65,6 +65,9 @@ The four that change a trust boundary rather than a path:
 | `OAK_DATABASE_URL` | Carries a password in the Compose default |
 | `OAK_TRUST_DIRECTORY` | Holds the Ed25519 **private** signing keys |
 | `OAK_RUNNER_TRUST_ANCHORS` | Decides which signatures the runner will believe |
+| `OAK_ALLOWED_HOSTS` | Widens the `Host` names the API will answer to, past the loopback names it accepts by default |
+| `OAK_CREDENTIALS_DIRECTORY` | Holds user-supplied model-provider keys and the capability token. Never back it up |
+| `OAK_MODEL_ENDPOINT_LOCAL` | Where the `local` model family sends briefs. Refused unless it is a loopback address, because plain `http` is permitted there |
 
 One setting deserves attention before you have any data: **`OAK_ARTIFACT_ROOT` defaults
 to the relative path `.oak/server-artifacts`**, resolved against whatever directory the

@@ -2432,7 +2432,7 @@
             }
           },
           {
-            "description": "auto (the default) uses the configured model for a prose brief and the deterministic interpreter otherwise; model requires a configured model and the X-OAK-Model-Token header; deterministic never calls a provider.",
+            "description": "deterministic never calls a provider. model requires a configured model and the X-OAK-Model-Token header, and is refused without it. auto (the default) uses the configured model for a plain-language brief only when the request also carries that header; without it, and for a structured brief, auto interprets deterministically \u2014 so a client that predates the model path keeps the behaviour it had.",
             "in": "query",
             "name": "interpreter",
             "required": false,
@@ -2445,7 +2445,7 @@
                   "type": "null"
                 }
               ],
-              "description": "auto (the default) uses the configured model for a prose brief and the deterministic interpreter otherwise; model requires a configured model and the X-OAK-Model-Token header; deterministic never calls a provider.",
+              "description": "deterministic never calls a provider. model requires a configured model and the X-OAK-Model-Token header, and is refused without it. auto (the default) uses the configured model for a plain-language brief only when the request also carries that header; without it, and for a structured brief, auto interprets deterministically \u2014 so a client that predates the model path keeps the behaviour it had.",
               "title": "Interpreter"
             }
           },
@@ -3233,7 +3233,7 @@
     },
     "/v1/models/{family}:discover": {
       "post": {
-        "description": "Contact that family's catalogue. The only route here that reaches a network.",
+        "description": "Refresh one family's catalogue.\n\nThis and `:interpret` in model mode are the only operations in this API that make an\noutbound request; every other route is answered from local state. Discovery is\nexplicit: nothing refreshes a catalogue on its own.",
         "operationId": "discover_models_for_family_v1_models__family__discover_post",
         "parameters": [
           {

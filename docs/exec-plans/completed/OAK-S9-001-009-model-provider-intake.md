@@ -485,6 +485,23 @@ The nine refuted findings were each reproduced and then shown not to follow — 
 provider key can reach an exception `__cause__`, but nothing OAK emits renders a chain and
 the input that would put it there is refused upstream.
 
+### Documentation sweep (`OAK-S9-009`)
+
+Six readers over both repositories — implementation top-level and operator docs, security
+and release records, the manual, contracts and generated artefacts, the governance root, the
+governance `docs/` tree — each asked for statements the branch had made false, misleading or
+incomplete, with an independent check of every finding against the code. 45 raised, 23
+verified stale and fixed; the rest were deliberately historical (a signed release record, a
+completed plan) or already qualified by their surrounding text.
+
+The sweep was worth running for one class of finding in particular: sentences that were
+true before this branch and quietly stopped being true, in documents the branch never
+touched. The implementation `README.md` is the clearest case — it is the project's front
+door, it was absent from the whole branch diff, and it both omitted the feature and carried a
+sentence a reader would fairly take as "OAK holds no provider credential". The same pattern
+produced the `models`-is-local-only line in the interface contract, the "never in a request
+body" clause of a requirement this sprint itself wrote, and the manual's `≤ 5 questions` box.
+
 ## Discoveries and follow-ups
 
 - The `interpretation-proposal` schema had no `version`; both persistence adapters require one

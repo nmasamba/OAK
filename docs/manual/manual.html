@@ -103,7 +103,7 @@
       <g font-family="Helvetica, Arial, sans-serif" font-size="15">
         <rect x="8" y="60" width="102" height="52" rx="6" fill="#eef3ef" stroke="#38564a"/><text x="59" y="82" text-anchor="middle">brief</text><text x="59" y="100" text-anchor="middle" font-size="10" fill="#5a6b63">prose or structured</text>
         <rect x="134" y="60" width="112" height="52" rx="6" fill="#fff" stroke="#38564a"/><text x="190" y="82" text-anchor="middle">interpret</text><text x="190" y="100" text-anchor="middle" font-size="11" fill="#5a6b63">claims + origin</text>
-        <rect x="270" y="60" width="112" height="52" rx="6" fill="#fff" stroke="#38564a"/><text x="326" y="82" text-anchor="middle">confirm</text><text x="326" y="100" text-anchor="middle" font-size="11" fill="#5a6b63">≤ 5 questions</text>
+        <rect x="270" y="60" width="112" height="52" rx="6" fill="#fff" stroke="#38564a"/><text x="326" y="82" text-anchor="middle">confirm</text><text x="326" y="100" text-anchor="middle" font-size="11" fill="#5a6b63">5 questions a round</text>
         <rect x="406" y="60" width="118" height="52" rx="6" fill="#fff" stroke="#38564a"/><text x="465" y="82" text-anchor="middle">candidates</text><text x="465" y="100" text-anchor="middle" font-size="11" fill="#5a6b63">4 variants, Pareto</text>
         <rect x="548" y="60" width="112" height="52" rx="6" fill="#fff" stroke="#38564a"/><text x="604" y="82" text-anchor="middle">evaluate</text><text x="604" y="100" text-anchor="middle" font-size="11" fill="#5a6b63">contract run</text>
         <rect x="684" y="60" width="130" height="52" rx="6" fill="#fff" stroke="#38564a"/><text x="749" y="82" text-anchor="middle">select + assure</text><text x="749" y="100" text-anchor="middle" font-size="11" fill="#5a6b63">immutable decision</text>
@@ -116,7 +116,8 @@
         <line x1="660" y1="86" x2="680" y2="86" stroke="#38564a" stroke-width="1.6" marker-end="url(#arr)"/>
         <line x1="814" y1="72" x2="834" y2="62" stroke="#38564a" stroke-width="1.6" marker-end="url(#arr)"/>
         <line x1="814" y1="100" x2="834" y2="112" stroke="#38564a" stroke-width="1.6" marker-end="url(#arr)"/>
-        <text x="500" y="170" text-anchor="middle" font-size="12" fill="#5a6b63">Every stage is deterministic, offline, and writes immutable content-addressed artifacts with an audit trail.</text>
+        <text x="500" y="170" text-anchor="middle" font-size="12" fill="#5a6b63">Every stage writes immutable content-addressed artifacts with an audit trail. All of it is deterministic and offline,</text>
+        <text x="500" y="186" text-anchor="middle" font-size="12" fill="#5a6b63">except interpret when you have configured a model — see chapter 4.</text>
       </g>
     </svg>
     <figcaption>Figure 1 — the pipeline. The compiled plan is inert: executing anything requires the separate signing, approval and runner verification described in chapter 5.</figcaption>
@@ -209,8 +210,10 @@ cd workspace</code></pre>
     <li><strong>A structured brief</strong>, like the reference
       <code>public-manual-qa.yaml</code> used below, fills the typed intent directly
       field by field, which is what lets the rest of the pipeline run end-to-end with
-      no model involved. A structured brief stays deterministic even when a model is
-      configured; only a plain-language brief is offered to one.</li>
+      no model involved. With a model configured, the default (<code>--interpreter
+      auto</code>) still interprets a structured brief deterministically and offers only a
+      plain-language one to the model; <code>--interpreter model</code> overrides that and
+      offers either.</li>
   </ul>
   <div class="note">
     <strong>Where a language model fits.</strong> OAK's design gives an LLM exactly one
@@ -223,10 +226,12 @@ cd workspace</code></pre>
     answer before the design can reach candidates.
     <br><br>
     <strong>No model is configured by default, and this manual uses none.</strong> Every
-    command and screenshot below is deterministic and offline. Chapter 4 shows how to
-    configure a provider if you want plain-language briefs interpreted for you; until you
-    do, OAK contacts nothing, and <code>--interpreter deterministic</code> keeps it that
-    way afterwards. Configuring one is a decision with a consequence worth stating plainly:
+    command and screenshot below is deterministic and offline. If you want plain-language
+    briefs interpreted for you, <code>oak models set-key &lt;family&gt;</code> and
+    <code>oak models select &lt;family&gt; &lt;model&gt;</code> configure one from this
+    chapter's command line, and chapter 4 shows the same thing in the browser. Until you do,
+    OAK contacts nothing, and <code>--interpreter deterministic</code> keeps it that way
+    afterwards. Configuring one is a decision with a consequence worth stating plainly:
     the brief's text is then sent to that provider, under that provider's terms.
   </div>
   <h2>1 · Ingest and interpret the brief</h2>
@@ -246,8 +251,10 @@ question.action-autonomy: Confirm the maximum action autonomy permitted for this
 question.data-classification: Confirm the highest data classification used by this design. [open]
 question.data-volume: What document volume and update cadence must the design support? [open]</span></code></pre>
   <p>
-    At most five ranked questions, each explaining why it matters to candidate choice.
-    Answers live in a small YAML file; the reference answers ship alongside the brief:
+    Five ranked questions a round, each explaining why it matters to candidate choice. This
+    brief produces exactly five; a brief a model interpreted can produce more, and the rest
+    follow in the next round. Answers live in a small YAML file; the reference answers ship
+    alongside the brief:
   </p>
   <pre><code>uv run oak confirm --answers ../examples/briefs/public-manual-qa-answers.yaml
 <span class="out">Recorded design-case.public-manual-qa@0.1.2 as ready_for_candidates</span></code></pre>
@@ -328,8 +335,9 @@ uv run oak import ../case-export --directory ../restored
   <p>
     The web workspace drives the same journey through a reviewer-friendly interface,
     backed by a persistent PostgreSQL control plane. It needs Docker with Compose (see
-    the prerequisites in chapter 2), and the first build pulls the pinned base images —
-    the one step in this chapter that uses the network. Start the stack:
+    the prerequisites in chapter 2), and the first build pulls the pinned base images.
+    That and the optional <em>Detect models</em> button at the end of this chapter are the
+    only steps here that use the network. Start the stack:
   </p>
   <pre><code>docker compose up -d --build</code></pre>
   <div class="warn">
@@ -372,7 +380,7 @@ uv run oak import ../case-export --directory ../restored
     route, and recommends one. Storing a key is a separate step, and the key never comes
     back — the page shows only which backend holds it and a salted fingerprint.
   </p>
-  <figure><img src="assets/11-models.png" alt="The model settings screen"><figcaption>Model settings. The family, its data-use note and licence class, the stored key's backend and fingerprint (never the key), the detected models, and the one-click way back to deterministic interpretation.</figcaption></figure>
+  <figure><img src="assets/11-models.png" alt="The model settings screen"><figcaption>Model settings, as they look before anything is configured: the current interpreter, where keys would be stored on this machine, the chosen family with its data-use note and licence class, and the key field. Once a key is stored this panel reports the backend holding it and a salted fingerprint — never the key — and <em>Detect models</em> fills in what that key can reach.</figcaption></figure>
   <div class="note">
     <strong>What changes once you select a model.</strong> A plain-language brief is sent to
     that provider when you interpret it, under that provider's own retention and training
@@ -383,7 +391,7 @@ uv run oak import ../case-export --directory ../restored
     <code>oak design --interpreter deterministic</code> always does.
   </div>
 
-  <p>Stop the stack with <code>docker compose down</code> (add <code>--volumes</code> to also drop the local database and artifact store).</p>
+  <p>Stop the stack with <code>docker compose down</code> (add <code>--volumes</code> to also drop the local database, the artifact store, and the model-state volume holding any provider key you stored).</p>
 </section>
 
 <section class="chapter">
@@ -670,7 +678,12 @@ python scripts/check_clean_machine.py
 cd .. &amp;&amp; rm -rf OAK</code></pre>
   <p>
     <code>~/.oak</code> holds private signing keys, the runner's journal, consumed
-    nonces and its revocation-sequence mark — export anything you want to keep first.
+    nonces and its revocation-sequence mark — export anything you want to keep first. It
+    also holds any model-provider key stored in the file backend, under
+    <code>~/.oak/credentials</code>, plus the model selection in <code>~/.oak/models</code>.
+    A key stored in the operating-system keychain is <em>not</em> under
+    <code>~/.oak</code> and survives this: remove those first, one family at a time, with
+    <code>oak models remove-key &lt;family&gt;</code>.
     Chapter 5 placed its trust directory and mailbox in the repository root and its
     runner home inside <code>runner-demo/</code>: <code>trust/</code> holds development
     private keys, which is why step 3 names it explicitly rather than leaving it to the

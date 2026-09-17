@@ -1,10 +1,11 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-# Threat-model coverage index — OAK Community 0.7.1
+# Threat-model coverage index — OAK Community 0.7.1 (updated for Sprint 9)
 
 Which tests exercise which threat, and — more usefully — which threats nothing exercises.
 
-The governance threat model defines nineteen threats, `TM-01` to `TM-19`. Before this
+The governance threat model defines twenty threats, `TM-01` to `TM-20`; `TM-20` is new in
+Sprint 9, with the optional model provider that made it reachable. Before this
 release nothing connected them to the test suite: the string `TM-` appeared in three
 completed sprint plans and in **zero** test files, so coverage was rediscovered by hand
 every sprint and a renamed or deleted test dropped a threat silently.
@@ -17,7 +18,7 @@ every sprint and a renamed or deleted test dropped a threat silently.
   Where a test can prove the absence, it now does.
 - **none** — nothing covers it.
 
-Verdict tally: **9 direct, 9 partial, 1 structural, 0 none.**
+Verdict tally: **10 direct, 9 partial, 1 structural, 0 none.**
 
 Every test function cited below was verified to exist in the tree at the time of writing;
 a citation to a test that does not exist would make this document worse than nothing. The
@@ -48,6 +49,7 @@ security review was commissioned for this release (`RR-028`).
 | TM-16 | Confused deputy lets a low-privilege user deploy through OAK's identity (73) | **direct** | `tests/integration/test_mcp_abuse.py::test_actor_impersonation_is_denied_before_dispatch`, `::test_confirm_actor_field_cannot_escalate_beyond_the_bound_identity`; `tests/integration/test_signed_runner.py::test_mutating_dispatch_without_apply_approval_is_denied`; `tests/integration/test_candidate_planning_service.py:141` (`OAK-TARGET-CAPABILITY`) |
 | TM-17 | Legal-source outage or scraping error yields false "current" policy (74) | **partial** | `tests/integration/test_policy_service.py::test_expired_pack_refuses_even_for_a_previously_evaluated_request`, `::test_stale_or_inactive_packs_refuse_evaluation`. **Stale-pack half tested; outage half has no surface (no legal-source fetch). Refusal is an `OAKError`, not a `review_required` decision** |
 | TM-18 | Malicious blueprint includes covert external calls/telemetry (75) | **direct** | `tests/contract/test_runner_contracts.py::test_no_committed_schema_permits_execution_fields`; `tests/integration/test_validate_cli.py::test_an_injected_execution_field_is_refused`, `::test_an_execution_field_in_a_webhook_envelope_is_refused`, `::test_an_execution_field_in_an_export_object_is_refused`; `tests/integration/test_deployment_render.py::test_kubernetes_render_is_pinned_inert_and_egress_free` |
+| TM-20 | A local principal reads or spends the operator's stored model-provider credential (76) | **direct** | The credential is stored owner-only and never rendered: `tests/unit/test_credential_store.py` (the `0700` directory and `0600` file, a symlinked or foreign-owned path refused, atomic overwrite, the salted fingerprint, the environment reference storing only a name), `tests/unit/test_secrets.py`-equivalent coverage inside `tests/unit/test_model_configuration.py` (`SecretValue` renders as `<redacted>` in `repr`, `str`, `format`, JSON and logging, and refuses hashing and pickling), `tests/contract/test_secret_shapes.py` (no committed file carries a provider key shape, and the OpenAPI document does not either), `tests/integration/test_models_cli.py::test_set_key_reads_stdin_stores_owner_only_and_echoes_only_a_fingerprint` (the key is never an argument and never printed), `tests/integration/test_models_api.py::test_a_key_is_never_echoed_by_any_response_or_stored_outside_its_directory` and `::test_every_model_route_requires_the_capability_token`, `tests/integration/test_loopback_hardening.py::test_credential_routes_require_a_same_origin_browser_or_a_non_browser_client`, and `web/e2e/models.spec.ts` (no response body the browser received carries the key; the volume is owner-only on `api` and empty on `worker`). **What none of this defends against is a process already running as that user**, which is the residual the register records as `RR-040` |
 | TM-19 | OAK becomes a production-content proxy or hidden runtime dependency (76) | **partial** | `tests/e2e/test_cli.py::test_offline_design_confirmation_retry_and_portable_round_trip`, `::test_offline_candidate_to_plan_flow_is_semantically_reproducible`; `tests/integration/test_gitops_output.py::test_patch_description_states_promotion_is_manual`; `tests/unit/test_server_safety.py::test_non_loopback_bind_fails_closed`. **Nothing asserts the rendered system contains no reference to OAK at runtime** |
 ## Threats defended by absence
 
@@ -89,8 +91,10 @@ feature, not a gap in it.
 
 ## Named gaps
 
-These are the specific things the table calls "partial". Each is in the residual-risk
-register with an id.
+These are the specific things the table calls "partial", plus the one residual a **direct**
+verdict still leaves: `TM-20`'s controls stop everything except a process already running as
+that user, which no control on this machine can. Each is in the residual-risk register with
+an id.
 
 | Threat | Gap | Register |
 |---|---|---|
@@ -103,6 +107,7 @@ register with an id.
 | TM-15 | Catalogue vulnerability and licence gate reasons are untested (image SBOM/provenance generation is now pinned by contract tests) | `RR-025` |
 | TM-17 | Stale-pack refusal is an `OAKError`, not a `review_required` decision; no legal-source fetch exists to fail | — |
 | TM-19 | Nothing asserts a rendered system contains no runtime reference to OAK | — |
+| TM-20 | A same-user process can read the stored key; nothing defends against one | `RR-040` |
 
 ## What changed in this release
 
