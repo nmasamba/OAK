@@ -20,6 +20,7 @@ import re
 import socket
 import subprocess
 import sys
+import tomllib
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -186,24 +187,25 @@ def _imported_modules(path: Path) -> set[str]:
 
 
 def _declared_distributions() -> set[str]:
-    """Import roots the shipped package is allowed to have, from `pyproject.toml` itself."""
+    """Import roots the shipped package is allowed to have, from `pyproject.toml` itself.
 
-    lines = (ROOT / "pyproject.toml").read_text(encoding="utf-8").splitlines()
-    declared: set[str] = set()
-    collecting = False
-    for line in lines:
-        stripped = line.strip()
-        if stripped.startswith(("dependencies = [", "keychain = [")):
-            collecting = True
-            continue
-        if collecting:
-            if stripped == "]":
-                collecting = False
-                continue
-            name = stripped.strip(",").strip('"')
-            if name:
-                # `psycopg[binary]>=3.3,<4` -> `psycopg`.
-                declared.add(re.split(r"[<>=!\[]", name)[0].strip().replace("-", "_").casefold())
+    Only `[project].dependencies` and `[project.optional-dependencies]` count: those are
+    what an install of `oak-community` can bring with it. `[dependency-groups]` is
+    deliberately excluded — `httpx`, `pytest` and `ruff` are development tools, and a module
+    under `src/oak` importing one would ship a broken package.
+    """
+
+    manifest = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    project = manifest.get("project", {})
+    requirements = list(project.get("dependencies", []))
+    for extra in project.get("optional-dependencies", {}).values():
+        requirements.extend(extra)
+    declared = {
+        # `psycopg[binary]>=3.3,<4` -> `psycopg`.
+        re.split(r"[<>=!~\[;\s]", requirement)[0].strip().replace("-", "_").casefold()
+        for requirement in requirements
+        if requirement.strip()
+    }
     # Import names that differ from the distribution that provides them.
     declared.update({"yaml"})
     # Direct imports of a declared dependency's own framework. Each is a hard requirement of

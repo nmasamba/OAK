@@ -17,6 +17,9 @@ from typing import Any
 from oak.domain import OAKError, SecretValue
 
 SERVICE_NAME = "oak-community"
+# The module the store imports. Named here so a test session can point it at
+# something that does not exist and be certain nothing reaches a real keychain.
+DEFAULT_KEYCHAIN_MODULE = "keyring"
 UNAVAILABLE_CODE = "OAK-MODEL-KEYCHAIN-UNAVAILABLE"
 UNSAFE_CODE = "OAK-MODEL-KEYCHAIN-UNSAFE"
 
@@ -24,8 +27,10 @@ UNSAFE_CODE = "OAK-MODEL-KEYCHAIN-UNSAFE"
 class KeychainCredentialStore:
     source = "keychain"
 
-    def __init__(self, module_name: str = "keyring") -> None:
-        self._module_name = module_name
+    def __init__(self, module_name: str | None = None) -> None:
+        # Resolved per instance rather than bound as a default, so that pointing
+        # DEFAULT_KEYCHAIN_MODULE somewhere inert actually takes effect.
+        self._module_name = module_name or DEFAULT_KEYCHAIN_MODULE
 
     def location(self) -> str:
         return f"operating-system keychain (service {SERVICE_NAME!r})"

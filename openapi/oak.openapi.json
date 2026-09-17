@@ -2835,7 +2835,7 @@
           {
             "in": "header",
             "name": "X-OAK-Model-Token",
-            "required": false,
+            "required": true,
             "schema": {
               "anyOf": [
                 {
@@ -2927,7 +2927,7 @@
           {
             "in": "header",
             "name": "X-OAK-Model-Token",
-            "required": false,
+            "required": true,
             "schema": {
               "anyOf": [
                 {
@@ -3010,7 +3010,7 @@
           {
             "in": "header",
             "name": "X-OAK-Model-Token",
-            "required": false,
+            "required": true,
             "schema": {
               "anyOf": [
                 {
@@ -3096,7 +3096,7 @@
           {
             "in": "header",
             "name": "X-OAK-Model-Token",
-            "required": false,
+            "required": true,
             "schema": {
               "anyOf": [
                 {
@@ -3177,7 +3177,7 @@
           {
             "in": "header",
             "name": "X-OAK-Model-Token",
-            "required": false,
+            "required": true,
             "schema": {
               "anyOf": [
                 {
@@ -3280,7 +3280,7 @@
           {
             "in": "header",
             "name": "X-OAK-Model-Token",
-            "required": false,
+            "required": true,
             "schema": {
               "anyOf": [
                 {

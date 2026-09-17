@@ -801,28 +801,34 @@ class DesignCaseService:
         parts = path.split("/")
         return len(parts) == 3 and parts[1] == "spec" and bool(parts[2])
 
+    # What a reviewer is rejecting at a section path is what OAK proposed there, not what
+    # they themselves wrote in the brief. Anything whose provenance says `explicit` survives.
+    REVIEWABLE_SOURCES = frozenset(
+        {MODEL_PROPOSED, "inferred_from_brief", "domain_default", "policy", "measured"}
+    )
+
     @classmethod
     def _reject_section(cls, intent: dict[str, Any], path: str) -> None:
-        """Reject a section-level question.
+        """Reject a section-level question by removing the values it put up for review.
 
-        The claims under review at a section path are the model-proposed ones, so those
-        values and their provenance are removed field by field while explicit brief values
-        stay. A section that holds no model-proposed value (the deterministic hardware
-        question) is emptied instead; a required section is never deleted.
+        A section question covers every leaf under it, and those leaves have different
+        origins: some the brief stated outright, some a model proposed, some a deterministic
+        mapping inferred or defaulted. Rejecting means "the claims you showed me are wrong",
+        so the reviewable ones go and the brief's own values stay. Emptying the whole section
+        would silently delete what the reviewer wrote, and a required section is never
+        removed outright.
         """
 
         section = path.split("/")[2]
         roots: set[str] = set()
         for record_path, record in intent["provenance"].items():
-            if record.get("source") != MODEL_PROPOSED or not record_path.startswith(f"{path}/"):
+            if not record_path.startswith(f"{path}/"):
+                continue
+            if record.get("source") not in cls.REVIEWABLE_SOURCES:
                 continue
             parts = record_path.split("/")
             width = 5 if len(parts) > 3 and parts[3] == "extensions" else 4
             roots.add("/".join(parts[:width]))
-        if not roots:
-            intent["spec"][section] = {}
-            cls._remove_provenance(intent, path)
-            return
         for root in sorted(roots):
             cls._pointer_remove(intent, root)
             cls._remove_provenance(intent, root)

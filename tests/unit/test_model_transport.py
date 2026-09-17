@@ -455,3 +455,37 @@ def test_a_provider_that_trickles_its_status_line_is_cut_off_at_the_deadline() -
         stop.set()
         listener.close()
         server.join(timeout=5)
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "oak-test-key-with-a-newline\n",
+        "oak-test-key-with-a-return\r",
+        "oak-test-key-with-a-null\x00",
+        # `http.client` encodes header values as latin-1, so a key containing anything
+        # outside that range raises with the value in the message — which for Authorization
+        # would put the credential into an exception chain. A key read from the environment
+        # never passes through validate_key_input, so this is the only guard it meets.
+        # Written as escapes so the intent is unmistakable and the ambiguous-character
+        # lint rule does not have to guess: this is Cyrillic, outside Latin-1.
+        "oak-test-key-\u043a\u0438\u0440\u0438\u043b\u043b\u0438\u0446\u0430",
+        "oak-test-key-with-emoji-\U0001f511",
+    ],
+)
+def test_a_header_value_a_request_cannot_carry_is_refused_without_echoing_it(
+    server: _Server, value: str
+) -> None:
+    with pytest.raises(OAKError) as refused:
+        _transport().send(
+            TransportRequest(
+                method="GET",
+                url=f"{server.url}/x",
+                headers={"Authorization": f"Bearer {value}"},
+            )
+        )
+
+    assert refused.value.code == "OAK-MODEL-KEY-INVALID"
+    assert value.strip() not in refused.value.message
+    assert "oak-test-key" not in refused.value.message
+    assert server.seen == [], "nothing was sent"

@@ -18,10 +18,11 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from oak.application import ModelConfigurationService
+from oak.application import ModelConfigurationService, validate_key_input
 from oak.bootstrap import create_model_configuration_service
 from oak.domain import OAKError
 from oak.interfaces.api.app import create_app
+from tests.mcp_support import build_file_control_plane
 
 pytestmark = pytest.mark.integration
 
@@ -277,3 +278,112 @@ def test_a_provider_failure_during_discovery_keeps_its_code(client: TestClient) 
     assert response.status_code == 429
     assert response.json()["code"] == "OAK-MODEL-RATE-LIMITED"
     assert response.json()["retriable"] is True
+
+
+# ----- regressions found by the Sprint 9 closing audit ------------------------------
+
+
+def test_an_unchanged_client_keeps_working_after_a_model_is_selected(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`auto` is what a client written before the model path existed sends.
+
+    Once a model was selected, `auto` resolved to the model, which needs the capability
+    token — so a caller that had never heard of the token started getting 403 on a call that
+    had always worked. With no token, `auto` now means what it always meant.
+    """
+
+    monkeypatch.setenv("OAK_CREDENTIALS_DIRECTORY", str(tmp_path / "credentials"))
+    monkeypatch.setenv("OAK_MODELS_DIRECTORY", str(tmp_path / "models"))
+    service = create_model_configuration_service()
+    service.set_key("openai", validate_key_input(KEY), source="file")
+    service.select("openai", "gpt-6-astra")
+
+    plane, _ = build_file_control_plane(tmp_path / "plane")
+    app = create_app(
+        control_plane=plane,
+        model_token=TOKEN,
+        model_configuration=create_model_configuration_service,
+    )
+    with TestClient(app, base_url="http://127.0.0.1") as client:
+        created = client.post(
+            "/v1/design-cases",
+            headers={"Idempotency-Key": "compat-create-0001"},
+            json={"original_name": "brief.md", "content": "A support desk wants drafts."},
+        )
+        assert created.status_code == 201, created.text
+        case_id = created.json()["case"]["id"]
+
+        # No interpreter, no token: exactly what the previous client sent.
+        answered = client.post(
+            f"/v1/design-cases/{case_id}:interpret",
+            headers={"Idempotency-Key": "compat-interpret-0001", "If-Match": '"0.1.0"'},
+        )
+
+    assert answered.status_code == 200, answered.text
+    assert (
+        "oak.community/interpretation_proposal_ref" not in answered.json()["intent"]["extensions"]
+    )
+
+
+def test_asking_for_the_model_by_name_still_requires_the_token(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("OAK_CREDENTIALS_DIRECTORY", str(tmp_path / "credentials"))
+    monkeypatch.setenv("OAK_MODELS_DIRECTORY", str(tmp_path / "models"))
+    plane, _ = build_file_control_plane(tmp_path / "plane")
+    app = create_app(
+        control_plane=plane,
+        model_token=TOKEN,
+        model_configuration=create_model_configuration_service,
+    )
+    with TestClient(app, base_url="http://127.0.0.1") as client:
+        created = client.post(
+            "/v1/design-cases",
+            headers={"Idempotency-Key": "explicit-create-0001"},
+            json={"original_name": "brief.md", "content": "A support desk wants drafts."},
+        )
+        case_id = created.json()["case"]["id"]
+        refused = client.post(
+            f"/v1/design-cases/{case_id}:interpret?interpreter=model",
+            headers={"Idempotency-Key": "explicit-interpret-0001", "If-Match": '"0.1.0"'},
+        )
+    assert refused.status_code == 403
+    assert refused.json()["code"] == "OAK-MODEL-TOKEN-REQUIRED"
+
+
+def test_the_document_declares_the_token_required_where_the_server_requires_it(
+    client: TestClient,
+) -> None:
+    """Describing a header as optional while always refusing without it is a false contract."""
+
+    document = client.app.openapi()  # type: ignore[attr-defined]
+    for path, method in (
+        ("/v1/models", "get"),
+        ("/v1/models/credentials/{family}", "put"),
+        ("/v1/models/credentials/{family}", "delete"),
+        ("/v1/models/selection", "put"),
+        ("/v1/models/selection", "delete"),
+        ("/v1/models/{family}:discover", "post"),
+    ):
+        parameters = document["paths"][path][method]["parameters"]
+        token = next(p for p in parameters if p["name"] == "X-OAK-Model-Token")
+        assert token["required"] is True, (path, method)
+
+
+def test_the_status_resource_is_on_the_same_loopback_footing_as_the_rest(
+    client: TestClient,
+) -> None:
+    """It names the store paths and every stored key's fingerprint."""
+
+    from oak.interfaces.api.app import is_credential_route
+
+    assert is_credential_route("/v1/models")
+    assert is_credential_route("/v1/models/selection")
+    assert is_credential_route("/v1/models/credentials/openai")
+    assert is_credential_route("/v1/models/huggingface:discover")
+    assert not is_credential_route("/v1/design-cases")
+
+    refused = client.get("/v1/models", headers={**_headers(), "Origin": "https://evil.example"})
+    assert refused.status_code == 403
+    assert refused.json()["code"] == "OAK-ORIGIN-DENIED"

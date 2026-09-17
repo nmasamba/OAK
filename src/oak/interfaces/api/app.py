@@ -72,6 +72,7 @@ ExpectedVersionHeader = Annotated[str, Header(alias="If-Match", min_length=3, ma
 CorrelationHeader = Annotated[
     str | None, Header(alias="X-Correlation-ID", min_length=8, max_length=160)
 ]
+MODEL_TOKEN_HEADER = "X-OAK-Model-Token"
 ModelTokenHeader = Annotated[
     str | None, Header(alias="X-OAK-Model-Token", min_length=16, max_length=256)
 ]
@@ -83,7 +84,6 @@ ModelTokenHeader = Annotated[
 LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
 # Routes that store, remove, discover, or select model-provider credentials: loopback `Host`
 # only, whatever the allowlist says, and a browser must be same-origin, not merely same-site.
-CREDENTIAL_ROUTE_PREFIXES = ("/v1/models/credentials/", "/v1/models/selection")
 HOST_CHECK_EXEMPT_PATHS = frozenset({"/healthz", "/readyz"})
 
 
@@ -114,7 +114,7 @@ AuthorityDependency = Annotated[_Authority, Depends(_local_authority)]
 def _require_model_token(
     request: Request,
     presented: Annotated[
-        str | None, Header(alias="X-OAK-Model-Token", min_length=16, max_length=256)
+        str | None, Header(alias=MODEL_TOKEN_HEADER, min_length=16, max_length=256)
     ] = None,
 ) -> None:
     """Refuse before the body is read.
@@ -122,6 +122,11 @@ def _require_model_token(
     FastAPI resolves dependencies before it parses or validates a request body, so a caller
     without the capability token never has its body examined and is never told what was
     wrong with a request it was not entitled to make.
+
+    The header is declared optional here on purpose: a missing token is an authorisation
+    failure, and answering it with the stable `OAK-MODEL-TOKEN-REQUIRED` is more useful than
+    a generic "field required". The published document marks it required, which is the
+    truthful description of the contract; `create_app` corrects it there.
     """
 
     provider: Callable[[], str | None] = request.app.state.model_token_provider
@@ -205,9 +210,14 @@ def _origin_hostname(origin: str) -> str | None:
 
 
 def is_credential_route(path: str) -> bool:
-    return path.startswith(CREDENTIAL_ROUTE_PREFIXES) or (
-        path.startswith("/v1/models/") and path.endswith(":discover")
-    )
+    """Whether a path is part of the model-configuration surface.
+
+    Every `/v1/models` path qualifies, reads included: the status resource names the store
+    locations and the salted fingerprint of each stored key, which is not something a page
+    on another origin should be able to read even though it cannot change anything.
+    """
+
+    return path == "/v1/models" or path.startswith("/v1/models/")
 
 
 def parse_allowed_hosts(value: str) -> frozenset[str]:
@@ -501,6 +511,31 @@ def create_app(
 
     api.state.model_token_provider = token_provider
 
+    generated_openapi = api.openapi
+
+    def openapi() -> dict[str, Any]:
+        """The generated document, corrected on one point.
+
+        FastAPI derives `required` from the dependency's signature, where the token is
+        optional so that a missing one gets a stable refusal rather than a validation error.
+        On the model routes the server refuses every request without it, so leaving the
+        document saying "optional" would describe a contract the server does not honour and
+        would give generated clients an optional argument that never works.
+        """
+
+        document = generated_openapi()
+        for route, operations in document.get("paths", {}).items():
+            if not is_credential_route(route):
+                continue
+            for operation in operations.values():
+                for parameter in operation.get("parameters", []):
+                    if parameter.get("name") == MODEL_TOKEN_HEADER:
+                        parameter["required"] = True
+        api.openapi_schema = document
+        return document
+
+    api.openapi = openapi  # type: ignore[method-assign]
+
     def plane() -> CommunityControlPlane:
         nonlocal persistent_service
         if persistent_service is None:
@@ -701,13 +736,19 @@ def create_app(
         )
         # Resolve first so the capability token is demanded exactly when the operator's
         # stored credential would be spent, and nothing is committed without it.
+        requested = (interpreter or InterpreterMode.AUTO).value
         mode = plane().resolve_interpreter(
-            case_id,
-            tenant_id=context.tenant_id,
-            interpreter=(interpreter or InterpreterMode.AUTO).value,
+            case_id, tenant_id=context.tenant_id, interpreter=requested
         )
         if mode == "model":
-            verify_model_token(model_token, token_provider())
+            if requested == InterpreterMode.AUTO.value and model_token is None:
+                # `auto` is what a client written before the model path existed sends. It
+                # must keep meaning what it meant then rather than becoming a 403 the moment
+                # somebody configures a model, so with no token it stays deterministic.
+                # Asking for the model by name still requires the token.
+                mode = InterpreterMode.DETERMINISTIC.value
+            else:
+                verify_model_token(model_token, token_provider())
         result = plane().interpret(case_id, context, interpreter=mode)
         response.headers["ETag"] = _etag(str(result.case["version"]))
         return DesignCaseResponse(

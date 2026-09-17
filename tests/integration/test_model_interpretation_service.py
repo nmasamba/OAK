@@ -176,15 +176,20 @@ def test_the_model_path_commits_intent_proposal_event_and_case_in_one_mutation(
     question_ids = [q["id"] for q in result.case["unresolved_questions"]]
     # Critical before high; within a materiality the deterministic questions (hint 0) come
     # first and model sections follow in ascending confidence (0.40 < 0.55; 0.62 < 0.70).
+    # The named critical questions survive a model's guess: a section question is
+    # additional to them, never a replacement.
     assert question_ids == [
+        "question.accountable-owner",
         "question.model-hardware",
         "question.production-use",
         "question.model.stakeholders",
         "question.model.data",
+        "question.action-autonomy",
+        "question.data-classification",
         "question.model.decision",
         "question.model.operational_contract",
     ]
-    assert len(service.questions().questions) == 6
+    assert len(service.questions().questions) == 9
     model_assumptions = [a for a in result.case["assumptions"] if a["source"] == "model_proposed"]
     assert {a["path"] for a in model_assumptions} == {
         "/spec/decision/autonomy",
@@ -351,7 +356,14 @@ def test_model_values_keep_the_case_in_confirmation_until_two_rounds_resolve_the
     assert after_first.intent is not None
     assert after_first.intent["status"] == "draft"
     open_ids = [q["id"] for q in after_first.case["unresolved_questions"] if q["status"] == "open"]
-    assert open_ids == ["question.model.decision"]
+    # What the first round did not reach stays open: the remaining model section and the
+    # named questions covering leaves nobody confirmed.
+    assert open_ids == [
+        "question.accountable-owner",
+        "question.action-autonomy",
+        "question.data-classification",
+        "question.model.decision",
+    ]
     provenance = after_first.intent["provenance"]
     assert provenance["/spec/data/classifications/0"]["confirmation_required"] is False
     assert provenance["/spec/data/classifications/0"]["confirmed_by"] == "local-user"
@@ -366,10 +378,32 @@ def test_model_values_keep_the_case_in_confirmation_until_two_rounds_resolve_the
         planning.candidates(_context("generate-rounds-0007-b", "0.1.2", T2))
     assert still_early.value.code == "OAK-CANDIDATES-STATE"
 
-    # Round two: the last model section, confirmed as proposed.
+    # Round two: everything still open. Confirming a section confirms the leaves beneath
+    # it, and the named questions covering those leaves are answered in the same round.
     second_round = _answers(
         case_id,
-        [("question.model.decision", "confirm", _pointer(after_first.intent, "/spec/decision"))],
+        [
+            (
+                "question.model.decision",
+                "confirm",
+                _pointer(after_first.intent, "/spec/decision"),
+            ),
+            (
+                "question.accountable-owner",
+                "confirm",
+                _pointer(after_first.intent, "/spec/stakeholders/accountable_owner"),
+            ),
+            (
+                "question.action-autonomy",
+                "confirm",
+                _pointer(after_first.intent, "/spec/decision/autonomy"),
+            ),
+            (
+                "question.data-classification",
+                "confirm",
+                _pointer(after_first.intent, "/spec/data/classifications/0"),
+            ),
+        ],
     )
     after_second = service.confirm(second_round, _context("confirm-rounds-0007-b", "0.1.2", T2))
     assert after_second.case["status"] == "ready_for_candidates"
@@ -427,18 +461,54 @@ def test_rejecting_a_section_question_drops_only_the_model_values(tmp_path: Path
     assert question["status"] == "resolved"
 
 
-def test_rejecting_the_deterministic_hardware_question_empties_the_section_without_crashing(
-    tmp_path: Path,
-) -> None:
+# ----- regressions found by the Sprint 9 closing audit ------------------------------
+
+
+def test_rejecting_a_section_keeps_what_the_brief_itself_stated(tmp_path: Path) -> None:
+    """Reject means "the claims you showed me are wrong", not "delete my brief".
+
+    A section question covers leaves with different origins. Emptying the section on reject
+    erased the reviewer's own explicit values — and did so on the deterministic path too,
+    where no model had run at all.
+    """
+
     service = _service(tmp_path / "ws", None, with_factory=False)
-    designed = service.design(STRUCTURED, _context("design-structured-reject-0009", None, T0))
-    case_id = str(designed.case["id"])
+    designed = service.design(STRUCTURED, _context("design-reject-explicit-0010", None, T0))
+    assert designed.intent is not None
+    before = designed.intent["spec"]["hardware"]
+    assert before["ram_gib"] == 32
+
     rejected = service.confirm(
-        _answers(case_id, [("question.model-hardware", "reject", None)]),
-        _context("confirm-structured-reject-0009", "0.1.1", T1),
+        _answers(str(designed.case["id"]), [("question.model-hardware", "reject", None)]),
+        _context("confirm-reject-explicit-0010", "0.1.1", T1),
     )
+
     assert rejected.intent is not None
-    assert rejected.intent["spec"]["hardware"] == {}
-    assert not any(path.startswith("/spec/hardware/") for path in rejected.intent["provenance"])
+    assert rejected.intent["spec"]["hardware"] == before, "the brief's own values survive"
+    assert rejected.intent["provenance"]["/spec/hardware/ram_gib"]["source"] == "explicit"
     REGISTRY.validate("system-intent.schema.json", rejected.intent)
-    assert rejected.case["status"] == "needs_confirmation"
+
+
+def test_rejecting_a_section_removes_the_model_and_derived_values_only(tmp_path: Path) -> None:
+    service = _service(tmp_path / "ws", BindingFakeModelInterpreter())
+    designed = service.design(PROSE, _context("design-reject-mixed-0011", None, T0))
+    assert designed.intent is not None
+    assert designed.intent["spec"]["data"]["classifications"] == ["internal"]
+    assert designed.intent["provenance"]["/spec/data/classifications/0"]["source"] == (
+        "model_proposed"
+    )
+
+    rejected = service.confirm(
+        _answers(str(designed.case["id"]), [("question.model.data", "reject", None)]),
+        _context("confirm-reject-mixed-0011", "0.1.1", T1),
+    )
+
+    assert rejected.intent is not None
+    # The model's claim goes; the brief's own text elsewhere is untouched.
+    assert "classifications" not in rejected.intent["spec"]["data"]
+    assert (
+        rejected.intent["spec"]["purpose"]["problem"]
+        == designed.intent["spec"]["purpose"]["problem"]
+    )
+    assert rejected.intent["provenance"]["/spec/purpose/problem"]["source"] == "explicit"
+    REGISTRY.validate("system-intent.schema.json", rejected.intent)

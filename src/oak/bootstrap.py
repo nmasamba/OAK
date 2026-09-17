@@ -195,8 +195,9 @@ def model_discoverer(family: str, previous: dict[str, Any] | None) -> dict[str, 
     profile = profile_for(family, local_endpoint=os.getenv("OAK_MODEL_ENDPOINT_LOCAL"))
     transport = _model_transport(profile, maximum_response_bytes=MAXIMUM_CATALOGUE_BYTES)
     fetched_at = _utc_now()
+    budget = model_timeout_seconds()
     if family == "huggingface":
-        return discover_huggingface(transport.send, fetched_at=fetched_at)
+        return discover_huggingface(transport.send, fetched_at=fetched_at, deadline_seconds=budget)
     configuration = create_model_configuration_service()
     secret = configuration.credential_for(family)
     return discover_models(
@@ -204,6 +205,7 @@ def model_discoverer(family: str, previous: dict[str, Any] | None) -> dict[str, 
         transport.send,
         key=secret.reveal() if secret is not None else None,
         fetched_at=fetched_at,
+        deadline_seconds=budget,
     )
 
 

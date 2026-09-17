@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import math
 import re
+import time
 import urllib.parse
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -707,6 +708,7 @@ def discover_models(
     *,
     key: str | None,
     fetched_at: str,
+    deadline_seconds: float | None = None,
 ) -> dict[str, Any]:
     """A discovery snapshot from the provider's own catalogue.
 
@@ -714,7 +716,11 @@ def discover_models(
     token, never through a redirect, and stop after ``MAXIMUM_MODEL_PAGES``.
     """
 
-    if profile.credential_required and key is None and profile.key_verification != "unknown":
+    if profile.credential_required and key is None:
+        # `key_verification` says how well a models list tests a key, not whether the family
+        # needs one. Without this, a family whose verification is "unknown" opened a
+        # connection with no credential and reported the provider's 401 as "the stored key
+        # was refused" — about a key that was never stored.
         raise OAKError(
             "OAK-MODEL-KEY-MISSING",
             f"listing {profile.family} models needs a stored key; run "
@@ -723,8 +729,24 @@ def discover_models(
     descriptors: list[ModelDescriptor] = []
     filtered_out = 0
     token: str | None = None
+    # One budget for the walk, not one per page: five pages at the per-request deadline
+    # would be five times the total the configuration promises.
+    started = time.monotonic()
+    budget = float(deadline_seconds) if deadline_seconds is not None else None
     for _ in range(MAXIMUM_MODEL_PAGES):
-        response = fetch(models_request(profile, key, page_token=token))
+        if budget is not None:
+            remaining = budget - (time.monotonic() - started)
+            if remaining <= 0.05:
+                raise OAKError(
+                    "OAK-MODEL-DISCOVERY-UNAVAILABLE",
+                    f"listing {profile.family} models did not finish within its deadline",
+                    retriable=True,
+                )
+            response = fetch(
+                models_request(profile, key, page_token=token), deadline_seconds=remaining
+            )
+        else:
+            response = fetch(models_request(profile, key, page_token=token))
         entries, token = parse_models(profile, response)
         for entry in entries:
             descriptor = descriptor_from(profile, entry)

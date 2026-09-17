@@ -88,8 +88,8 @@
     constraints, written in plain language (Markdown or text) or as structured YAML or
     JSON —
     and it walks that brief through a deterministic pipeline: it
-    interprets the brief into typed claims with provenance, asks you at most five ranked
-    clarification questions, generates and compares candidate architectures against hard
+    interprets the brief into typed claims with provenance, asks you its ranked
+    clarification questions five at a time, generates and compares candidate architectures against hard
     constraints, evaluates the selected candidate against an evaluation contract,
     records an immutable decision with your rationale, attaches an assurance plan, and
     finally compiles a canonical <strong>deployment bundle</strong> and a typed,
@@ -310,36 +310,6 @@ uv run oak assure candidate-03 --output ./assurance
     that is the determinism promise, and it is what makes the digests in chapter 5
     worth signing.
   </div>
-  <h2>Optional: configure a model provider</h2>
-  <p>
-    Everything above is deterministic. If you would rather write briefs in plain language
-    and have them interpreted for you, <strong>Settings → Models</strong> is where you say
-    so. Nothing is configured by default, and nothing here is required by any other part of
-    the manual.
-  </p>
-  <p>
-    The page needs the capability token the API minted when it started — not a password, but
-    a capability that dies with that process. Print it on the machine running the API:
-  </p>
-<pre><code>docker compose exec -T api oak models token</code></pre>
-  <p>
-    Paste it once, then choose a family. Hugging Face is the default and its
-    <em>Detect models</em> button works with no key at all: it reads the public catalogue,
-    keeps only ungated models under a permissive licence with a live structured-output
-    route, and recommends one. Storing a key is a separate step, and the key never comes
-    back — the page shows only which backend holds it and a salted fingerprint.
-  </p>
-  <figure><img src="assets/11-models.png" alt="The model settings screen"><figcaption>Model settings. The family, its data-use note and licence class, the stored key's backend and fingerprint (never the key), the detected models, and the one-click way back to deterministic interpretation.</figcaption></figure>
-  <div class="note">
-    <strong>What changes once you select a model.</strong> A plain-language brief is sent to
-    that provider when you interpret it, under that provider's own retention and training
-    terms — OAK records which model ran and the digest of what came back, but it cannot
-    control what the provider then does. The values the model proposes are marked
-    <em>Proposed by model</em>, every section it touched raises a question, and candidates
-    are refused until you have answered them. A structured brief stays deterministic, and
-    <code>oak design --interpreter deterministic</code> always does.
-  </div>
-
   <h2>Export and import</h2>
   <pre><code>uv run oak export --output ../case-export
 <span class="out">Exported design-case.public-manual-qa@0.1.7 to ../case-export</span>
@@ -382,6 +352,37 @@ uv run oak import ../case-export --directory ../restored
   <figure><img src="assets/08-decision-assurance.png" alt="Decision and assurance plan"><figcaption>The immutable decision: the selected candidate with its recorded rationale and decider, every alternative with the reason it was not selected (<code>candidate-04</code> carries its unconfirmed hardware constraint), and the evaluation evidence beneath. The assurance plan's controls and gate blockers follow further down the same screen.</figcaption></figure>
   <figure><img src="assets/09-bundle.png" alt="Compiled bundle review"><figcaption>Bundle review. Plan, approval and apply are deliberately separated — and apply is marked unavailable here: the web surface holds no runner execution authority.</figcaption></figure>
   <figure><img src="assets/10-timeline.png" alt="Audit timeline"><figcaption>The audit timeline: every recorded event from <em>case_created</em> to <em>bundle_compiled</em>, each with its sequence number, actor, interface origin, case version and timestamp — and downloadable as a canonical JSON export.</figcaption></figure>
+
+  <h2>Optional: configure a model provider</h2>
+  <p>
+    Everything above is deterministic. If you would rather write briefs in plain language
+    and have them interpreted for you, <strong>Settings → Models</strong> is where you say
+    so. Nothing is configured by default, and nothing here is required by any other part of
+    the manual.
+  </p>
+  <p>
+    The page needs the capability token the API minted when it started — not a password, but
+    a capability that dies with that process. Print it on the machine running the API:
+  </p>
+<pre><code>docker compose exec -T api oak models token</code></pre>
+  <p>
+    Paste it once, then choose a family. Hugging Face is the default and its
+    <em>Detect models</em> button works with no key at all: it reads the public catalogue,
+    keeps only ungated models under a permissive licence with a live structured-output
+    route, and recommends one. Storing a key is a separate step, and the key never comes
+    back — the page shows only which backend holds it and a salted fingerprint.
+  </p>
+  <figure><img src="assets/11-models.png" alt="The model settings screen"><figcaption>Model settings. The family, its data-use note and licence class, the stored key's backend and fingerprint (never the key), the detected models, and the one-click way back to deterministic interpretation.</figcaption></figure>
+  <div class="note">
+    <strong>What changes once you select a model.</strong> A plain-language brief is sent to
+    that provider when you interpret it, under that provider's own retention and training
+    terms — OAK records which model ran and the digest of what came back, but it cannot
+    control what the provider then does. The values the model proposes are marked
+    <em>Proposed by model</em>, every section it touched raises a question, and candidates
+    are refused until you have answered them. A structured brief stays deterministic, and
+    <code>oak design --interpreter deterministic</code> always does.
+  </div>
+
   <p>Stop the stack with <code>docker compose down</code> (add <code>--volumes</code> to also drop the local database and artifact store).</p>
 </section>
 

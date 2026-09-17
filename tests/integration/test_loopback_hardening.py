@@ -196,11 +196,21 @@ async def test_credential_routes_require_a_same_origin_browser_or_a_non_browser_
 
 
 def test_credential_route_recognition_is_exact() -> None:
+    """The whole model surface counts, reads included.
+
+    `GET /v1/models` names the store locations and the salted fingerprint of every stored
+    key. It changes nothing, but it is not something a page on another origin should be able
+    to read, and the changelog describes these resources as loopback-only without qualifying
+    which of them.
+    """
+
+    assert is_credential_route("/v1/models")
     assert is_credential_route("/v1/models/credentials/openai")
     assert is_credential_route("/v1/models/selection")
     assert is_credential_route("/v1/models/huggingface:discover")
-    assert not is_credential_route("/v1/models")
     assert not is_credential_route("/v1/design-cases")
+    assert not is_credential_route("/v1/modelstore")
+    assert not is_credential_route("/v1/models-and-more")
 
 
 async def test_a_missing_host_header_is_refused() -> None:

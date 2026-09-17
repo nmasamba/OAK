@@ -154,22 +154,20 @@ def _rest_leg(tmp_path: Path, adapter: ModelInterpreterPort | None) -> dict[str,
     created = rest.create()
     case_id = str(created["id"])
 
-    # No token: refused before anything is committed, whether asked for explicitly or
-    # resolved from `auto` for a prose brief.
-    for interpreter in ("model", "auto", None):
-        status, problem = rest.interpret(case_id, "0.1.0", interpreter=interpreter, token=None)
+    # Asking for the model by name without the token is refused, and nothing is committed.
+    for token in (None, "wrong-token-0123456789"):
+        status, problem = rest.interpret(case_id, "0.1.0", interpreter="model", token=token)
         assert status == 403, problem
         assert problem["code"] == "OAK-MODEL-TOKEN-REQUIRED"
-    status, problem = rest.interpret(
-        case_id, "0.1.0", interpreter="model", token="wrong-token-0123456789"
-    )
-    assert status == 403 and problem["code"] == "OAK-MODEL-TOKEN-REQUIRED"
     assert rest.case(case_id)["case"]["version"] == "0.1.0"
     assert len(rest.events(case_id)) == 1
 
-    # The deterministic interpreter never needs the token.
+    # `auto` — and an absent parameter, which is what a client written before the model path
+    # existed sends — must keep meaning what it meant then. Without the token it interprets
+    # deterministically and succeeds, rather than turning into a 403 the moment somebody
+    # configures a model. The deterministic interpreter never needs the token.
     status, deterministic = rest.interpret(
-        case_id, "0.1.0", interpreter="deterministic", token=None, key="conform-model-dry-run-01"
+        case_id, "0.1.0", interpreter=None, token=None, key="conform-model-dry-run-01"
     )
     assert status == 200, deterministic
     assert PROPOSAL_REF not in deterministic["intent"]["extensions"]
@@ -252,7 +250,7 @@ def test_the_model_path_is_identical_across_file_rest_and_mcp(tmp_path: Path) ->
     assert reference["event_types"] == ["case_created", "brief_interpreted"]
     assert reference["interpreter_extension"]["kind"] == "model"
     assert reference["interpreter_extension"]["proposal_digest"] == reference["proposal_digest"]
-    assert len(reference["question_ids"]) == 6
+    assert len(reference["question_ids"]) == 9
     for name, outcome in outcomes.items():
         assert outcome == reference, (name, json.dumps(outcome, indent=1))
 

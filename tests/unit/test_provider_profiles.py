@@ -22,6 +22,7 @@ from oak.adapters.models.providers import (
     ModelDescriptor,
     ProviderProfile,
     ProviderRoute,
+    _huggingface_routes,
     chat_request,
     descriptor_from,
     discover_models,
@@ -36,7 +37,7 @@ from oak.adapters.models.providers import (
     retry_after_seconds,
 )
 from oak.adapters.models.transport import TransportRequest, TransportResponse
-from oak.domain import OAKError
+from oak.domain import OAKError, canonical_json_bytes
 from oak.domain.model_families import FAMILY_BY_ID, FAMILY_IDS
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -539,3 +540,73 @@ def test_retry_after_is_read_only_when_it_is_a_short_number() -> None:
     )
     assert retry_after_seconds(_response(429, {}, retry_after="999")) is None
     assert retry_after_seconds(_response(429, {}, retry_after="-5")) is None
+
+
+# ----- regressions found by the Sprint 9 closing audit ------------------------------
+
+
+@pytest.mark.parametrize("family", HOSTED)
+def test_discovery_needs_a_key_for_every_family_that_requires_one(family: str) -> None:
+    """`key_verification` says how well a list tests a key, not whether one is needed.
+
+    Gemini and Hugging Face report "unknown", and the earlier guard skipped them: discovery
+    opened a connection with no credential and then reported the provider's refusal as "the
+    stored key was rejected" — about a key that had never been stored.
+    """
+
+    def fetch(request: TransportRequest, **keywords: Any) -> TransportResponse:
+        raise AssertionError(f"{family} discovery opened a connection with no key")
+
+    with pytest.raises(OAKError) as refused:
+        discover_models(_profile(family), fetch, key=None, fetched_at="2026-09-17T00:00:00Z")
+
+    assert refused.value.code == "OAK-MODEL-KEY-MISSING"
+    assert f"oak models set-key {family}" in refused.value.message
+
+
+def test_a_paged_walk_shares_one_deadline_rather_than_spending_one_per_page() -> None:
+    """Five pages at the per-request deadline would be five times the promised total."""
+
+    profile = _profile("anthropic")
+    offered: list[float | None] = []
+
+    def fetch(
+        request: TransportRequest, *, deadline_seconds: float | None = None
+    ) -> TransportResponse:
+        offered.append(deadline_seconds)
+        if len(offered) == 1:
+            return _response(200, _fixture("anthropic", "models"))
+        # Pretend the first page consumed the whole budget.
+        raise OAKError("OAK-INTERPRETER-UNAVAILABLE", "slow", retriable=True)
+
+    with pytest.raises(OAKError):
+        discover_models(
+            profile, fetch, key=KEY, fetched_at="2026-09-17T00:00:00Z", deadline_seconds=10.0
+        )
+
+    assert offered[0] is not None and offered[0] <= 10.0
+    assert len(offered) == 2
+    assert offered[1] is not None and offered[1] < offered[0], "the budget shrinks as it is spent"
+
+
+def test_a_non_finite_price_is_dropped_rather_than_stored() -> None:
+    routes = _huggingface_routes(
+        [
+            {
+                "provider": "x",
+                "status": "live",
+                "pricing": {"output": 1e400},
+                "supports_structured_output": True,
+            }
+        ]
+    )
+    assert routes[0].output_price_per_million is None
+    canonical_json_bytes({"price": routes[0].output_price_per_million})
+
+
+def test_a_provider_error_type_cannot_end_with_a_newline_and_reach_the_message() -> None:
+    """`$` matches before a trailing newline; `fullmatch` does not."""
+
+    error = error_for_status(_profile("openai"), _response(400, {"error": {"type": "rate\n"}}))
+    assert "\n" not in error.message
+    assert "unspecified" in error.message

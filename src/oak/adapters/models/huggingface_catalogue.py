@@ -11,6 +11,7 @@ select a model; the snapshot then says so rather than pretending it was looked u
 
 from __future__ import annotations
 
+import time
 from collections.abc import Callable
 from typing import Any
 
@@ -24,7 +25,7 @@ from oak.adapters.models.providers import (
 from oak.adapters.models.transport import TransportRequest, TransportResponse
 from oak.domain import OAKError
 
-Fetch = Callable[[TransportRequest], TransportResponse]
+Fetch = Callable[..., TransportResponse]
 
 ROUTER_MODELS_URL = "https://router.huggingface.co/v1/models"
 HUB_MODELS_URL = (
@@ -119,13 +120,34 @@ def pinned_snapshot(fetched_at: str) -> dict[str, Any]:
     }
 
 
-def discover_huggingface(fetch: Fetch, *, fetched_at: str) -> dict[str, Any]:
-    """A live snapshot when the catalogues answer; the pinned chain when they do not."""
+def discover_huggingface(
+    fetch: Fetch, *, fetched_at: str, deadline_seconds: float | None = None
+) -> dict[str, Any]:
+    """A live snapshot when the catalogues answer; the pinned chain when they do not.
+
+    Both reads share one budget: two full per-request deadlines would be twice the total the
+    configuration promises for a single discovery.
+    """
 
     profile = profile_for("huggingface")
+    started = time.monotonic()
+
+    def read(url: str) -> TransportResponse:
+        request = TransportRequest(method="GET", url=url)
+        if deadline_seconds is None:
+            return fetch(request)
+        remaining = float(deadline_seconds) - (time.monotonic() - started)
+        if remaining <= 0.05:
+            raise OAKError(
+                "OAK-MODEL-DISCOVERY-UNAVAILABLE",
+                "the Hugging Face catalogue did not answer within its deadline",
+                retriable=True,
+            )
+        return fetch(request, deadline_seconds=remaining)
+
     try:
-        router = fetch(TransportRequest(method="GET", url=ROUTER_MODELS_URL))
-        hub = fetch(TransportRequest(method="GET", url=HUB_MODELS_URL))
+        router = read(ROUTER_MODELS_URL)
+        hub = read(HUB_MODELS_URL)
     except OAKError as error:
         if error.code in UNREACHABLE_CODES:
             return pinned_snapshot(fetched_at)

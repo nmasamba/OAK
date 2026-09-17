@@ -142,13 +142,18 @@ def test_admissible_claims_merge_with_model_provenance_evidence_and_section_ques
         "question.model.stakeholders",
         "question.model.operational_contract",
     } <= set(question_ids)
-    # Values the model supplied are no longer "missing"; their section question covers them.
-    assert "question.action-autonomy" not in question_ids
-    assert "question.data-classification" not in question_ids
-    assert "question.accountable-owner" not in question_ids
-    assert "question.production-use" not in question_ids
-    # Nothing the model left alone stops being asked.
-    assert "question.model-hardware" in question_ids
+    # A model guessing a value is a reason to ask about it, not a reason to stop asking.
+    # The named critical questions survive and the section question is additional: each
+    # carries its own materiality and blocking gate, and losing one because a model sounded
+    # confident is the failure the confirmation invariant exists to prevent.
+    for named in (
+        "question.action-autonomy",
+        "question.data-classification",
+        "question.accountable-owner",
+        "question.production-use",
+        "question.model-hardware",
+    ):
+        assert named in question_ids, named
     section_question = next(q for q in result.questions if q.id == "question.model.data")
     assert section_question.path == "/spec/data"
     assert section_question.status == "open"
@@ -422,3 +427,102 @@ def test_the_example_proposal_still_merges_after_gaining_a_version() -> None:
     )
     assert "question.model.domain" in {question.id for question in result.questions}
     assert "question.accountable-owner" in {question.id for question in result.questions}
+
+
+# ----- regressions found by the Sprint 9 closing audit ------------------------------
+
+
+def test_an_empty_value_the_brief_states_is_not_a_gap_a_model_may_fill(tmp_path: Path) -> None:
+    """An explicit empty list leaves no provenance record, and used to read as "unstated".
+
+    Provenance is recorded per scalar leaf, so `desired_outcomes: []` produces none at all.
+    A check that consulted provenance alone therefore reported the path free, and a model
+    proposal silently replaced something the author had written on purpose.
+    """
+
+    brief_path = tmp_path / "empty.yaml"
+    brief_path.write_text(
+        "id: brief.empty\nbrief_version: 0.1.0\ntitle: Empty\n"
+        "purpose:\n  problem: A stated problem.\n  desired_outcomes: []\n",
+        encoding="utf-8",
+    )
+    brief = LocalBriefIntake().read(brief_path)
+    proposal = _proposal(_claim("/spec/purpose/desired_outcomes", ["invented"], 0.9))
+
+    result = DeterministicBriefInterpreter().interpret(
+        brief, created_at=NOW, proposal=proposal, registry=REGISTRY
+    )
+
+    assert result.intent_document["spec"]["purpose"]["desired_outcomes"] == []
+    assert "brief states this value" in _rejections(result)["/spec/purpose/desired_outcomes"]
+
+
+def test_the_reference_brief_s_own_empty_declaration_is_protected() -> None:
+    """`examples/briefs/public-manual-qa.yaml` states `affected_non_users: []`.
+
+    That is a declaration — nobody outside the user base is affected — not a gap. It is the
+    field the audit used to show the defect, so it is the field pinned here.
+    """
+
+    result = _interpret(
+        STRUCTURED,
+        _proposal(
+            _claim(
+                "/spec/stakeholders/affected_non_users",
+                ["residents of the pilot district"],
+                0.6,
+            )
+        ),
+    )
+
+    assert result.intent_document["spec"]["stakeholders"]["affected_non_users"] == []
+    assert "brief states this value" in _rejections(result)["/spec/stakeholders/affected_non_users"]
+    assert not any(q.id.startswith("question.model.") for q in result.questions)
+
+
+def test_a_model_may_not_write_an_empty_value_at_all() -> None:
+    """An empty container states nothing, and would land with no provenance to confirm."""
+
+    result = _interpret(
+        PROSE,
+        _proposal(
+            _claim("/spec/domain/sectors", []),
+            _claim("/spec/quality_contract/thresholds", {}),
+            _claim("/spec/domain/setting", "Support desk pilot"),
+        ),
+    )
+
+    spec = result.intent_document["spec"]
+    assert "sectors" not in spec["domain"]
+    assert "thresholds" not in spec["quality_contract"]
+    assert spec["domain"]["setting"] == "Support desk pilot"
+    rejections = _rejections(result)
+    assert set(rejections) == {"/spec/domain/sectors", "/spec/quality_contract/thresholds"}
+    assert all("states nothing" in reason for reason in rejections.values())
+    # Nothing was written, so no section question was raised for the refused sections.
+    ids = {question.id for question in result.questions}
+    assert "question.model.quality_contract" not in ids
+    assert "question.model.domain" in ids
+
+
+def test_a_model_guess_never_removes_the_named_critical_question(tmp_path: Path) -> None:
+    """The production-data boundary is asked about whether or not a model guessed at it."""
+
+    result = _interpret(PROSE, _proposal(_claim(PRODUCTION_DATA_PATH, True, 0.95)))
+
+    ids = [question.id for question in result.questions]
+    assert "question.production-use" in ids
+    assert "question.model.data" in ids
+    by_id = {question.id: question for question in result.questions}
+    assert by_id["question.production-use"].materiality == "critical"
+    assert by_id["question.production-use"].status == "open"
+
+
+def test_checking_whether_a_path_is_occupied_creates_nothing() -> None:
+    """The presence check must read the intent, not build the container it asks about."""
+
+    result = _interpret(PROSE, _proposal(_claim(PRODUCTION_DATA_PATH, "not a boolean")))
+
+    assert "extensions" not in result.intent_document["spec"]["data"]
+    assert set(_rejections(result)) == {PRODUCTION_DATA_PATH}
+    REGISTRY.validate("system-intent.schema.json", result.intent_document)

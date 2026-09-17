@@ -111,6 +111,18 @@ class TransportResponse:
         return self.headers.get(name.lower())
 
 
+def _is_sendable_header(value: str) -> bool:
+    """Whether `http.client` can put this value on the wire without raising."""
+
+    if any(character in value for character in "\r\n\x00"):
+        return False
+    try:
+        value.encode("latin-1")
+    except UnicodeEncodeError:
+        return False
+    return True
+
+
 def is_loopback_host(hostname: str) -> bool:
     """Whether a URL host is unambiguously this machine.
 
@@ -198,15 +210,18 @@ class ModelTransport:
             **request.headers,
         }
         for name, value in headers.items():
-            # `http.client` refuses a header value containing a control character by raising
-            # with the value in the message, which for `Authorization` would put the key in
-            # an exception chain. A credential taken from the environment never passes
-            # through `validate_key_input`, so it is checked here instead.
-            if any(character in value for character in "\r\n\x00") or not value.isprintable():
+            # `http.client` raises with the offending value in the message — for
+            # `Authorization` that would put the key into an exception chain. It refuses
+            # control characters, and it encodes header values as latin-1, so a key with any
+            # character outside that range fails the same way. A credential read from the
+            # environment never passes through `validate_key_input`, so both are checked
+            # here, by asking whether the value can actually be sent.
+            if not _is_sendable_header(value):
                 raise OAKError(
                     "OAK-MODEL-KEY-INVALID",
                     f"the {name} header value contains a character a request cannot carry; "
-                    "store the key again without whitespace or control characters",
+                    "store the key again without whitespace, control characters or "
+                    "non-Latin-1 text",
                 )
         path = parts.path or "/"
         if parts.query:

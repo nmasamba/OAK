@@ -6,8 +6,8 @@
 
 - Owner/agent: owner-directed coding agent
 - Started: 2026-09-17
-- Last updated: 2026-09-17
-- State: in-progress
+- Last updated: 2026-09-17 (complete; awaiting review)
+- State: complete
 - Claimed tasks: `OAK-S9-001`–`OAK-S9-009`
 
 ## Outcome
@@ -460,6 +460,30 @@ Six findings were refuted, each after the skeptics reproduced the mechanism and 
 the consequence did not follow — for example, the provider key can reach an exception
 `__cause__`, but nothing OAK emits renders a chain, and the input that would put it there is
 already refused. Those are recorded here rather than acted on.
+
+### Closing audit (`OAK-S9-009`)
+
+Run against the complete branch, six lenses — credential leakage, egress, the confirmation
+invariant, determinism, interface parity, documentation honesty — with two independent
+verifiers per finding, one instructed to refute and one to judge consequence, both told to
+settle it by running code. 20 findings, 11 confirmed, 9 refuted. Every confirmed finding is
+fixed with a regression test.
+
+The three that mattered were all in the same place: the merge seam's idea of "the brief
+states this".
+
+| Finding | Why it mattered |
+|---|---|
+| A model overwrote an explicit brief value whenever that value was an empty array or object | Provenance is recorded per scalar leaf, so `affected_non_users: []` — a declaration that nobody outside the user base is affected, in the repository's own reference brief — produced no record, and a check that consulted provenance alone read it as unstated. The reviewer was never told the model had contradicted them |
+| Rejecting a section-level question erased the brief's own values in that section | And on the deterministic path too, where no model had run: rejecting the hardware question deleted the measured capacity the brief stated. `reject` means "the claims you showed me are wrong", so only what OAK proposed is removed now |
+| A model proposing a value deleted the named critical question about it | `question.production-use` vanished when a model guessed at the production-data boundary, leaving only the broader section question. A model guessing is a reason to ask, not a reason to stop asking; the named questions are unconditional again and the section question is additional |
+| The declared-dependency egress gate was far weaker than intended | Its hand-rolled parser ran past the end of the dependency list, swallowing the console scripts and the whole dev group — so `httpx` and `pytest` would have passed — while missing `keyring`. It parses the manifest properly now, and reads only what the shipped package declares |
+| The live suite could never run | The autouse isolation fixture pointed the credential directory at a temporary path, so every live test skipped even with `OAK_LIVE_MODEL_TESTS=1` and real keys. The same fixture also did not isolate the OS keychain at all, so on a developer's machine a test could have written into their real login keychain |
+| `auto` stopped being backwards-compatible | Once a model was selected, a REST client that had never heard of the capability token began getting 403 on a call that had always worked. With no token, `auto` means what it always meant |
+
+The nine refuted findings were each reproduced and then shown not to follow — for example a
+provider key can reach an exception `__cause__`, but nothing OAK emits renders a chain and
+the input that would put it there is refused upstream.
 
 ## Discoveries and follow-ups
 

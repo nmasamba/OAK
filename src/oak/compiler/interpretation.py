@@ -556,8 +556,7 @@ class DeterministicBriefInterpreter:
             ("question.production-use", PRODUCTION_DATA_PATH),
         )
         for question_id, path in required:
-            # A model-proposed value is not missing; its section question covers it.
-            if question_id not in questions and not self._model_proposed(provenance, path):
+            if question_id not in questions:
                 question = self._missing_question(question_id, path)
                 questions[question.id] = question
                 findings.append(
@@ -615,6 +614,15 @@ class DeterministicBriefInterpreter:
         findings: list[Finding],
         provenance: dict[str, dict[str, Any]],
     ) -> None:
+        """Ask the named critical questions a prose brief leaves unanswered.
+
+        These are asked whether or not a model proposed a value for the same path. A model
+        guessing at the production-data boundary is a reason to ask, not a reason to stop
+        asking, and the section question a proposal raises is additional rather than a
+        substitute: it carries a different materiality and a different blocking gate.
+        """
+
+        del provenance  # kept for the caller's symmetry; the questions are unconditional
         for question_id, path in (
             ("question.production-use", PRODUCTION_DATA_PATH),
             ("question.model-hardware", "/spec/hardware"),
@@ -622,8 +630,6 @@ class DeterministicBriefInterpreter:
             ("question.data-classification", "/spec/data/classifications/0"),
             ("question.action-autonomy", "/spec/decision/autonomy"),
         ):
-            if DeterministicBriefInterpreter._model_proposed(provenance, path):
-                continue
             question = DeterministicBriefInterpreter._missing_question(question_id, path)
             questions[question.id] = question
             findings.append(
@@ -822,7 +828,7 @@ class DeterministicBriefInterpreter:
         for claim in sorted(proposal["proposed_claims"], key=lambda item: str(item["path"])):
             path = str(claim["path"])
             value = copy.deepcopy(claim["value"])
-            reason = self._claim_rejection(path, value, provenance)
+            reason = self._claim_rejection(path, value, provenance, spec)
             if reason is None:
                 previous = self._apply_claim(spec, path, value)
                 if not self._spec_is_valid(spec, registry, created_at):
@@ -888,14 +894,23 @@ class DeterministicBriefInterpreter:
                 continue
             questions[known_id] = self._missing_question(known_id, unanswered)
 
-    @staticmethod
+    @classmethod
     def _claim_rejection(
-        path: str, value: Any, provenance: dict[str, dict[str, Any]]
+        cls,
+        path: str,
+        value: Any,
+        provenance: dict[str, dict[str, Any]],
+        spec: dict[str, dict[str, Any]],
     ) -> str | None:
         if not is_admissible_intent_path(path):
             return "the proposed path is not an admissible intent path"
-        if DeterministicBriefInterpreter._occupied(provenance, path):
+        if cls._occupied(provenance, path) or cls._present_in_spec(spec, path):
             return "the brief states this value; the proposal was not applied"
+        if isinstance(value, (list, dict)) and not value:
+            # An empty container says nothing, and writing one produces a value with no
+            # provenance record — invisible to the confirmation guards and to the scalar
+            # provenance invariant. A model that has nothing to say should omit the path.
+            return "the proposed value is empty, which states nothing to confirm"
         if path == PRODUCTION_DATA_PATH and not isinstance(value, bool):
             # The one admissible extension slot is an open schema; its meaning is not.
             return "the production-data declaration must be a boolean"
@@ -905,6 +920,24 @@ class DeterministicBriefInterpreter:
     def _occupied(provenance: dict[str, dict[str, Any]], path: str) -> bool:
         prefix = f"{path}/"
         return any(record == path or record.startswith(prefix) for record in provenance)
+
+    @staticmethod
+    def _present_in_spec(spec: dict[str, dict[str, Any]], path: str) -> bool:
+        """Whether the intent already holds a value here, provenance record or not.
+
+        A brief that states an empty list or object leaves no provenance record, because
+        provenance is recorded per scalar leaf. Asking provenance alone therefore reports
+        "unstated" for a value the brief stated outright, which a proposal would overwrite.
+
+        This reads without creating anything: `_claim_slot` uses `setdefault`, so calling it
+        to answer a question would materialise the extensions container it was asked about.
+        """
+
+        section = intent_section(path) or ""
+        if path == PRODUCTION_DATA_PATH:
+            extensions = spec.get(section, {}).get("extensions")
+            return isinstance(extensions, dict) and PRODUCTION_DATA_EXTENSION in extensions
+        return path.rsplit("/", 1)[1] in spec.get(section, {})
 
     @staticmethod
     def _model_proposed(provenance: dict[str, dict[str, Any]], path: str) -> bool:
