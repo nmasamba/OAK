@@ -5,6 +5,7 @@ import json
 import os
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 from oak import __version__
 from oak.adapters.catalogue import LocalCatalogue
@@ -55,7 +56,7 @@ from oak.domain.extension_sdk import (
     HELM_KUBERNETES_RENDERER_ID,
     LOCAL_MANIFEST_RENDERER_ID,
 )
-from oak.ports.interpreter import ModelInterpreterPort
+from oak.ports.interpreter import ModelInterpreterPort, ProposalLimits
 from oak.ports.policy import PolicyEnginePort
 from oak.ports.readiness import ReadinessProbe
 
@@ -128,16 +129,99 @@ def create_design_case_service(
     )
 
 
+def model_timeout_seconds() -> float:
+    """The total budget for one provider request, capped below the shipped proxy timeout."""
+
+    raw = os.getenv("OAK_MODEL_TIMEOUT_SECONDS", "").strip()
+    try:
+        value = float(raw) if raw else 30.0
+    except ValueError:
+        value = 30.0
+    return max(1.0, min(value, 55.0))
+
+
+def model_discovery_cache_seconds() -> int:
+    raw = os.getenv("OAK_MODEL_DISCOVERY_CACHE_SECONDS", "").strip()
+    try:
+        value = int(raw) if raw else 21_600
+    except ValueError:
+        value = 21_600
+    return max(0, value)
+
+
+def _model_transport(profile: Any) -> Any:
+    """Build the one outbound client, scoped to this provider's own hosts."""
+
+    from oak.adapters.models.transport import ModelTransport
+
+    return ModelTransport(
+        allowed_hosts=profile.allowed_hosts,
+        deadline_seconds=model_timeout_seconds(),
+        maximum_response_bytes=ProposalLimits().maximum_output_bytes,
+        allow_plain_http_loopback=profile.plain_http_loopback,
+    )
+
+
+def model_discoverer(family: str, previous: dict[str, Any] | None) -> dict[str, Any]:
+    """Refresh one family's catalogue. Called only by an explicit `oak models discover`."""
+
+    del previous  # a refresh always asks the provider; the cache age is the caller's concern
+    from oak.adapters.models.huggingface_catalogue import discover_huggingface
+    from oak.adapters.models.providers import discover_models, profile_for
+
+    profile = profile_for(family, local_endpoint=os.getenv("OAK_MODEL_ENDPOINT_LOCAL"))
+    transport = _model_transport(profile)
+    fetched_at = _utc_now()
+    if family == "huggingface":
+        return discover_huggingface(transport.send, fetched_at=fetched_at)
+    configuration = create_model_configuration_service()
+    secret = configuration.credential_for(family)
+    return discover_models(
+        profile,
+        transport.send,
+        key=secret.reveal() if secret is not None else None,
+        fetched_at=fetched_at,
+    )
+
+
 def create_model_interpreter() -> ModelInterpreterPort | None:
     """The model adapter for the user's current selection, or ``None`` when none applies.
 
-    The hosted adapters land in the next Sprint 9 milestone. Until then no adapter exists, so
-    every selection resolves to ``None``: ``--interpreter model`` refuses with
-    ``OAK-MODEL-NOT-CONFIGURED`` and ``auto`` stays deterministic. Nothing here touches a
-    network.
+    ``None`` means "no model is configured": ``--interpreter model`` then refuses with
+    ``OAK-MODEL-NOT-CONFIGURED`` and ``auto`` stays deterministic. Nothing is imported from
+    the provider modules, and no socket is opened, until a selection actually exists.
     """
 
-    return None
+    configuration = create_model_configuration_service()
+    selection = configuration.selection()
+    if selection is None or selection.default_interpreter != "model":
+        return None
+    family = selection.family
+    from oak.adapters.models.hosted_interpreter import HostedModelInterpreter, build_path_hints
+    from oak.adapters.models.providers import profile_for, recommended_route
+
+    profile = profile_for(family, local_endpoint=os.getenv("OAK_MODEL_ENDPOINT_LOCAL"))
+    route = selection.provider_route
+    if route is None and family == "huggingface":
+        snapshot = configuration.discovery_snapshot(family) or {}
+        listed = next(
+            (
+                model
+                for model in snapshot.get("models", [])
+                if model.get("id") == selection.model_id
+            ),
+            None,
+        )
+        route = recommended_route(listed, str(snapshot.get("provider_policy", "cheapest")))
+    registry = SchemaRegistry.from_directory(canonical_schema_directory())
+    return HostedModelInterpreter(
+        profile,
+        selection.model_id,
+        provider_route=route,
+        credential_provider=lambda: configuration.credential_for(family),
+        transport=_model_transport(profile),
+        path_hints=build_path_hints(registry.schema("system-intent.schema.json")),
+    )
 
 
 def canonical_catalogue_directory() -> Path:
@@ -330,6 +414,7 @@ def create_model_configuration_service() -> ModelConfigurationService:
             "env": EnvironmentCredentialReference(),
         },
         clock=_utc_now,
+        discoverer=model_discoverer,
         token_reader=read_model_token,
         credentials_location=str(credentials_directory),
         under_compose=os.getenv("OAK_ARTIFACT_ROOT", "").startswith("/var/lib/oak/"),

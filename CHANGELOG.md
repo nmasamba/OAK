@@ -48,6 +48,13 @@ otherwise.
 - `DesignCaseService.interpret(interpreter="auto"|"model"|"deterministic")`: `auto` uses the configured model for a prose brief and the deterministic interpreter otherwise; `model` without a configured adapter refuses with `OAK-MODEL-NOT-CONFIGURED` and commits nothing. On the model path the proposal is stored as an `interpretation_proposal` artifact in the same mutation as intent, event and case, the intent references it under `oak.community/interpretation_proposal_ref`, and the audit event's `oak.community/interpreter` extension records family, model, route and proposal digest — never prompt or response content. The deterministic path emits none of these keys, and `tests/integration/test_reference_digests.py` shows its bytes unchanged (`OAK-S9-004`).
 - `oak design --interpreter auto|model|deterministic` locally and in remote mode (which sends `OAK_MODEL_TOKEN` as `X-OAK-Model-Token`); a prose brief interpreted deterministically because no model is configured gets one stderr hint, and a model failure after the case was created says so and names the deterministic retry. `oak questions` prints five open questions per round, counts the rest, and annotates a question whose value a model proposed with the model's confidence and rationale (`OAK-S9-004`).
 - REST `POST /v1/design-cases/{id}:interpret` gains the optional `interpreter` query parameter and the optional `X-OAK-Model-Token` header; the token is demanded exactly when the request resolves to the model, before anything is committed (`make openapi-compatibility` clean). MCP `oak_design_case_interpret` gains the optional `interpreter` argument (`deterministic` | `model`), default deterministic, with a description that says what `model` spends and sends (`OAK-S9-004`).
+- The provider layer that makes the model path real (`OAK-S9-005`). Seven families — Hugging Face Inference Providers, OpenAI, Anthropic, Google Gemini, Meta, xAI and a local OpenAI-compatible server — are described as data in `oak.adapters.models.providers`: hosts, request shape, catalogue parser, chat-candidate rule, preferred models with an `as_of` date, key-verification strategy, data-use note and a status map from every documented provider error to one stable `OAK-*` code. Provider text is parsed only to choose the code and is then discarded; no provider message, header or body reaches an error, a log or an interface.
+- `oak.adapters.models.transport` is the only module in OAK that opens a connection to a provider, and it is the only model module allowed to import a network client. It refuses any host outside the calling profile's fixed allowlist before touching a socket, speaks https except to a loopback address for the `local` family, never follows a redirect, ignores environment and system proxies, verifies TLS against the system trust store, reads the body in bounded packets against one monotonic deadline of at most 55 seconds, and converts every socket, TLS and protocol failure into a fixed OAK message (`OAK-S9-005`).
+- `oak.adapters.models.hosted_interpreter` sends exactly one request per interpretation, plus at most one retry on a documented rate limit if it fits inside the deadline. The key is read per call and never stored on the adapter; the brief travels as delimited data in the user turn under a system prompt that says it is untrusted; the model answers a strict JSON schema; and every claim it returns is bounded, deduplicated and counted before it becomes a proposal. The proposal records family, model, route, prompt and response digests and token usage — never a prompt or a response body (`OAK-S9-005`).
+- `oak models discover <family>` looks up what a key can actually reach. For Hugging Face the lookup is anonymous and needs no key: it reads the router's chat catalogue and the Hub's trending list, keeps only ungated models under Apache-2.0, MIT or BSD-3-Clause from a namespace allowlist with at least one live structured-output route, and recommends the best of them — falling back to a pinned chain (`openai/gpt-oss-120b`, `openai/gpt-oss-20b`, `Qwen/Qwen3-235B-A22B-Instruct-2507`) labelled `pinned` when a catalogue cannot be reached, rather than pretending the answer was looked up. Discovery is explicit only: `oak models status`, `GET /v1/models` and `interpret` never contact a catalogue (`OAK-S9-005`).
+- `OAK_MODEL_ENDPOINT_LOCAL`, `OAK_MODEL_TIMEOUT_SECONDS` and `OAK_MODEL_DISCOVERY_CACHE_SECONDS` are documented; the timeout is clamped to 1–55 seconds because the shipped nginx proxy gives up at 60 (`OAK-S9-005`).
+- Register `RR-039` (a configured hosted model receives the brief; opt-in, audited, and the provider's own retention and training terms are outside OAK's control) and `RR-041` (a model interpretation is individually bounded but nothing caps aggregate provider spend) — count 39 → 41 (`OAK-S9-005`).
+- `tests/live/test_provider_smoke.py`, run by hand with `OAK_LIVE_MODEL_TESTS=1` against the keys on the operator's own machine. It spends real credit, is never collected by `make check`, and exists because a recorded fixture cannot tell you that a provider changed its API (`OAK-S9-005`).
 - `tests/model_support.py` (a fake adapter that binds to the offered source record), `tests/unit/test_proposal_merge.py`, `tests/contract/test_intent_paths.py`, `tests/integration/test_model_interpretation_service.py` and `tests/integration/test_model_interface_conformance.py` (file, REST and MCP legs produce identical intent and proposal digests and question sets; every leg refuses an unconfigured model with one code; MCP stays deterministic unless asked) (`OAK-S9-004`).
 
 ### Changed
@@ -80,6 +87,17 @@ otherwise.
   where rejecting `question.model-hardware` deleted a required section (`OAK-S9-004`).
 - The web claim badge vocabulary gains "Proposed by model" for `model_proposed` provenance
   (`OAK-S9-004`).
+- `TM-13` (exfiltration to a model or document provider) moves from **structural** to
+  **direct** in `docs/security/threat-coverage.md`, and the tally from "8 direct, 9 partial,
+  2 structural" to "9 direct, 9 partial, 1 structural". The claim it rested on — that no
+  provider adapter ships — stopped being true, so it is replaced by narrower claims that are
+  each a test: OAK calls a provider only when a user configures one, only through one
+  module, only to that provider's own hosts, and never on the deterministic path
+  (`OAK-S9-005`).
+- The egress gates were rewritten rather than relaxed. The adapter set is pinned by name
+  instead of asserted to be empty, the four non-transport model modules are proved to import
+  no network client, and a new gate runs the deterministic journey in a fresh interpreter and
+  fails if a provider module was loaded at all (`OAK-S9-005`).
 
 ## 0.7.1 — approved 2026-08-27, published 2026-09-03
 
@@ -286,7 +304,7 @@ customer readiness claim, and no external security review was commissioned for i
 - **Security record**: [SECURITY.md](SECURITY.md),
   [threat-coverage.md](docs/security/threat-coverage.md) mapping all nineteen threat ids to
   the tests that exercise them, and [residual-risk.md](docs/security/residual-risk.md) with
-  39 stable-id entries. A build gate now rejects unqualified assurance vocabulary.
+  41 stable-id entries. A build gate now rejects unqualified assurance vocabulary.
 - **Measurements**: [performance.md](docs/performance.md) and a provenance-stamped
   `scripts/benchmark.py`. Reference compiler 8.66 s median against a 120 s requirement;
   interactive read p95 30 ms against 500 ms; workspace manifest reads grow from 3.8 ms at

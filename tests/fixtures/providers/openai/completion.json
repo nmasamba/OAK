@@ -1,0 +1,21 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "{\"proposed_claims\": [{\"path\": \"/spec/decision/autonomy\", \"value_json\": \"\\\"recommend_only\\\"\", \"confidence\": 0.62, \"rationale\": \"The brief says a reviewer approves each answer.\"}], \"unanswered_paths\": [\"/spec/hardware/ram_gib\"]}",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1789000000,
+  "id": "chatcmpl-fixture",
+  "model": "gpt-6-astra",
+  "object": "chat.completion",
+  "usage": {
+    "completion_tokens": 340,
+    "prompt_tokens": 1200,
+    "total_tokens": 1540
+  }
+}

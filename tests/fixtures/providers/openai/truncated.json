@@ -1,0 +1,12 @@
+{
+  "choices": [
+    {
+      "finish_reason": "length",
+      "index": 0,
+      "message": {
+        "content": "{\"proposed_",
+        "role": "assistant"
+      }
+    }
+  ]
+}

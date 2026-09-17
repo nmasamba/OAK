@@ -56,8 +56,10 @@ def test_the_reference_documents_nothing_the_source_does_not_read() -> None:
     """A row for a variable nothing reads is a promise OAK does not keep."""
 
     read_anywhere = _read_by_source() | WEB_ONLY
-    # OAK_TEST_DATABASE_URL is read by the test suite, which is not a source root.
+    # Read by the test suite, which is not a source root. OAK_LIVE_MODEL_TESTS gates the
+    # live provider smoke tests, which spend real credit and never run in `make check`.
     read_anywhere.add("OAK_TEST_DATABASE_URL")
+    read_anywhere.add("OAK_LIVE_MODEL_TESTS")
 
     invented = sorted(_documented() - read_anywhere)
 

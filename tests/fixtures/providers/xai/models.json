@@ -1,0 +1,41 @@
+{
+  "data": [
+    {
+      "created": 1789500000,
+      "id": "grok-4.6",
+      "object": "model",
+      "output_modalities": [
+        "text"
+      ],
+      "owned_by": "xai"
+    },
+    {
+      "created": 1786000000,
+      "id": "grok-4.5",
+      "object": "model",
+      "output_modalities": [
+        "text"
+      ],
+      "owned_by": "xai"
+    },
+    {
+      "created": 1784000000,
+      "id": "grok-imagine-image-2.0",
+      "object": "model",
+      "output_modalities": [
+        "image"
+      ],
+      "owned_by": "xai"
+    },
+    {
+      "created": 1783000000,
+      "id": "grok-voice-think-fast-2.0",
+      "object": "model",
+      "output_modalities": [
+        "audio"
+      ],
+      "owned_by": "xai"
+    }
+  ],
+  "object": "list"
+}

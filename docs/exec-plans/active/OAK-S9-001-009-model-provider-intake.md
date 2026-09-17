@@ -331,6 +331,19 @@ artifact, which `docs/compatibility.md` states.
   `tests/integration/test_model_interface_conformance.py` (file, REST and MCP legs equal);
   the golden-bytes and reference-digest tests are unchanged and green.
 
+- [x] 2026-09-17 Milestone 4: `transport.py` (host allowlist before any socket call, https
+  except loopback for `local`, no redirects, no environment or system proxies, verified TLS,
+  per-packet deadline, fixed messages), `providers.py` (seven profiles, catalogue parsers,
+  chat-candidate rules, status map), `hosted_interpreter.py` (one request plus one bounded
+  retry, key per call, strict JSON schema, bounded claims, digest-only extension) and
+  `huggingface_catalogue.py` (anonymous two-catalogue lookup, licence and namespace filter,
+  structured-output requirement, pinned fallback) landed with 60 unit tests; the egress gates
+  were rewritten (adapter set pinned by name, non-transport modules proved network-free,
+  deterministic journey checked in a fresh interpreter); `TM-13` moved to **direct** with a
+  rewritten absence section; `RR-039` and `RR-041` added (count 41); the four configuration
+  rows and the `live` marker are documented; `tests/live/test_provider_smoke.py` is skipped
+  unless `OAK_LIVE_MODEL_TESTS=1`.
+
 ## Decisions
 
 - 2026-09-17 Standard-library transport in one module; no `httpx`, no provider SDKs. Reason:
@@ -361,7 +374,21 @@ artifact, which `docs/compatibility.md` states.
   `auto` on a prose brief with a model configured) and never for deterministic work.
 - 2026-09-17 `create_model_interpreter()` returns `None` until `OAK-S9-005`; `--interpreter
   model` therefore refuses with `OAK-MODEL-NOT-CONFIGURED` on this branch state. Reason: no
-  hosted adapter exists yet and the refusal is the honest answer.
+  hosted adapter exists yet and the refusal is the honest answer. Superseded by Milestone 4:
+  it now builds a `HostedModelInterpreter` from the stored selection, and returns `None` only
+  when no selection exists or its default interpreter is deterministic.
+- 2026-09-17 Gemini is listed through the native Generative Language API but called through
+  its documented OpenAI-compatible endpoint on the same host. Reason: one request shape
+  serves five of the seven families, the compatibility layer is the only Gemini surface that
+  accepts the OpenAI `response_format.json_schema` spelling the rest of the code already
+  builds, and the host allowlist is unchanged either way.
+- 2026-09-17 A model identifier is a bare name or one `namespace/name`. Reason: a hostile
+  catalogue entry of `https://evil.example/model` satisfied the identifier pattern and was
+  accepted by the permissive families; ids never address a host, so the rule costs nothing.
+- 2026-09-17 The transport reads with `read1`, not `read`. Reason: `read` blocks until it has
+  a whole chunk, so a provider trickling one byte at a time held the connection for the full
+  body while every individual socket read stayed inside its own timeout. The first version of
+  the deadline test took 62 seconds to fail; it now cuts off in under two.
 
 ## Discoveries and follow-ups
 

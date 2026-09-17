@@ -97,7 +97,7 @@ were re-verified by direct recompilation afterwards — byte-identical.
 | Are the dependency closures clean? | `make audit` re-run clean at `0.7.1` (`pip-audit` + `pnpm audit`) |
 | How fast is it? | Inherited from `0.7.0`: [performance.md](../../performance.md) / [../0.7.0/performance.json](../0.7.0/performance.json). The migration changed compiled *content*, not the compile path; figures were not re-measured |
 | Was a clean-room rehearsal re-run? | **No** — inherited from `0.7.0` ([../0.7.0/clean-room.md](../0.7.0/clean-room.md)). The install path (wheel, packaged data) is unchanged; the web image base changed and is covered by the rescan and `make web-e2e` instead. An approver who weighs the rehearsal heavily may ask for a re-run |
-| What does it *not* defend against? | [security/residual-risk.md](../../security/residual-risk.md) — 39 entries with stable ids, of which eight rows are closed (seven by this work; `RR-035` previously) |
+| What does it *not* defend against? | [security/residual-risk.md](../../security/residual-risk.md) — 41 entries with stable ids, of which eight rows are closed (seven by this work; `RR-035` previously) |
 | Was it externally reviewed? | **No.** As for `0.7.0`, no external security review was commissioned; the wording restrictions recorded in the [`0.7.0` decision](../0.7.0/release-decision.md#external-review) apply to this release unchanged |
 
 ## The register count, made legible

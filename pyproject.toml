@@ -101,6 +101,7 @@ pythonpath = ["."]
 markers = [
   "integration: local integration behavior",
   "e2e: installed-entrypoint behavior",
+  "live: sends a real request to a configured model provider; never part of `make check`",
 ]
 
 [tool.ruff]

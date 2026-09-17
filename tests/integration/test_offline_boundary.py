@@ -1,19 +1,24 @@
 # SPDX-License-Identifier: Apache-2.0
 """OAK-S8-003: the no-egress claim, enforced instead of asserted.
 
-Two of the load-bearing claims in this release are that OAK makes no hosted-provider
-call and that it has no mandatory network dependency (TM-13, TM-19, ADR-0012). Until
-now both rested on a grep: no provider adapter ships, and the only outbound HTTP in
-`src/` is the CLI's own remote mode. A grep does not survive someone adding an adapter.
+One of the load-bearing claims in this release is that OAK has no mandatory network
+dependency (TM-19, ADR-0012). The other used to be that it makes no hosted-provider call
+at all; since Sprint 9 it is narrower and more useful: OAK calls a provider only when a
+user has configured one, through one module, to that provider's own hosts.
 
-So: run the whole offline reference journey with outbound sockets forcibly broken, and
-separately pin the set of modules allowed to import a network client at all.
+Both claims are enforced rather than described. The offline reference journey runs with
+outbound sockets forcibly broken; the set of modules allowed to import a network client
+is pinned; the model-adapter file set is pinned; and the deterministic journey is shown,
+in a fresh interpreter, never to load a hosted-provider module at all.
 """
 
 from __future__ import annotations
 
 import ast
+import json
 import socket
+import subprocess
+import sys
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -62,11 +67,36 @@ NETWORK_MODULES = frozenset(
 
 # Remote CLI mode talks to an OAK control plane the operator explicitly points it at.
 # The API server binds a socket; the runner dispatches to a filesystem mailbox, never a
-# socket. Any addition to this set is a trust-boundary change, not a refactor.
+# socket. The model transport is the single outbound path to a configured model provider,
+# and it exists so that this set can stay this short: every provider profile, the hosted
+# interpreter and the catalogue lookup go through it rather than opening their own
+# connection. Any addition to this set is a trust-boundary change, not a refactor.
 ALLOWED_NETWORK_IMPORTERS = frozenset(
     {
         "oak/interfaces/cli/remote.py",
+        "oak/adapters/models/transport.py",
     }
+)
+
+# The complete set of model adapters. `fake_interpreter` is the offline contract double;
+# the other four exist only when a user has configured a provider. Adding a file here is a
+# change to what OAK can send a brief to, so it is listed rather than globbed.
+DOCUMENTED_MODEL_ADAPTERS = (
+    "fake_interpreter.py",
+    "hosted_interpreter.py",
+    "huggingface_catalogue.py",
+    "providers.py",
+    "transport.py",
+)
+
+# Modules the deterministic journey must never pull in. Importing one does not by itself
+# send anything, but it is the step before doing so, and `transport` brings `ssl` and
+# `socket` with it.
+HOSTED_MODEL_MODULES = (
+    "oak.adapters.models.transport",
+    "oak.adapters.models.providers",
+    "oak.adapters.models.hosted_interpreter",
+    "oak.adapters.models.huggingface_catalogue",
 )
 
 pytestmark = pytest.mark.integration
@@ -179,15 +209,67 @@ def test_only_the_remote_cli_may_import_a_network_client() -> None:
     )
 
 
-def test_no_model_or_evidence_provider_adapter_ships() -> None:
-    """TM-13 is defended by absence; prove the absence rather than describing it."""
+def test_the_model_adapter_set_is_exactly_the_documented_one() -> None:
+    """TM-13 is no longer defended by absence, so pin what the egress surface is.
+
+    Community can now send a brief to a provider the user configured. The claim that
+    replaces "no adapter ships" is narrower and checkable: these five files are the whole
+    of it, only one of them may open a connection, and that one is in the allowlist above.
+    """
 
     adapters = ROOT / "src" / "oak" / "adapters" / "models"
     implementations = sorted(
-        path.name for path in adapters.glob("*.py") if path.name != "__init__.py"
+        path.relative_to(adapters).as_posix()
+        for path in adapters.rglob("*.py")
+        if path.name != "__init__.py" and "__pycache__" not in path.parts
     )
 
-    assert implementations == ["fake_interpreter.py"], (
-        "a real model-provider adapter would move OAK inside the data path for briefs; "
-        f"found {implementations}"
+    assert implementations == sorted(DOCUMENTED_MODEL_ADAPTERS), (
+        "a new model adapter changes what OAK can send a brief to; add it to "
+        f"DOCUMENTED_MODEL_ADAPTERS and to the threat model deliberately. Found {implementations}"
     )
+
+
+def test_only_the_transport_among_the_model_adapters_imports_a_network_client() -> None:
+    """The other four are data, parsing and prompt construction; none opens a connection."""
+
+    adapters = ROOT / "src" / "oak" / "adapters" / "models"
+    for name in DOCUMENTED_MODEL_ADAPTERS:
+        if name == "transport.py":
+            continue
+        network = _imported_modules(adapters / name) & NETWORK_MODULES
+        assert not network, f"{name} imports a network client: {sorted(network)}"
+
+
+def test_the_deterministic_journey_never_imports_a_hosted_model_module() -> None:
+    """A fresh interpreter runs the offline journey; the provider modules stay unloaded.
+
+    In-process this would prove nothing: another test module in the same session will have
+    imported the transport already. So the journey runs in its own interpreter and reports
+    what it loaded.
+    """
+
+    program = "\n".join(
+        (
+            "import json, sys, tempfile, pathlib",
+            f"sys.path.insert(0, {str(ROOT)!r})",
+            "from tests.runner_support import build_compiled_case",
+            "with tempfile.TemporaryDirectory() as directory:",
+            "    build_compiled_case(pathlib.Path(directory))",
+            "print(json.dumps(sorted(n for n in sys.modules if n.startswith('oak.'))))",
+        )
+    )
+    completed = subprocess.run(
+        [sys.executable, "-c", program],
+        capture_output=True,
+        text=True,
+        cwd=ROOT,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr[-3000:]
+    loaded = set(json.loads(completed.stdout.splitlines()[-1]))
+
+    assert "oak.adapters.models.fake_interpreter" not in loaded
+    for module in HOSTED_MODEL_MODULES:
+        assert module not in loaded, f"the deterministic journey imported {module}"
+    assert "oak.compiler.interpretation" in loaded, "the journey did not actually run"
