@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 schema_version: 0.4.0
 id: proposal.public-manual-qa.fake
+version: 0.1.0
 source_ref:
   id: source.public-manual-qa
   version: 0.1.0

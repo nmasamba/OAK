@@ -314,6 +314,23 @@ artifact, which `docs/compatibility.md` states.
   dependency review, `RR-040` (count 39), configuration rows and the local-only lists landed;
   unit and CLI tests pass; the error reference is regenerated.
 
+- [x] 2026-09-17 Milestone 3: `model_proposed` in both provenance enums (both repositories),
+  optional proposal `version`, the `interpretation_proposal` artifact kind,
+  `oak.contracts.intent_paths` (101 admissible paths, schema-derived and pinned by
+  `tests/contract/test_intent_paths.py`), the merge in `DeterministicBriefInterpreter`
+  (`SECTION_CONFIRMATION_TABLE` for all sixteen sections, bounds, per-claim schema
+  re-validation, `OAK-INT-PROPOSAL-REJECTED`/`-UNANSWERED` findings, in-memory `rank_hint`,
+  every ranked question persisted), `DesignCaseService.interpret(interpreter=)` with the
+  model-path-only proposal artifact, intent reference and audit extension, the confirmation
+  status guard, section-level `reject`, the `candidates` refusal, `--interpreter` on
+  `oak design` (local and remote, `OAK_MODEL_TOKEN`), the optional REST query and header
+  (token demanded exactly when the model would be spent), the optional MCP argument with a
+  deterministic default, regenerated OpenAPI and web client (compatibility check clean), the
+  `proposal` claim badge, `tests/model_support.py`, `tests/unit/test_proposal_merge.py`,
+  `tests/integration/test_model_interpretation_service.py` and
+  `tests/integration/test_model_interface_conformance.py` (file, REST and MCP legs equal);
+  the golden-bytes and reference-digest tests are unchanged and green.
+
 ## Decisions
 
 - 2026-09-17 Standard-library transport in one module; no `httpx`, no provider SDKs. Reason:
@@ -333,6 +350,18 @@ artifact, which `docs/compatibility.md` states.
   belongs to the operator, not to the calling agent.
 - 2026-09-17 Provider display names are permitted in product surfaces; `OAK-FS-001`'s scope
   was agent attribution, which stays neutralized.
+- 2026-09-17 A `reject` on a section-level question removes the model-proposed values in
+  that section and keeps the brief's explicit values; a section with no model value (the
+  deterministic hardware question) is emptied rather than deleted, which also fixes a latent
+  contract failure (`reject` on `/spec/hardware` used to delete a required section). Reason:
+  the claims under review at a section path are the model's, and a required section must
+  survive every decision.
+- 2026-09-17 The REST route resolves the interpreter before it demands the token, so the
+  token is required exactly when the operator's credential would be spent (`model`, or
+  `auto` on a prose brief with a model configured) and never for deterministic work.
+- 2026-09-17 `create_model_interpreter()` returns `None` until `OAK-S9-005`; `--interpreter
+  model` therefore refuses with `OAK-MODEL-NOT-CONFIGURED` on this branch state. Reason: no
+  hosted adapter exists yet and the refusal is the honest answer.
 
 ## Discoveries and follow-ups
 

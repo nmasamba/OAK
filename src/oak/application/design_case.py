@@ -3,6 +3,7 @@
 
 import copy
 import hashlib
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
@@ -14,6 +15,7 @@ from oak.compiler import (
     validate_interpretation_proposal,
     verify_intent_provenance,
 )
+from oak.compiler.interpretation import MODEL_PROPOSED
 from oak.contracts import SchemaRegistry
 from oak.domain import (
     Artifact,
@@ -39,6 +41,17 @@ CASE_MEDIA_TYPE = "application/vnd.oak.design-case+json"
 INTENT_MEDIA_TYPE = "application/vnd.oak.system-intent+json"
 SOURCE_MEDIA_TYPE = "application/vnd.oak.source-record+json"
 AUDIT_MEDIA_TYPE = "application/vnd.oak.audit-event+json"
+PROPOSAL_MEDIA_TYPE = "application/vnd.oak.interpretation-proposal+json"
+INTERPRETER_MODES = ("auto", "model", "deterministic")
+STRUCTURED_FORMATS = frozenset({"yaml", "json"})
+# Extension keys. Everything model-specific exists only when the model path ran, so a
+# workspace with no model configured produces exactly the documents it produced before.
+SOURCE_RECORD_EXTENSION = "oak.community/source_record"
+SOURCE_ARTIFACT_REF_EXTENSION = "oak.community/artifact_ref"
+PROPOSAL_REF_EXTENSION = "oak.community/interpretation_proposal_ref"
+INTERPRETER_EXTENSION = "oak.community/interpreter"
+MODEL_EXTENSION = "oak.community/model"
+ModelInterpreterFactory = Callable[[], ModelInterpreterPort | None]
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,6 +65,7 @@ class DesignResult:
     case: dict[str, Any]
     intent: dict[str, Any] | None
     duplicate: bool
+    interpreter: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -77,11 +91,16 @@ class DesignCaseService:
         intake: BriefIntakePort,
         interpreter: DeterministicBriefInterpreter,
         registry: SchemaRegistry,
+        *,
+        model_interpreter_factory: ModelInterpreterFactory | None = None,
+        proposal_limits: ProposalLimits | None = None,
     ) -> None:
         self._repository = repository
         self._intake = intake
         self._interpreter = interpreter
         self._registry = registry
+        self._model_interpreter_factory = model_interpreter_factory
+        self._proposal_limits = proposal_limits or ProposalLimits()
 
     def initialize(self, *, workspace_id: str, tenant_id: str, created_at: str) -> None:
         self._repository.initialize(
@@ -90,7 +109,9 @@ class DesignCaseService:
             created_at=created_at,
         )
 
-    def design(self, brief_path: Path, context: CommandContext) -> DesignResult:
+    def design(
+        self, brief_path: Path, context: CommandContext, *, interpreter: str = "auto"
+    ) -> DesignResult:
         brief = self._intake.read(brief_path)
         create_identity = context.idempotency_key or content_digest(brief.content)
         create_context = replace(
@@ -101,7 +122,10 @@ class DesignCaseService:
             expected_version=None,
         )
         created = self._create_brief(brief, create_context)
-        return self.interpret(replace(context, expected_version=str(created.case["version"])))
+        return self.interpret(
+            replace(context, expected_version=str(created.case["version"])),
+            interpreter=interpreter,
+        )
 
     def create_content(
         self,
@@ -216,25 +240,53 @@ class DesignCaseService:
         )
         return CreateCaseResult(case=committed.case_document, duplicate=committed.duplicate)
 
-    def interpret(self, context: CommandContext) -> DesignResult:
+    def resolve_interpreter(self, interpreter: str = "auto") -> str:
+        """Return ``model`` or ``deterministic`` for the current case; commits nothing.
+
+        ``auto`` chooses the model only for a prose brief when a model adapter is configured;
+        a structured brief is mapped deterministically unless the model is requested. The
+        factory is consulted only when its answer can change the outcome.
+        """
+
+        if interpreter not in INTERPRETER_MODES:
+            raise OAKError(
+                "OAK-INTERPRETER-MODE", "interpreter must be auto, model or deterministic"
+            )
+        if interpreter != "auto":
+            return interpreter
+        if self._model_interpreter_factory is None:
+            return "deterministic"
+        source_document, _ = self._source_for(self._require_case())
+        if str(source_document["format"]) in STRUCTURED_FORMATS:
+            return "deterministic"
+        return "model" if self._model_interpreter_factory() is not None else "deterministic"
+
+    def interpret(self, context: CommandContext, *, interpreter: str = "auto") -> DesignResult:
+        mode = self.resolve_interpreter(interpreter)
         current_document = self._require_case()
         current = DesignCase.from_document(current_document)
-        extensions = current_document.get("extensions", {})
-        source_ref_document = extensions.get("oak.community/source_record_ref")
-        if not isinstance(source_ref_document, dict):
-            raise OAKError("OAK-SOURCE-MISSING", "draft case has no source record")
-        source_ref = ArtifactReference.from_document(source_ref_document)
-        source_document = self._repository.read_json_artifact(source_ref)
+        source_document, source_ref = self._source_for(current_document)
         content_ref = ArtifactReference.from_document(source_document["content_ref"])
         source_content = self._repository.read_artifact(content_ref)
-        input_digest = self._request_digest(
-            context,
-            {
-                "case_id": current.id,
-                "source_ref": source_ref.to_document(),
-                "content_digest": content_ref.digest,
-            },
-        )
+        adapter: ModelInterpreterPort | None = None
+        if mode == "model":
+            if self._model_interpreter_factory is not None:
+                adapter = self._model_interpreter_factory()
+            if adapter is None:
+                raise OAKError(
+                    "OAK-MODEL-NOT-CONFIGURED",
+                    "no model is configured for interpretation; select one with "
+                    "`oak models select <family> <model_id>` or interpret with "
+                    "--interpreter deterministic",
+                )
+        request: dict[str, Any] = {
+            "case_id": current.id,
+            "source_ref": source_ref.to_document(),
+            "content_digest": content_ref.digest,
+        }
+        if adapter is not None:
+            request["interpreter"] = "model"
+        input_digest = self._request_digest(context, request)
         context = self._normalized_context(context, "interpret", input_digest)
         self._check_context(context)
         manifest = self._repository.manifest()
@@ -242,10 +294,12 @@ class DesignCaseService:
             raise OAKError("OAK-TENANT-MISMATCH", "workspace tenant does not match command")
         duplicate_case = self._repository.idempotent_case(context.idempotency_key, input_digest)
         if duplicate_case is not None:
+            duplicate_intent = self._intent_for_case(duplicate_case)
             return DesignResult(
                 case=duplicate_case,
-                intent=self._intent_for_case(duplicate_case),
+                intent=duplicate_intent,
                 duplicate=True,
+                interpreter=self._interpreter_of(duplicate_intent),
             )
         if current.status is not DesignCaseStatus.DRAFT:
             raise OAKError("OAK-INTERPRET-STATE", "only a draft case can be interpreted")
@@ -253,9 +307,29 @@ class DesignCaseService:
             original_name=str(source_document["original_name"]),
             content=source_content,
         )
-        interpreted = self._interpreter.interpret(brief, created_at=context.occurred_at)
+        proposal: dict[str, Any] | None = None
+        proposal_artifact: Artifact | None = None
+        if adapter is not None:
+            proposal = self._bind_proposal(adapter, source_document, source_ref, source_content)
+            proposal_artifact = json_artifact(
+                artifact_id=str(proposal["id"]),
+                version=str(proposal["version"]),
+                kind="interpretation_proposal",
+                media_type=PROPOSAL_MEDIA_TYPE,
+                document=proposal,
+            )
+        interpreted = self._interpreter.interpret(
+            brief,
+            created_at=context.occurred_at,
+            proposal=proposal,
+            registry=self._registry if proposal is not None else None,
+        )
         intent_document = copy.deepcopy(interpreted.intent_document)
-        intent_document["extensions"]["oak.community/source_record"] = source_ref.to_document()
+        intent_document["extensions"][SOURCE_RECORD_EXTENSION] = source_ref.to_document()
+        if proposal_artifact is not None:
+            intent_document["extensions"][PROPOSAL_REF_EXTENSION] = (
+                proposal_artifact.reference.to_document()
+            )
         self._registry.validate("system-intent.schema.json", intent_document)
         intent_artifact = json_artifact(
             artifact_id=str(intent_document["id"]),
@@ -266,7 +340,7 @@ class DesignCaseService:
         )
         status = (
             DesignCaseStatus.NEEDS_CONFIRMATION
-            if interpreted.questions
+            if interpreted.questions or self._has_unconfirmed_model_records(intent_document)
             else DesignCaseStatus.READY_FOR_CANDIDATES
         )
         successor = current.revise(
@@ -295,27 +369,39 @@ class DesignCaseService:
             occurred_at=context.occurred_at,
             intent_ref=intent_artifact.reference,
             source_record_ref=source_ref,
+            extensions=(
+                {INTERPRETER_EXTENSION: self._interpreter_extension(proposal, proposal_artifact)}
+                if proposal is not None and proposal_artifact is not None
+                else None
+            ),
         )
         event_artifact = self._audit_artifact(event_document, sequence)
         successor = successor.with_audit_head(event_artifact.digest)
         case_artifact = self._case_artifact(successor)
+        artifacts: tuple[Artifact, ...] = (
+            (intent_artifact, proposal_artifact, event_artifact, case_artifact)
+            if proposal_artifact is not None
+            else (intent_artifact, event_artifact, case_artifact)
+        )
         committed = self._repository.commit(
             build_workspace_mutation(
                 workspace_id=str(manifest["id"]),
                 expected_case_version=context.expected_version,
                 idempotency_key=context.idempotency_key,
                 input_digest=input_digest,
-                artifacts=(intent_artifact, event_artifact, case_artifact),
+                artifacts=artifacts,
                 current_case_ref=case_artifact.reference,
                 event_artifact=event_artifact,
                 event_document=event_document,
                 updated_at=context.occurred_at,
             )
         )
+        committed_intent = self._intent_for_case(committed.case_document)
         return DesignResult(
             case=committed.case_document,
-            intent=self._intent_for_case(committed.case_document),
+            intent=committed_intent,
             duplicate=committed.duplicate,
+            interpreter=self._interpreter_of(committed_intent),
         )
 
     def questions(self) -> QuestionResult:
@@ -388,7 +474,10 @@ class DesignCaseService:
         open_questions = tuple(
             question for question in question_by_id.values() if question["status"] == "open"
         )
-        intent["status"] = "draft" if open_questions else "clarified"
+        # A model-proposed value that nobody has confirmed, corrected or rejected keeps the
+        # case in confirmation whatever the question list says.
+        unconfirmed_model = self._has_unconfirmed_model_records(intent)
+        intent["status"] = "draft" if open_questions or unconfirmed_model else "clarified"
         old_intent_version = str(intent["version"])
         intent["version"] = next_patch_version(old_intent_version)
         intent["supersedes"] = f"{intent['id']}@{old_intent_version}"
@@ -405,7 +494,7 @@ class DesignCaseService:
 
         case_status = (
             DesignCaseStatus.NEEDS_CONFIRMATION
-            if open_questions
+            if open_questions or unconfirmed_model
             else DesignCaseStatus.READY_FOR_CANDIDATES
         )
         assumptions = self._updated_assumptions(
@@ -462,6 +551,8 @@ class DesignCaseService:
     def optional_proposal(
         self, adapter: ModelInterpreterPort, limits: ProposalLimits
     ) -> dict[str, Any]:
+        """Obtain and validate a proposal for the current case without committing it."""
+
         case = self._require_case()
         intent = self._intent_for_case(case)
         source_ref = self._source_record_ref(intent)
@@ -470,7 +561,27 @@ class DesignCaseService:
         source = self._repository.read_json_artifact(source_ref)
         content_ref = ArtifactReference.from_document(source["content_ref"])
         content = self._repository.read_artifact(content_ref)
-        proposal = adapter.propose(source, content, limits)
+        return self._bind_proposal(adapter, source, source_ref, content, limits=limits)
+
+    def _bind_proposal(
+        self,
+        adapter: ModelInterpreterPort,
+        source_document: dict[str, Any],
+        source_ref: ArtifactReference,
+        content: bytes,
+        *,
+        limits: ProposalLimits | None = None,
+    ) -> dict[str, Any]:
+        """Call the adapter with the source record augmented by its own artifact reference,
+        then validate the proposal and its binding to that record."""
+
+        limits = limits or self._proposal_limits
+        augmented = copy.deepcopy(source_document)
+        augmented["extensions"] = {
+            **dict(augmented.get("extensions", {})),
+            SOURCE_ARTIFACT_REF_EXTENSION: source_ref.to_document(),
+        }
+        proposal = adapter.propose(augmented, content, limits)
         validated = validate_interpretation_proposal(
             proposal, self._registry, limits.maximum_output_bytes
         )
@@ -479,7 +590,51 @@ class DesignCaseService:
                 "OAK-INTERPRETER-SOURCE",
                 "optional proposal is not bound to the requested source record",
             )
+        if "version" not in validated:
+            validated = {**validated, "version": "0.1.0"}
         return validated
+
+    def _source_for(
+        self, case_document: dict[str, Any]
+    ) -> tuple[dict[str, Any], ArtifactReference]:
+        extensions = case_document.get("extensions", {})
+        source_ref_document = extensions.get("oak.community/source_record_ref")
+        if not isinstance(source_ref_document, dict):
+            raise OAKError("OAK-SOURCE-MISSING", "draft case has no source record")
+        source_ref = ArtifactReference.from_document(source_ref_document)
+        return self._repository.read_json_artifact(source_ref), source_ref
+
+    @staticmethod
+    def _interpreter_of(intent: dict[str, Any]) -> str:
+        return (
+            "model" if PROPOSAL_REF_EXTENSION in intent.get("extensions", {}) else "deterministic"
+        )
+
+    @staticmethod
+    def _interpreter_extension(
+        proposal: dict[str, Any], proposal_artifact: Artifact
+    ) -> dict[str, Any]:
+        details = proposal.get("extensions", {}).get(MODEL_EXTENSION)
+        model = details if isinstance(details, dict) else {}
+
+        def text(key: str) -> str | None:
+            value = model.get(key)
+            return value if isinstance(value, str) and 0 < len(value) <= 200 else None
+
+        return {
+            "kind": "model",
+            "family": text("family"),
+            "model_id": text("model_id"),
+            "provider_route": text("provider_route"),
+            "proposal_digest": proposal_artifact.digest,
+        }
+
+    @staticmethod
+    def _has_unconfirmed_model_records(intent: dict[str, Any]) -> bool:
+        return any(
+            record.get("source") == MODEL_PROPOSED and bool(record.get("confirmation_required"))
+            for record in intent["provenance"].values()
+        )
 
     def export_to(self, destination: Path) -> None:
         self._repository.export_to(destination)
@@ -593,10 +748,19 @@ class DesignCaseService:
             }[str(answer["decision"])]
             for answer in answers
         }
-        return tuple(
-            {**assumption, "status": status_by_path.get(assumption["path"], assumption["status"])}
-            for assumption in assumptions
-        )
+        updated: list[dict[str, Any]] = []
+        for assumption in assumptions:
+            path = str(assumption["path"])
+            status = next(
+                (
+                    decided
+                    for answered, decided in status_by_path.items()
+                    if path == answered or path.startswith(f"{answered}/")
+                ),
+                assumption["status"],
+            )
+            updated.append({**assumption, "status": status})
+        return tuple(updated)
 
     def _apply_answer(
         self,
@@ -623,11 +787,51 @@ class DesignCaseService:
             question["status"] = "resolved"
             return
         if decision == "reject":
-            self._pointer_remove(intent, path)
-            self._remove_provenance(intent, path)
+            if self._is_section_path(path):
+                self._reject_section(intent, path)
+            else:
+                self._pointer_remove(intent, path)
+                self._remove_provenance(intent, path)
             question["status"] = "open"
             return
         raise OAKError("OAK-CONFIRM-DECISION", "confirmation decision is unsupported")
+
+    @staticmethod
+    def _is_section_path(path: str) -> bool:
+        parts = path.split("/")
+        return len(parts) == 3 and parts[1] == "spec" and bool(parts[2])
+
+    @classmethod
+    def _reject_section(cls, intent: dict[str, Any], path: str) -> None:
+        """Reject a section-level question.
+
+        The claims under review at a section path are the model-proposed ones, so those
+        values and their provenance are removed field by field while explicit brief values
+        stay. A section that holds no model-proposed value (the deterministic hardware
+        question) is emptied instead; a required section is never deleted.
+        """
+
+        section = path.split("/")[2]
+        roots: set[str] = set()
+        for record_path, record in intent["provenance"].items():
+            if record.get("source") != MODEL_PROPOSED or not record_path.startswith(f"{path}/"):
+                continue
+            parts = record_path.split("/")
+            width = 5 if len(parts) > 3 and parts[3] == "extensions" else 4
+            roots.add("/".join(parts[:width]))
+        if not roots:
+            intent["spec"][section] = {}
+            cls._remove_provenance(intent, path)
+            return
+        for root in sorted(roots):
+            cls._pointer_remove(intent, root)
+            cls._remove_provenance(intent, root)
+        section_document = intent["spec"][section]
+        if (
+            isinstance(section_document.get("extensions"), dict)
+            and not section_document["extensions"]
+        ):
+            del section_document["extensions"]
 
     @staticmethod
     def _pointer_parts(pointer: str) -> list[str]:

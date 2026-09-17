@@ -122,6 +122,7 @@ prohibition).
 | Create design case | ● | ● | ● | ● | ● |
 | Read case / intent | ○ | ○ | ○ | ○ | ○ |
 | Interpret brief | ● | ● | ● | ● | ● |
+| Interpret brief with the configured model | ● | ● | ● | ● (explicit `interpreter: "model"`) | — |
 | List questions | ○ | ○ | ○ | ○ | ○ |
 | Confirm claims | ● | ● | ● | ● | ● |
 | Generate candidates | ● | ● | ● | ● | ● |

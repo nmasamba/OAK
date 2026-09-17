@@ -11,6 +11,7 @@ import urllib.parse
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from enum import StrEnum
 from typing import Annotated, Any
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response
@@ -265,6 +266,24 @@ class _LoopbackGuardMiddleware:
                 "loopback workspace only."
             ),
         )
+
+
+class InterpreterMode(StrEnum):
+    AUTO = "auto"
+    MODEL = "model"
+    DETERMINISTIC = "deterministic"
+
+
+InterpreterQuery = Annotated[
+    InterpreterMode | None,
+    Query(
+        description=(
+            "auto (the default) uses the configured model for a prose brief and the "
+            "deterministic interpreter otherwise; model requires a configured model and the "
+            "X-OAK-Model-Token header; deterministic never calls a provider."
+        ),
+    ),
+]
 
 
 def verify_model_token(presented: str | None, expected: str | None) -> None:
@@ -636,6 +655,8 @@ def create_app(
         expected: ExpectedVersionHeader,
         auth: AuthorityDependency,
         correlation_id: CorrelationHeader = None,
+        interpreter: InterpreterQuery = None,
+        model_token: ModelTokenHeader = None,
     ) -> DesignCaseResponse:
         context = command_context(
             request,
@@ -644,7 +665,16 @@ def create_app(
             expected_version=_expected_version(expected),
             correlation_id=correlation_id,
         )
-        result = plane().interpret(case_id, context)
+        # Resolve first so the capability token is demanded exactly when the operator's
+        # stored credential would be spent, and nothing is committed without it.
+        mode = plane().resolve_interpreter(
+            case_id,
+            tenant_id=context.tenant_id,
+            interpreter=(interpreter or InterpreterMode.AUTO).value,
+        )
+        if mode == "model":
+            verify_model_token(model_token, token_provider())
+        result = plane().interpret(case_id, context, interpreter=mode)
         response.headers["ETag"] = _etag(str(result.case["version"]))
         return DesignCaseResponse(
             case=result.case,

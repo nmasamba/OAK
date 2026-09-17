@@ -45,6 +45,7 @@ changing one.
 |---|---|---|---|
 | `OAK_SERVER` | *(none)* | Base URL for remote mode; equivalent to `--server`. When set, design-journey commands run against a control plane and local-only commands refuse with `OAK-REMOTE-UNSUPPORTED` | Yes |
 | `OAK_ACTOR` | `local-user` | Actor the CLI claims; sent as `X-OAK-Actor` in remote mode. **In remote mode it must equal the server's `OAK_LOCAL_ACTOR`** or every command fails with `OAK-ACTOR-DENIED` — the actor is a claim the server checks, not a credential it accepts | Yes |
+| `OAK_MODEL_TOKEN` | *(none)* | Capability token the remote CLI sends as `X-OAK-Model-Token` when `oak design` resolves to the configured model. Print it on the serving machine with `oak models token` (under Compose: `docker compose exec -T api oak models token`). Never needed for deterministic interpretation; without it a model-mode interpret is refused with `OAK-MODEL-TOKEN-REQUIRED` and nothing is committed | Yes |
 | `OAK_REMOTE_TIMEOUT` | `120` | Seconds to wait for a bounded durable operation to reach a terminal state. It does **not** change the per-request HTTP timeout, which is fixed at 30 s and not configurable. A value outside `0 < n <= 3600`, or one that is not a number, is ignored and the default used | No |
 
 ## Packaged data locations

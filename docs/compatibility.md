@@ -59,6 +59,13 @@ mechanical migration; **breaking** otherwise.
   contract: any change that shifts the canonical bytes of an unchanged document is
   breaking, even if the JSON "looks the same". Byte-stability of compiled artifacts is
   verified directly against the previous mainline before merge.
+- Enum additions are conditionally compatible and are called out here. Sprint 9 added
+  `model_proposed` to the provenance `source` enums in `common.schema.json` and
+  `design-case.schema.json`, the optional `version` field to
+  `interpretation-proposal.schema.json`, and the `interpretation_proposal` artifact kind
+  to `workspace-manifest.schema.json`. Documents from the deterministic path carry none
+  of them, so a 0.7.1 reader still validates every export from a workspace that never
+  used the model path; an export from a workspace that did cannot be imported by 0.7.1.
 
 ## REST and OpenAPI
 
@@ -99,6 +106,11 @@ mechanical migration; **breaking** otherwise.
 - Local mode and remote mode (`--server`) promise the same stable output and exit
   semantics; a command that cannot honor that in remote mode refuses with
   `OAK-REMOTE-UNSUPPORTED` rather than approximating.
+- `oak design --interpreter auto|model|deterministic` (Sprint 9) defaults to `auto`,
+  which yields the previous deterministic output whenever no model is configured or the
+  brief is structured. `oak questions` prints five open questions per round and counts
+  the rest; the `--output json` document is unchanged and lists every persisted
+  question.
 
 ## MCP
 
@@ -118,6 +130,10 @@ mechanical migration; **breaking** otherwise.
   (currently `2025-06-18` and `2025-03-26`). Dropping a revision is breaking; adding
   one is compatible. Unsupported client revisions negotiate down to the newest
   supported revision rather than failing the handshake.
+- `oak_design_case_interpret` gained the optional `interpreter` argument
+  (`deterministic` | `model`) in Sprint 9. Its default is deterministic, so a client
+  written against the previous registry gets exactly the previous behaviour; the model
+  is spent only when a client opts in.
 
 ## Runner protocol
 

@@ -345,6 +345,15 @@
         "title": "HealthResponse",
         "type": "object"
       },
+      "InterpreterMode": {
+        "enum": [
+          "auto",
+          "model",
+          "deterministic"
+        ],
+        "title": "InterpreterMode",
+        "type": "string"
+      },
       "OperationResponse": {
         "additionalProperties": false,
         "properties": {
@@ -2107,6 +2116,24 @@
             }
           },
           {
+            "description": "auto (the default) uses the configured model for a prose brief and the deterministic interpreter otherwise; model requires a configured model and the X-OAK-Model-Token header; deterministic never calls a provider.",
+            "in": "query",
+            "name": "interpreter",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/InterpreterMode"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "auto (the default) uses the configured model for a prose brief and the deterministic interpreter otherwise; model requires a configured model and the X-OAK-Model-Token header; deterministic never calls a provider.",
+              "title": "Interpreter"
+            }
+          },
+          {
             "in": "header",
             "name": "Idempotency-Key",
             "required": true,
@@ -2144,6 +2171,24 @@
                 }
               ],
               "title": "X-Correlation-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-OAK-Model-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 256,
+                  "minLength": 16,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Oak-Model-Token"
             }
           },
           {

@@ -33,6 +33,14 @@ _CORRELATION_ID = {"type": "string", "minLength": 8, "maxLength": 160}
 _ACTOR = {"type": "string", "minLength": 1, "maxLength": 120}
 _TENANT = {"type": "string", "minLength": 1, "maxLength": 120}
 _DOCUMENT = {"type": "object"}
+# Optional. The default is deterministic: an agent must opt in before the operator's
+# stored provider credential is spent and the brief leaves the machine.
+_INTERPRETER = {
+    "type": "string",
+    "enum": ["deterministic", "model"],
+    "minLength": 5,
+    "maxLength": 13,
+}
 
 # Codes whose messages are replaced with an opaque detail so no interface leaks
 # existence information. This set must stay equal to the REST 404 family in
@@ -113,14 +121,20 @@ TOOL_DEFINITIONS: tuple[ToolDefinition, ...] = (
     ToolDefinition(
         name="oak_design_case_interpret",
         description=(
-            "Deterministically interpret the case brief into a typed draft intent with "
-            "provenance. Proposal only; nothing is confirmed."
+            "Interpret the case brief into a typed draft intent with provenance. Proposal "
+            "only; nothing is confirmed. The default interpreter is deterministic and "
+            "makes no network call. interpreter=model sends the brief to the operator's "
+            "configured model provider, spends the operator's stored credential, and "
+            "returns model_proposed values that are unverified model output and always "
+            "require confirmation; it fails with OAK-MODEL-NOT-CONFIGURED when no model "
+            "is configured."
         ),
         input_schema=_schema(
             {
                 "case_id": _IDENTIFIER,
                 "expected_version": _EXPECTED_VERSION,
                 "idempotency_key": _IDEMPOTENCY_KEY,
+                "interpreter": _INTERPRETER,
             },
             required=("case_id", "expected_version", "idempotency_key"),
             context=True,
@@ -440,7 +454,8 @@ class MCPToolExecutor:
 
     def _interpret(self, arguments: dict[str, Any]) -> dict[str, Any]:
         context = self._context(arguments, expected_version=str(arguments["expected_version"]))
-        result = self._plane.interpret(str(arguments["case_id"]), context)
+        interpreter = str(arguments.get("interpreter") or "deterministic")
+        result = self._plane.interpret(str(arguments["case_id"]), context, interpreter=interpreter)
         return {"case": result.case, "intent": result.intent, "duplicate": result.duplicate}
 
     def _questions(self, arguments: dict[str, Any]) -> dict[str, Any]:

@@ -45,6 +45,7 @@ from oak.application import (
     ReleaseService,
     SystemInformationService,
 )
+from oak.application.design_case import ModelInterpreterFactory
 from oak.application.gitops import GitOpsRenderer
 from oak.application.rendering import DeploymentRenderService
 from oak.compiler import DeterministicBriefInterpreter
@@ -54,6 +55,7 @@ from oak.domain.extension_sdk import (
     HELM_KUBERNETES_RENDERER_ID,
     LOCAL_MANIFEST_RENDERER_ID,
 )
+from oak.ports.interpreter import ModelInterpreterPort
 from oak.ports.policy import PolicyEnginePort
 from oak.ports.readiness import ReadinessProbe
 
@@ -110,7 +112,11 @@ def canonical_schema_directory() -> Path:
     raise RuntimeError("canonical OAK schemas are not installed")
 
 
-def create_design_case_service(workspace: Path) -> DesignCaseService:
+def create_design_case_service(
+    workspace: Path, *, model_interpreter_factory: ModelInterpreterFactory | None = None
+) -> DesignCaseService:
+    """The file-workspace design service. Provider-free unless a factory is passed in."""
+
     registry = SchemaRegistry.from_directory(canonical_schema_directory())
     repository = FileWorkspaceRepository(workspace, registry)
     return DesignCaseService(
@@ -118,7 +124,20 @@ def create_design_case_service(workspace: Path) -> DesignCaseService:
         LocalBriefIntake(),
         DeterministicBriefInterpreter(),
         registry,
+        model_interpreter_factory=model_interpreter_factory,
     )
+
+
+def create_model_interpreter() -> ModelInterpreterPort | None:
+    """The model adapter for the user's current selection, or ``None`` when none applies.
+
+    The hosted adapters land in the next Sprint 9 milestone. Until then no adapter exists, so
+    every selection resolves to ``None``: ``--interpreter model`` refuses with
+    ``OAK-MODEL-NOT-CONFIGURED`` and ``auto`` stays deterministic. Nothing here touches a
+    network.
+    """
+
+    return None
 
 
 def canonical_catalogue_directory() -> Path:
@@ -403,6 +422,7 @@ def create_persistent_control_plane() -> CommunityControlPlane:
         registry,
         outbox_store_factory,
         case_directory_factory,
+        model_interpreter_factory=create_model_interpreter,
     )
 
 

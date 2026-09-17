@@ -125,7 +125,11 @@ export interface CommandOptions {
   readonly actor?: string;
   readonly tenantId?: string;
   readonly baseUrl?: string;
+  /** Capability token for model configuration and model-mode interpretation. */
+  readonly modelToken?: string;
 }
+
+export type InterpreterMode = "auto" | "model" | "deterministic";
 
 export class OakApiError extends Error {
   constructor(readonly problem: Problem) {
@@ -145,6 +149,8 @@ function commandHeaders(options: CommandOptions): HeadersInit {
   if (options.actor !== undefined) headers["X-OAK-Actor"] = options.actor;
   if (options.tenantId !== undefined)
     headers["X-OAK-Tenant"] = options.tenantId;
+  if (options.modelToken !== undefined)
+    headers["X-OAK-Model-Token"] = options.modelToken;
   return headers;
 }
 
@@ -224,9 +230,14 @@ export async function listAuditEvents(
 export async function interpretDesignCase(
   caseId: string,
   options: CommandOptions,
+  interpreter?: InterpreterMode,
 ): Promise<DesignCaseResponse> {
+  const query =
+    interpreter === undefined
+      ? ""
+      : `?interpreter=${encodeURIComponent(interpreter)}`;
   return requestJson<DesignCaseResponse>(
-    `/v1/design-cases/${encodeURIComponent(caseId)}:interpret`,
+    `/v1/design-cases/${encodeURIComponent(caseId)}:interpret${query}`,
     { method: "POST", headers: commandHeaders(options) },
     options.baseUrl,
   );

@@ -41,6 +41,7 @@ KIND_SCHEMA = {
     "runner_message": "runner-message.schema.json",
     "policy_pack": "policy-pack.schema.json",
     "policy_decision": "policy-decision.schema.json",
+    "interpretation_proposal": "interpretation-proposal.schema.json",
 }
 JSON_MEDIA_KIND = {
     "application/vnd.oak.source-record+json": "source_record",
@@ -64,6 +65,7 @@ JSON_MEDIA_KIND = {
     "application/vnd.oak.runner-message+json": "runner_message",
     "application/vnd.oak.policy-pack+json": "policy_pack",
     "application/vnd.oak.policy-decision+json": "policy_decision",
+    "application/vnd.oak.interpretation-proposal+json": "interpretation_proposal",
 }
 ReplaceFile = Callable[[Path, Path], None]
 

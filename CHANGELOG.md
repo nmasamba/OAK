@@ -44,6 +44,12 @@ otherwise.
 - `SecretValue` in `oak.domain`: every rendering is `<redacted>`, equality is constant-time, pickling and hashing are refused (`OAK-S9-003`).
 - Register `RR-040` (a stored provider key is readable by same-user processes and usable by any local principal that reaches the loopback port and reads the token; backups that include the credential directory contain the key) — count 38 → 39, narrated in `docs/release/0.7.1/release-decision.md` under "The register count, made legible" (`OAK-S9-003`).
 
+- The proposal merge seam (`OAK-S9-004`). `DeterministicBriefInterpreter.interpret` accepts an already validated interpretation proposal and merges it under fixed rules: only the 101 typed `spec` paths in `oak.contracts.intent_paths` are admissible, values are bounded (strings ≤ 4000 characters, arrays ≤ 64 items of ≤ 400 characters, flat objects only), explicit brief values win, every applied claim is re-validated against `system-intent.schema.json`, and every refusal is an `OAK-INT-PROPOSAL-REJECTED` finding. Each value the model contributed carries `model_proposed` provenance with the proposal identifier in `evidence_refs`; each touched section gains a `question.model.<section>` question whatever confidence the model reported, and a case stays in `needs_confirmation` — and `candidates` refuses — until every model-proposed value is confirmed, corrected or rejected. Every ranked question is now persisted; five are presented per round.
+- `DesignCaseService.interpret(interpreter="auto"|"model"|"deterministic")`: `auto` uses the configured model for a prose brief and the deterministic interpreter otherwise; `model` without a configured adapter refuses with `OAK-MODEL-NOT-CONFIGURED` and commits nothing. On the model path the proposal is stored as an `interpretation_proposal` artifact in the same mutation as intent, event and case, the intent references it under `oak.community/interpretation_proposal_ref`, and the audit event's `oak.community/interpreter` extension records family, model, route and proposal digest — never prompt or response content. The deterministic path emits none of these keys, and `tests/integration/test_reference_digests.py` shows its bytes unchanged (`OAK-S9-004`).
+- `oak design --interpreter auto|model|deterministic` locally and in remote mode (which sends `OAK_MODEL_TOKEN` as `X-OAK-Model-Token`); a prose brief interpreted deterministically because no model is configured gets one stderr hint, and a model failure after the case was created says so and names the deterministic retry. `oak questions` prints five open questions per round, counts the rest, and annotates a question whose value a model proposed with the model's confidence and rationale (`OAK-S9-004`).
+- REST `POST /v1/design-cases/{id}:interpret` gains the optional `interpreter` query parameter and the optional `X-OAK-Model-Token` header; the token is demanded exactly when the request resolves to the model, before anything is committed (`make openapi-compatibility` clean). MCP `oak_design_case_interpret` gains the optional `interpreter` argument (`deterministic` | `model`), default deterministic, with a description that says what `model` spends and sends (`OAK-S9-004`).
+- `tests/model_support.py` (a fake adapter that binds to the offered source record), `tests/unit/test_proposal_merge.py`, `tests/contract/test_intent_paths.py`, `tests/integration/test_model_interpretation_service.py` and `tests/integration/test_model_interface_conformance.py` (file, REST and MCP legs produce identical intent and proposal digests and question sets; every leg refuses an unconfigured model with one code; MCP stays deterministic unless asked) (`OAK-S9-004`).
+
 ### Changed
 
 - The release SBOM and licence inventory export the `keychain` extra so they describe everything the wheel can install; `docs/dependencies.md` carries the Sprint 9 review and records that no runtime HTTP dependency was added (`OAK-S9-003`).
@@ -62,6 +68,18 @@ otherwise.
 - `tests/integration/test_offline_boundary.py` treats `ssl`, HTTP transports and provider
   SDKs as network clients, so a provider adapter cannot reach the network by another name
   (`OAK-S9-001`).
+- Conditionally compatible schema additions (`OAK-S9-004`, called out per
+  `docs/compatibility.md`): `model_proposed` joins the provenance `source` enums in
+  `common.schema.json` and `design-case.schema.json` (governance mirrors updated),
+  `interpretation-proposal.schema.json` gains the optional `version` field, and
+  `interpretation_proposal` joins the workspace-manifest artifact kinds. A workspace that
+  never used the model path emits none of them.
+- A `reject` decision on a section-level question (`/spec/<section>`) removes the
+  model-proposed values in that section and keeps the brief's explicit values; a section with
+  no model-proposed value is emptied rather than deleted, which also fixes the latent failure
+  where rejecting `question.model-hardware` deleted a required section (`OAK-S9-004`).
+- The web claim badge vocabulary gains "Proposed by model" for `model_proposed` provenance
+  (`OAK-S9-004`).
 
 ## 0.7.1 — approved 2026-08-27, published 2026-09-03
 

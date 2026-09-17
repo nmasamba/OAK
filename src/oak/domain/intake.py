@@ -37,6 +37,11 @@ class ClarificationQuestion:
     blocking_stage: str
     blocking_gate: str
     status: str = "open"
+    # Presentation-only ordering hint. Deterministic questions carry 0; a question that
+    # confirms model-proposed values carries the section's lowest confidence bucket so
+    # the least certain proposal is asked first. Never serialized: the documents below
+    # are unchanged, so the deterministic path's bytes cannot depend on it.
+    rank_hint: int = 0
 
     def case_document(self) -> dict[str, Any]:
         return {

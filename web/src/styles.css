@@ -352,6 +352,12 @@ textarea {
   color: #6f2323;
 }
 
+.claim-proposal {
+  border-color: #c9a2c0;
+  background: #f7ebf4;
+  color: #5c2a52;
+}
+
 .materiality-critical {
   border-color: #cf9d9d;
   background: #fbf1f0;

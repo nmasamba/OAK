@@ -15,6 +15,7 @@ from oak.application.design_case import (
     CreateCaseResult,
     DesignCaseService,
     DesignResult,
+    ModelInterpreterFactory,
     QuestionResult,
 )
 from oak.application.extensions import ExtensionService, VerificationReport
@@ -49,6 +50,7 @@ __all__ = [
     "ExtensionService",
     "IngestResult",
     "ModelConfigurationService",
+    "ModelInterpreterFactory",
     "ModelSelection",
     "OperationService",
     "OperationSubmission",

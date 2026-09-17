@@ -53,6 +53,8 @@ Object schema versions are per-object and are deliberately not aligned to one nu
 
 `SystemIntentSpec.spec` is typed normally. `provenance` is a map from an RFC 6901-style JSON Pointer to a provenance record. The repository validator requires one record for every populated scalar leaf in `spec`; production OAK MUST enforce the same invariant transactionally. A pointer to an array element uses its index, for example `/spec/purpose/desired_outcomes/0`.
 
+The `source` value `model_proposed` marks a value an optional model proposed. Such a record carries `confirmation_required: true` and the proposal identifier in `evidence_refs` until a reviewer confirms, corrects or rejects it; the deterministic interpreter never emits it. The proposal itself is kept as an `interpretation_proposal` artifact validated by `interpretation-proposal.schema.json`, whose optional `version` field lets the artifact identity check apply to it.
+
 ## Compatibility
 
 - Additive optional fields are compatible within a major schema version.

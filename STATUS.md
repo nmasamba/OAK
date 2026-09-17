@@ -7,12 +7,12 @@
 - **Phase:** Sprint 9 in progress — optional model provider and natural-language intake (`OAK-S9-001`–`009`), authorized by the owner on 2026-09-17. `0.7.1` was approved by `nmasamba` on 2026-08-27 and **published as a GitHub Release on 2026-09-03**; nothing about it changes in this sprint
 - **Completed plans:** `docs/exec-plans/completed/OAK-S0-001-009-walking-skeleton.md`, `docs/exec-plans/completed/OAK-S1-001-010-local-design-case.md`, `docs/exec-plans/completed/OAK-S2-001-011-candidate-planning.md`, `docs/exec-plans/completed/OAK-S3-001-009-persistent-rest-jobs.md`, `docs/exec-plans/completed/OAK-S4-001-009-web-workspace.md`, `docs/exec-plans/completed/OAK-S5-001-011-signed-runner.md`, `docs/exec-plans/completed/OAK-S6-001-008-policy-adapter-sdk.md`, `docs/exec-plans/completed/OAK-S7-001-008-mcp-portal-interface-parity.md`, `docs/exec-plans/completed/OAK-S8-001-009-community-release-hardening.md`, `docs/exec-plans/completed/OAK-PL-001-007-pre-launch-hardening.md`, and `docs/exec-plans/completed/OAK-FS-001-003-final-sweep.md`
 - **Active plan:** `docs/exec-plans/active/OAK-S9-001-009-model-provider-intake.md`
-- **Next task:** `OAK-S9-004` — the proposal merge seam (in progress on branch
+- **Next task:** `OAK-S9-005` — transport, provider profiles and the hosted interpreter (in progress on branch
   `model-provider-intake` from `62bc7a1`), then the Sprint 9 milestones in order. The
   pre-launch hardening (PR #13, `2d85322`), the documentation sweep (PR #15 `ca160a7`, PR #16
   `3f9122f`), the `0.7.1` approval and tag (`c614414`), the image-tooling fixes (PRs #18, #19)
-  and the publication truth pass (PR #20, `62bc7a1`) are all merged; the register carries 38
-  entries with eight closed. PyPI and a container registry remain separate owner decisions
+  and the publication truth pass (PR #20, `62bc7a1`) are all merged; the register carries 39
+  entries with eight closed (`RR-040` added in this sprint). PyPI and a container registry remain separate owner decisions
 
 ## Claimed work
 
@@ -115,7 +115,7 @@
 | `OAK-S9-001` | complete | Reference digests and deterministic intent bytes pinned by a test; provider state isolated in tests; secret-scan, boundary and egress gates widened before any adapter exists |
 | `OAK-S9-002` | complete | Loopback hardening (Host/Origin/Fetch-Metadata) and a per-process capability token for credential, discovery, selection and model-mode interpretation |
 | `OAK-S9-003` | complete | Keychain and 0600 file credential stores, closed model-configuration schema, `oak models` local-only command |
-| `OAK-S9-004` | planned | Proposal merge inside `interpret` with `model_proposed` provenance, per-section confirmation questions and byte-identical deterministic path |
+| `OAK-S9-004` | complete | Proposal merge inside `interpret` with `model_proposed` provenance, per-section confirmation questions, all interfaces plumbed (`--interpreter`, REST query + token, MCP opt-in) and a byte-identical deterministic path |
 | `OAK-S9-005` | planned | Standard-library transport with a fixed egress allowlist, seven provider profiles, hosted interpreter, Hugging Face free-model lookup, egress gates rewritten |
 | `OAK-S9-006` | planned | Additive `/v1/models` resources, regenerated OpenAPI and web client, api-only Compose volume |
 | `OAK-S9-007` | planned | Models settings page, natural-language default intake, provenance on the confirmation screen, browser tests |
