@@ -135,8 +135,10 @@ were made here, and one dependency was refused.
 
 **No runtime HTTP dependency was added.** The provider adapters speak to six hosted APIs and a
 local OpenAI-compatible server with one bounded request per interpretation, through a single
-standard-library `urllib.request` transport that pins the host allowlist, refuses redirects,
-ignores environment proxies and reads against a total deadline. The Sprint 7 argument for the
+standard-library `http.client` transport (`oak.adapters.models.transport`) that pins the
+host allowlist, refuses redirects, reads against a total deadline, and consults no proxy —
+`http.client` connects to the host it is given, whereas `urllib.request.urlopen` would read
+`HTTPS_PROXY` and the macOS system proxy and send the request somewhere else entirely. The Sprint 7 argument for the
 remote CLI (`httpx` "remains a development-only dependency") holds unchanged: one bounded
 request per command does not justify enlarging the released closure, and a provider SDK per
 family — six of them — would dominate it while ADR-0009 rejects "one provider SDK

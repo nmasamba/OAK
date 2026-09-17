@@ -54,6 +54,9 @@ otherwise.
 - `oak models discover <family>` looks up what a key can actually reach. For Hugging Face the lookup is anonymous and needs no key: it reads the router's chat catalogue and the Hub's trending list, keeps only ungated models under Apache-2.0, MIT or BSD-3-Clause from a namespace allowlist with at least one live structured-output route, and recommends the best of them — falling back to a pinned chain (`openai/gpt-oss-120b`, `openai/gpt-oss-20b`, `Qwen/Qwen3-235B-A22B-Instruct-2507`) labelled `pinned` when a catalogue cannot be reached, rather than pretending the answer was looked up. Discovery is explicit only: `oak models status`, `GET /v1/models` and `interpret` never contact a catalogue (`OAK-S9-005`).
 - `OAK_MODEL_ENDPOINT_LOCAL`, `OAK_MODEL_TIMEOUT_SECONDS` and `OAK_MODEL_DISCOVERY_CACHE_SECONDS` are documented; the timeout is clamped to 1–55 seconds because the shipped nginx proxy gives up at 60 (`OAK-S9-005`).
 - Register `RR-039` (a configured hosted model receives the brief; opt-in, audited, and the provider's own retention and training terms are outside OAK's control) and `RR-041` (a model interpretation is individually bounded but nothing caps aggregate provider spend) — count 39 → 41 (`OAK-S9-005`).
+- The model-configuration REST resources (`OAK-S9-006`), all loopback-only, all `no-store`, and none of them able to return a stored key: `GET /v1/models` (families, selection, per-family backend and salted fingerprint, discovery age and staleness), `PUT`/`DELETE /v1/models/credentials/{family}`, `PUT`/`DELETE /v1/models/selection` and `POST /v1/models/{family}:discover`. The capability token is a dependency rather than a check inside each handler, so an unauthorised caller is refused before its body is parsed and is never told what was wrong with a request it was not entitled to make. `api_key` is `writeOnly` with `format: password` and no example, so it appears in no generated client and no rendered documentation. None of these routes takes an idempotency key, builds a command context, or appends an audit event: configuring a provider is machine-local state, not a case mutation.
+- The generated TypeScript client gains `getModels`, `putModelCredential`, `deleteModelCredential`, `putModelSelection`, `clearModelSelection` and `discoverModels`; the OpenAPI baseline is untouched and `make openapi-compatibility` stays clean (`OAK-S9-006`).
+- Under Compose, model state lives on the `api` service's own volume (`oak-model-state`), mounted at a path the image creates `0700` and `oak`-owned so the named volume cannot be created `root:root`. The worker does not mount it. `docs/operations.md` gains the Compose configuration procedure, excludes the volume from backups and removes it on uninstall; `web/e2e/hardening.spec.ts` asserts the live ownership and the worker's absence (`OAK-S9-006`).
 - `tests/live/test_provider_smoke.py`, run by hand with `OAK_LIVE_MODEL_TESTS=1` against the keys on the operator's own machine. It spends real credit, is never collected by `make check`, and exists because a recorded fixture cannot tell you that a provider changed its API (`OAK-S9-005`).
 - `tests/model_support.py` (a fake adapter that binds to the offered source record), `tests/unit/test_proposal_merge.py`, `tests/contract/test_intent_paths.py`, `tests/integration/test_model_interpretation_service.py` and `tests/integration/test_model_interface_conformance.py` (file, REST and MCP legs produce identical intent and proposal digests and question sets; every leg refuses an unconfigured model with one code; MCP stays deterministic unless asked) (`OAK-S9-004`).
 
@@ -98,6 +101,25 @@ otherwise.
   instead of asserted to be empty, the four non-transport model modules are proved to import
   no network client, and a new gate runs the deterministic journey in a fresh interpreter and
   fails if a provider module was loaded at all (`OAK-S9-005`).
+- The egress gate also became structural. An adversarial review showed that a module
+  importing some *other* provider SDK passes a gate that enumerates the SDKs we thought of,
+  so a new gate resolves every top-level import under `src/oak` and fails on anything that is
+  neither the standard library, `oak` itself, nor a distribution `pyproject.toml` declares.
+  That is also the check which keeps `docs/dependencies.md`'s "no runtime HTTP dependency was
+  added" true rather than merely stated (`OAK-S9-006`).
+- Fixes from that review, each with a regression test (`OAK-S9-006`). A loopback host is now
+  decided by parsing the address rather than by a string prefix, so `127.evil.example.com` —
+  an ordinary DNS name its owner can point anywhere — is no longer accepted as this machine
+  for the `local` family, which speaks plain http. The request deadline now covers the status
+  line and headers, not only the body, so a provider that dribbles its response header cannot
+  hold a request open indefinitely. A provider's error `type` can no longer end with a newline
+  and reach the message. A model's answer can no longer crash interpretation with an
+  out-of-range confidence, a deeply nested value, or an unbounded claim path. A Hugging Face
+  price of `inf` no longer breaks the configuration save, a model the Hub lists as gated or
+  non-permissively licensed is no longer rescued by the pinned chain, a cumulative licence
+  list is judged by all of its entries rather than the first, and a snapshot built without a
+  usable Hub listing is labelled `pinned` rather than `live`. Discovery no longer borrows the
+  interpretation response cap, which was smaller than a real catalogue.
 
 ## 0.7.1 — approved 2026-08-27, published 2026-09-03
 

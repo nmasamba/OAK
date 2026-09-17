@@ -26,7 +26,7 @@ from typing import Any
 import pytest
 
 from oak.adapters.models import transport as transport_module
-from oak.adapters.models.transport import ModelTransport, TransportRequest
+from oak.adapters.models.transport import ModelTransport, TransportRequest, is_loopback_host
 from oak.domain import OAKError
 
 KEY = "oak-test-key-transport-0123456789abcdef"
@@ -379,3 +379,79 @@ def test_tls_certificates_are_verified_against_a_trust_store(tmp_path: Path) -> 
     finally:
         instance.shutdown()
         instance.server_close()
+
+
+# ----- regressions found by the Sprint 9 adversarial review -----------------------
+
+
+@pytest.mark.parametrize(
+    "hostname,loopback",
+    [
+        ("127.0.0.1", True),
+        ("127.0.0.2", True),
+        ("::1", True),
+        ("[::1]", True),
+        ("localhost", True),
+        ("LOCALHOST", True),
+        # The ones a prefix test used to wave through. Each is an ordinary DNS name whose
+        # owner chooses where it resolves, and the local family speaks plain http.
+        ("127.evil.example.com", False),
+        ("127.0.0.1.evil.example", False),
+        ("localhost.evil.example", False),
+        ("127-0-0-1.evil.example", False),
+        ("0.0.0.0", False),
+        ("10.0.0.5", False),
+        ("2130706433", False),
+        ("", False),
+    ],
+)
+def test_only_a_literal_loopback_address_or_localhost_counts_as_loopback(
+    hostname: str, loopback: bool
+) -> None:
+    assert is_loopback_host(hostname) is loopback
+
+
+def test_a_provider_that_trickles_its_status_line_is_cut_off_at_the_deadline() -> None:
+    """The deadline covers the whole exchange, not only the body.
+
+    The first version armed the socket with the *connect* timeout until the body loop
+    started, so a server that dribbled the status line held the request open while every
+    individual receive stayed inside that timeout.
+    """
+
+    listener = socket.socket()
+    listener.bind(("127.0.0.1", 0))
+    listener.listen(1)
+    port = int(listener.getsockname()[1])
+    stop = threading.Event()
+
+    def dribble() -> None:
+        connection, _ = listener.accept()
+        try:
+            connection.recv(65536)
+            for character in b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nhi":
+                if stop.is_set():
+                    return
+                connection.sendall(bytes([character]))
+                time.sleep(0.4)
+        except OSError:
+            return
+        finally:
+            connection.close()
+
+    server = threading.Thread(target=dribble, daemon=True)
+    server.start()
+    started = time.monotonic()
+    try:
+        with pytest.raises(OAKError) as refused:
+            _transport(deadline=1.0).send(
+                TransportRequest(method="GET", url=f"http://127.0.0.1:{port}/slow")
+            )
+        elapsed = time.monotonic() - started
+        assert refused.value.code == "OAK-INTERPRETER-UNAVAILABLE"
+        assert refused.value.retriable is True
+        assert elapsed < 8, elapsed
+    finally:
+        stop.set()
+        listener.close()
+        server.join(timeout=5)

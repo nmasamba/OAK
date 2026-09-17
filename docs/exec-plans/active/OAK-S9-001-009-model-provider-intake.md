@@ -344,6 +344,20 @@ artifact, which `docs/compatibility.md` states.
   rows and the `live` marker are documented; `tests/live/test_provider_smoke.py` is skipped
   unless `OAK_LIVE_MODEL_TESTS=1`.
 
+- [x] 2026-09-17 Milestone 5: `/v1/models` status, credential, selection and discovery
+  resources with the capability token as a dependency (refused before the body is parsed),
+  `api_key` write-only with no example, `no-store` on every response, the generated
+  TypeScript client, the `oak-model-state` volume on the api service with its mount point
+  created `0700` in the image, operations and interfaces documentation, and
+  `tests/integration/test_models_api.py` plus the Compose ownership assertions in
+  `web/e2e/hardening.spec.ts`.
+
+- [x] 2026-09-17 Adversarial review of the Milestone 4 provider layer: six reviewers across
+  credential leakage, egress bypass, hostile provider responses, bounds and determinism,
+  catalogue trust and documentation honesty, with two independent skeptics per finding. 27
+  findings, 21 confirmed. All confirmed findings are fixed with regression tests; the review
+  and its outcome are summarised in `## Post-implementation audit`.
+
 ## Decisions
 
 - 2026-09-17 Standard-library transport in one module; no `httpx`, no provider SDKs. Reason:
@@ -389,6 +403,46 @@ artifact, which `docs/compatibility.md` states.
   a whole chunk, so a provider trickling one byte at a time held the connection for the full
   body while every individual socket read stayed inside its own timeout. The first version of
   the deadline test took 62 seconds to fail; it now cuts off in under two.
+- 2026-09-17 The deadline is enforced by wrapping the response's file object, installed
+  through the connection's `response_class`. Reason: a socket timeout bounds one receive, not
+  a request, and `http.client` reads the status line and each header separately, so a
+  provider dribbling its header held the request open for as long as it liked. `socket.
+  makefile` is read-only on a real socket, and `HTTPResponse.begin()` runs after
+  `__init__`, so the response class is the only seam that covers the whole exchange.
+- 2026-09-17 The egress gate is structural as well as enumerative: every top-level import
+  under `src/oak` must resolve to the standard library, `oak`, or a declared distribution.
+  Reason: the review demonstrated the enumerative gate by adding a module importing
+  `litellm`, then `together`, then `replicate` — each invisible to a list of the SDKs we had
+  thought of, each caught by the declared-dependency rule.
+- 2026-09-17 The capability token is a FastAPI dependency, not a check inside each handler.
+  Reason: dependencies resolve before the body is parsed, so an unauthorised caller is
+  refused without its request being examined, and without being told what was wrong with it.
+
+## Post-implementation audit
+
+Run after Milestone 4, before the REST surface was exposed, against the provider layer:
+transport, provider profiles, hosted interpreter, catalogue lookup, the rewritten egress
+gates and the security documentation. Six reviewers took one lens each — credential leakage,
+egress bypass, hostile provider responses, bounds and determinism, catalogue trust,
+documentation honesty — and every finding went to two independent skeptics, one instructed to
+refute it and one to judge whether it was consequential in practice. Both were told to settle
+it by running code rather than by reading it.
+
+27 findings, 21 confirmed, all fixed with regression tests. The ones that mattered:
+
+| Finding | Why it mattered |
+|---|---|
+| `is_loopback_host` used a string prefix, so `127.evil.example.com` was "this machine" | The `local` family speaks plain http *because* the bytes stay on the machine. The brief, and a bearer token if one was stored, would have gone in cleartext to a host whose owner chooses where it resolves. Two gates leaned on this one function, so they agreed on the same wrong answer. Now the address is parsed |
+| The deadline covered only the body | `http.client` reads the status line and each header separately, so a provider dribbling its header held a request open indefinitely while every receive stayed inside its socket timeout. Now every read of the response runs under one clock |
+| The pinned fallback chain could re-admit a filtered model | A constant recorded in September would have overridden today's catalogue saying a model had become gated or been relicensed |
+| An enumerative egress gate cannot see an SDK it does not know | Demonstrated by adding a module importing `litellm`, then `together`, then `replicate`. Replaced by a structural rule: every import must resolve to the standard library, `oak`, or a declared dependency |
+| Model output could crash interpretation | An out-of-range confidence, a deeply nested value, or an unbounded claim path each escaped the bounds as `OverflowError` or `RecursionError`, neither of which is a `ValueError` |
+| A provider's error `type` could end with a newline and reach the message | `$` matches before a trailing newline; `fullmatch` does not |
+
+Six findings were refuted, each after the skeptics reproduced the mechanism and then showed
+the consequence did not follow — for example, the provider key can reach an exception
+`__cause__`, but nothing OAK emits renders a chain, and the input that would put it there is
+already refused. Those are recorded here rather than acted on.
 
 ## Discoveries and follow-ups
 

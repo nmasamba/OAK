@@ -18,6 +18,7 @@ one model module to import a network client:
 from __future__ import annotations
 
 import http.client
+import ipaddress
 import ssl
 import time
 import urllib.parse
@@ -28,10 +29,68 @@ from oak import __version__
 from oak.domain import OAKError
 
 LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
+DEADLINE_MESSAGE = "the provider did not answer within the request deadline"
 DEFAULT_CONNECT_TIMEOUT_SECONDS = 5.0
 MAXIMUM_DEADLINE_SECONDS = 55.0
 CHUNK_BYTES = 65_536
 USER_AGENT = f"oak-community/{__version__}"
+
+
+class _DeadlineReader:
+    """A file object that refuses to read once the request's clock has run out.
+
+    A socket timeout bounds one receive, not a request. `http.client` reads the status line
+    and every header with its own `readline`, so a provider that sends one byte at a time
+    keeps each receive inside the timeout and holds the request open for as long as it
+    likes. Wrapping the reader the response is built from is the only place a *total* bound
+    can be applied, because nothing inside `getresponse` reports progress.
+    """
+
+    __slots__ = ("_deadline", "_raw")
+
+    def __init__(self, raw: Any, deadline: float) -> None:
+        self._raw = raw
+        self._deadline = deadline
+
+    def _check(self) -> None:
+        if time.monotonic() >= self._deadline:
+            raise TimeoutError(DEADLINE_MESSAGE)
+
+    def read(self, size: int = -1) -> bytes:
+        self._check()
+        return bytes(self._raw.read(size))
+
+    def read1(self, size: int = -1) -> bytes:
+        self._check()
+        reader = getattr(self._raw, "read1", None)
+        return bytes(reader(size) if reader is not None else self._raw.read(size))
+
+    def readinto(self, buffer: Any) -> int:
+        self._check()
+        return int(self._raw.readinto(buffer))
+
+    def readline(self, limit: int = -1) -> bytes:
+        self._check()
+        return bytes(self._raw.readline(limit))
+
+    def close(self) -> None:
+        self._raw.close()
+
+    @property
+    def closed(self) -> bool:
+        return bool(self._raw.closed)
+
+    def flush(self) -> None:
+        return None
+
+    def readable(self) -> bool:
+        return True
+
+    def seekable(self) -> bool:
+        return False
+
+    def writable(self) -> bool:
+        return False
 
 
 @dataclass(frozen=True, slots=True)
@@ -53,7 +112,22 @@ class TransportResponse:
 
 
 def is_loopback_host(hostname: str) -> bool:
-    return hostname.lower() in LOOPBACK_HOSTS or hostname.startswith("127.")
+    """Whether a URL host is unambiguously this machine.
+
+    A prefix test on the string is not good enough: ``127.evil.example.com`` starts with
+    ``127.`` and is an ordinary DNS name whose owner can point it anywhere, so a prefix
+    test would let the local family's endpoint leave the machine — in cleartext, because
+    plain http is permitted for loopback. Only a literal loopback IP address, or the exact
+    name ``localhost``, counts.
+    """
+
+    candidate = hostname.strip().strip("[]").lower()
+    if candidate == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(candidate).is_loopback
+    except ValueError:
+        return False
 
 
 class ModelTransport:
@@ -123,6 +197,17 @@ class ModelTransport:
             "Connection": "close",
             **request.headers,
         }
+        for name, value in headers.items():
+            # `http.client` refuses a header value containing a control character by raising
+            # with the value in the message, which for `Authorization` would put the key in
+            # an exception chain. A credential taken from the environment never passes
+            # through `validate_key_input`, so it is checked here instead.
+            if any(character in value for character in "\r\n\x00") or not value.isprintable():
+                raise OAKError(
+                    "OAK-MODEL-KEY-INVALID",
+                    f"the {name} header value contains a character a request cannot carry; "
+                    "store the key again without whitespace or control characters",
+                )
         path = parts.path or "/"
         if parts.query:
             path = f"{path}?{parts.query}"
@@ -145,6 +230,44 @@ class ModelTransport:
             hostname, port, timeout=timeout, context=self._ssl_context
         )
 
+    @staticmethod
+    def _remaining(deadline: float) -> float:
+        left = deadline - time.monotonic()
+        if left <= 0:
+            raise OAKError("OAK-INTERPRETER-UNAVAILABLE", DEADLINE_MESSAGE, retriable=True)
+        return left
+
+    @classmethod
+    def _arm(cls, connection: http.client.HTTPConnection, deadline: float) -> None:
+        """Put the socket on the request's own clock before it blocks again.
+
+        `http.client` keeps the timeout it was constructed with, which is the *connect*
+        timeout. Without this, a provider that trickles the status line, or floods trailers
+        after the last chunk, holds the request open while every individual receive stays
+        comfortably inside that timeout.
+        """
+
+        remaining = cls._remaining(deadline)
+        if connection.sock is not None:
+            connection.sock.settimeout(remaining)
+
+    @staticmethod
+    def _bound_reads(connection: http.client.HTTPConnection, deadline: float) -> None:
+        """Make every read of this response, headers included, honour the total deadline.
+
+        `socket.makefile` is read-only on a real socket, so the reader is installed through
+        the connection's response class: `HTTPResponse.__init__` opens the file, and
+        `begin()` — which consumes the status line and the headers — runs afterwards, so a
+        wrapper applied in `__init__` covers the whole response.
+        """
+
+        class _BoundedResponse(http.client.HTTPResponse):
+            def __init__(self, sock: Any, *arguments: Any, **keywords: Any) -> None:
+                super().__init__(sock, *arguments, **keywords)
+                self.fp = _DeadlineReader(self.fp, deadline)  # type: ignore[assignment]
+
+        connection.response_class = _BoundedResponse
+
     def _exchange(
         self,
         connection: http.client.HTTPConnection,
@@ -154,8 +277,13 @@ class ModelTransport:
         deadline: float,
     ) -> TransportResponse:
         try:
+            # `http.client` connects lazily, so the socket does not exist until the
+            # request has been sent; bounding reads before that would patch nothing.
+            self._bound_reads(connection, deadline)
             connection.request(request.method, path, body=request.body, headers=headers)
+            self._arm(connection, deadline)
             response = connection.getresponse()
+            self._arm(connection, deadline)
             status = int(response.status)
             if 300 <= status < 400:
                 # Never read Location, never follow.
@@ -177,9 +305,7 @@ class ModelTransport:
             ) from error
         except TimeoutError as error:
             raise OAKError(
-                "OAK-INTERPRETER-UNAVAILABLE",
-                "the provider did not answer within the request deadline",
-                retriable=True,
+                "OAK-INTERPRETER-UNAVAILABLE", DEADLINE_MESSAGE, retriable=True
             ) from error
         except (http.client.HTTPException, OSError, ValueError) as error:
             raise OAKError(
@@ -200,15 +326,9 @@ class ModelTransport:
         total = 0
         sock: Any = connection.sock
         while True:
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                raise OAKError(
-                    "OAK-INTERPRETER-UNAVAILABLE",
-                    "the provider did not answer within the request deadline",
-                    retriable=True,
-                )
+            remaining = self._remaining(deadline)
             if sock is not None:
-                sock.settimeout(max(0.05, min(remaining, self._connect_timeout)))
+                sock.settimeout(remaining)
             # `read` would block until it had a whole chunk, so a provider trickling one
             # byte at a time could hold the connection for chunk_size x timeout while every
             # individual recv stayed inside its socket timeout. `read1` returns what one

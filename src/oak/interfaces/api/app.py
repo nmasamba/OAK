@@ -20,8 +20,15 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from oak.application import CommandContext, CommunityControlPlane, SystemInformationService
+from oak.application import (
+    CommandContext,
+    CommunityControlPlane,
+    ModelConfigurationService,
+    SystemInformationService,
+    validate_key_input,
+)
 from oak.bootstrap import (
+    create_model_configuration_service,
     create_persistent_control_plane,
     create_system_information_service,
     read_model_token,
@@ -42,6 +49,13 @@ from oak.interfaces.api.models import (
     EvaluateCandidateRequest,
     FieldProblem,
     HealthResponse,
+    ModelCredentialRequest,
+    ModelCredentialStatus,
+    ModelDiscoveryResponse,
+    ModelDiscoverySummary,
+    ModelFamily,
+    ModelSelectionRequest,
+    ModelStatusResponse,
     OperationResponse,
     OutboxLagResponse,
     Problem,
@@ -95,6 +109,26 @@ def _local_authority(
 
 
 AuthorityDependency = Annotated[_Authority, Depends(_local_authority)]
+
+
+def _require_model_token(
+    request: Request,
+    presented: Annotated[
+        str | None, Header(alias="X-OAK-Model-Token", min_length=16, max_length=256)
+    ] = None,
+) -> None:
+    """Refuse before the body is read.
+
+    FastAPI resolves dependencies before it parses or validates a request body, so a caller
+    without the capability token never has its body examined and is never told what was
+    wrong with a request it was not entitled to make.
+    """
+
+    provider: Callable[[], str | None] = request.app.state.model_token_provider
+    verify_model_token(presented, provider())
+
+
+ModelTokenDependency = Annotated[None, Depends(_require_model_token)]
 
 
 def _problem_response(problem: Problem) -> JSONResponse:
@@ -419,6 +453,7 @@ def create_app(
     clock: Callable[[], str] = _utc_now,
     allowed_hosts: frozenset[str] | None = None,
     model_token: str | Callable[[], str | None] | None = None,
+    model_configuration: Callable[[], ModelConfigurationService] | None = None,
 ) -> FastAPI:
     """Build the API.
 
@@ -426,6 +461,8 @@ def create_app(
     always accepted). ``model_token`` is the capability token guarding model configuration:
     a fixed string for tests, or a callable read per request; by default the token file the
     serving process minted is read, so a server restart rotates it without a reload.
+    ``model_configuration`` builds the service the `/v1/models` routes act on; it is called
+    per request so a key stored from the CLI is visible to the API without a restart.
     """
 
     application_service = service or create_system_information_service()
@@ -446,6 +483,7 @@ def create_app(
 
     else:
         token_provider = model_token
+    model_configuration_factory = model_configuration or create_model_configuration_service
     api = FastAPI(
         title="OAK Community API",
         summary="Local persistent Community control plane",
@@ -461,11 +499,7 @@ def create_app(
     # Added last so it runs first: nothing is buffered or routed for a refused host/origin.
     api.add_middleware(_LoopbackGuardMiddleware, allowed_hosts=permitted_hosts)
 
-    def require_model_token(token: ModelTokenHeader = None) -> None:
-        verify_model_token(token, token_provider())
-
-    ModelTokenDependency = Annotated[None, Depends(require_model_token)]  # noqa: N806
-    api.state.model_token_dependency = ModelTokenDependency
+    api.state.model_token_provider = token_provider
 
     def plane() -> CommunityControlPlane:
         nonlocal persistent_service
@@ -875,6 +909,143 @@ def create_app(
             context,
         )
         return _operation_response(result.operation, duplicate=result.duplicate)
+
+    def configuration() -> ModelConfigurationService:
+        return model_configuration_factory()
+
+    def _no_store(response: Response) -> None:
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["Pragma"] = "no-cache"
+
+    def _status_document(service: ModelConfigurationService) -> ModelStatusResponse:
+        status = service.status()
+        discovery = {
+            family: ModelDiscoverySummary(
+                fetched_at=str(summary["fetched_at"]),
+                source=str(summary["source"]),  # type: ignore[arg-type]
+                recommended=summary["recommended"],
+                model_count=int(summary["model_count"]),
+                stale=bool(summary["stale"]),
+            )
+            for family, summary in status["discovery"].items()
+        }
+        return ModelStatusResponse(
+            configured=bool(status["configured"]),
+            selection=status["selection"],
+            provider_policy=str(status["provider_policy"]),
+            families=tuple(ModelFamily(**family) for family in service.families()),
+            credentials=tuple(
+                # The domain says `None` for "no backend holds this"; the wire contract says
+                # `"none"`, the spelling `model-configuration.schema.json` already uses, which
+                # keeps the response free of a nullable enum.
+                ModelCredentialStatus(**{**credential, "source": credential["source"] or "none"})
+                for credential in status["credentials"].values()
+            ),
+            discovery=discovery,
+            stores=status["stores"],
+        )
+
+    @api.get("/v1/models", response_model=ModelStatusResponse, tags=["models"])
+    def get_models(
+        response: Response,
+        auth: AuthorityDependency,
+        _token: ModelTokenDependency = None,
+    ) -> ModelStatusResponse:
+        del auth, _token
+        _no_store(response)
+        return _status_document(configuration())
+
+    @api.put(
+        "/v1/models/credentials/{family}",
+        status_code=204,
+        response_class=Response,
+        tags=["models"],
+    )
+    def put_model_credential(
+        family: str,
+        body: ModelCredentialRequest,
+        response: Response,
+        auth: AuthorityDependency,
+        _token: ModelTokenDependency = None,
+    ) -> Response:
+        del auth, _token
+        service = configuration()
+        secret = validate_key_input(body.api_key)
+        try:
+            service.set_key(family, secret, source="keychain")
+        except OAKError as error:
+            if not error.code.startswith("OAK-MODEL-KEYCHAIN-"):
+                raise
+            # Never a silent downgrade: the store the key landed in is in the status the
+            # caller reads back, and the workspace shows it.
+            service.set_key(family, secret, source="file")
+        headers = {"Cache-Control": "no-store"}
+        del secret
+        return Response(status_code=204, headers=headers)
+
+    @api.delete(
+        "/v1/models/credentials/{family}",
+        status_code=204,
+        response_class=Response,
+        tags=["models"],
+    )
+    def delete_model_credential(
+        family: str,
+        auth: AuthorityDependency,
+        _token: ModelTokenDependency = None,
+    ) -> Response:
+        del auth, _token
+        configuration().remove_key(family)
+        return Response(status_code=204, headers={"Cache-Control": "no-store"})
+
+    @api.put("/v1/models/selection", response_model=ModelStatusResponse, tags=["models"])
+    def put_model_selection(
+        body: ModelSelectionRequest,
+        response: Response,
+        auth: AuthorityDependency,
+        _token: ModelTokenDependency = None,
+    ) -> ModelStatusResponse:
+        del auth, _token
+        service = configuration()
+        service.select(
+            body.family,
+            body.model_id,
+            provider_route=body.provider_route,
+            default_interpreter=body.default_interpreter,
+            acknowledge_data_use=body.acknowledge_data_use,
+        )
+        _no_store(response)
+        return _status_document(service)
+
+    @api.delete("/v1/models/selection", response_model=ModelStatusResponse, tags=["models"])
+    def clear_model_selection(
+        response: Response,
+        auth: AuthorityDependency,
+        _token: ModelTokenDependency = None,
+    ) -> ModelStatusResponse:
+        del auth, _token
+        service = configuration()
+        service.clear_selection()
+        _no_store(response)
+        return _status_document(service)
+
+    @api.post(
+        "/v1/models/{family}:discover",
+        response_model=ModelDiscoveryResponse,
+        tags=["models"],
+    )
+    def discover_models_for_family(
+        family: str,
+        response: Response,
+        auth: AuthorityDependency,
+        _token: ModelTokenDependency = None,
+    ) -> ModelDiscoveryResponse:
+        """Contact that family's catalogue. The only route here that reaches a network."""
+
+        del auth, _token
+        snapshot = configuration().discover(family)
+        _no_store(response)
+        return ModelDiscoveryResponse(family=family, discovery=snapshot)
 
     @api.get(
         "/v1/operations/{operation_id}",

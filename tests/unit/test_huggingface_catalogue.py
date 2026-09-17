@@ -228,11 +228,14 @@ def test_dead_provider_routes_are_dropped_from_the_snapshot() -> None:
 
 def test_hostile_card_metadata_cannot_widen_the_filter_or_the_snapshot() -> None:
     hostile = [
+        # Licences are cumulative: a second, restrictive entry restricts the model, so the
+        # permissive first element must not decide it.
         {
             "id": "openai/gpt-oss-120b",
             "gated": False,
-            "cardData": {"license": ["apache-2.0", "evil"]},
+            "cardData": {"license": ["apache-2.0", "cc-by-nc-4.0"]},
         },
+        {"id": "openai/gpt-oss-20b", "gated": False, "cardData": {"license": ["mit"]}},
         {"id": "evil/model", "gated": "false", "cardData": {"license": "apache-2.0"}},
         {"id": "x" * 400, "gated": False, "cardData": {"license": "mit"}},
         {"id": 7, "gated": False, "cardData": {"license": "mit"}},
@@ -242,14 +245,22 @@ def test_hostile_card_metadata_cannot_widen_the_filter_or_the_snapshot() -> None
         "a string, not an entry",
     ]
     fetcher = _Fetcher(
-        _router(_served("openai/gpt-oss-120b"), _served("evil/model"), _served("Qwen/Qwen3-8B")),
+        _router(
+            _served("openai/gpt-oss-120b"),
+            _served("openai/gpt-oss-20b"),
+            _served("evil/model"),
+            _served("Qwen/Qwen3-8B"),
+        ),
         TransportResponse(200, {}, json.dumps(hostile).encode("utf-8")),
     )
 
     snapshot = _snapshot(fetcher)
 
-    assert [model["id"] for model in snapshot["models"]] == ["openai/gpt-oss-120b"]
-    assert snapshot["models"][0]["licence"] == "apache-2.0"
+    # Only the single-licence entry survives. The dual-licensed model is refused despite a
+    # permissive first element, and being in the pinned chain does not rescue it.
+    assert [model["id"] for model in snapshot["models"]] == ["openai/gpt-oss-20b"]
+    assert snapshot["models"][0]["licence"] == "mit"
+    assert snapshot["source"] == "live"
 
 
 @pytest.mark.parametrize(

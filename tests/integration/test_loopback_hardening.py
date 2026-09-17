@@ -183,9 +183,16 @@ async def test_credential_routes_require_a_same_origin_browser_or_a_non_browser_
 
     assert browser_same_site.status_code == 403
     assert browser_same_site.json()["code"] == "OAK-ORIGIN-DENIED"
-    # The guard passed; the route itself does not exist yet in this milestone.
-    assert browser_same_origin.status_code == 404
-    assert non_browser.status_code == 404
+    # Past the guard, the route answers for itself. Since OAK-S9-006 these routes exist, so
+    # what the guard lets through is now handled by the capability-token check and the
+    # request model rather than by a 404. What matters here is that neither is refused by
+    # the guard: the code is never the guard's own.
+    for allowed in (browser_same_origin, non_browser):
+        assert allowed.status_code in {403, 422}
+        assert allowed.json()["code"] != "OAK-ORIGIN-DENIED"
+        assert allowed.json()["code"] != "OAK-HOST-DENIED"
+    assert browser_same_origin.json()["code"] == "OAK-MODEL-TOKEN-REQUIRED"
+    assert non_browser.json()["code"] == "OAK-MODEL-TOKEN-REQUIRED"
 
 
 def test_credential_route_recognition_is_exact() -> None:

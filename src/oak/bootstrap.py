@@ -113,6 +113,17 @@ def canonical_schema_directory() -> Path:
     raise RuntimeError("canonical OAK schemas are not installed")
 
 
+def model_proposal_limits() -> ProposalLimits:
+    """Proposal bounds whose deadline follows ``OAK_MODEL_TIMEOUT_SECONDS``.
+
+    The adapter spends the smaller of this and the transport's own deadline, so leaving the
+    default here would silently cap every interpretation at 30 seconds however the variable
+    was set — and `docs/configuration.md` says the variable is what decides.
+    """
+
+    return ProposalLimits(timeout_seconds=model_timeout_seconds())
+
+
 def create_design_case_service(
     workspace: Path, *, model_interpreter_factory: ModelInterpreterFactory | None = None
 ) -> DesignCaseService:
@@ -126,6 +137,7 @@ def create_design_case_service(
         DeterministicBriefInterpreter(),
         registry,
         model_interpreter_factory=model_interpreter_factory,
+        proposal_limits=model_proposal_limits(),
     )
 
 
@@ -149,7 +161,14 @@ def model_discovery_cache_seconds() -> int:
     return max(0, value)
 
 
-def _model_transport(profile: Any) -> Any:
+# A provider's chat answer is bounded by the proposal limits; its *catalogue* is a different
+# size of thing — the Hugging Face router alone lists well over a hundred models with per
+# provider pricing — so discovery gets its own budget. Sharing the interpretation cap made
+# every real discovery exceed it and silently fall back to the pinned chain.
+MAXIMUM_CATALOGUE_BYTES = 4_194_304
+
+
+def _model_transport(profile: Any, *, maximum_response_bytes: int | None = None) -> Any:
     """Build the one outbound client, scoped to this provider's own hosts."""
 
     from oak.adapters.models.transport import ModelTransport
@@ -157,7 +176,11 @@ def _model_transport(profile: Any) -> Any:
     return ModelTransport(
         allowed_hosts=profile.allowed_hosts,
         deadline_seconds=model_timeout_seconds(),
-        maximum_response_bytes=ProposalLimits().maximum_output_bytes,
+        maximum_response_bytes=(
+            maximum_response_bytes
+            if maximum_response_bytes is not None
+            else ProposalLimits().maximum_output_bytes
+        ),
         allow_plain_http_loopback=profile.plain_http_loopback,
     )
 
@@ -170,7 +193,7 @@ def model_discoverer(family: str, previous: dict[str, Any] | None) -> dict[str, 
     from oak.adapters.models.providers import discover_models, profile_for
 
     profile = profile_for(family, local_endpoint=os.getenv("OAK_MODEL_ENDPOINT_LOCAL"))
-    transport = _model_transport(profile)
+    transport = _model_transport(profile, maximum_response_bytes=MAXIMUM_CATALOGUE_BYTES)
     fetched_at = _utc_now()
     if family == "huggingface":
         return discover_huggingface(transport.send, fetched_at=fetched_at)
@@ -415,6 +438,7 @@ def create_model_configuration_service() -> ModelConfigurationService:
         },
         clock=_utc_now,
         discoverer=model_discoverer,
+        discovery_cache_seconds=model_discovery_cache_seconds(),
         token_reader=read_model_token,
         credentials_location=str(credentials_directory),
         under_compose=os.getenv("OAK_ARTIFACT_ROOT", "").startswith("/var/lib/oak/"),
@@ -508,6 +532,7 @@ def create_persistent_control_plane() -> CommunityControlPlane:
         outbox_store_factory,
         case_directory_factory,
         model_interpreter_factory=create_model_interpreter,
+        proposal_limits=model_proposal_limits(),
     )
 
 

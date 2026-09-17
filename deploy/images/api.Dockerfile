@@ -43,9 +43,15 @@ RUN apt-get update \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
+# The model-state directory must exist in the image, owned by `oak` and `0700`, before a
+# named volume is mounted over it: Docker copies ownership and mode from the image path, and
+# a volume mounted at a path the image does not have is created `root:root 0755`, which the
+# unprivileged process cannot then make owner-only. Getting this wrong ends with an operator
+# running the container as root, which is the class of workaround RR-037 closed.
 RUN useradd --create-home --uid 10001 oak \
     && mkdir -p /var/lib/oak/artifacts \
-    && chown -R oak:oak /var/lib/oak
+    && chown -R oak:oak /var/lib/oak \
+    && install -d -m 0700 -o oak -g oak /var/lib/oak/model-state
 
 # `--no-editable` above installed the package and its force-included data into the venv,
 # so the source tree is not needed here. The venv keeps its build-stage path because its

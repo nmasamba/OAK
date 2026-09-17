@@ -11,6 +11,7 @@ provider catalogues move; discovery, not this table, decides what a key can reac
 from __future__ import annotations
 
 import json
+import math
 import re
 import urllib.parse
 from dataclasses import dataclass
@@ -31,7 +32,7 @@ DEFAULT_LOCAL_ENDPOINT = "http://127.0.0.1:11434/v1"
 MAXIMUM_MODEL_PAGES = 5
 MODEL_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]*$")
 PROVIDER_NAME = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
-ERROR_TYPE = re.compile(r"^[A-Za-z0-9_.:-]{1,64}$")
+ERROR_TYPE = re.compile(r"[A-Za-z0-9_.:-]{1,64}")
 ISO_DATE_TIME = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$")
 LICENCES = frozenset({"apache-2.0", "mit", "bsd-3-clause", "other", "unknown"})
 DATA_USES = frozenset({"trains_on_inputs", "not_used_for_training", "unknown"})
@@ -199,7 +200,14 @@ def local_profile(endpoint: str | None) -> ProviderProfile:
 
     raw = (endpoint or DEFAULT_LOCAL_ENDPOINT).strip()
     parts = urllib.parse.urlsplit(raw)
-    hostname = (parts.hostname or "").lower()
+    try:
+        hostname = (parts.hostname or "").lower()
+        parts.port  # noqa: B018 - raises for a malformed port before anything uses it
+    except ValueError as error:
+        raise OAKError(
+            "OAK-MODEL-ENDPOINT-INVALID",
+            "OAK_MODEL_ENDPOINT_LOCAL is not a usable URL",
+        ) from error
     if (
         parts.scheme not in {"http", "https"}
         or not hostname
@@ -346,6 +354,11 @@ def parse_json(response: TransportResponse) -> Any:
         return json.loads(response.body.decode("utf-8"))
     except (UnicodeDecodeError, ValueError):
         return None
+    except RecursionError:
+        # Deeply nested provider JSON exhausts the stack. `RecursionError` is a
+        # `RuntimeError`, so it would otherwise escape every `except ValueError` guard
+        # between here and the interface.
+        return None
 
 
 def parse_models(
@@ -475,7 +488,11 @@ def _huggingface_routes(value: Any) -> tuple[ProviderRoute, ...]:
         if isinstance(pricing, dict):
             candidate = pricing.get("output")
             if isinstance(candidate, (int, float)) and not isinstance(candidate, bool):
-                output_price = float(candidate) if candidate >= 0 else None
+                try:
+                    price = float(candidate)
+                except (OverflowError, ValueError):
+                    price = float("nan")
+                output_price = price if math.isfinite(price) and price >= 0 else None
         routes.append(
             ProviderRoute(
                 provider=provider,
@@ -674,7 +691,7 @@ def error_for_status(profile: ProviderProfile, response: TransportResponse) -> O
             f"the {profile.family} provider is unavailable or overloaded",
             retriable=True,
         )
-    label = kind if ERROR_TYPE.match(kind) else "unspecified"
+    label = kind if ERROR_TYPE.fullmatch(kind) else "unspecified"
     return OAKError(
         "OAK-MODEL-REQUEST-REJECTED",
         f"the {profile.family} provider rejected the request (status {status}, type {label})",

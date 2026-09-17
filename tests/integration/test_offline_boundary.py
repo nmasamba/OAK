@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import ast
 import json
+import re
 import socket
 import subprocess
 import sys
@@ -184,6 +185,62 @@ def _imported_modules(path: Path) -> set[str]:
     return imported
 
 
+def _declared_distributions() -> set[str]:
+    """Import roots the shipped package is allowed to have, from `pyproject.toml` itself."""
+
+    lines = (ROOT / "pyproject.toml").read_text(encoding="utf-8").splitlines()
+    declared: set[str] = set()
+    collecting = False
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith(("dependencies = [", "keychain = [")):
+            collecting = True
+            continue
+        if collecting:
+            if stripped == "]":
+                collecting = False
+                continue
+            name = stripped.strip(",").strip('"')
+            if name:
+                # `psycopg[binary]>=3.3,<4` -> `psycopg`.
+                declared.add(re.split(r"[<>=!\[]", name)[0].strip().replace("-", "_").casefold())
+    # Import names that differ from the distribution that provides them.
+    declared.update({"yaml"})
+    # Direct imports of a declared dependency's own framework. Each is a hard requirement of
+    # something in the list above, ships with it, and is not a new distribution in the
+    # release closure: `starlette` is what FastAPI is built on, and `referencing` is the
+    # resolver `jsonschema` uses. Neither reaches a network.
+    declared.update({"starlette", "referencing"})
+    return declared
+
+
+def test_no_module_imports_a_distribution_the_package_does_not_declare() -> None:
+    """The structural half of the egress gate: an unknown third party cannot appear.
+
+    The allowlist below names the network clients we know about, which is exactly the
+    weakness an adversarial review probed: a module importing some *other* provider SDK
+    passes a list of names it is not on. So this test does not enumerate. It resolves every
+    top-level import under `src/oak` and fails on anything that is neither the standard
+    library, `oak` itself, nor a distribution `pyproject.toml` declares — which is also the
+    check that keeps `docs/dependencies.md`'s "no runtime HTTP dependency was added" true.
+    """
+
+    allowed = _declared_distributions() | set(sys.stdlib_module_names) | {"oak"}
+    offenders: dict[str, set[str]] = {}
+    for path in sorted(SOURCE.rglob("*.py")):
+        if "__pycache__" in path.parts:
+            continue
+        roots = {name.split(".")[0] for name in _imported_modules(path)}
+        undeclared = {root for root in roots if root.casefold() not in allowed}
+        if undeclared:
+            offenders[path.relative_to(ROOT / "src").as_posix()] = undeclared
+
+    assert not offenders, (
+        "these modules import a distribution the package does not declare; adding one is a "
+        f"dependency decision and belongs in docs/dependencies.md first: {offenders}"
+    )
+
+
 def test_only_the_remote_cli_may_import_a_network_client() -> None:
     """Pin the egress surface so a new adapter cannot appear unnoticed.
 
@@ -255,8 +312,13 @@ def test_the_deterministic_journey_never_imports_a_hosted_model_module() -> None
             f"sys.path.insert(0, {str(ROOT)!r})",
             "from tests.runner_support import build_compiled_case",
             "with tempfile.TemporaryDirectory() as directory:",
-            "    build_compiled_case(pathlib.Path(directory))",
-            "print(json.dumps(sorted(n for n in sys.modules if n.startswith('oak.'))))",
+            "    harness = build_compiled_case(pathlib.Path(directory))",
+            "    manifest = json.loads(",
+            "        (harness.workspace / '.oak' / 'manifest.json').read_text('utf-8')",
+            "    )",
+            "    kinds = sorted({entry['kind'] for entry in manifest['artifact_index']})",
+            "modules = sorted(n for n in sys.modules if n.startswith('oak.'))",
+            "print(json.dumps({'modules': modules, 'kinds': kinds}))",
         )
     )
     completed = subprocess.run(
@@ -267,9 +329,22 @@ def test_the_deterministic_journey_never_imports_a_hosted_model_module() -> None
         check=False,
     )
     assert completed.returncode == 0, completed.stderr[-3000:]
-    loaded = set(json.loads(completed.stdout.splitlines()[-1]))
+    reported = json.loads(completed.stdout.splitlines()[-1])
+    loaded = set(reported["modules"])
+
+    # Guard the guard: a journey that silently did nothing would import the same modules,
+    # so the subprocess reports what it actually compiled and that is checked first.
+    assert {
+        "brief_source",
+        "source_record",
+        "system_intent",
+        "design_case",
+        "architecture_candidate",
+        "deployment_bundle",
+        "runner_plan",
+    } <= set(reported["kinds"]), reported["kinds"]
 
     assert "oak.adapters.models.fake_interpreter" not in loaded
     for module in HOSTED_MODEL_MODULES:
         assert module not in loaded, f"the deterministic journey imported {module}"
-    assert "oak.compiler.interpretation" in loaded, "the journey did not actually run"
+    assert "interpretation_proposal" not in reported["kinds"]

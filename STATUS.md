@@ -7,7 +7,7 @@
 - **Phase:** Sprint 9 in progress — optional model provider and natural-language intake (`OAK-S9-001`–`009`), authorized by the owner on 2026-09-17. `0.7.1` was approved by `nmasamba` on 2026-08-27 and **published as a GitHub Release on 2026-09-03**; nothing about it changes in this sprint
 - **Completed plans:** `docs/exec-plans/completed/OAK-S0-001-009-walking-skeleton.md`, `docs/exec-plans/completed/OAK-S1-001-010-local-design-case.md`, `docs/exec-plans/completed/OAK-S2-001-011-candidate-planning.md`, `docs/exec-plans/completed/OAK-S3-001-009-persistent-rest-jobs.md`, `docs/exec-plans/completed/OAK-S4-001-009-web-workspace.md`, `docs/exec-plans/completed/OAK-S5-001-011-signed-runner.md`, `docs/exec-plans/completed/OAK-S6-001-008-policy-adapter-sdk.md`, `docs/exec-plans/completed/OAK-S7-001-008-mcp-portal-interface-parity.md`, `docs/exec-plans/completed/OAK-S8-001-009-community-release-hardening.md`, `docs/exec-plans/completed/OAK-PL-001-007-pre-launch-hardening.md`, and `docs/exec-plans/completed/OAK-FS-001-003-final-sweep.md`
 - **Active plan:** `docs/exec-plans/active/OAK-S9-001-009-model-provider-intake.md`
-- **Next task:** `OAK-S9-006` — the REST model resources and the Compose model-state volume (in progress on branch
+- **Next task:** `OAK-S9-007` — the web settings page and natural-language-first intake (in progress on branch
   `model-provider-intake` from `62bc7a1`), then the Sprint 9 milestones in order. The
   pre-launch hardening (PR #13, `2d85322`), the documentation sweep (PR #15 `ca160a7`, PR #16
   `3f9122f`), the `0.7.1` approval and tag (`c614414`), the image-tooling fixes (PRs #18, #19)
@@ -117,7 +117,7 @@
 | `OAK-S9-003` | complete | Keychain and 0600 file credential stores, closed model-configuration schema, `oak models` local-only command |
 | `OAK-S9-004` | complete | Proposal merge inside `interpret` with `model_proposed` provenance, per-section confirmation questions, all interfaces plumbed (`--interpreter`, REST query + token, MCP opt-in) and a byte-identical deterministic path |
 | `OAK-S9-005` | complete | Standard-library transport with a fixed egress allowlist, seven provider profiles, hosted interpreter, Hugging Face free-model lookup, egress gates rewritten, `TM-13` direct, `RR-039`/`RR-041` recorded |
-| `OAK-S9-006` | planned | Additive `/v1/models` resources, regenerated OpenAPI and web client, api-only Compose volume |
+| `OAK-S9-006` | complete | Additive `/v1/models` resources with the token as a dependency, regenerated OpenAPI and web client, api-only Compose volume, structural dependency gate, and the fixes from the provider-layer adversarial review |
 | `OAK-S9-007` | planned | Models settings page, natural-language default intake, provenance on the confirmation screen, browser tests |
 | `OAK-S9-008` | planned | Manual, ADRs, threat model, security invariants, interface contract, requirements, `AGENTS.md`, `skills.md` |
 | `OAK-S9-009` | planned | Closing adversarial audit, status and changelog in both repositories, PR |

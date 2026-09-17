@@ -354,6 +354,322 @@
         "title": "InterpreterMode",
         "type": "string"
       },
+      "ModelCredentialRequest": {
+        "additionalProperties": false,
+        "description": "The one request body in the API that carries a secret.\n\n``api_key`` is ``writeOnly`` and rendered as a password field, and the model carries no\nexample, so the value cannot appear in the OpenAPI document, in generated clients, or in\ndocumentation rendered from either. Validation failures on this field are answered with a\nfixed message rather than the usual field echo.",
+        "properties": {
+          "api_key": {
+            "format": "password",
+            "maxLength": 512,
+            "minLength": 16,
+            "title": "Api Key",
+            "type": "string",
+            "writeOnly": true
+          }
+        },
+        "required": [
+          "api_key"
+        ],
+        "title": "ModelCredentialRequest",
+        "type": "object"
+      },
+      "ModelCredentialStatus": {
+        "additionalProperties": false,
+        "properties": {
+          "configured": {
+            "title": "Configured",
+            "type": "boolean"
+          },
+          "family": {
+            "title": "Family",
+            "type": "string"
+          },
+          "fingerprint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fingerprint"
+          },
+          "length": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Length"
+          },
+          "source": {
+            "enum": [
+              "keychain",
+              "file",
+              "env",
+              "none"
+            ],
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "family",
+          "configured",
+          "source"
+        ],
+        "title": "ModelCredentialStatus",
+        "type": "object"
+      },
+      "ModelDiscoveryResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "discovery": {
+            "additionalProperties": true,
+            "title": "Discovery",
+            "type": "object"
+          },
+          "family": {
+            "title": "Family",
+            "type": "string"
+          }
+        },
+        "required": [
+          "family",
+          "discovery"
+        ],
+        "title": "ModelDiscoveryResponse",
+        "type": "object"
+      },
+      "ModelDiscoverySummary": {
+        "additionalProperties": false,
+        "properties": {
+          "fetched_at": {
+            "title": "Fetched At",
+            "type": "string"
+          },
+          "model_count": {
+            "title": "Model Count",
+            "type": "integer"
+          },
+          "recommended": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recommended"
+          },
+          "source": {
+            "enum": [
+              "live",
+              "pinned"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "fetched_at",
+          "source",
+          "recommended",
+          "model_count",
+          "stale"
+        ],
+        "title": "ModelDiscoverySummary",
+        "type": "object"
+      },
+      "ModelFamily": {
+        "additionalProperties": false,
+        "properties": {
+          "credential_required": {
+            "title": "Credential Required",
+            "type": "boolean"
+          },
+          "data_use_note": {
+            "title": "Data Use Note",
+            "type": "string"
+          },
+          "default": {
+            "title": "Default",
+            "type": "boolean"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "environment_variable": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Environment Variable"
+          },
+          "family": {
+            "title": "Family",
+            "type": "string"
+          },
+          "key_hint": {
+            "title": "Key Hint",
+            "type": "string"
+          },
+          "licence_class": {
+            "title": "Licence Class",
+            "type": "string"
+          },
+          "token_help_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token Help Url"
+          }
+        },
+        "required": [
+          "family",
+          "display_name",
+          "licence_class",
+          "credential_required",
+          "environment_variable",
+          "key_hint",
+          "data_use_note",
+          "token_help_url",
+          "default"
+        ],
+        "title": "ModelFamily",
+        "type": "object"
+      },
+      "ModelSelectionRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "acknowledge_data_use": {
+            "default": false,
+            "title": "Acknowledge Data Use",
+            "type": "boolean"
+          },
+          "default_interpreter": {
+            "default": "model",
+            "enum": [
+              "model",
+              "deterministic"
+            ],
+            "title": "Default Interpreter",
+            "type": "string"
+          },
+          "family": {
+            "maxLength": 40,
+            "minLength": 2,
+            "title": "Family",
+            "type": "string"
+          },
+          "model_id": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Model Id",
+            "type": "string"
+          },
+          "provider_route": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Route"
+          }
+        },
+        "required": [
+          "family",
+          "model_id"
+        ],
+        "title": "ModelSelectionRequest",
+        "type": "object"
+      },
+      "ModelStatusResponse": {
+        "additionalProperties": false,
+        "description": "Everything the workspace needs to render the model settings, and no credential.",
+        "properties": {
+          "configured": {
+            "title": "Configured",
+            "type": "boolean"
+          },
+          "credentials": {
+            "items": {
+              "$ref": "#/components/schemas/ModelCredentialStatus"
+            },
+            "title": "Credentials",
+            "type": "array"
+          },
+          "discovery": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ModelDiscoverySummary"
+            },
+            "title": "Discovery",
+            "type": "object"
+          },
+          "families": {
+            "items": {
+              "$ref": "#/components/schemas/ModelFamily"
+            },
+            "title": "Families",
+            "type": "array"
+          },
+          "provider_policy": {
+            "title": "Provider Policy",
+            "type": "string"
+          },
+          "selection": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Selection"
+          },
+          "stores": {
+            "additionalProperties": true,
+            "title": "Stores",
+            "type": "object"
+          }
+        },
+        "required": [
+          "configured",
+          "selection",
+          "provider_policy",
+          "families",
+          "credentials",
+          "discovery",
+          "stores"
+        ],
+        "title": "ModelStatusResponse",
+        "type": "object"
+      },
       "OperationResponse": {
         "additionalProperties": false,
         "properties": {
@@ -2477,6 +2793,534 @@
         "summary": "Import Design Case",
         "tags": [
           "artifacts"
+        ]
+      }
+    },
+    "/v1/models": {
+      "get": {
+        "operationId": "get_models_v1_models_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-OAK-Actor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Oak-Actor"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-OAK-Tenant",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Oak-Tenant"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-OAK-Model-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 256,
+                  "minLength": 16,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Oak-Model-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Models",
+        "tags": [
+          "models"
+        ]
+      }
+    },
+    "/v1/models/credentials/{family}": {
+      "delete": {
+        "operationId": "delete_model_credential_v1_models_credentials__family__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "family",
+            "required": true,
+            "schema": {
+              "title": "Family",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-OAK-Actor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Oak-Actor"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-OAK-Tenant",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Oak-Tenant"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-OAK-Model-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 256,
+                  "minLength": 16,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Oak-Model-Token"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Model Credential",
+        "tags": [
+          "models"
+        ]
+      },
+      "put": {
+        "operationId": "put_model_credential_v1_models_credentials__family__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "family",
+            "required": true,
+            "schema": {
+              "title": "Family",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-OAK-Actor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Oak-Actor"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-OAK-Tenant",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Oak-Tenant"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-OAK-Model-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 256,
+                  "minLength": 16,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Oak-Model-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModelCredentialRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Model Credential",
+        "tags": [
+          "models"
+        ]
+      }
+    },
+    "/v1/models/selection": {
+      "delete": {
+        "operationId": "clear_model_selection_v1_models_selection_delete",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-OAK-Actor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Oak-Actor"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-OAK-Tenant",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Oak-Tenant"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-OAK-Model-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 256,
+                  "minLength": 16,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Oak-Model-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Clear Model Selection",
+        "tags": [
+          "models"
+        ]
+      },
+      "put": {
+        "operationId": "put_model_selection_v1_models_selection_put",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-OAK-Actor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Oak-Actor"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-OAK-Tenant",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Oak-Tenant"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-OAK-Model-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 256,
+                  "minLength": 16,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Oak-Model-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModelSelectionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Model Selection",
+        "tags": [
+          "models"
+        ]
+      }
+    },
+    "/v1/models/{family}:discover": {
+      "post": {
+        "description": "Contact that family's catalogue. The only route here that reaches a network.",
+        "operationId": "discover_models_for_family_v1_models__family__discover_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "family",
+            "required": true,
+            "schema": {
+              "title": "Family",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-OAK-Actor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Oak-Actor"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-OAK-Tenant",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Oak-Tenant"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-OAK-Model-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 256,
+                  "minLength": 16,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Oak-Model-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelDiscoveryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Discover Models For Family",
+        "tags": [
+          "models"
         ]
       }
     },

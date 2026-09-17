@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import time
 from collections.abc import Callable
 from typing import Any
@@ -36,9 +37,14 @@ MAXIMUM_CLAIMS = 64
 MAXIMUM_UNANSWERED = 64
 MAXIMUM_RATIONALE = 300
 MAXIMUM_VALUE_JSON = 8_000
+MAXIMUM_PATH = 200
+MAXIMUM_VALUE_DEPTH = 8
 MAXIMUM_OUTPUT_TOKENS = 8_192
 SCHEMA_NAME = "oak_interpretation_proposal"
 CredentialProvider = Callable[[], SecretValue | None]
+# A proposed path reaches the canonical intent and a finding, so it is bounded here as well
+# as checked for admissibility by the compiler.
+_PROPOSED_PATH = re.compile(rf"/spec/[A-Za-z0-9_~/.-]{{1,{MAXIMUM_PATH - 6}}}")
 
 # Portable across every provider's strict mode: closed objects, every property required, no
 # free-form values. The claim value travels JSON-encoded inside a string.
@@ -135,6 +141,23 @@ def _type_hint(schema: dict[str, Any]) -> str:
         if candidate in kinds:
             return candidate
     return "string"
+
+
+def _depth(value: Any, level: int = 0) -> int:
+    """How deeply a decoded claim value nests.
+
+    A bounded string can still decode to thousands of nested arrays, and the canonical
+    writer and the schema validator are both recursive, so depth is bounded here rather
+    than discovered as a RecursionError later.
+    """
+
+    if level > MAXIMUM_VALUE_DEPTH:
+        return level
+    if isinstance(value, dict):
+        return max((_depth(item, level + 1) for item in value.values()), default=level)
+    if isinstance(value, list):
+        return max((_depth(item, level + 1) for item in value), default=level)
+    return level
 
 
 class HostedModelInterpreter:
@@ -286,7 +309,7 @@ class HostedModelInterpreter:
             encoded = item.get("value_json")
             if (
                 not isinstance(path, str)
-                or not path.startswith("/spec/")
+                or not _PROPOSED_PATH.fullmatch(path)
                 or path in seen
                 or not isinstance(encoded, str)
                 or len(encoded) > MAXIMUM_VALUE_JSON
@@ -295,13 +318,25 @@ class HostedModelInterpreter:
                 continue
             try:
                 decoded = json.loads(encoded)
-            except ValueError:
+            except (ValueError, RecursionError):
+                # A deeply nested `value_json` raises RecursionError, which is a
+                # RuntimeError and would otherwise escape this loop entirely.
+                dropped += 1
+                continue
+            if _depth(decoded) > MAXIMUM_VALUE_DEPTH:
                 dropped += 1
                 continue
             confidence = item.get("confidence")
-            if isinstance(confidence, bool) or not isinstance(confidence, (int, float)):
+            try:
+                confidence = (
+                    0.5
+                    if isinstance(confidence, bool) or not isinstance(confidence, (int, float))
+                    else float(confidence)
+                )
+            except (OverflowError, ValueError):
+                # `float(10**400)` raises; a model is allowed to answer with nonsense.
                 confidence = 0.5
-            confidence = min(1.0, max(0.0, float(confidence)))
+            confidence = 0.5 if confidence != confidence else min(1.0, max(0.0, confidence))
             rationale = item.get("rationale")
             rationale = rationale.strip() if isinstance(rationale, str) else ""
             seen.add(path)
@@ -321,8 +356,14 @@ class HostedModelInterpreter:
             return []
         paths: list[str] = []
         for item in value:
-            if isinstance(item, str) and item.startswith("/spec/") and item not in paths:
-                paths.append(item[:200])
+            if not isinstance(item, str) or not item.startswith("/spec/"):
+                continue
+            # Truncate first, then de-duplicate: two long paths sharing a prefix used to
+            # survive as one entry each and then collide, producing a proposal the
+            # `uniqueItems` rule in the schema rejects.
+            trimmed = item[:MAXIMUM_PATH]
+            if trimmed not in paths:
+                paths.append(trimmed)
             if len(paths) == MAXIMUM_UNANSWERED:
                 break
         return paths

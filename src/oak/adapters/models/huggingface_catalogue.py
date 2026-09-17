@@ -131,9 +131,12 @@ def discover_huggingface(fetch: Fetch, *, fetched_at: str) -> dict[str, Any]:
             return pinned_snapshot(fetched_at)
         raise
     served = _router_catalogue(profile, router)
-    if not served:
-        return pinned_snapshot(fetched_at)
     hub_entries = _hub_entries(hub)
+    if not served or not hub_entries:
+        # Without both catalogues there is no filter, and a snapshot built from the pins
+        # alone is a pinned answer. Labelling it `live` would tell the user their licence
+        # and gating checks ran when they did not.
+        return pinned_snapshot(fetched_at)
 
     candidates: dict[str, ModelDescriptor] = {}
     for entry in hub_entries:
@@ -155,11 +158,16 @@ def discover_huggingface(fetch: Fetch, *, fetched_at: str) -> dict[str, Any]:
             data_use=descriptor.data_use,
             providers=descriptor.providers,
         )
-    # The pinned chain is permissively licensed by construction; keep its members whenever
-    # the router still serves them, even when the trending page did not list them.
+    # The pinned chain was permissively licensed and ungated when it was recorded, and the
+    # trending page does not always list it, so a pinned model the router still serves is
+    # kept even when the Hub listing did not mention it. What is *not* done is overriding
+    # the Hub: if the listing says a pinned model is now gated or has been relicensed, the
+    # pin does not rescue it — a stale constant must never re-admit a model today's
+    # catalogue rejects.
+    rejected = {entry["id"] for entry in hub_entries if entry["id"] not in candidates}
     for pinned in PINNED_MODELS:
         descriptor = served.get(pinned.id)
-        if descriptor is None or pinned.id in candidates:
+        if descriptor is None or pinned.id in candidates or pinned.id in rejected:
             continue
         if any(route.supports_structured_output for route in descriptor.providers):
             candidates[pinned.id] = ModelDescriptor(
@@ -216,7 +224,14 @@ def _hub_entries(response: TransportResponse) -> list[dict[str, Any]]:
         card = raw.get("cardData")
         licence_value = card.get("license") if isinstance(card, dict) else None
         if isinstance(licence_value, list):
-            licence_value = licence_value[0] if licence_value else None
+            # A model card may declare several licences, and they are cumulative: one
+            # restrictive entry restricts the model however permissive the first entry is.
+            values = [str(item).strip().lower() for item in licence_value if isinstance(item, str)]
+            licence_value = (
+                values[0]
+                if values and all(value in PERMISSIVE_LICENCES for value in values)
+                else None
+            )
         licence = str(licence_value).strip().lower() if isinstance(licence_value, str) else ""
         entries.append(
             {

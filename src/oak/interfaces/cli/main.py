@@ -1652,6 +1652,13 @@ def _models_status_text(status: dict[str, Any]) -> str:
                 f"  {family}: key stored in {credential['source']} "
                 f"(fingerprint {credential['fingerprint']}, {credential['length']} characters)"
             )
+    for family, snapshot in sorted(status.get("discovery", {}).items()):
+        age = " (stale)" if snapshot.get("stale") else ""
+        lines.append(
+            f"  {family}: {snapshot['model_count']} model(s) from the {snapshot['source']} "
+            f"catalogue at {snapshot['fetched_at']}{age}; "
+            f"recommended {snapshot['recommended'] or 'none'}"
+        )
     stores = status["stores"]
     lines.append(f"Credential store: {stores['credentials']}")
     lines.append(f"Configuration: {stores['configuration']}")

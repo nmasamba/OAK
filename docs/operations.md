@@ -112,6 +112,7 @@ directory that is not in either.
 |---|---|---|
 | Metadata: workspaces, case versions, artifact index, audit, operations, outbox | PostgreSQL | `pg_dump` |
 | **Artifact bytes** | `$OAK_ARTIFACT_ROOT/sha256/` (Compose volume `oak-community_oak-artifacts`) | A filesystem copy |
+| **Model state** — *do not back this up* | `$OAK_CREDENTIALS_DIRECTORY` and `$OAK_MODELS_DIRECTORY` (Compose volume `oak-community_oak-model-state`) | Nothing. It holds user-supplied provider keys in plain text and can be re-entered in seconds; a backup of it is a copy of those keys (`RR-040`) |
 | Signing keys and trust anchors | `$OAK_TRUST_DIRECTORY` (default `~/.oak/trust`) | A **separate**, protected copy |
 | Outbound dispatch mailbox | `$OAK_DISPATCH_MAILBOX` (default `~/.oak/mailbox`) | A filesystem copy, if leases are in flight |
 | Extension quarantine and activations | `$OAK_EXTENSIONS_DIRECTORY` (default `~/.oak/extensions`) | A filesystem copy |
@@ -157,6 +158,7 @@ Restore-forward. Never downgrade.
 docker compose down                                       # stop everything
 docker volume rm -f oak-community_oak-postgres-data       # start from a clean database
 docker volume rm -f oak-community_oak-artifacts
+docker volume rm -f oak-community_oak-model-state        # provider keys are re-entered, not restored
 docker compose up -d --wait postgres                      # --wait: initdb must finish first
 docker compose exec -T postgres pg_restore -U oak -d oak --clean --if-exists < oak-metadata.dump
 docker run --rm -v oak-community_oak-artifacts:/artifacts -v "$PWD":/backup alpine \
@@ -343,6 +345,32 @@ edge into the bundle spine.
 
 ---
 
+## Configure a model provider
+
+Nothing in OAK contacts a model provider until someone configures one, and the configuration
+is machine-local: keys are read from a hidden prompt or standard input, stored in the OS
+keychain or an owner-only file, and never accepted as a command argument or returned by any
+interface.
+
+On a host, `oak models set-key <family>` and `oak models select <family> <model_id>` are the
+whole procedure. Under Compose the state belongs to the `api` service, so configure it there:
+
+```bash
+docker compose exec -T api oak models token      # the capability token the API minted
+printf '%s\n' "$YOUR_KEY" | docker compose exec -T api oak models set-key huggingface --stdin
+docker compose exec -T api oak models discover huggingface
+docker compose exec -T api oak models select huggingface openai/gpt-oss-120b
+```
+
+The web workspace asks for that token once, at Settings → Models, and keeps it for the
+session only. The token is minted per API process: restarting `api` invalidates it, which is
+deliberate — it is a capability, not a password, and `oak models token` reprints the current
+one. The `/v1/models` routes refuse without it (`OAK-MODEL-TOKEN-REQUIRED`).
+
+A configured hosted model means each model-mode interpretation sends the brief to that
+provider (`RR-039`). `oak design --interpreter deterministic`, and the deterministic default
+for structured briefs, never contact one.
+
 ## Uninstall
 
 Removing OAK means four separate things. Doing only the first leaves your design cases,
@@ -352,14 +380,19 @@ your private keys and several gigabytes of cache behind.
 # 1. Containers, volumes (your data), networks and images
 docker compose down --volumes --remove-orphans
 docker volume rm -f oak-community_oak-postgres-data oak-community_oak-artifacts 2>/dev/null || true
+# Provider keys, if you configured a model. This is the copy the api container reads.
+docker volume rm -f oak-community_oak-model-state 2>/dev/null || true
 # Compose names its images `<project>-<service>`; a hand-built or release-workflow
 # image uses `<org>/<name>`. Both exist in practice, so remove both.
 docker image rm -f $(docker image ls -q 'oak-community-*') 2>/dev/null || true
 docker image rm -f $(docker image ls -q 'oak-community/*') 2>/dev/null || true
 docker rm -f $(docker ps -aq --filter "label=oak.fixture=true") 2>/dev/null || true
 
-# 2. Home-directory state: PRIVATE KEYS, mailbox, extensions, runner journals
+# 2. Home-directory state: PRIVATE KEYS, provider keys, mailbox, extensions, runner journals
+#    (~/.oak/credentials holds any provider key the CLI stored in the file backend)
 rm -rf ~/.oak
+# A key stored in the OS keychain is not under ~/.oak. Remove those first, per family:
+#   oak models remove-key <family>
 
 # 3. Any workspaces you created (each holds a .oak directory)
 #    You chose these paths; OAK does not track them.

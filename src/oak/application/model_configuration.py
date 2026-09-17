@@ -15,6 +15,7 @@ import copy
 import unicodedata
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 
 from oak.domain import (
@@ -89,12 +90,14 @@ class ModelConfigurationService:
         token_reader: Callable[[], str | None] | None = None,
         credentials_location: str | None = None,
         under_compose: bool = False,
+        discovery_cache_seconds: int = 21_600,
     ) -> None:
         self._configuration = configuration
         self._credentials = dict(credentials)
         self._clock = clock
         self._families = dict(families)
         self._discoverer = discoverer
+        self._discovery_cache_seconds = discovery_cache_seconds
         self._token_reader = token_reader
         self._credentials_location = credentials_location
         self._under_compose = under_compose
@@ -168,12 +171,14 @@ class ModelConfigurationService:
             credentials[selection.family]["configured"]
             or not self._descriptor(selection.family).credential_required
         )
+        now = self._clock()
         discovery = {
             family: {
                 "fetched_at": snapshot["fetched_at"],
                 "source": snapshot["source"],
                 "recommended": snapshot["recommended"],
                 "model_count": len(snapshot["models"]),
+                "stale": self._is_stale(str(snapshot["fetched_at"]), now),
             }
             for family, snapshot in document["discovery"].items()
         }
@@ -350,6 +355,21 @@ class ModelConfigurationService:
             return None
         result: str = fingerprint(secret)
         return result
+
+    def _is_stale(self, fetched_at: str, now: str) -> bool:
+        """Whether a snapshot is older than the configured cache window.
+
+        An unparsable or future timestamp reads as stale: suggesting a refresh of a good
+        snapshot is a smaller error than presenting a bad one as current.
+        """
+
+        try:
+            taken = datetime.fromisoformat(fetched_at.replace("Z", "+00:00"))
+            current = datetime.fromisoformat(now.replace("Z", "+00:00"))
+        except ValueError:
+            return True
+        age = (current - taken).total_seconds()
+        return age < 0 or age > self._discovery_cache_seconds
 
     @staticmethod
     def _data_use(snapshot: dict[str, Any] | None, model_id: str) -> str:

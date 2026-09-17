@@ -38,6 +38,7 @@ from oak.ports import (
     CataloguePort,
     OutboxLag,
     OutboxStore,
+    ProposalLimits,
     TargetProfilePort,
     WorkspaceRepository,
 )
@@ -73,6 +74,7 @@ class CommunityControlPlane:
         case_directory_factory: CaseDirectoryFactory | None = None,
         *,
         model_interpreter_factory: ModelInterpreterFactory | None = None,
+        proposal_limits: ProposalLimits | None = None,
     ) -> None:
         self._repository_factory = repository_factory
         self._operation_service_factory = operation_service_factory
@@ -84,6 +86,7 @@ class CommunityControlPlane:
         self._outbox_store_factory = outbox_store_factory
         self._case_directory_factory = case_directory_factory
         self._model_interpreter_factory = model_interpreter_factory
+        self._proposal_limits = proposal_limits
 
     def create_design_case(
         self,
@@ -494,6 +497,7 @@ class CommunityControlPlane:
             self._interpreter,
             self._registry,
             model_interpreter_factory=self._model_interpreter_factory,
+            proposal_limits=self._proposal_limits,
         )
 
     def _planning_service(self, workspace_id: str, tenant_id: str) -> CandidatePlanningService:
