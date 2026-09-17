@@ -3,6 +3,7 @@
 // Gated: set OAK_MANUAL_SCREENS=1 (and have `docker compose up -d --build` healthy), then
 //   OAK_MANUAL_SCREENS=1 pnpm --dir web exec playwright test e2e/manual-screens.spec.ts
 // Output lands in docs/manual/assets/; the manual embeds those files by relative path.
+import { execSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -165,4 +166,21 @@ test("capture the manual screenshots from the reference journey", async ({
     element.scrollIntoView({ block: "start", behavior: "instant" }),
   );
   await shoot(page, "10-timeline");
+
+  // Chapter 4's model settings figure. Captured with the real capability token so the page
+  // shows the family list and the key form rather than the token prompt; no key is stored,
+  // so nothing about this capture changes the stack's configuration.
+  const token = execSync("docker compose exec -T api oak models token", {
+    cwd: path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", ".."),
+    stdio: "pipe",
+  })
+    .toString()
+    .trim();
+  await page.goto(`/#token=${encodeURIComponent(token)}`);
+  await page.goto("/settings/models");
+  await expect(
+    page.getByRole("heading", { name: "Models", level: 1 }),
+  ).toBeVisible();
+  await expect(page.getByLabel("Model family")).toBeVisible();
+  await shoot(page, "11-models");
 });

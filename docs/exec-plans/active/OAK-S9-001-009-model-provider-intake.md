@@ -358,6 +358,23 @@ artifact, which `docs/compatibility.md` states.
   findings, 21 confirmed. All confirmed findings are fixed with regression tests; the review
   and its outcome are summarised in `## Post-implementation audit`.
 
+- [x] 2026-09-17 Milestone 6: the Models settings page (token from the `#token=` fragment or
+  pasted, stripped from the address bar, held in `sessionStorage` only), plain-language-first
+  intake with a structured toggle, the interpreter chip in the masthead, model provenance on
+  the confirmation screen with five questions per round, model-failure recovery in
+  `problems.tsx`, `web/e2e/models.spec.ts` (including a `page.on("response")` check that no
+  response body ever carries the key, and an axe pass), and the `11-models` manual capture.
+
+- [x] 2026-09-17 Milestone 7: the manual's "no model adapter ships" passages corrected and an
+  optional model-provider section added to the workspace chapter; ADR-0016 in governance and
+  mirrored here; ADR-0003 recording this build's transport, loopback, bounds and token
+  decisions; `AGENTS.md` boundary, architecture rule and two Code Review Rules; the
+  `skills.md` routing row and recipe; `TM-20` and a real `TM-13` mitigation column; the
+  secrets invariant distinguishing target secrets from provider credentials; the interface
+  contract's permanent MCP and remote-CLI prohibition; `OAK-FR-INT-009` and
+  `OAK-NFR-SEC-007` with their traceability rows; terminology; evidence sources; and the
+  governance `CLAUDE.md` pointer.
+
 ## Decisions
 
 - 2026-09-17 Standard-library transport in one module; no `httpx`, no provider SDKs. Reason:

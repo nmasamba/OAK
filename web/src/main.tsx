@@ -2,7 +2,9 @@
 import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 
+import { getModels, type ModelStatusResponse } from "./generated/api";
 import { getVersion } from "./generated/api";
+import { MODEL_SETTINGS_CHANGED, currentModelToken } from "./modelToken";
 import { BundlePage } from "./pages/BundlePage";
 import { CandidatesPage } from "./pages/CandidatesPage";
 import { CaseListPage } from "./pages/CaseListPage";
@@ -11,6 +13,7 @@ import { ConfirmPage } from "./pages/ConfirmPage";
 import { DecisionPage } from "./pages/DecisionPage";
 import { OperationPage } from "./pages/OperationPage";
 import { ReviewPage } from "./pages/ReviewPage";
+import { SettingsPage } from "./pages/SettingsPage";
 import { Link, RouterProvider, matchPath, useRouter } from "./router";
 import "./styles.css";
 
@@ -53,6 +56,9 @@ function Routes() {
   if (operationMatch?.["operationId"] !== undefined) {
     return <OperationPage operationId={operationMatch["operationId"]} />;
   }
+  if (path === "/settings/models") {
+    return <SettingsPage />;
+  }
   if (path === "/") {
     return <CaseListPage />;
   }
@@ -66,8 +72,62 @@ function Routes() {
   );
 }
 
-function App() {
+/**
+ * What the masthead says about interpretation.
+ *
+ * Read once at load with whatever token this browser holds. Without a token the workspace
+ * cannot read model settings at all, and says so rather than implying determinism it has
+ * not verified.
+ */
+function useInterpreterLabel(path: string): string | null {
+  const [label, setLabel] = useState<string | null>(null);
+  const [revision, setRevision] = useState(0);
+
+  // The settings page changes the answer without navigating, so a route change alone is
+  // not enough: a stale "Deterministic interpretation" would tell someone their brief
+  // stays on this machine when it no longer does.
+  useEffect(() => {
+    const onChanged = () => setRevision((current) => current + 1);
+    window.addEventListener(MODEL_SETTINGS_CHANGED, onChanged);
+    return () => window.removeEventListener(MODEL_SETTINGS_CHANGED, onChanged);
+  }, []);
+
+  useEffect(() => {
+    const token = currentModelToken();
+    if (token === null) {
+      setLabel(null);
+      return;
+    }
+    getModels(token)
+      .then((status: ModelStatusResponse) => {
+        const selection = status.selection;
+        const family =
+          selection === null
+            ? null
+            : (selection["family"] as string | undefined);
+        const model =
+          selection === null
+            ? null
+            : (selection["model_id"] as string | undefined);
+        setLabel(
+          family === undefined ||
+            family === null ||
+            model === undefined ||
+            model === null
+            ? "Deterministic interpretation"
+            : `Model: ${family}/${model}`,
+        );
+      })
+      .catch(() => setLabel(null));
+  }, [path, revision]);
+
+  return label;
+}
+
+function AppShell() {
+  const { path } = useRouter();
   const [version, setVersion] = useState<string | null>(null);
+  const interpreter = useInterpreterLabel(path);
 
   useEffect(() => {
     getVersion()
@@ -76,7 +136,7 @@ function App() {
   }, []);
 
   return (
-    <RouterProvider>
+    <>
       <a className="skip-link" href="#content">
         Skip to content
       </a>
@@ -85,10 +145,12 @@ function App() {
           <Link to="/" className="wordmark">
             OAK Community
           </Link>
+          <Link to="/settings/models">Models</Link>
         </nav>
         <p className="masthead-meta">
           {version === null ? "API unavailable" : `v${version}`} · local
           non-production workspace
+          {interpreter === null ? "" : ` · ${interpreter}`}
         </p>
       </header>
       <main id="content">
@@ -98,10 +160,20 @@ function App() {
       </main>
       <footer className="boundary-footer">
         <p>
-          This workspace has no target mutation, secret resolution, or
-          inference-traffic path. Compiled plans stay draft review artifacts.
+          This workspace has no target mutation and no secret resolution, and
+          compiled plans stay draft review artifacts. It contacts a model
+          provider only when you configure one, and never on the deterministic
+          path.
         </p>
       </footer>
+    </>
+  );
+}
+
+function App() {
+  return (
+    <RouterProvider>
+      <AppShell />
     </RouterProvider>
   );
 }

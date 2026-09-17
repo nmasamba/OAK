@@ -127,7 +127,8 @@
     and two clean machines agree. <strong>Offline:</strong> after installation, nothing
     in this manual needs a hosted service or a model provider, and the whole CLI journey
     runs with the network disabled; only the Docker chapters (4 and 5) pull their pinned
-    base images once, on first build. <strong>Fail-closed:</strong> anything unknown, malformed, expired, unsigned or
+    base images once, on first build, and the optional model provider in chapter 4 — which
+    nothing requires — is the single feature that ever calls out. <strong>Fail-closed:</strong> anything unknown, malformed, expired, unsigned or
     mismatched is refused with a stable <code>OAK-*</code> error code, never skipped.
   </p>
   <h2>What it is not</h2>
@@ -208,19 +209,25 @@ cd workspace</code></pre>
     <li><strong>A structured brief</strong>, like the reference
       <code>public-manual-qa.yaml</code> used below, fills the typed intent directly
       field by field, which is what lets the rest of the pipeline run end-to-end with
-      no model involved.</li>
+      no model involved. A structured brief stays deterministic even when a model is
+      configured; only a plain-language brief is offered to one.</li>
   </ul>
   <div class="note">
-    <strong>Where a language model fits — and why this release has none.</strong> OAK's
-    design gives an LLM exactly one seat: the optional <em>interpretation proposal</em>
-    port, where a model adapter may propose the structured interpretation of a prose
-    brief. A proposal is bounded in size, schema-validated, digest-bound to the exact
-    quarantined source it interprets, and never bypasses your confirmation — the model
-    proposes, you decide, and the provenance records which is which. OAK Community
-    0.7.1 deliberately ships <em>no real model adapter</em> and makes <em>zero model
-    calls</em>: everything in this manual, including brief interpretation, is
-    deterministic and offline. If you want the prose-to-structure step automated, that
-    is the port to implement — the rest of the pipeline neither knows nor cares.
+    <strong>Where a language model fits.</strong> OAK's design gives an LLM exactly one
+    seat: the <em>interpretation proposal</em> port, where a model proposes the structured
+    interpretation of a prose brief. A proposal is bounded in size, schema-validated,
+    digest-bound to the exact quarantined source it interprets, and never bypasses your
+    confirmation — the model proposes, you decide, and the provenance records which is
+    which. Only the paths OAK's own intent schema declares can be written, explicit brief
+    values always win, and every section a model touched produces a question you must
+    answer before the design can reach candidates.
+    <br><br>
+    <strong>No model is configured by default, and this manual uses none.</strong> Every
+    command and screenshot below is deterministic and offline. Chapter 4 shows how to
+    configure a provider if you want plain-language briefs interpreted for you; until you
+    do, OAK contacts nothing, and <code>--interpreter deterministic</code> keeps it that
+    way afterwards. Configuring one is a decision with a consequence worth stating plainly:
+    the brief's text is then sent to that provider, under that provider's terms.
   </div>
   <h2>1 · Ingest and interpret the brief</h2>
   <pre><code>uv run oak design ../examples/briefs/public-manual-qa.yaml
@@ -303,6 +310,36 @@ uv run oak assure candidate-03 --output ./assurance
     that is the determinism promise, and it is what makes the digests in chapter 5
     worth signing.
   </div>
+  <h2>Optional: configure a model provider</h2>
+  <p>
+    Everything above is deterministic. If you would rather write briefs in plain language
+    and have them interpreted for you, <strong>Settings → Models</strong> is where you say
+    so. Nothing is configured by default, and nothing here is required by any other part of
+    the manual.
+  </p>
+  <p>
+    The page needs the capability token the API minted when it started — not a password, but
+    a capability that dies with that process. Print it on the machine running the API:
+  </p>
+<pre><code>docker compose exec -T api oak models token</code></pre>
+  <p>
+    Paste it once, then choose a family. Hugging Face is the default and its
+    <em>Detect models</em> button works with no key at all: it reads the public catalogue,
+    keeps only ungated models under a permissive licence with a live structured-output
+    route, and recommends one. Storing a key is a separate step, and the key never comes
+    back — the page shows only which backend holds it and a salted fingerprint.
+  </p>
+  <figure><img src="assets/11-models.png" alt="The model settings screen"><figcaption>Model settings. The family, its data-use note and licence class, the stored key's backend and fingerprint (never the key), the detected models, and the one-click way back to deterministic interpretation.</figcaption></figure>
+  <div class="note">
+    <strong>What changes once you select a model.</strong> A plain-language brief is sent to
+    that provider when you interpret it, under that provider's own retention and training
+    terms — OAK records which model ran and the digest of what came back, but it cannot
+    control what the provider then does. The values the model proposes are marked
+    <em>Proposed by model</em>, every section it touched raises a question, and candidates
+    are refused until you have answered them. A structured brief stays deterministic, and
+    <code>oak design --interpreter deterministic</code> always does.
+  </div>
+
   <h2>Export and import</h2>
   <pre><code>uv run oak export --output ../case-export
 <span class="out">Exported design-case.public-manual-qa@0.1.7 to ../case-export</span>
@@ -338,7 +375,7 @@ uv run oak import ../case-export --directory ../restored
   <figure><img src="assets/01-case-list.png" alt="The design cases list screen"><figcaption>The case list. Paste a brief (or start from the reference brief) and create a case.</figcaption></figure>
   <figure><img src="assets/02-create-case.png" alt="Creating a case from a pasted brief"><figcaption>Creating a case: the brief file name and content, exactly as the CLI would ingest them.</figcaption></figure>
   <figure><img src="assets/03-case-detail.png" alt="Case detail after interpretation"><figcaption>After “Interpret brief” the case reaches <em>needs_confirmation</em>; the next actions are server-driven, so the UI can never invent a transition the control plane would refuse.</figcaption></figure>
-  <figure><img src="assets/04-brief-review.png" alt="Interpreted claims with provenance classes"><figcaption>Claim review: every value is labelled a fact from the brief, an inference, or a domain default, with the unknowns listed beneath.</figcaption></figure>
+  <figure><img src="assets/04-brief-review.png" alt="Interpreted claims with provenance classes"><figcaption>Claim review: every value is labelled a fact from the brief, an inference, or a domain default, with the unknowns listed beneath. A value a model proposed is labelled too, and carries the confidence and reason it gave.</figcaption></figure>
   <figure><img src="assets/05-questions.png" alt="The five ranked confirmation questions"><figcaption>The five ranked questions. Confirm, correct (with a value), reject, or accept-risk — each with a recorded rationale.</figcaption></figure>
   <figure><img src="assets/06-operation.png" alt="A durable operation in progress"><figcaption>Long stages run as durable operations: they survive restarts, can be cancelled cooperatively, and record their outcome.</figcaption></figure>
   <figure><img src="assets/07-candidates.png" alt="Candidate comparison with an infeasible variant"><figcaption>Candidate comparison. Note the infeasible candidate staying visible with its constraint failure — rejection reasons are first-class.</figcaption></figure>

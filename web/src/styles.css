@@ -67,6 +67,12 @@ textarea:focus-visible {
   outline-offset: 2px;
 }
 
+.masthead nav {
+  display: flex;
+  align-items: baseline;
+  gap: 1.25rem;
+}
+
 .masthead-meta {
   margin: 0;
   color: #49544b;
@@ -350,6 +356,12 @@ textarea {
   border-color: #cf9d9d;
   background: #fbf1f0;
   color: #6f2323;
+}
+
+.notice {
+  border-left: 3px solid #9cbf9f;
+  padding-left: 0.75rem;
+  color: #1e4a28;
 }
 
 .claim-proposal {
