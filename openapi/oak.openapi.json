@@ -375,6 +375,7 @@
       },
       "ModelCredentialStatus": {
         "additionalProperties": false,
+        "description": "A stored credential's backend, fingerprint and the provider's verdict \u2014 never its value.\n\n``verification`` is what the provider last said about the credential, with the time it\nsaid it and whether that is now stale; ``null`` until the credential has been checked.",
         "properties": {
           "configured": {
             "title": "Configured",
@@ -415,6 +416,18 @@
             ],
             "title": "Source",
             "type": "string"
+          },
+          "verification": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verification"
           }
         },
         "required": [
@@ -3311,6 +3324,99 @@
           }
         },
         "summary": "Discover Models For Family",
+        "tags": [
+          "models"
+        ]
+      }
+    },
+    "/v1/models/{family}:verify": {
+      "post": {
+        "description": "Ask the provider whether the stored credential is accepted, and record its verdict.\n\nOne free, generation-free request carrying the credential in its header and nothing\nelse. The verdict comes back in the status document with the time it was given.",
+        "operationId": "verify_model_credential_v1_models__family__verify_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "family",
+            "required": true,
+            "schema": {
+              "title": "Family",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-OAK-Actor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Oak-Actor"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-OAK-Tenant",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Oak-Tenant"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-OAK-Model-Token",
+            "required": true,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 256,
+                  "minLength": 16,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Oak-Model-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Verify Model Credential",
         "tags": [
           "models"
         ]

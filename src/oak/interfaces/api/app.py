@@ -1064,6 +1064,25 @@ def create_app(
         _no_store(response)
         return _status_document(service)
 
+    @api.post("/v1/models/{family}:verify", response_model=ModelStatusResponse, tags=["models"])
+    def verify_model_credential(
+        family: str,
+        response: Response,
+        auth: AuthorityDependency,
+        _token: ModelTokenDependency = None,
+    ) -> ModelStatusResponse:
+        """Ask the provider whether the stored credential is accepted, and record its verdict.
+
+        One free, generation-free request carrying the credential in its header and nothing
+        else. The verdict comes back in the status document with the time it was given.
+        """
+
+        del auth, _token
+        service = configuration()
+        service.verify(family)
+        _no_store(response)
+        return _status_document(service)
+
     @api.post(
         "/v1/models/{family}:discover",
         response_model=ModelDiscoveryResponse,

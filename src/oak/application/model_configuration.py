@@ -42,6 +42,8 @@ MODE_FAMILIES: Mapping[str, str] = {"online": "huggingface", "local": "local"}
 DEFAULT_LOCAL_ENDPOINT = "http://127.0.0.1:11434/v1"
 
 Discoverer = Callable[[str, dict[str, Any] | None], dict[str, Any]]
+Verifier = Callable[[str], dict[str, Any]]
+VERDICTS = ("accepted", "rejected", "scope_limited", "unreachable", "unverifiable")
 RouteChooser = Callable[[dict[str, Any] | None, str], str | None]
 
 
@@ -93,19 +95,23 @@ class ModelConfigurationService:
         clock: Callable[[], str],
         families: Mapping[str, FamilyDescriptor] = FAMILY_BY_ID,
         discoverer: Discoverer | None = None,
+        verifier: Verifier | None = None,
         route_chooser: RouteChooser | None = None,
         token_reader: Callable[[], str | None] | None = None,
         credentials_location: str | None = None,
         local_endpoint: str | None = None,
         under_compose: bool = False,
         discovery_cache_seconds: int = 21_600,
+        verification_stale_seconds: int = 86_400,
     ) -> None:
         self._configuration = configuration
         self._credentials = dict(credentials)
         self._clock = clock
         self._families = dict(families)
         self._discoverer = discoverer
+        self._verifier = verifier
         self._route_chooser = route_chooser
+        self._verification_stale_seconds = verification_stale_seconds
         self._discovery_cache_seconds = discovery_cache_seconds
         self._token_reader = token_reader
         self._credentials_location = credentials_location
@@ -211,14 +217,40 @@ class ModelConfigurationService:
             "output_price_per_million": self._price(listed, route),
         }
 
+    def verification_status(self, family: str) -> dict[str, Any] | None:
+        """The stored verdict about a family's credential, with its age, or ``None``."""
+
+        self._descriptor(family)
+        stored = self._document()["verification"].get(family)
+        if stored is None:
+            return None
+        checked_at = str(stored["checked_at"])
+        return {
+            **stored,
+            "stale": self._older_than(checked_at, self._clock(), self._verification_stale_seconds),
+        }
+
+    def is_verification_stale(self, family: str) -> bool:
+        """Whether the family's verdict is missing or older than the window."""
+
+        status = self.verification_status(family)
+        return status is None or bool(status["stale"])
+
     def modes(self) -> dict[str, dict[str, Any]]:
         """Which of the three modes can run now, and the reason when one cannot."""
 
         online: dict[str, Any] = {"available": False, "reason": None, "pair": None}
         pair = self.online_pair()
+        verification = self.verification_status("huggingface")
+        online["verification"] = verification
         if not self.credential_status("huggingface").configured:
             online["reason"] = (
                 "no Hugging Face token is stored; run `oak models set-key` or store one in Settings"
+            )
+        elif verification is not None and verification["verdict"] == "rejected":
+            online["reason"] = (
+                f"Hugging Face rejected the stored token at {verification['checked_at']}; "
+                "store a current one with `oak models set-key`"
             )
         elif pair is None:
             online["reason"] = (
@@ -248,7 +280,11 @@ class ModelConfigurationService:
     def status(self) -> dict[str, Any]:
         document = self._document()
         credentials = {
-            family: self.credential_status(family).to_document() for family in FAMILY_IDS
+            family: {
+                **self.credential_status(family).to_document(),
+                "verification": self.verification_status(family),
+            }
+            for family in FAMILY_IDS
         }
         now = self._clock()
         discovery = {
@@ -311,6 +347,8 @@ class ModelConfigurationService:
             # nobody remembers.
             self._credentials[previous].delete(family)
         document["credential_sources"][family] = source
+        # A new key is an unverified key, whatever the last one was.
+        document["verification"].pop(family, None)
         self._configuration.save(document)
         return self.credential_status(family)
 
@@ -330,11 +368,87 @@ class ModelConfigurationService:
                 # what matters and is cleared below.
                 if not error.code.startswith("OAK-MODEL-KEYCHAIN-") or source == candidate.source:
                     raise
-        if source != "none":
+        if source != "none" or family in document["verification"]:
             document["credential_sources"][family] = "none"
+            document["verification"].pop(family, None)
             self._configuration.save(document)
-            removed = True
+            removed = removed or source != "none"
         return removed
+
+    def verify(self, family: str) -> dict[str, Any]:
+        """Ask the provider about the stored credential and record what it said, with the time.
+
+        One free, generation-free request. For Hugging Face it needs a stored token and is
+        refused before any request when there is none; the local server is asked whether it
+        is up. The verdict replaces any earlier one for the family.
+        """
+
+        descriptor = self._descriptor(family)
+        if descriptor.credential_required and not self.credential_status(family).configured:
+            raise OAKError(
+                "OAK-MODEL-KEY-MISSING",
+                f"no key is stored for the {family} family; run "
+                f"`oak models set-key {family}` first",
+            )
+        if self._verifier is None:
+            raise OAKError(
+                "OAK-MODEL-VERIFICATION-UNAVAILABLE",
+                "credential verification is not available in this build",
+            )
+        answer = self._verifier(family)
+        return self.record_verdict(
+            family,
+            str(answer.get("verdict")),
+            method=str(answer.get("method")),
+            reason=answer.get("reason"),
+            token_role=answer.get("token_role"),
+            inference_permission=answer.get("inference_permission"),
+            can_pay=answer.get("can_pay"),
+            is_pro=answer.get("is_pro"),
+        )
+
+    def record_verdict(
+        self,
+        family: str,
+        verdict: str,
+        *,
+        method: str,
+        reason: str | None = None,
+        token_role: str | None = None,
+        inference_permission: bool | None = None,
+        can_pay: bool | None = None,
+        is_pro: bool | None = None,
+    ) -> dict[str, Any]:
+        """Store a verdict the provider gave — from `verify`, or from a refused interpretation."""
+
+        self._descriptor(family)
+        if verdict not in VERDICTS:
+            raise OAKError("OAK-MODEL-VERIFICATION-UNAVAILABLE", "the verdict is not recognised")
+        document = self._document()
+        document["verification"][family] = {
+            "verdict": verdict,
+            "checked_at": self._clock(),
+            "method": method,
+            "token_role": token_role if isinstance(token_role, str) else None,
+            "inference_permission": (
+                inference_permission if isinstance(inference_permission, bool) else None
+            ),
+            "can_pay": can_pay if isinstance(can_pay, bool) else None,
+            "is_pro": is_pro if isinstance(is_pro, bool) else None,
+            "reason": str(reason)[:400] if isinstance(reason, str) and reason else None,
+        }
+        self._configuration.save(document)
+        status = self.verification_status(family)
+        assert status is not None
+        return status
+
+    def record_discovery(self, family: str, snapshot: dict[str, Any]) -> None:
+        """Store a snapshot obtained outside `discover` (the pre-flight refresh)."""
+
+        self._descriptor(family)
+        document = self._document()
+        document["discovery"][family] = snapshot
+        self._configuration.save(document)
 
     def select(
         self,
@@ -434,6 +548,7 @@ class ModelConfigurationService:
     def _document(self) -> dict[str, Any]:
         loaded = self._configuration.load()
         if loaded is not None:
+            loaded.setdefault("verification", {})
             return loaded
         return {
             "schema_version": "0.1.0",
@@ -442,6 +557,7 @@ class ModelConfigurationService:
             "credential_sources": {},
             "provider_policy": "cheapest",
             "discovery": {},
+            "verification": {},
             "extensions": {},
         }
 
@@ -463,19 +579,25 @@ class ModelConfigurationService:
         return result
 
     def _is_stale(self, fetched_at: str, now: str) -> bool:
-        """Whether a snapshot is older than the configured cache window.
+        """Whether a snapshot is older than the configured cache window."""
+
+        return self._older_than(fetched_at, now, self._discovery_cache_seconds)
+
+    @staticmethod
+    def _older_than(recorded_at: str, now: str, window_seconds: int) -> bool:
+        """Whether a timestamp is older than a window.
 
         An unparsable or future timestamp reads as stale: suggesting a refresh of a good
-        snapshot is a smaller error than presenting a bad one as current.
+        record is a smaller error than presenting a bad one as current.
         """
 
         try:
-            taken = datetime.fromisoformat(fetched_at.replace("Z", "+00:00"))
+            taken = datetime.fromisoformat(recorded_at.replace("Z", "+00:00"))
             current = datetime.fromisoformat(now.replace("Z", "+00:00"))
         except ValueError:
             return True
         age = (current - taken).total_seconds()
-        return age < 0 or age > self._discovery_cache_seconds
+        return age < 0 or age > window_seconds
 
     @staticmethod
     def _listed(snapshot: dict[str, Any] | None, model_id: str) -> dict[str, Any] | None:

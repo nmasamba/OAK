@@ -65,7 +65,7 @@
       "properties": {
         "verdict": {"enum": ["accepted", "rejected", "scope_limited", "unreachable", "unverifiable"]},
         "checked_at": {"type": "string", "format": "date-time"},
-        "method": {"enum": ["hub_whoami_v2", "models_list"]},
+        "method": {"enum": ["hub_whoami_v2", "models_list", "interpretation", "unknown"]},
         "token_role": {"oneOf": [{"type": "null"}, {"type": "string", "maxLength": 40}]},
         "inference_permission": {"oneOf": [{"type": "null"}, {"type": "boolean"}]},
         "can_pay": {"oneOf": [{"type": "null"}, {"type": "boolean"}]},

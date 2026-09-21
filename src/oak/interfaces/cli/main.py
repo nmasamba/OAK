@@ -1462,7 +1462,7 @@ def models(
     action: Annotated[
         str,
         typer.Argument(
-            help="families, status, set-key, remove-key, select, clear, discover, or token."
+            help="families, status, set-key, verify, remove-key, select, clear, discover, or token."
         ),
     ],
     family: Annotated[
@@ -1482,6 +1482,14 @@ def models(
     stdin: Annotated[
         bool,
         typer.Option("--stdin", help="Read the key from standard input instead of a prompt."),
+    ] = False,
+    no_verify: Annotated[
+        bool,
+        typer.Option(
+            "--no-verify",
+            help="With set-key: store the key without asking the provider whether it is "
+            "accepted. By default one free, generation-free request is made.",
+        ),
     ] = False,
     provider: Annotated[
         str | None,
@@ -1541,7 +1549,7 @@ def models(
                 ),
             )
             return
-        if action not in {"set-key", "remove-key", "select", "discover"}:
+        if action not in {"set-key", "remove-key", "select", "discover", "verify"}:
             raise OAKError("OAK-MODEL-ACTION", "models action is not recognized")
         if family is None and action == "select":
             raise OAKError("OAK-MODEL-FAMILY-REQUIRED", f"models {action} requires a family")
@@ -1576,15 +1584,33 @@ def models(
                         "--store must be auto, keychain, file, or env",
                     )
             document = status_document.to_document()
+            stored_line = (
+                f"Stored the {family} key in the {document['source']} backend "
+                f"(fingerprint {document['fingerprint']}, {document['length']} characters)."
+                if document["fingerprint"]
+                else f"The {family} key will be read from the environment at call time."
+            )
+            if no_verify:
+                _emit(document, output, human=stored_line)
+                return
+            if output is OutputFormat.HUMAN:
+                typer.echo(stored_line)
+                typer.echo(_verification_notice(family))
+            verification = service.verify(family)
             _emit(
-                document,
+                {**document, "verification": verification},
                 output,
-                human=(
-                    f"Stored the {family} key in the {document['source']} backend "
-                    f"(fingerprint {document['fingerprint']}, {document['length']} characters)."
-                    if document["fingerprint"]
-                    else f"The {family} key will be read from the environment at call time."
-                ),
+                human=_verification_text(family, verification),
+            )
+            return
+        if action == "verify":
+            if output is OutputFormat.HUMAN:
+                typer.echo(_verification_notice(family))
+            verification = service.verify(family)
+            _emit(
+                {"family": family, "verification": verification},
+                output,
+                human=_verification_text(family, verification),
             )
             return
         if action == "remove-key":
@@ -1639,6 +1665,37 @@ def _read_key(from_stdin: bool) -> str:
     return value
 
 
+def _verification_notice(family: str) -> str:
+    if family == "huggingface":
+        return (
+            "Verifying with Hugging Face (one request to huggingface.co; nothing is "
+            "generated and nothing is spent)…"
+        )
+    return f"Checking the {family} server answers (one request; nothing is generated)…"
+
+
+def _verification_text(family: str, verification: dict[str, Any]) -> str:
+    verdict = verification["verdict"]
+    when = verification["checked_at"]
+    if verdict == "accepted":
+        details: list[str] = []
+        if verification.get("token_role"):
+            details.append(f"{verification['token_role']} token")
+        permission = verification.get("inference_permission")
+        if permission is False:
+            details.append("no Inference Providers permission")
+        elif permission is None and family == "huggingface":
+            details.append("Inference Providers permission unknown")
+        if verification.get("can_pay") is not None:
+            details.append(f"account can pay: {'yes' if verification['can_pay'] else 'no'}")
+        provider = "Hugging Face" if family == "huggingface" else f"the {family} server"
+        return f"{provider} accepted the credential at {when}" + (
+            f" — {'; '.join(details)}." if details else "."
+        )
+    reason = verification.get("reason") or "no reason was given"
+    return f"{family}: {verdict} at {when} — {reason}"
+
+
 def _models_status_text(status: dict[str, Any]) -> str:
     modes = status["modes"]
     lines: list[str] = ["Interpretation modes (chosen per brief with `oak design --interpreter`):"]
@@ -1666,6 +1723,10 @@ def _models_status_text(status: dict[str, Any]) -> str:
                 f"  {family}: key stored in {credential['source']} "
                 f"(fingerprint {credential['fingerprint']}, {credential['length']} characters)"
             )
+        verification = credential.get("verification")
+        if verification is not None:
+            stale = " — stale; run `oak models verify`" if verification.get("stale") else ""
+            lines.append(f"  {_verification_text(family, verification)}{stale}")
     for family, snapshot in sorted(status.get("discovery", {}).items()):
         age = " (stale)" if snapshot.get("stale") else ""
         lines.append(

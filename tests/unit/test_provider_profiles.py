@@ -18,9 +18,11 @@ import pytest
 
 from oak.adapters.models.providers import (
     HINTS_AS_OF,
+    WHOAMI_URL,
     ModelDescriptor,
     ProviderProfile,
     ProviderRoute,
+    Verdict,
     _huggingface_routes,
     chat_request,
     descriptor_from,
@@ -31,6 +33,7 @@ from oak.adapters.models.providers import (
     local_profile,
     models_request,
     parse_models,
+    parse_verification,
     profile_for,
     recommended_route,
     retry_after_seconds,
@@ -154,7 +157,8 @@ def test_the_key_travels_only_in_a_header_never_in_a_url_or_body(family: str) ->
         assert KEY not in request.url, family
         assert KEY not in (request.body or b"").decode("utf-8"), family
         assert any(KEY in value for value in request.headers.values()), family
-        assert request.url.startswith(profile.base_url), family
+        assert request.url.split("/")[2] in profile.allowed_hosts, family
+        assert request.url.startswith("https://"), family
         assert request.headers["Authorization"] == f"Bearer {KEY}"
 
 
@@ -198,15 +202,98 @@ def test_a_hugging_face_request_pins_the_provider_route_when_one_is_chosen() -> 
     assert json.loads(request.body or b"{}")["model"] == "openai/gpt-oss-120b:groq"
 
 
-def test_key_verification_is_honest_about_what_each_family_offers() -> None:
-    """The router's list is a public catalogue, so it proves nothing about a key."""
+def test_key_verification_asks_the_hub_who_the_token_is_and_the_local_server_whether_it_is_up() -> (
+    None
+):
+    """The router's list is a public catalogue and proves nothing; the Hub's whoami does."""
 
-    assert _profile("huggingface").key_verification == "unknown"
-    assert key_verification_request(_profile("huggingface"), KEY) is None
+    assert _profile("huggingface").key_verification == "hub_whoami_v2"
+    verification = key_verification_request(_profile("huggingface"), KEY)
+    assert verification is not None
+    assert verification.method == "GET" and verification.url == WHOAMI_URL
+    assert verification.body is None
+    assert verification.headers == {"Authorization": f"Bearer {KEY}"}
     local = profile_for("local", local_endpoint="http://127.0.0.1:11434/v1")
     assert local.key_verification == "authenticated_models_list"
-    verification = key_verification_request(local, KEY)
-    assert verification is not None and verification.url.endswith("/models")
+    listing = key_verification_request(local, None)
+    assert listing is not None and listing.url.endswith("/models") and listing.headers == {}
+
+
+SENTINEL_NAME = "sentinel-account-name-MUST-NOT-BE-STORED"
+SENTINEL_EMAIL = "sentinel.address.MUST-NOT-BE-STORED@example.invalid"
+
+
+@pytest.mark.parametrize(
+    "status,fixture,expected",
+    [
+        (
+            200,
+            "whoami-v2",
+            Verdict("accepted", "hub_whoami_v2", "read", True, False, False),
+        ),
+        (
+            200,
+            "whoami-v2-finegrained",
+            Verdict("accepted", "hub_whoami_v2", "fineGrained", True, True, True),
+        ),
+        (200, "whoami-v2-hostile", Verdict("accepted", "hub_whoami_v2", None, None, None, None)),
+        (401, "whoami-v2-401", Verdict("rejected", "hub_whoami_v2")),
+        (403, "whoami-v2-401", Verdict("scope_limited", "hub_whoami_v2")),
+        (429, "whoami-v2-401", Verdict("unreachable", "hub_whoami_v2")),
+        (500, "whoami-v2-401", Verdict("unreachable", "hub_whoami_v2")),
+        (503, "whoami-v2", Verdict("unreachable", "hub_whoami_v2")),
+    ],
+)
+def test_the_hub_whoami_answer_becomes_a_verdict_and_nothing_else(
+    status: int, fixture: str, expected: Verdict
+) -> None:
+    """Role, permission and billing come through; the account's name and email never do."""
+
+    payload = _fixture("huggingface", fixture)
+    verdict = parse_verification(_profile("huggingface"), _response(status, payload))
+
+    assert verdict.verdict == expected.verdict
+    assert verdict.method == expected.method
+    assert verdict.token_role == expected.token_role
+    assert verdict.inference_permission == expected.inference_permission
+    assert verdict.can_pay == expected.can_pay
+    assert verdict.is_pro == expected.is_pro
+    if verdict.verdict != "accepted":
+        assert verdict.reason, "a non-acceptance says why"
+    rendered = json.dumps(verdict.to_document())
+    assert SENTINEL_NAME not in rendered and SENTINEL_EMAIL not in rendered
+    assert "ignore previous" not in rendered
+
+
+def test_a_fine_grained_token_without_the_inference_permission_is_reported_not_assumed() -> None:
+    payload = _fixture("huggingface", "whoami-v2-finegrained")
+    payload["auth"]["accessToken"]["fineGrained"] = {
+        "global": ["repo.content.read"],
+        "scoped": [{"entity": {"type": "user"}, "permissions": ["repo.write"]}],
+    }
+    verdict = parse_verification(_profile("huggingface"), _response(200, payload))
+    assert verdict.verdict == "accepted" and verdict.inference_permission is False
+
+    payload["auth"]["accessToken"].pop("fineGrained")
+    verdict = parse_verification(_profile("huggingface"), _response(200, payload))
+    assert verdict.inference_permission is None, "scopes not reported: unknown, never assumed"
+
+    unreadable = TransportResponse(status=200, headers={}, body=b"<html>" + SENTINEL.encode())
+    verdict = parse_verification(_profile("huggingface"), unreadable)
+    assert verdict.verdict == "unreachable" and SENTINEL not in json.dumps(verdict.to_document())
+
+
+@pytest.mark.parametrize(
+    "status,expected",
+    [(200, "accepted"), (401, "rejected"), (403, "rejected"), (503, "unreachable")],
+)
+def test_the_local_server_is_verified_by_whether_its_list_answers(
+    status: int, expected: str
+) -> None:
+    local = profile_for("local", local_endpoint="http://127.0.0.1:11434/v1")
+    verdict = parse_verification(local, _response(status, {"data": [], "note": SENTINEL}))
+    assert verdict.verdict == expected and verdict.method == "models_list"
+    assert SENTINEL not in json.dumps(verdict.to_document())
 
 
 # ----- catalogue parsing -----------------------------------------------------------

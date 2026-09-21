@@ -75,6 +75,24 @@ def _configured(family: str) -> bool:
 
 
 @pytest.mark.parametrize("family", FAMILY_IDS)
+def test_the_stored_credential_is_corroborated_by_the_provider(family: str) -> None:
+    """One free request: the Hub's whoami for Hugging Face, the models list for local."""
+
+    if not _configured(family):
+        pytest.skip(f"no key is stored for {family}")
+
+    verdict = create_model_configuration_service().verify(family)
+
+    print(f"\n{family}: {verdict}")
+    assert verdict["verdict"] in {"accepted", "rejected", "scope_limited", "unreachable"}
+    assert verdict["verdict"] == "accepted", "the machine's own key should be accepted"
+    if family == "huggingface":
+        # Settles the undocumented question: does whoami-v2 report fine-grained scopes?
+        assert verdict["token_role"] is not None
+        print(f"  role={verdict['token_role']} permission={verdict['inference_permission']}")
+
+
+@pytest.mark.parametrize("family", FAMILY_IDS)
 def test_the_stored_key_can_list_that_family_s_models(family: str) -> None:
     if not _configured(family):
         pytest.skip(f"no key is stored for {family}")

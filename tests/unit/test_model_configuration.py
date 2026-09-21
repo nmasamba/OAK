@@ -43,7 +43,13 @@ class _UnavailableKeychain:
 
 
 def _service(
-    tmp_path: Path, *, discoverer: Any = None, route_chooser: Any = None
+    tmp_path: Path,
+    *,
+    discoverer: Any = None,
+    route_chooser: Any = None,
+    verifier: Any = None,
+    clock: Any = None,
+    verification_stale_seconds: int = 86_400,
 ) -> ModelConfigurationService:
     registry = SchemaRegistry.from_directory(ROOT / "schemas")
     return ModelConfigurationService(
@@ -53,12 +59,27 @@ def _service(
             "file": FileCredentialStore(tmp_path / "credentials"),
             "env": EnvironmentCredentialReference(),
         },
-        clock=lambda: NOW,
+        clock=clock or (lambda: NOW),
         discoverer=discoverer,
+        verifier=verifier,
         route_chooser=route_chooser,
         token_reader=lambda: None,
         credentials_location=str(tmp_path / "credentials"),
+        verification_stale_seconds=verification_stale_seconds,
     )
+
+
+ACCEPTED = {
+    "verdict": "accepted",
+    "method": "hub_whoami_v2",
+    "token_role": "read",
+    "inference_permission": True,
+    "can_pay": False,
+    "is_pro": False,
+    "reason": None,
+    "name": "sentinel-account-name-MUST-NOT-BE-STORED",
+    "email": "sentinel.address.MUST-NOT-BE-STORED@example.invalid",
+}
 
 
 SNAPSHOT = {
@@ -317,3 +338,109 @@ def test_the_schema_has_no_property_that_could_hold_a_credential() -> None:
         return found
 
     assert not names(schema) & forbidden
+
+
+# ----- OAK-S10-004: the verdict ------------------------------------------------------------
+
+
+def test_verify_records_the_verdict_with_its_time_and_a_new_key_forgets_it(tmp_path: Path) -> None:
+    asked: list[str] = []
+
+    def verifier(family: str) -> dict[str, Any]:
+        asked.append(family)
+        return dict(ACCEPTED)
+
+    service = _service(tmp_path, verifier=verifier)
+    with pytest.raises(OAKError) as missing:
+        service.verify("huggingface")
+    assert missing.value.code == "OAK-MODEL-KEY-MISSING" and asked == []
+
+    service.set_key("huggingface", SecretValue(KEY), source="file")
+    assert service.verification_status("huggingface") is None
+    assert service.is_verification_stale("huggingface") is True
+
+    verdict = service.verify("huggingface")
+    assert asked == ["huggingface"]
+    assert verdict == {
+        "verdict": "accepted",
+        "checked_at": NOW,
+        "method": "hub_whoami_v2",
+        "token_role": "read",
+        "inference_permission": True,
+        "can_pay": False,
+        "is_pro": False,
+        "reason": None,
+        "stale": False,
+    }
+    stored = (tmp_path / "models" / "model-configuration.json").read_text(encoding="utf-8")
+    assert "MUST-NOT-BE-STORED" not in stored, "only the verdict's typed fields are kept"
+    assert KEY not in stored
+    status = service.status()
+    assert status["credentials"]["huggingface"]["verification"]["verdict"] == "accepted"
+    assert status["modes"]["online"]["verification"]["checked_at"] == NOW
+
+    service.set_key("huggingface", SecretValue(KEY + "2"), source="file")
+    assert service.verification_status("huggingface") is None, "a new key is unverified"
+    service.verify("huggingface")
+    assert service.remove_key("huggingface") is True
+    assert service.verification_status("huggingface") is None
+
+    bare = _service(tmp_path / "bare")
+    bare.set_key("huggingface", SecretValue(KEY), source="file")
+    with pytest.raises(OAKError) as unavailable:
+        bare.verify("huggingface")
+    assert unavailable.value.code == "OAK-MODEL-VERIFICATION-UNAVAILABLE"
+
+
+def test_a_rejected_verdict_takes_online_ai_offline_until_a_new_key_is_stored(
+    tmp_path: Path,
+) -> None:
+    service = _service(
+        tmp_path,
+        discoverer=lambda family, previous: SNAPSHOT,
+        route_chooser=_first_capable,
+        verifier=lambda family: {
+            "verdict": "rejected",
+            "method": "hub_whoami_v2",
+            "reason": "Hugging Face did not accept this token (401)",
+        },
+    )
+    service.set_key("huggingface", SecretValue(KEY), source="file")
+    service.discover("huggingface")
+    assert service.status()["modes"]["online"]["available"] is True
+
+    service.verify("huggingface")
+    online = service.status()["modes"]["online"]
+    assert online["available"] is False
+    assert "rejected the stored token at " + NOW in online["reason"]
+    assert online["pair"] is not None, "what would be called is still shown"
+
+    service.set_key("huggingface", SecretValue(KEY + "3"), source="file")
+    assert service.status()["modes"]["online"]["available"] is True
+
+    with pytest.raises(OAKError) as bad:
+        service.record_verdict("huggingface", "shiny", method="hub_whoami_v2")
+    assert bad.value.code == "OAK-MODEL-VERIFICATION-UNAVAILABLE"
+
+
+def test_a_verdict_goes_stale_after_the_window_and_the_surfaces_say_so(tmp_path: Path) -> None:
+    now = [NOW]
+    service = _service(
+        tmp_path,
+        verifier=lambda family: dict(ACCEPTED),
+        clock=lambda: now[0],
+        verification_stale_seconds=60,
+    )
+    service.set_key("huggingface", SecretValue(KEY), source="file")
+    service.verify("huggingface")
+    assert service.is_verification_stale("huggingface") is False
+
+    now[0] = "2026-09-17T10:02:00Z"
+    status = service.verification_status("huggingface")
+    assert status is not None and status["stale"] is True
+    assert status["checked_at"] == NOW, "the time it was given, not the time it was read"
+    assert service.is_verification_stale("huggingface") is True
+
+    now[0] = "2026-09-17T09:00:00Z"
+    status = service.verification_status("huggingface")
+    assert status is not None and status["stale"] is True, "a future verdict is not current"

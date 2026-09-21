@@ -134,6 +134,7 @@ def test_every_model_route_requires_the_capability_token(client: TestClient) -> 
         ),
         ("DELETE", "/v1/models/selection/huggingface", None),
         ("POST", "/v1/models/huggingface:discover", None),
+        ("POST", "/v1/models/huggingface:verify", None),
     )
     for method, path, body in calls:
         for token in (None, "wrong-token-that-is-long-enough-01"):
@@ -374,6 +375,7 @@ def test_the_document_declares_the_token_required_where_the_server_requires_it(
         ("/v1/models/selection", "put"),
         ("/v1/models/selection/{family}", "delete"),
         ("/v1/models/{family}:discover", "post"),
+        ("/v1/models/{family}:verify", "post"),
     ):
         parameters = document["paths"][path][method]["parameters"]
         token = next(p for p in parameters if p["name"] == "X-OAK-Model-Token")
@@ -396,3 +398,52 @@ def test_the_status_resource_is_on_the_same_loopback_footing_as_the_rest(
     refused = client.get("/v1/models", headers={**_headers(), "Origin": "https://evil.example"})
     assert refused.status_code == 403
     assert refused.json()["code"] == "OAK-ORIGIN-DENIED"
+
+
+# ----- OAK-S10-004: the verdict on the wire -------------------------------------------------
+
+
+def test_verification_records_a_verdict_with_its_time_and_never_the_account(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from oak import bootstrap
+
+    asked: list[str] = []
+
+    def verifier(family: str, *, deadline_seconds: float | None = None) -> dict[str, Any]:
+        asked.append(family)
+        return {
+            "verdict": "accepted",
+            "method": "hub_whoami_v2",
+            "token_role": "read",
+            "inference_permission": True,
+            "can_pay": False,
+            "is_pro": False,
+            "reason": None,
+            "email": "sentinel.address.MUST-NOT-BE-STORED@example.invalid",
+        }
+
+    monkeypatch.setattr(bootstrap, "model_verifier", verifier)
+
+    refused = client.post("/v1/models/huggingface:verify", headers=_headers())
+    assert refused.status_code == 422 and refused.json()["code"] == "OAK-MODEL-KEY-MISSING"
+    assert asked == []
+
+    assert _put_key(client).status_code == 204
+    verified = client.post("/v1/models/huggingface:verify", headers=_headers())
+    assert verified.status_code == 200, verified.text
+    assert verified.headers["Cache-Control"] == "no-store"
+    assert asked == ["huggingface"]
+    assert KEY not in verified.text and "MUST-NOT-BE-STORED" not in verified.text
+    row = next(row for row in verified.json()["credentials"] if row["family"] == "huggingface")
+    assert row["verification"]["verdict"] == "accepted"
+    assert row["verification"]["token_role"] == "read"
+    assert row["verification"]["stale"] is False
+    assert row["verification"]["checked_at"]
+    assert verified.json()["modes"]["online"]["verification"]["verdict"] == "accepted"
+
+    # Storing a key again forgets the verdict: the new key has not been checked.
+    assert _put_key(client, key=KEY + "x").status_code == 204
+    status = client.get("/v1/models", headers=_headers()).json()
+    row = next(row for row in status["credentials"] if row["family"] == "huggingface")
+    assert row["verification"] is None

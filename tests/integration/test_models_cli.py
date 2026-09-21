@@ -7,6 +7,7 @@ import json
 import os
 import stat
 from pathlib import Path
+from typing import Any
 
 import pytest
 from typer.testing import CliRunner
@@ -119,3 +120,69 @@ def test_models_is_local_only() -> None:
     result = runner.invoke(app, ["--server", "http://127.0.0.1:9", "models", "status"])
     assert result.exit_code == 2
     assert "OAK-REMOTE-UNSUPPORTED" in _all_output(result)
+
+
+# ----- OAK-S10-004: set-key verifies by default, and says so -------------------------------
+
+
+def _accepting_verifier(asked: list[str]) -> Any:
+    def verifier(family: str, *, deadline_seconds: float | None = None) -> dict[str, Any]:
+        asked.append(family)
+        return {
+            "verdict": "accepted",
+            "method": "hub_whoami_v2",
+            "token_role": "read",
+            "inference_permission": True,
+            "can_pay": False,
+            "is_pro": False,
+            "reason": None,
+        }
+
+    return verifier
+
+
+def test_set_key_verifies_by_default_prints_what_it_does_and_no_verify_skips(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from oak import bootstrap
+
+    asked: list[str] = []
+    monkeypatch.setattr(bootstrap, "model_verifier", _accepting_verifier(asked))
+
+    stored = runner.invoke(
+        app, ["models", "set-key", "--store", "file", "--stdin"], input=KEY + "\n"
+    )
+    assert stored.exit_code == 0, _all_output(stored)
+    assert "Stored the huggingface key" in stored.output
+    assert "Verifying with Hugging Face" in stored.output
+    assert "nothing is generated" in stored.output
+    assert "Hugging Face accepted the credential at" in stored.output
+    assert "read token" in stored.output and "account can pay: no" in stored.output
+    assert KEY not in _all_output(stored)
+    assert asked == ["huggingface"]
+
+    quiet = runner.invoke(
+        app, ["models", "set-key", "--store", "file", "--stdin", "--no-verify"], input=KEY + "\n"
+    )
+    assert quiet.exit_code == 0, _all_output(quiet)
+    assert "Verifying" not in quiet.output
+    assert asked == ["huggingface"], "--no-verify sends nothing"
+    status = runner.invoke(app, ["models", "status"])
+    assert "accepted" not in status.output, "a re-stored key is unverified again"
+
+    again = runner.invoke(app, ["models", "verify"])
+    assert again.exit_code == 0, _all_output(again)
+    assert asked == ["huggingface", "huggingface"]
+    assert "accepted the credential at" in again.output
+    status = runner.invoke(app, ["models", "status"])
+    assert "Hugging Face accepted the credential at" in status.output
+
+
+def test_verify_without_a_key_refuses_before_any_request(monkeypatch: pytest.MonkeyPatch) -> None:
+    from oak import bootstrap
+
+    asked: list[str] = []
+    monkeypatch.setattr(bootstrap, "model_verifier", _accepting_verifier(asked))
+    result = runner.invoke(app, ["models", "verify"])
+    assert result.exit_code == 2 and "OAK-MODEL-KEY-MISSING" in _all_output(result)
+    assert asked == []

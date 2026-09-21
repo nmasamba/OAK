@@ -361,6 +361,19 @@ export async function clearModelSelection(
   );
 }
 
+/** Asks the provider whether the stored credential is accepted; generates nothing. */
+export async function verifyModelCredential(
+  family: string,
+  modelToken: string,
+  baseUrl = "",
+): Promise<ModelStatusResponse> {
+  return requestJson<ModelStatusResponse>(
+    `/v1/models/${encodeURIComponent(family)}:verify`,
+    { method: "POST", headers: modelHeaders(modelToken) },
+    baseUrl,
+  );
+}
+
 /** The only model route that contacts a provider catalogue. */
 export async function discoverModels(
   family: string,

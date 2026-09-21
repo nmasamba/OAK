@@ -466,7 +466,23 @@ or missing key is visible before anyone opens the dropdown.
   them; `PINNED_MODELS` and `TRUSTED_NAMESPACES` refreshed with `as_of` 2026-09-21; the web
   pages compile against the new `modes`/`selections` shape (the dropdown is Milestone 4);
   `make openapi-compatibility` clean; `make check` zero `make: ***` lines with PostgreSQL
-  (632 unit/contract, 264 integration, 42 e2e).
+  (632 unit/contract, 264 integration, 42 e2e) (`feac93d`).
+- [x] 2026-09-21 Milestone 3: the token is corroborated with the Hub's `whoami-v2`
+  (`key_verification_request` finally has a caller); the answer is reduced to a verdict with
+  the token's role, whether the account can pay and, when the Hub says, the Inference
+  Providers permission, and the account's name and email are dropped at parse time (a test
+  proves the stored document never carries the fixture's sentinel name or email); the verdict
+  is stored with the time it was given, shown with its age by `oak models status` and
+  `GET /v1/models`, stale after `OAK_MODEL_VERIFICATION_STALE_SECONDS` (a day), and forgotten
+  when a key is stored or removed; `oak models set-key` verifies by default and prints what it
+  does (`--no-verify` skips), `oak models verify` and `POST /v1/models/{family}:verify`
+  re-check; a rejected verdict takes Online AI offline; before an online interpretation a
+  stale verdict is re-checked (5 s) and a stale catalogue refreshed (15 s) when the
+  interpretation budget leaves 20 s of headroom under the 55 s ceiling, and a rejected token
+  is refused before any request that could spend; a token refused mid-interpretation is
+  recorded as rejected; the test suite's wiring gets a verifier that answers `unverifiable`
+  so no test can reach huggingface.co; `make check` zero `make: ***` lines with PostgreSQL
+  (648 unit/contract, 272 integration, 42 e2e).
 
 ## Discoveries and follow-ups
 

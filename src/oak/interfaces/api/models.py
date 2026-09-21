@@ -173,11 +173,18 @@ class ModelSelectionRequest(StrictResponse):
 
 
 class ModelCredentialStatus(StrictResponse):
+    """A stored credential's backend, fingerprint and the provider's verdict — never its value.
+
+    ``verification`` is what the provider last said about the credential, with the time it
+    said it and whether that is now stale; ``null`` until the credential has been checked.
+    """
+
     family: str
     configured: bool
     source: Literal["keychain", "file", "env", "none"]
     fingerprint: str | None = None
     length: int | None = None
+    verification: dict[str, Any] | None = None
 
 
 class ModelFamily(StrictResponse):

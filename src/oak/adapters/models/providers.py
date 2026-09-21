@@ -27,10 +27,14 @@ from oak.domain import OAKError
 from oak.domain.model_families import FAMILY_IDS
 
 RequestShape = Literal["openai_chat"]
-KeyVerification = Literal["authenticated_models_list", "unknown"]
+KeyVerification = Literal["hub_whoami_v2", "authenticated_models_list", "unknown"]
 KeyHeader = Literal["bearer"]
 
 HINTS_AS_OF = "2026-09-16"
+WHOAMI_URL = "https://huggingface.co/api/whoami-v2"
+INFERENCE_PERMISSION = "inference.serverless.write"
+VERDICTS = ("accepted", "rejected", "scope_limited", "unreachable", "unverifiable")
+TOKEN_ROLE = re.compile(r"^[A-Za-z]{1,40}$")
 DEFAULT_LOCAL_ENDPOINT = "http://127.0.0.1:11434/v1"
 MODEL_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]*$")
 PROVIDER_NAME = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
@@ -62,6 +66,35 @@ class ProviderRoute:
             "output_price_per_million": self.output_price_per_million,
             "is_free": self.is_free,
             "throughput": self.throughput,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class Verdict:
+    """What a provider said about a stored credential, and nothing else it said.
+
+    ``accepted`` means the provider authenticated the credential on that request; it does
+    not prove credit remains or that any particular model may be called. ``unreachable``
+    is not a verdict about the credential at all, and the surfaces say so.
+    """
+
+    verdict: str
+    method: str
+    token_role: str | None = None
+    inference_permission: bool | None = None
+    can_pay: bool | None = None
+    is_pro: bool | None = None
+    reason: str | None = None
+
+    def to_document(self) -> dict[str, Any]:
+        return {
+            "verdict": self.verdict,
+            "method": self.method,
+            "token_role": self.token_role,
+            "inference_permission": self.inference_permission,
+            "can_pay": self.can_pay,
+            "is_pro": self.is_pro,
+            "reason": self.reason,
         }
 
 
@@ -119,7 +152,7 @@ _HOSTED_PROFILES: dict[str, ProviderProfile] = {
         models_path="/models",
         chat_path="/chat/completions",
         key_header="bearer",
-        key_verification="unknown",
+        key_verification="hub_whoami_v2",
         preferred_order=(
             "openai/gpt-oss-120b",
             "openai/gpt-oss-20b",
@@ -206,12 +239,120 @@ def models_request(profile: ProviderProfile, key: str | None) -> TransportReques
     )
 
 
-def key_verification_request(profile: ProviderProfile, key: str) -> TransportRequest | None:
-    """A free request that fails on a bad key, where the provider documents one."""
+def key_verification_request(profile: ProviderProfile, key: str | None) -> TransportRequest | None:
+    """A free request that fails on a bad credential, where the provider documents one.
 
+    Hugging Face: the Hub's ``whoami-v2`` — it authenticates the token, names its role and
+    the account's billing state, and generates nothing. The local server: its models list,
+    which answers only when the endpoint is up and accepts whatever key it was given.
+    """
+
+    if profile.key_verification == "hub_whoami_v2":
+        return TransportRequest(method="GET", url=WHOAMI_URL, headers=auth_headers(profile, key))
     if profile.key_verification == "authenticated_models_list":
         return models_request(profile, key)
     return None
+
+
+def parse_verification(profile: ProviderProfile, response: TransportResponse) -> Verdict:
+    """The verdict a verification response carries. Every other byte of it is discarded."""
+
+    if profile.key_verification == "hub_whoami_v2":
+        return _parse_whoami(response)
+    return _parse_models_list_verification(profile, response)
+
+
+def _parse_whoami(response: TransportResponse) -> Verdict:
+    method = "hub_whoami_v2"
+    if response.status == 401:
+        return Verdict("rejected", method, reason="Hugging Face did not accept this token (401)")
+    if response.status == 403:
+        return Verdict(
+            "scope_limited",
+            method,
+            reason=(
+                "Hugging Face accepted the token but refused this request (403); it may "
+                "lack permission to read its own account"
+            ),
+        )
+    if response.status == 429:
+        return Verdict(
+            "unreachable", method, reason="the Hub is rate limiting this token; try again shortly"
+        )
+    if response.status != 200:
+        return Verdict(
+            "unreachable", method, reason=f"the Hub answered with status {response.status}"
+        )
+    document = parse_json(response)
+    if not isinstance(document, dict):
+        return Verdict("unreachable", method, reason="the Hub's answer could not be read")
+    auth = document.get("auth")
+    token = auth.get("accessToken") if isinstance(auth, dict) else None
+    role_value = token.get("role") if isinstance(token, dict) else None
+    role = role_value if isinstance(role_value, str) and TOKEN_ROLE.match(role_value) else None
+    permission: bool | None
+    if role in {"read", "write"}:
+        permission = True
+    elif role == "fineGrained":
+        permission = _fine_grained_inference_permission(
+            token.get("fineGrained") if isinstance(token, dict) else None
+        )
+    else:
+        permission = None
+    return Verdict(
+        "accepted",
+        method,
+        token_role=role,
+        inference_permission=permission,
+        can_pay=_boolean(document.get("canPay")),
+        is_pro=_boolean(document.get("isPro")),
+    )
+
+
+def _fine_grained_inference_permission(fine_grained: Any) -> bool | None:
+    """Whether a fine-grained token may call Inference Providers, when the Hub says."""
+
+    if not isinstance(fine_grained, dict):
+        return None
+    found = False
+    listed = False
+    for item in (
+        fine_grained.get("global", []) if isinstance(fine_grained.get("global"), list) else []
+    ):
+        listed = True
+        if item == INFERENCE_PERMISSION:
+            found = True
+    scoped = fine_grained.get("scoped")
+    for entry in scoped if isinstance(scoped, list) else []:
+        permissions = entry.get("permissions") if isinstance(entry, dict) else None
+        for item in permissions if isinstance(permissions, list) else []:
+            listed = True
+            if item == INFERENCE_PERMISSION:
+                found = True
+    if found:
+        return True
+    return False if listed else None
+
+
+def _boolean(value: Any) -> bool | None:
+    return value if isinstance(value, bool) else None
+
+
+def _parse_models_list_verification(
+    profile: ProviderProfile, response: TransportResponse
+) -> Verdict:
+    method = "models_list"
+    if response.status == 200:
+        return Verdict("accepted", method)
+    if response.status in {401, 403}:
+        return Verdict(
+            "rejected", method, reason=f"the {profile.family} server refused the credential"
+        )
+    return Verdict(
+        "unreachable",
+        method,
+        reason=f"the {profile.family} server answered with status {response.status}",
+    )
 
 
 def chat_request(

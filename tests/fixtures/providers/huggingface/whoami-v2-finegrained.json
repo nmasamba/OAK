@@ -1,0 +1,42 @@
+{
+  "type": "user",
+  "id": "6410a0c9b2f4e5d6c7a8b9c1",
+  "name": "sentinel-account-name-MUST-NOT-BE-STORED",
+  "fullname": "Sentinel Account",
+  "email": "sentinel.address.MUST-NOT-BE-STORED@example.invalid",
+  "canPay": true,
+  "isPro": true,
+  "billingMode": "postpaid",
+  "periodEnd": 1761000000,
+  "orgs": [
+    {
+      "name": "sentinel-org",
+      "canPay": true
+    }
+  ],
+  "auth": {
+    "type": "access_token",
+    "accessToken": {
+      "displayName": "oak-inference-only",
+      "role": "fineGrained",
+      "createdAt": "2026-09-21T09:00:00.000Z",
+      "fineGrained": {
+        "canReadGatedRepos": false,
+        "global": [
+          "inference.serverless.write"
+        ],
+        "scoped": [
+          {
+            "entity": {
+              "type": "user",
+              "name": "sentinel-account-name-MUST-NOT-BE-STORED"
+            },
+            "permissions": [
+              "repo.content.read"
+            ]
+          }
+        ]
+      }
+    }
+  }
+}
