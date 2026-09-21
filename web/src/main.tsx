@@ -5,6 +5,7 @@ import { createRoot } from "react-dom/client";
 import { getModels, type ModelStatusResponse } from "./generated/api";
 import { getVersion } from "./generated/api";
 import { MODEL_SETTINGS_CHANGED, currentModelToken } from "./modelToken";
+import { asObject, asString } from "./support";
 import { BundlePage } from "./pages/BundlePage";
 import { CandidatesPage } from "./pages/CandidatesPage";
 import { CaseListPage } from "./pages/CaseListPage";
@@ -100,22 +101,14 @@ function useInterpreterLabel(path: string): string | null {
     }
     getModels(token)
       .then((status: ModelStatusResponse) => {
-        const selection = status.selection;
-        const family =
-          selection === null
-            ? null
-            : (selection["family"] as string | undefined);
-        const model =
-          selection === null
-            ? null
-            : (selection["model_id"] as string | undefined);
+        const online = asObject(status.modes["online"] ?? null);
+        const pair = online === null ? null : asObject(online["pair"]);
+        const model = pair === null ? null : asString(pair["model_id"]);
+        const route = pair === null ? null : asString(pair["provider_route"]);
         setLabel(
-          family === undefined ||
-            family === null ||
-            model === undefined ||
-            model === null
-            ? "Deterministic interpretation"
-            : `Model: ${family}/${model}`,
+          model === null
+            ? "Online AI: not set up"
+            : `Online AI: ${model}${route === null ? "" : ` via ${route}`}`,
         );
       })
       .catch(() => setLabel(null));

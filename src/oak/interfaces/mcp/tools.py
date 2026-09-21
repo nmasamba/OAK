@@ -37,7 +37,7 @@ _DOCUMENT = {"type": "object"}
 # stored provider credential is spent and the brief leaves the machine.
 _INTERPRETER = {
     "type": "string",
-    "enum": ["deterministic", "model"],
+    "enum": ["deterministic", "online", "local"],
     "minLength": 5,
     "maxLength": 13,
 }
@@ -123,11 +123,12 @@ TOOL_DEFINITIONS: tuple[ToolDefinition, ...] = (
         description=(
             "Interpret the case brief into a typed draft intent with provenance. Proposal "
             "only; nothing is confirmed. The default interpreter is deterministic and "
-            "makes no network call. interpreter=model sends the brief to the operator's "
-            "configured model provider, spends the operator's stored credential, and "
-            "returns model_proposed values that are unverified model output and always "
-            "require confirmation; it fails with OAK-MODEL-NOT-CONFIGURED when no model "
-            "is configured."
+            "makes no network call. interpreter=online sends the brief to the Hugging Face "
+            "model the operator set up and spends the operator's stored token; "
+            "interpreter=local sends it to the operator's loopback model server. Both "
+            "return model_proposed values that are unverified model output and always "
+            "require confirmation, and fail with OAK-MODEL-NOT-CONFIGURED when that mode "
+            "has nothing to call."
         ),
         input_schema=_schema(
             {

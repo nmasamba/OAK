@@ -66,10 +66,34 @@ def test_no_models_option_accepts_a_key_value() -> None:
         assert not any(term in name for term in ("key", "secret", "token", "password")), name
 
 
-def test_status_without_configuration_says_deterministic() -> None:
+def test_status_without_configuration_says_only_deterministic_is_ready() -> None:
     result = runner.invoke(app, ["models", "status"])
     assert result.exit_code == 0
-    assert "Deterministic interpretation" in result.output
+    assert "deterministic: ready" in result.output
+    assert "online: not ready" in result.output and "oak models set-key" in result.output
+    assert "local: not ready" in result.output and "oak models select local" in result.output
+
+
+def test_a_local_model_can_be_pinned_and_cleared_and_status_follows() -> None:
+    pinned = runner.invoke(app, ["models", "select", "local", "qwen3:8b", "--output", "json"])
+    assert pinned.exit_code == 0, _all_output(pinned)
+    assert json.loads(pinned.output) == {
+        "family": "local",
+        "model_id": "qwen3:8b",
+        "provider_route": None,
+        "selected_at": json.loads(pinned.output)["selected_at"],
+    }
+    status = runner.invoke(app, ["models", "status"])
+    assert "local: ready — qwen3:8b on http://127.0.0.1:11434/v1" in status.output
+
+    route = runner.invoke(app, ["models", "select", "local", "qwen3:8b", "--provider", "x"])
+    assert route.exit_code == 2 and "OAK-MODEL-ROUTE" in _all_output(route)
+
+    cleared = runner.invoke(app, ["models", "clear", "local"])
+    assert cleared.exit_code == 0 and "Cleared the pinned local model" in cleared.output
+    again = runner.invoke(app, ["models", "clear", "local"])
+    assert again.exit_code == 0 and "No local model was pinned" in again.output
+    assert "local: not ready" in runner.invoke(app, ["models", "status"]).output
 
 
 def test_families_lists_hugging_face_and_local_and_marks_the_default() -> None:

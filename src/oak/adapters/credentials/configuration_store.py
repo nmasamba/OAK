@@ -41,6 +41,7 @@ class ModelConfigurationFileStore:
             ) from error
         if not isinstance(document, dict):
             raise OAKError(CONFIGURATION_CODE, "the model configuration file is malformed")
+        document = _upgrade(document)
         self._registry.validate(CONFIGURATION_SCHEMA, document)
         return document
 
@@ -51,3 +52,28 @@ class ModelConfigurationFileStore:
             canonical_json_bytes(document) + b"\n",
             code=CONFIGURATION_CODE,
         )
+
+
+def _upgrade(document: dict[str, Any]) -> dict[str, Any]:
+    """Bring a file written by an earlier build to the current shape before validating it.
+
+    Sprint 9 stored one ``selection`` object naming its family, or ``null``; Sprint 10 keeps
+    one selection per family and pins nothing by default. Nothing published carries the old
+    shape, so this is a courtesy to machines that ran the unreleased build, not a promise;
+    a selection for a family that no longer exists is dropped.
+    """
+
+    selection = document.get("selection")
+    if selection is None:
+        document["selection"] = {}
+    elif isinstance(selection, dict) and "family" in selection:
+        family = selection.get("family")
+        upgraded: dict[str, Any] = {}
+        if family in {"huggingface", "local"}:
+            upgraded[str(family)] = {
+                "model_id": selection.get("model_id"),
+                "provider_route": selection.get("provider_route"),
+                "selected_at": selection.get("selected_at"),
+            }
+        document["selection"] = upgraded
+    return document

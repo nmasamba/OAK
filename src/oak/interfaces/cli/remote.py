@@ -173,9 +173,9 @@ class RemoteClient:
         *,
         expected_version: str,
         idempotency_key: str,
-        interpreter: str = "auto",
+        interpreter: str = "deterministic",
     ) -> dict[str, Any]:
-        query = "" if interpreter == "auto" else f"?interpreter={interpreter}"
+        query = "" if interpreter == "deterministic" else f"?interpreter={interpreter}"
         return self._request(
             "POST",
             f"/v1/design-cases/{case_id}:interpret{query}",

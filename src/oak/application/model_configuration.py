@@ -1,12 +1,17 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Model-provider configuration: which family, which model, and where the key lives.
+"""Model-provider configuration: the stored token, the pinned pairs, and what each mode can do.
 
 The service owns the non-secret configuration document and delegates credential storage
 to whichever backend the user chose. It never logs, echoes or persists a key; the only
 values it returns about a credential are whether one is configured, which backend holds
 it, a salted fingerprint and its length. Discovery (contacting a provider's catalogue) is
-attached in a later milestone through `discoverer`; without one, `discover` reports the
-pinned defaults and says so.
+attached through `discoverer`; without one, `discover` refuses and says so.
+
+Three interpretation modes exist and are chosen per request, never stored here:
+``deterministic`` needs nothing; ``online`` calls one Hugging Face model — the pair the
+user pinned, or else the preferred one discovery recorded — with the stored token;
+``local`` calls the model the user pinned on the loopback server. ``modes()`` says which of
+them can run right now and why not otherwise.
 """
 
 from __future__ import annotations
@@ -32,9 +37,12 @@ CONFIGURATION_ID = "model-configuration.local"
 MINIMUM_KEY_CHARACTERS = 16
 MAXIMUM_KEY_CHARACTERS = 512
 CREDENTIAL_SOURCES = ("keychain", "file", "env")
-INTERPRETERS = ("model", "deterministic")
+MODES = ("deterministic", "online", "local")
+MODE_FAMILIES: Mapping[str, str] = {"online": "huggingface", "local": "local"}
+DEFAULT_LOCAL_ENDPOINT = "http://127.0.0.1:11434/v1"
 
 Discoverer = Callable[[str, dict[str, Any] | None], dict[str, Any]]
+RouteChooser = Callable[[dict[str, Any] | None, str], str | None]
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,16 +50,14 @@ class ModelSelection:
     family: str
     model_id: str
     provider_route: str | None
-    default_interpreter: str
-    data_use_acknowledged: bool
+    selected_at: str
 
     def to_document(self) -> dict[str, Any]:
         return {
             "family": self.family,
             "model_id": self.model_id,
             "provider_route": self.provider_route,
-            "default_interpreter": self.default_interpreter,
-            "data_use_acknowledged": self.data_use_acknowledged,
+            "selected_at": self.selected_at,
         }
 
 
@@ -87,8 +93,10 @@ class ModelConfigurationService:
         clock: Callable[[], str],
         families: Mapping[str, FamilyDescriptor] = FAMILY_BY_ID,
         discoverer: Discoverer | None = None,
+        route_chooser: RouteChooser | None = None,
         token_reader: Callable[[], str | None] | None = None,
         credentials_location: str | None = None,
+        local_endpoint: str | None = None,
         under_compose: bool = False,
         discovery_cache_seconds: int = 21_600,
     ) -> None:
@@ -97,9 +105,11 @@ class ModelConfigurationService:
         self._clock = clock
         self._families = dict(families)
         self._discoverer = discoverer
+        self._route_chooser = route_chooser
         self._discovery_cache_seconds = discovery_cache_seconds
         self._token_reader = token_reader
         self._credentials_location = credentials_location
+        self._local_endpoint = local_endpoint or DEFAULT_LOCAL_ENDPOINT
         self._under_compose = under_compose
 
     # ----- reads -------------------------------------------------------------------
@@ -120,18 +130,20 @@ class ModelConfigurationService:
             for descriptor in self._families.values()
         )
 
-    def selection(self) -> ModelSelection | None:
-        document = self._document()
-        selected = document["selection"]
+    def selection(self, family: str) -> ModelSelection | None:
+        self._descriptor(family)
+        selected = self._document()["selection"].get(family)
         if selected is None:
             return None
         return ModelSelection(
-            family=str(selected["family"]),
+            family=family,
             model_id=str(selected["model_id"]),
             provider_route=selected.get("provider_route"),
-            default_interpreter=str(selected["default_interpreter"]),
-            data_use_acknowledged=bool(selected["data_use_acknowledged"]),
+            selected_at=str(selected["selected_at"]),
         )
+
+    def selections(self) -> dict[str, ModelSelection | None]:
+        return {family: self.selection(family) for family in FAMILY_IDS}
 
     def credential_status(self, family: str) -> CredentialStatus:
         self._descriptor(family)
@@ -161,16 +173,83 @@ class ModelConfigurationService:
             return None
         return self._credentials[source].get(family)
 
+    def online_pair(self) -> dict[str, Any] | None:
+        """The model and route Online AI would call now, or ``None`` with nothing to call.
+
+        The pinned pair wins; otherwise the preferred model discovery recorded, on the route
+        the provider policy chooses among its structured-output routes. ``source`` says which.
+        """
+
+        document = self._document()
+        snapshot = document["discovery"].get("huggingface")
+        selection = self.selection("huggingface")
+        policy = str(document["provider_policy"])
+        if selection is not None:
+            listed = self._listed(snapshot, selection.model_id)
+            route = selection.provider_route
+            if route is None and self._route_chooser is not None:
+                route = self._route_chooser(listed, policy)
+            return {
+                "model_id": selection.model_id,
+                "provider_route": route,
+                "source": "pinned",
+                "resolved_at": selection.selected_at,
+                "licence": (listed or {}).get("licence"),
+                "output_price_per_million": self._price(listed, route),
+            }
+        if snapshot is None or snapshot.get("recommended") is None:
+            return None
+        model_id = str(snapshot["recommended"])
+        listed = self._listed(snapshot, model_id)
+        route = self._route_chooser(listed, policy) if self._route_chooser is not None else None
+        return {
+            "model_id": model_id,
+            "provider_route": route,
+            "source": "preferred",
+            "resolved_at": str(snapshot["fetched_at"]),
+            "licence": (listed or {}).get("licence"),
+            "output_price_per_million": self._price(listed, route),
+        }
+
+    def modes(self) -> dict[str, dict[str, Any]]:
+        """Which of the three modes can run now, and the reason when one cannot."""
+
+        online: dict[str, Any] = {"available": False, "reason": None, "pair": None}
+        pair = self.online_pair()
+        if not self.credential_status("huggingface").configured:
+            online["reason"] = (
+                "no Hugging Face token is stored; run `oak models set-key` or store one in Settings"
+            )
+        elif pair is None:
+            online["reason"] = (
+                "no model is known yet; run `oak models discover` to read the catalogue "
+                "or pin one with `oak models select huggingface <model_id>`"
+            )
+        else:
+            online["available"] = True
+        online["pair"] = pair
+        local_selection = self.selection("local")
+        local: dict[str, Any] = {
+            "available": local_selection is not None,
+            "reason": (
+                None
+                if local_selection is not None
+                else "no local model is selected; run `oak models select local <model_id>`"
+            ),
+            "model_id": None if local_selection is None else local_selection.model_id,
+            "endpoint": self._local_endpoint,
+        }
+        return {
+            "deterministic": {"available": True, "reason": None},
+            "online": online,
+            "local": local,
+        }
+
     def status(self) -> dict[str, Any]:
         document = self._document()
-        selection = self.selection()
         credentials = {
             family: self.credential_status(family).to_document() for family in FAMILY_IDS
         }
-        configured = selection is not None and (
-            credentials[selection.family]["configured"]
-            or not self._descriptor(selection.family).credential_required
-        )
         now = self._clock()
         discovery = {
             family: {
@@ -183,8 +262,11 @@ class ModelConfigurationService:
             for family, snapshot in document["discovery"].items()
         }
         return {
-            "configured": configured,
-            "selection": selection.to_document() if selection is not None else None,
+            "modes": self.modes(),
+            "selections": {
+                family: (None if selection is None else selection.to_document())
+                for family, selection in self.selections().items()
+            },
             "provider_policy": document["provider_policy"],
             "credentials": credentials,
             "discovery": discovery,
@@ -199,6 +281,9 @@ class ModelConfigurationService:
     def discovery_snapshot(self, family: str) -> dict[str, Any] | None:
         snapshot = self._document()["discovery"].get(family)
         return copy.deepcopy(snapshot) if snapshot is not None else None
+
+    def provider_policy(self) -> str:
+        return str(self._document()["provider_policy"])
 
     def token(self) -> str | None:
         return self._token_reader() if self._token_reader else None
@@ -257,48 +342,61 @@ class ModelConfigurationService:
         model_id: str,
         *,
         provider_route: str | None = None,
-        default_interpreter: str = "model",
-        acknowledge_data_use: bool = False,
     ) -> ModelSelection:
+        """Pin a model (and, for Hugging Face, a provider route) for that family's mode."""
+
         descriptor = self._descriptor(family)
-        if default_interpreter not in INTERPRETERS:
-            raise OAKError(
-                "OAK-MODEL-INTERPRETER", "default_interpreter must be model or deterministic"
-            )
         if not model_id or len(model_id) > 256:
             raise OAKError("OAK-MODEL-ID", "a model identifier must be 1 to 256 characters")
-        snapshot = self.discovery_snapshot(family)
-        data_use = self._data_use(snapshot, model_id)
-        if data_use == "trains_on_inputs" and not acknowledge_data_use:
-            raise OAKError(
-                "OAK-MODEL-DATA-USE",
-                f"{model_id} permits the provider to train on your prompts; repeat the "
-                "selection with --acknowledge-data-use if that is acceptable",
-            )
         if descriptor.credential_required and not self.credential_status(family).configured:
             raise OAKError(
                 "OAK-MODEL-KEY-MISSING",
                 f"no key is stored for the {family} family; run "
                 f"`oak models set-key {family}` first",
             )
+        if family != "huggingface" and provider_route is not None:
+            raise OAKError(
+                "OAK-MODEL-ROUTE", "a provider route is meaningful only for Hugging Face"
+            )
+        listed = self._listed(self.discovery_snapshot(family), model_id)
+        if family == "huggingface" and listed is not None:
+            capable = [
+                str(route["provider"])
+                for route in listed.get("providers", [])
+                if isinstance(route, dict) and route.get("supports_structured_output") is True
+            ]
+            if not capable:
+                raise OAKError(
+                    "OAK-MODEL-ROUTE",
+                    f"{model_id} has no live provider route that supports structured "
+                    "output, which the interpretation needs; run `oak models discover` and "
+                    "pick a model listed with one",
+                )
+            if provider_route is not None and provider_route not in capable:
+                raise OAKError(
+                    "OAK-MODEL-ROUTE",
+                    f"{provider_route} is not a live structured-output route for {model_id}; "
+                    f"the catalogue lists {', '.join(capable)}",
+                )
         document = self._document()
-        document["selection"] = {
-            "family": family,
+        document["selection"][family] = {
             "model_id": model_id,
             "provider_route": provider_route,
-            "default_interpreter": default_interpreter,
-            "data_use_acknowledged": acknowledge_data_use,
             "selected_at": self._clock(),
         }
         self._configuration.save(document)
-        selection = self.selection()
+        selection = self.selection(family)
         assert selection is not None
         return selection
 
-    def clear_selection(self) -> None:
+    def clear_selection(self, family: str) -> bool:
+        self._descriptor(family)
         document = self._document()
-        document["selection"] = None
+        if family not in document["selection"]:
+            return False
+        del document["selection"][family]
         self._configuration.save(document)
+        return True
 
     def set_provider_policy(self, policy: str) -> None:
         if policy not in {"cheapest", "fastest"}:
@@ -323,6 +421,14 @@ class ModelConfigurationService:
         self._configuration.save(document)
         return copy.deepcopy(snapshot)
 
+    def is_discovery_stale(self, family: str) -> bool:
+        """Whether the family's snapshot is missing or older than the cache window."""
+
+        snapshot = self._document()["discovery"].get(family)
+        if snapshot is None:
+            return True
+        return self._is_stale(str(snapshot["fetched_at"]), self._clock())
+
     # ----- helpers -----------------------------------------------------------------
 
     def _document(self) -> dict[str, Any]:
@@ -332,7 +438,7 @@ class ModelConfigurationService:
         return {
             "schema_version": "0.1.0",
             "id": CONFIGURATION_ID,
-            "selection": None,
+            "selection": {},
             "credential_sources": {},
             "provider_policy": "cheapest",
             "discovery": {},
@@ -372,10 +478,20 @@ class ModelConfigurationService:
         return age < 0 or age > self._discovery_cache_seconds
 
     @staticmethod
-    def _data_use(snapshot: dict[str, Any] | None, model_id: str) -> str:
+    def _listed(snapshot: dict[str, Any] | None, model_id: str) -> dict[str, Any] | None:
         if snapshot is None:
-            return "unknown"
+            return None
         for model in snapshot.get("models", []):
-            if model.get("id") == model_id:
-                return str(model.get("data_use", "unknown"))
-        return "unknown"
+            if isinstance(model, dict) and model.get("id") == model_id:
+                return model
+        return None
+
+    @staticmethod
+    def _price(listed: dict[str, Any] | None, route: str | None) -> float | None:
+        if listed is None or route is None:
+            return None
+        for candidate in listed.get("providers", []):
+            if isinstance(candidate, dict) and candidate.get("provider") == route:
+                price = candidate.get("output_price_per_million")
+                return float(price) if isinstance(price, (int, float)) else None
+        return None

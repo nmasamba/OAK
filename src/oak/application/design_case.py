@@ -42,7 +42,19 @@ INTENT_MEDIA_TYPE = "application/vnd.oak.system-intent+json"
 SOURCE_MEDIA_TYPE = "application/vnd.oak.source-record+json"
 AUDIT_MEDIA_TYPE = "application/vnd.oak.audit-event+json"
 PROPOSAL_MEDIA_TYPE = "application/vnd.oak.interpretation-proposal+json"
-INTERPRETER_MODES = ("auto", "model", "deterministic")
+INTERPRETER_MODES = ("deterministic", "online", "local")
+MODEL_MODES = frozenset({"online", "local"})
+NOT_CONFIGURED_REMEDIES = {
+    "online": (
+        "Online AI has nothing to call yet: store a Hugging Face token with `oak models "
+        "set-key`, run `oak models discover` (or pin a model with `oak models select "
+        "huggingface <model_id>`), or interpret with --interpreter deterministic"
+    ),
+    "local": (
+        "Local AI has no model pinned: run `oak models select local <model_id>` for the "
+        "model your loopback server serves, or interpret with --interpreter deterministic"
+    ),
+}
 STRUCTURED_FORMATS = frozenset({"yaml", "json"})
 # Extension keys. Everything model-specific exists only when the model path ran, so a
 # workspace with no model configured produces exactly the documents it produced before.
@@ -51,7 +63,7 @@ SOURCE_ARTIFACT_REF_EXTENSION = "oak.community/artifact_ref"
 PROPOSAL_REF_EXTENSION = "oak.community/interpretation_proposal_ref"
 INTERPRETER_EXTENSION = "oak.community/interpreter"
 MODEL_EXTENSION = "oak.community/model"
-ModelInterpreterFactory = Callable[[], ModelInterpreterPort | None]
+ModelInterpreterFactory = Callable[[str], ModelInterpreterPort | None]
 
 
 @dataclass(frozen=True, slots=True)
@@ -110,7 +122,7 @@ class DesignCaseService:
         )
 
     def design(
-        self, brief_path: Path, context: CommandContext, *, interpreter: str = "auto"
+        self, brief_path: Path, context: CommandContext, *, interpreter: str = "deterministic"
     ) -> DesignResult:
         brief = self._intake.read(brief_path)
         create_identity = context.idempotency_key or content_digest(brief.content)
@@ -240,28 +252,23 @@ class DesignCaseService:
         )
         return CreateCaseResult(case=committed.case_document, duplicate=committed.duplicate)
 
-    def resolve_interpreter(self, interpreter: str = "auto") -> str:
-        """Return ``model`` or ``deterministic`` for the current case; commits nothing.
+    def resolve_interpreter(self, interpreter: str = "deterministic") -> str:
+        """The mode this request runs in; commits nothing.
 
-        ``auto`` chooses the model only for a prose brief when a model adapter is configured;
-        a structured brief is mapped deterministically unless the model is requested. The
-        factory is consulted only when its answer can change the outcome.
+        There is no automatic choice. A mode is what the caller asked for, and an absent
+        choice is ``deterministic`` — what every client written before the model path
+        existed gets, structured brief or prose.
         """
 
         if interpreter not in INTERPRETER_MODES:
             raise OAKError(
-                "OAK-INTERPRETER-MODE", "interpreter must be auto, model or deterministic"
+                "OAK-INTERPRETER-MODE", "interpreter must be deterministic, online or local"
             )
-        if interpreter != "auto":
-            return interpreter
-        if self._model_interpreter_factory is None:
-            return "deterministic"
-        source_document, _ = self._source_for(self._require_case())
-        if str(source_document["format"]) in STRUCTURED_FORMATS:
-            return "deterministic"
-        return "model" if self._model_interpreter_factory() is not None else "deterministic"
+        return interpreter
 
-    def interpret(self, context: CommandContext, *, interpreter: str = "auto") -> DesignResult:
+    def interpret(
+        self, context: CommandContext, *, interpreter: str = "deterministic"
+    ) -> DesignResult:
         mode = self.resolve_interpreter(interpreter)
         current_document = self._require_case()
         current = DesignCase.from_document(current_document)
@@ -269,23 +276,18 @@ class DesignCaseService:
         content_ref = ArtifactReference.from_document(source_document["content_ref"])
         source_content = self._repository.read_artifact(content_ref)
         adapter: ModelInterpreterPort | None = None
-        if mode == "model":
+        if mode in MODEL_MODES:
             if self._model_interpreter_factory is not None:
-                adapter = self._model_interpreter_factory()
+                adapter = self._model_interpreter_factory(mode)
             if adapter is None:
-                raise OAKError(
-                    "OAK-MODEL-NOT-CONFIGURED",
-                    "no model is configured for interpretation; select one with "
-                    "`oak models select <family> <model_id>` or interpret with "
-                    "--interpreter deterministic",
-                )
+                raise OAKError("OAK-MODEL-NOT-CONFIGURED", NOT_CONFIGURED_REMEDIES[mode])
         request: dict[str, Any] = {
             "case_id": current.id,
             "source_ref": source_ref.to_document(),
             "content_digest": content_ref.digest,
         }
         if adapter is not None:
-            request["interpreter"] = "model"
+            request["interpreter"] = mode
         input_digest = self._request_digest(context, request)
         context = self._normalized_context(context, "interpret", input_digest)
         self._check_context(context)
@@ -299,7 +301,7 @@ class DesignCaseService:
                 case=duplicate_case,
                 intent=duplicate_intent,
                 duplicate=True,
-                interpreter=self._interpreter_of(duplicate_intent),
+                interpreter=self._mode_of(duplicate_intent),
             )
         if current.status is not DesignCaseStatus.DRAFT:
             raise OAKError("OAK-INTERPRET-STATE", "only a draft case can be interpreted")
@@ -370,7 +372,11 @@ class DesignCaseService:
             intent_ref=intent_artifact.reference,
             source_record_ref=source_ref,
             extensions=(
-                {INTERPRETER_EXTENSION: self._interpreter_extension(proposal, proposal_artifact)}
+                {
+                    INTERPRETER_EXTENSION: self._interpreter_extension(
+                        proposal, proposal_artifact, mode
+                    )
+                }
                 if proposal is not None and proposal_artifact is not None
                 else None
             ),
@@ -401,7 +407,7 @@ class DesignCaseService:
             case=committed.case_document,
             intent=committed_intent,
             duplicate=committed.duplicate,
-            interpreter=self._interpreter_of(committed_intent),
+            interpreter=mode,
         )
 
     def questions(self) -> QuestionResult:
@@ -604,15 +610,25 @@ class DesignCaseService:
         source_ref = ArtifactReference.from_document(source_ref_document)
         return self._repository.read_json_artifact(source_ref), source_ref
 
-    @staticmethod
-    def _interpreter_of(intent: dict[str, Any]) -> str:
-        return (
-            "model" if PROPOSAL_REF_EXTENSION in intent.get("extensions", {}) else "deterministic"
-        )
+    def _mode_of(self, intent: dict[str, Any]) -> str:
+        """The mode that produced an intent: deterministic, or the family its proposal names."""
+
+        reference = intent.get("extensions", {}).get(PROPOSAL_REF_EXTENSION)
+        if not isinstance(reference, dict):
+            return "deterministic"
+        try:
+            proposal = self._repository.read_json_artifact(
+                ArtifactReference.from_document(reference)
+            )
+        except (OAKError, KeyError, TypeError, ValueError):
+            return "online"
+        details = proposal.get("extensions", {}).get(MODEL_EXTENSION)
+        family = details.get("family") if isinstance(details, dict) else None
+        return "local" if family == "local" else "online"
 
     @staticmethod
     def _interpreter_extension(
-        proposal: dict[str, Any], proposal_artifact: Artifact
+        proposal: dict[str, Any], proposal_artifact: Artifact, mode: str
     ) -> dict[str, Any]:
         details = proposal.get("extensions", {}).get(MODEL_EXTENSION)
         model = details if isinstance(details, dict) else {}
@@ -623,6 +639,7 @@ class DesignCaseService:
 
         return {
             "kind": "model",
+            "mode": mode,
             "family": text("family"),
             "model_id": text("model_id"),
             "provider_route": text("provider_route"),

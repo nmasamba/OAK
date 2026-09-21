@@ -46,9 +46,9 @@ class OutputFormat(StrEnum):
 
 
 class InterpreterChoice(StrEnum):
-    AUTO = "auto"
-    MODEL = "model"
     DETERMINISTIC = "deterministic"
+    ONLINE = "online"
+    LOCAL = "local"
 
 
 STRUCTURED_BRIEF_SUFFIXES = frozenset({".yaml", ".yml", ".json"})
@@ -179,13 +179,14 @@ def design(
         typer.Option(
             "--interpreter",
             help=(
-                "auto uses the configured model for a prose brief; model requires one; "
-                "deterministic never calls a provider."
+                "deterministic (the default) never calls a model; online sends the brief to "
+                "the Hugging Face model this machine is set up for; local sends it to the "
+                "model pinned on the loopback server."
             ),
         ),
-    ] = InterpreterChoice.AUTO,
+    ] = InterpreterChoice.DETERMINISTIC,
 ) -> None:
-    """Ingest and interpret a local brief; deterministic unless a model is configured."""
+    """Ingest and interpret a local brief; deterministic unless --interpreter says otherwise."""
 
     try:
         remote = _remote()
@@ -215,15 +216,16 @@ def design(
             ),
         )
         if (
-            interpreter is InterpreterChoice.AUTO
+            interpreter is InterpreterChoice.DETERMINISTIC
             and result.interpreter == "deterministic"
             and not result.duplicate
             and brief.suffix.lower() not in STRUCTURED_BRIEF_SUFFIXES
         ):
             typer.echo(
-                "Hint: no model is configured, so this prose brief was interpreted "
-                "deterministically. Configure one with `oak models set-key <family>` and "
-                "`oak models select <family> <model_id>`, then re-run `oak design`.",
+                "Hint: this prose brief was interpreted deterministically, which maps only "
+                "what it states outright. Re-run with `--interpreter online` (after `oak "
+                "models set-key` and `oak models discover`) or `--interpreter local` to have "
+                "a model propose the rest.",
                 err=True,
             )
     except (OAKError, ContractValidationError, OSError, RuntimeError, ValueError) as error:
@@ -1481,20 +1483,14 @@ def models(
         bool,
         typer.Option("--stdin", help="Read the key from standard input instead of a prompt."),
     ] = False,
-    acknowledge_data_use: Annotated[
-        bool,
+    provider: Annotated[
+        str | None,
         typer.Option(
-            "--acknowledge-data-use",
-            help="Select a model whose provider may train on your prompts.",
+            "--provider",
+            help="With select: the Hugging Face provider route to pin (see `oak models "
+            "discover`); otherwise the provider policy chooses one.",
         ),
-    ] = False,
-    interpreter: Annotated[
-        str,
-        typer.Option(
-            "--interpreter",
-            help="Default interpreter once this model is selected: model or deterministic.",
-        ),
-    ] = "model",
+    ] = None,
     output: Annotated[
         OutputFormat, typer.Option("--output", help="Output format.")
     ] = OutputFormat.HUMAN,
@@ -1533,13 +1529,24 @@ def models(
             _emit({"token": token}, output, human=token)
             return
         if action == "clear":
-            service.clear_selection()
-            _emit({"selection": None}, output, human="Model selection cleared.")
+            chosen_family = family or "huggingface"
+            cleared = service.clear_selection(chosen_family)
+            _emit(
+                {"family": chosen_family, "cleared": cleared},
+                output,
+                human=(
+                    f"Cleared the pinned {chosen_family} model; the preferred one applies."
+                    if cleared
+                    else f"No {chosen_family} model was pinned."
+                ),
+            )
             return
         if action not in {"set-key", "remove-key", "select", "discover"}:
             raise OAKError("OAK-MODEL-ACTION", "models action is not recognized")
-        if family is None:
+        if family is None and action == "select":
             raise OAKError("OAK-MODEL-FAMILY-REQUIRED", f"models {action} requires a family")
+        if family is None:
+            family = "huggingface"
         if action == "set-key":
             chosen = store
             if store == "env":
@@ -1591,18 +1598,15 @@ def models(
         if action == "select":
             if model_id is None:
                 raise OAKError("OAK-MODEL-ID", "models select requires a model identifier")
-            selection = service.select(
-                family,
-                model_id,
-                default_interpreter=interpreter,
-                acknowledge_data_use=acknowledge_data_use,
-            )
+            selection = service.select(family, model_id, provider_route=provider)
+            mode = "Local AI" if family == "local" else "Online AI"
             _emit(
                 selection.to_document(),
                 output,
                 human=(
-                    f"Selected {selection.family}/{selection.model_id}; plain-language briefs "
-                    f"now default to the {selection.default_interpreter} interpreter."
+                    f"Pinned {selection.model_id}"
+                    + (f" via {selection.provider_route}" if selection.provider_route else "")
+                    + f" for {mode}; `oak models clear {family}` returns to the preferred model."
                 ),
             )
             return
@@ -1636,16 +1640,26 @@ def _read_key(from_stdin: bool) -> str:
 
 
 def _models_status_text(status: dict[str, Any]) -> str:
-    lines: list[str] = []
-    selection = status["selection"]
-    if selection is None:
-        lines.append("Deterministic interpretation (no model selected).")
-    else:
+    modes = status["modes"]
+    lines: list[str] = ["Interpretation modes (chosen per brief with `oak design --interpreter`):"]
+    lines.append("  deterministic: ready — the default; nothing leaves this machine")
+    online = modes["online"]
+    pair = online.get("pair")
+    if online["available"] and pair:
+        route = pair.get("provider_route") or "the provider policy's route"
+        price = pair.get("output_price_per_million")
         lines.append(
-            f"Model: {selection['family']}/{selection['model_id']} — plain-language briefs "
-            f"default to the {selection['default_interpreter']} interpreter"
-            + ("" if status["configured"] else " (its key is missing; interpretation will refuse)")
+            f"  online: ready — {pair['model_id']} via {route} ({pair['source']}"
+            + (f", ${price}/M output tokens" if price is not None else "")
+            + ")"
         )
+    else:
+        lines.append(f"  online: not ready — {online['reason']}")
+    local = modes["local"]
+    if local["available"]:
+        lines.append(f"  local: ready — {local['model_id']} on {local['endpoint']}")
+    else:
+        lines.append(f"  local: not ready — {local['reason']}")
     for family, credential in status["credentials"].items():
         if credential["configured"]:
             lines.append(
@@ -1657,7 +1671,7 @@ def _models_status_text(status: dict[str, Any]) -> str:
         lines.append(
             f"  {family}: {snapshot['model_count']} model(s) from the {snapshot['source']} "
             f"catalogue at {snapshot['fetched_at']}{age}; "
-            f"recommended {snapshot['recommended'] or 'none'}"
+            f"preferred {snapshot['recommended'] or 'none'}"
         )
     stores = status["stores"]
     lines.append(f"Credential store: {stores['credentials']}")
@@ -1666,7 +1680,7 @@ def _models_status_text(status: dict[str, Any]) -> str:
         lines.append(
             "Running under Compose: the web workspace uses the api service's own model-state "
             "volume; configure it from Settings → Models or with "
-            "`docker compose exec -T api oak models set-key <family> --stdin`."
+            "`docker compose exec -T api oak models set-key --stdin`."
         )
     return "\n".join(lines)
 
@@ -1677,15 +1691,24 @@ def _discovery_text(family: str, snapshot: dict[str, Any]) -> str:
         f"at {snapshot['fetched_at']}; {snapshot['filtered_out_count']} filtered out"
     ]
     for model in snapshot["models"]:
-        marker = " (recommended)" if model["id"] == snapshot["recommended"] else ""
+        marker = " (preferred)" if model["id"] == snapshot["recommended"] else ""
         providers = ", ".join(
-            provider["provider"] + ("*" if provider["supports_structured_output"] else "")
+            provider["provider"]
+            + ("*" if provider["supports_structured_output"] else "")
+            + (
+                f" ${provider['output_price_per_million']}/M"
+                if provider.get("output_price_per_million") is not None
+                else ""
+            )
+            + (" free" if provider.get("is_free") else "")
             for provider in model["providers"]
         )
         lines.append(
             f"  {model['id']}{marker} [{model['licence']}]"
             + (f" via {providers}" if providers else "")
         )
+    if any(model["providers"] for model in snapshot["models"]):
+        lines.append("  * supports structured output; only such routes are ever called")
     return "\n".join(lines)
 
 

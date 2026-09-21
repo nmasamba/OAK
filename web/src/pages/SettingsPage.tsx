@@ -30,12 +30,9 @@ type LoadState =
 function selectionOf(
   status: ModelStatusResponse,
 ): { family: string; modelId: string } | null {
-  const selection = asObject(status.selection);
-  const family = selection === null ? null : asString(selection["family"]);
+  const selection = asObject(status.selections["huggingface"] ?? null);
   const modelId = selection === null ? null : asString(selection["model_id"]);
-  return family === null || modelId === null
-    ? null
-    : { family, modelId: modelId };
+  return modelId === null ? null : { family: "huggingface", modelId };
 }
 
 export function SettingsPage() {
@@ -45,7 +42,6 @@ export function SettingsPage() {
   const [family, setFamily] = useState("huggingface");
   const [apiKey, setApiKey] = useState("");
   const [modelId, setModelId] = useState("");
-  const [acknowledge, setAcknowledge] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [failure, setFailure] = useState<ActionFailure | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -188,9 +184,10 @@ export function SettingsPage() {
                     {selection.family}/{selection.modelId}
                   </strong>{" "}
                   interprets plain-language briefs.{" "}
-                  {status.configured
-                    ? "Its key is stored on this machine."
-                    : "Its key is missing, so interpretation will refuse until you store one."}
+                  {asObject(status.modes["online"] ?? null)?.["available"] ===
+                  true
+                    ? "Online AI can call it."
+                    : "Its key is missing, so Online AI will refuse until you store one."}
                 </>
               )}
             </p>
@@ -200,7 +197,7 @@ export function SettingsPage() {
                 disabled={busy !== null}
                 onClick={() =>
                   run("clear", () =>
-                    clearModelSelection(token).then(() =>
+                    clearModelSelection("huggingface", token).then(() =>
                       setNotice("Cleared the model selection."),
                     ),
                   )
@@ -357,16 +354,6 @@ export function SettingsPage() {
                 onChange={(event) => setModelId(event.target.value)}
               />
             </div>
-            <label htmlFor="acknowledge-data-use">
-              <input
-                id="acknowledge-data-use"
-                name="acknowledge-data-use"
-                type="checkbox"
-                checked={acknowledge}
-                onChange={(event) => setAcknowledge(event.target.checked)}
-              />{" "}
-              This provider may train on my prompts, and that is acceptable
-            </label>
             <button
               type="button"
               disabled={busy !== null}
@@ -376,14 +363,9 @@ export function SettingsPage() {
                   return;
                 }
                 run("select", () =>
-                  putModelSelection(
-                    {
-                      family,
-                      model_id: wanted,
-                      acknowledge_data_use: acknowledge,
-                    },
-                    token,
-                  ).then(() => setNotice(`Selected ${family}/${wanted}.`)),
+                  putModelSelection({ family, model_id: wanted }, token).then(
+                    () => setNotice(`Selected ${family}/${wanted}.`),
+                  ),
                 );
               }}
             >

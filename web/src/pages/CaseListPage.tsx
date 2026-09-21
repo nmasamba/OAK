@@ -10,7 +10,7 @@ import {
 import { currentModelToken } from "../modelToken";
 import { ProblemAlert, toActionFailure, type ActionFailure } from "../problems";
 import { Link, useRouter } from "../router";
-import { asString, newIdempotencyKey } from "../support";
+import { asObject, asString, newIdempotencyKey } from "../support";
 
 type ListState =
   | { readonly kind: "loading" }
@@ -41,7 +41,11 @@ export function CaseListPage() {
     }
     getModels(token)
       .then((status) =>
-        setInterpreter(status.selection === null ? "deterministic" : "model"),
+        setInterpreter(
+          asObject(status.modes["online"] ?? null)?.["available"] === true
+            ? "model"
+            : "deterministic",
+        ),
       )
       .catch(() => setInterpreter(null));
   }, []);
@@ -139,8 +143,8 @@ export function CaseListPage() {
           into a typed intent with a source recorded for every value, and asks
           you to confirm anything it had to propose.{" "}
           {interpreter === "model"
-            ? "A model is configured, so it will read this brief."
-            : "No model is configured, so this is interpreted deterministically — which maps only what a brief states outright."}{" "}
+            ? "Online AI is set up; you choose how each brief is read when you interpret it."
+            : "No model is set up, so briefs are interpreted deterministically — which maps only what a brief states outright."}{" "}
           <Link to="/settings/models">Model settings</Link>
         </p>
         <div className="field">

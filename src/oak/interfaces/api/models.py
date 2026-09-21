@@ -164,11 +164,12 @@ class ModelCredentialRequest(StrictResponse):
 
 
 class ModelSelectionRequest(StrictResponse):
+    """Pin a model for one family: the Online AI pair for `huggingface`, the Local AI model
+    for `local`. Clearing it returns that mode to the preferred model."""
+
     family: str = Field(min_length=2, max_length=40)
     model_id: str = Field(min_length=1, max_length=256)
     provider_route: str | None = Field(default=None, max_length=64)
-    default_interpreter: Literal["model", "deterministic"] = "model"
-    acknowledge_data_use: bool = False
 
 
 class ModelCredentialStatus(StrictResponse):
@@ -200,10 +201,14 @@ class ModelDiscoverySummary(StrictResponse):
 
 
 class ModelStatusResponse(StrictResponse):
-    """Everything the workspace needs to render the model settings, and no credential."""
+    """Everything the workspace needs to render the model settings, and no credential.
 
-    configured: bool
-    selection: dict[str, Any] | None
+    ``modes`` says which of deterministic, online and local can run now and why not
+    otherwise; ``selections`` holds the pair pinned per family, or null for the preferred one.
+    """
+
+    modes: dict[str, Any]
+    selections: dict[str, Any]
     provider_policy: str
     families: tuple[ModelFamily, ...]
     credentials: tuple[ModelCredentialStatus, ...]

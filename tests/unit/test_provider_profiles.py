@@ -297,8 +297,25 @@ def test_the_cheapest_structured_output_route_is_chosen_for_hugging_face() -> No
         ),
     ).to_document()
     assert recommended_route(document, "cheapest") == "deepinfra"
-    assert recommended_route(document, "fastest") == "groq"
+    assert recommended_route(document, "fastest") == "groq", "no throughput: first capable"
     assert recommended_route(None, "cheapest") is None
+
+    measured = ModelDescriptor(
+        id="Qwen/Qwen3.8-27B",
+        display_name="Qwen/Qwen3.8-27B",
+        created=None,
+        licence="apache-2.0",
+        data_use="unknown",
+        providers=(
+            ProviderRoute("nscale", False, 0.10, throughput=999.0),
+            ProviderRoute("cerebras", True, 1.49, throughput=846.0),
+            ProviderRoute("deepinfra", True, 2.5, throughput=40.0),
+            ProviderRoute("baseten", True, 3.0, is_free=True, throughput=72.0),
+        ),
+    ).to_document()
+    assert recommended_route(measured, "fastest") == "cerebras", "fastest structured route"
+    assert recommended_route(measured, "cheapest") == "baseten", "a free promotion beats price"
+    assert recommended_route(None, "fastest") is None
     assert (
         recommended_route(
             {"providers": [{"provider": "x", "supports_structured_output": False}]}, "cheapest"

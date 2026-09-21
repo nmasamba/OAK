@@ -65,7 +65,9 @@ def test_the_status_resource_shows_every_family_and_no_credential(client: TestCl
     assert openai["fingerprint"] and len(openai["fingerprint"]) == 8
     assert openai["length"] == len(KEY)
     assert "api_key" not in json.dumps(document)
-    assert document["configured"] is False, "a key alone is not a selection"
+    assert document["modes"]["online"]["available"] is False, "a key alone is nothing to call"
+    assert "oak models discover" in document["modes"]["online"]["reason"]
+    assert document["modes"]["deterministic"]["available"] is True
 
 
 def test_a_key_is_never_echoed_by_any_response_or_stored_outside_its_directory(
@@ -130,7 +132,7 @@ def test_every_model_route_requires_the_capability_token(client: TestClient) -> 
             "/v1/models/selection",
             {"family": "huggingface", "model_id": "openai/gpt-oss-120b"},
         ),
-        ("DELETE", "/v1/models/selection", None),
+        ("DELETE", "/v1/models/selection/huggingface", None),
         ("POST", "/v1/models/huggingface:discover", None),
     )
     for method, path, body in calls:
@@ -141,7 +143,7 @@ def test_every_model_route_requires_the_capability_token(client: TestClient) -> 
 
     status = client.get("/v1/models", headers=_headers()).json()
     assert all(row["configured"] is False for row in status["credentials"])
-    assert status["selection"] is None
+    assert status["selections"] == {"huggingface": None, "local": None}
 
 
 def test_deleting_a_credential_is_idempotent_and_clears_the_status(client: TestClient) -> None:
@@ -175,12 +177,14 @@ def test_a_selection_needs_a_key_and_is_readable_back(client: TestClient) -> Non
     assert accepted.status_code == 200
     assert accepted.headers["Cache-Control"] == "no-store"
     document = accepted.json()
-    assert document["configured"] is True
-    assert document["selection"]["model_id"] == "openai/gpt-oss-120b"
-    assert document["selection"]["default_interpreter"] == "model"
+    assert document["modes"]["online"]["available"] is True
+    assert document["modes"]["online"]["pair"]["source"] == "pinned"
+    assert document["selections"]["huggingface"]["model_id"] == "openai/gpt-oss-120b"
+    assert document["selections"]["local"] is None
 
-    cleared = client.delete("/v1/models/selection", headers=_headers())
-    assert cleared.status_code == 200 and cleared.json()["selection"] is None
+    cleared = client.delete("/v1/models/selection/huggingface", headers=_headers())
+    assert cleared.status_code == 200 and cleared.json()["selections"]["huggingface"] is None
+    assert cleared.json()["modes"]["online"]["available"] is False
 
 
 def test_an_unknown_family_is_refused_with_the_shared_code(client: TestClient) -> None:
@@ -350,7 +354,7 @@ def test_asking_for_the_model_by_name_still_requires_the_token(
         )
         case_id = created.json()["case"]["id"]
         refused = client.post(
-            f"/v1/design-cases/{case_id}:interpret?interpreter=model",
+            f"/v1/design-cases/{case_id}:interpret?interpreter=online",
             headers={"Idempotency-Key": "explicit-interpret-0001", "If-Match": '"0.1.0"'},
         )
     assert refused.status_code == 403
@@ -368,7 +372,7 @@ def test_the_document_declares_the_token_required_where_the_server_requires_it(
         ("/v1/models/credentials/{family}", "put"),
         ("/v1/models/credentials/{family}", "delete"),
         ("/v1/models/selection", "put"),
-        ("/v1/models/selection", "delete"),
+        ("/v1/models/selection/{family}", "delete"),
         ("/v1/models/{family}:discover", "post"),
     ):
         parameters = document["paths"][path][method]["parameters"]

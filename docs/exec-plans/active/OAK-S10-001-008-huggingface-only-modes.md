@@ -446,9 +446,27 @@ or missing key is visible before anyone opens the dropdown.
 
 - [x] 2026-09-21 Plan revision 1 written and answered by the owner; revision 2 approved
   (three modes; masthead label kept, repurposed).
-- [ ] 2026-09-21 Milestone 0 in progress: branch `hf-only-modes` from `origin/main`
+- [x] 2026-09-21 Milestone 0 (`5ef6136`): branch `hf-only-modes` from `origin/main`
   (`3430c71`); this plan; Sprint 10 registered in the governance `sprints.md`, `STATUS.md`,
-  `spec-manifest.yaml` (`0.4.0-draft.5`) and `CHANGELOG.md`; tasks claimed in `STATUS.md`.
+  `spec-manifest.yaml` (`0.4.0-draft.5`) and `CHANGELOG.md`; tasks claimed in `STATUS.md`;
+  governance `make validate` and the digest test green.
+- [x] 2026-09-21 Milestone 1 (`44d4b2f`): the five hosted families removed with their request
+  shape, header kinds, paginated parsers, chat-candidate branches, fixtures, environment
+  literals, configuration rows, schema enum members and tests; the OpenAI-shaped completion
+  fixtures moved under `huggingface/`; the secret scanner untouched; `make check` zero
+  `make: ***` lines with PostgreSQL (627 unit/contract, 262 integration, 42 e2e).
+- [x] 2026-09-21 Milestone 2: `deterministic`/`online`/`local` replace `auto`/`model` in the
+  service, control plane, CLI (`--interpreter`, default deterministic), remote CLI, REST
+  (`interpreter` query; absent = deterministic; token demanded for the two model modes), MCP
+  (closed enum, default deterministic) and the generated client; the audit extension records
+  the mode; one selection per family (`selection` map, up-converted from the Sprint 9 shape
+  on load) with `provider_route` validated against the snapshot's structured-output routes;
+  the catalogue ranks by the Hub's trending order and records the licence rather than
+  filtering on it; routes carry `is_free` and `throughput`, and the provider policy uses
+  them; `PINNED_MODELS` and `TRUSTED_NAMESPACES` refreshed with `as_of` 2026-09-21; the web
+  pages compile against the new `modes`/`selections` shape (the dropdown is Milestone 4);
+  `make openapi-compatibility` clean; `make check` zero `make: ***` lines with PostgreSQL
+  (632 unit/contract, 264 integration, 42 e2e).
 
 ## Discoveries and follow-ups
 

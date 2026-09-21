@@ -116,7 +116,7 @@ export interface CommandOptions {
   readonly modelToken?: string;
 }
 
-export type InterpreterMode = "auto" | "model" | "deterministic";
+export type InterpreterMode = "deterministic" | "online" | "local";
 
 export class OakApiError extends Error {
   constructor(readonly problem: Problem) {
@@ -243,8 +243,8 @@ export interface ModelDiscoverySummary {
 }
 
 export interface ModelStatusResponse {
-  readonly configured: boolean;
-  readonly selection: JsonObject | null;
+  readonly modes: Readonly<Record<string, JsonObject>>;
+  readonly selections: Readonly<Record<string, JsonObject | null>>;
   readonly provider_policy: string;
   readonly families: readonly ModelFamily[];
   readonly credentials: readonly ModelCredentialStatus[];
@@ -261,8 +261,6 @@ export interface ModelSelectionInput {
   readonly family: string;
   readonly model_id: string;
   readonly provider_route?: string | null;
-  readonly default_interpreter?: "model" | "deterministic";
-  readonly acknowledge_data_use?: boolean;
 }
 
 /**
@@ -339,11 +337,12 @@ export async function putModelSelection(
 }
 
 export async function clearModelSelection(
+  family: string,
   modelToken: string,
   baseUrl = "",
 ): Promise<ModelStatusResponse> {
   return requestJson<ModelStatusResponse>(
-    "/v1/models/selection",
+    `/v1/models/selection/${encodeURIComponent(family)}`,
     { method: "DELETE", headers: modelHeaders(modelToken) },
     baseUrl,
   );

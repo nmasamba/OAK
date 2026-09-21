@@ -42,7 +42,9 @@ class _UnavailableKeychain:
         return False
 
 
-def _service(tmp_path: Path, *, discoverer: Any = None) -> ModelConfigurationService:
+def _service(
+    tmp_path: Path, *, discoverer: Any = None, route_chooser: Any = None
+) -> ModelConfigurationService:
     registry = SchemaRegistry.from_directory(ROOT / "schemas")
     return ModelConfigurationService(
         ModelConfigurationFileStore(tmp_path / "models", registry),
@@ -53,9 +55,62 @@ def _service(tmp_path: Path, *, discoverer: Any = None) -> ModelConfigurationSer
         },
         clock=lambda: NOW,
         discoverer=discoverer,
+        route_chooser=route_chooser,
         token_reader=lambda: None,
         credentials_location=str(tmp_path / "credentials"),
     )
+
+
+SNAPSHOT = {
+    "fetched_at": NOW,
+    "source": "live",
+    "recommended": "Qwen/Qwen3.8-27B",
+    "filtered_out_count": 0,
+    "models": [
+        {
+            "id": "Qwen/Qwen3.8-27B",
+            "display_name": "Qwen/Qwen3.8-27B",
+            "created": None,
+            "licence": "apache-2.0",
+            "data_use": "unknown",
+            "providers": [
+                {
+                    "provider": "cerebras",
+                    "supports_structured_output": True,
+                    "output_price_per_million": 1.49,
+                },
+                {
+                    "provider": "nscale",
+                    "supports_structured_output": False,
+                    "output_price_per_million": 0.2,
+                },
+            ],
+        },
+        {
+            "id": "Qwen/Qwen3-8B",
+            "display_name": "Qwen/Qwen3-8B",
+            "created": None,
+            "licence": "apache-2.0",
+            "data_use": "unknown",
+            "providers": [
+                {
+                    "provider": "novita",
+                    "supports_structured_output": False,
+                    "output_price_per_million": 0.1,
+                }
+            ],
+        },
+    ],
+}
+
+
+def _first_capable(listed: dict[str, Any] | None, policy: str) -> str | None:
+    if listed is None:
+        return None
+    for route in listed.get("providers", []):
+        if route.get("supports_structured_output"):
+            return str(route["provider"])
+    return None
 
 
 def test_key_input_is_bounded_and_trimmed_once() -> None:
@@ -70,7 +125,10 @@ def test_key_input_is_bounded_and_trimmed_once() -> None:
 def test_status_before_anything_is_configured_is_deterministic(tmp_path: Path) -> None:
     service = _service(tmp_path)
     status = service.status()
-    assert status["configured"] is False and status["selection"] is None
+    assert status["modes"]["online"]["available"] is False
+    assert status["modes"]["local"]["available"] is False
+    assert status["modes"]["deterministic"]["available"] is True
+    assert status["selections"] == {"huggingface": None, "local": None}
     assert all(not row["configured"] for row in status["credentials"].values())
     assert {row["family"] for row in service.families()} == {"huggingface", "local"}
     assert next(row for row in service.families() if row["default"])["family"] == "huggingface"
@@ -116,22 +174,122 @@ def test_select_requires_a_key_for_hosted_families_but_not_for_local(tmp_path: P
         service.select("huggingface", "openai/gpt-oss-120b")
     assert missing.value.code == "OAK-MODEL-KEY-MISSING"
 
-    local = service.select("local", "llama3.2", default_interpreter="model")
-    assert local.family == "local" and service.status()["configured"] is True
+    local = service.select("local", "llama3.2")
+    assert local.family == "local" and local.provider_route is None
+    assert service.status()["modes"]["local"]["available"] is True
+    assert service.status()["modes"]["local"]["model_id"] == "llama3.2"
 
     service.set_key("huggingface", SecretValue(KEY), source="file")
     chosen = service.select("huggingface", "openai/gpt-oss-120b")
     assert chosen.model_id == "openai/gpt-oss-120b"
-    assert service.status()["selection"]["family"] == "huggingface"
-    service.clear_selection()
-    assert service.status()["selection"] is None
+    status = service.status()
+    assert status["selections"]["huggingface"]["model_id"] == "openai/gpt-oss-120b"
+    assert status["selections"]["local"]["model_id"] == "llama3.2", "one pin per family"
+    assert status["modes"]["online"]["pair"]["source"] == "pinned"
+    assert service.clear_selection("huggingface") is True
+    assert service.clear_selection("huggingface") is False
+    assert service.status()["selections"]["huggingface"] is None
+    assert service.status()["selections"]["local"]["model_id"] == "llama3.2"
 
     with pytest.raises(OAKError) as unknown:
         service.select("nope", "x")
     assert unknown.value.code == "OAK-MODEL-FAMILY-UNKNOWN"
-    with pytest.raises(OAKError) as interpreter:
-        service.select("local", "llama3.2", default_interpreter="chatty")
-    assert interpreter.value.code == "OAK-MODEL-INTERPRETER"
+    with pytest.raises(OAKError) as route:
+        service.select("local", "llama3.2", provider_route="cerebras")
+    assert route.value.code == "OAK-MODEL-ROUTE"
+
+
+def test_online_ai_uses_the_pinned_pair_else_the_preferred_model(tmp_path: Path) -> None:
+    service = _service(
+        tmp_path, discoverer=lambda family, previous: SNAPSHOT, route_chooser=_first_capable
+    )
+    assert service.online_pair() is None, "nothing to call before a catalogue or a pin"
+
+    service.set_key("huggingface", SecretValue(KEY), source="file")
+    service.discover("huggingface")
+    preferred = service.online_pair()
+    assert preferred == {
+        "model_id": "Qwen/Qwen3.8-27B",
+        "provider_route": "cerebras",
+        "source": "preferred",
+        "resolved_at": NOW,
+        "licence": "apache-2.0",
+        "output_price_per_million": 1.49,
+    }
+    assert service.status()["modes"]["online"]["available"] is True
+
+    # A pinned pair wins, and a route the catalogue lists as structured-output-capable is
+    # kept; the price shown is that route's.
+    service.select("huggingface", "Qwen/Qwen3.8-27B", provider_route="cerebras")
+    pinned = service.online_pair()
+    assert pinned is not None and pinned["source"] == "pinned"
+    assert pinned["provider_route"] == "cerebras" and pinned["resolved_at"] == NOW
+
+    # A model the catalogue does not know can still be pinned: the router decides.
+    unknown = service.select("huggingface", "openai/gpt-oss-20b")
+    assert unknown.provider_route is None
+    assert service.online_pair() == {
+        "model_id": "openai/gpt-oss-20b",
+        "provider_route": None,
+        "source": "pinned",
+        "resolved_at": NOW,
+        "licence": None,
+        "output_price_per_million": None,
+    }
+
+
+def test_a_pinned_pair_must_be_able_to_answer_with_structured_output(tmp_path: Path) -> None:
+    service = _service(tmp_path, discoverer=lambda family, previous: SNAPSHOT)
+    service.set_key("huggingface", SecretValue(KEY), source="file")
+    service.discover("huggingface")
+
+    with pytest.raises(OAKError) as no_route:
+        service.select("huggingface", "Qwen/Qwen3-8B")
+    assert no_route.value.code == "OAK-MODEL-ROUTE"
+    assert "structured output" in no_route.value.message
+
+    with pytest.raises(OAKError) as wrong_route:
+        service.select("huggingface", "Qwen/Qwen3.8-27B", provider_route="nscale")
+    assert wrong_route.value.code == "OAK-MODEL-ROUTE"
+    assert "cerebras" in wrong_route.value.message
+    assert service.selection("huggingface") is None, "a refused pin changes nothing"
+
+
+def test_a_sprint_9_configuration_file_is_read_and_upgraded(tmp_path: Path) -> None:
+    """The unreleased Sprint 9 build stored one selection naming its family."""
+
+    import json
+
+    directory = tmp_path / "models"
+    directory.mkdir(mode=0o700)
+    legacy = {
+        "schema_version": "0.1.0",
+        "id": "model-configuration.local",
+        "selection": {
+            "family": "huggingface",
+            "model_id": "openai/gpt-oss-120b",
+            "provider_route": "deepinfra",
+            "default_interpreter": "model",
+            "data_use_acknowledged": False,
+            "selected_at": NOW,
+        },
+        "credential_sources": {"huggingface": "file"},
+        "provider_policy": "cheapest",
+        "discovery": {},
+        "extensions": {},
+    }
+    (directory / "model-configuration.json").write_text(json.dumps(legacy), encoding="utf-8")
+    os.chmod(directory / "model-configuration.json", 0o600)
+
+    service = _service(tmp_path)
+    selection = service.selection("huggingface")
+    assert selection is not None
+    assert selection.model_id == "openai/gpt-oss-120b" and selection.provider_route == "deepinfra"
+    assert service.selection("local") is None
+
+    removed = dict(legacy, selection=dict(legacy["selection"], family="openai"))
+    (directory / "model-configuration.json").write_text(json.dumps(removed), encoding="utf-8")
+    assert _service(tmp_path).selections() == {"huggingface": None, "local": None}
 
 
 def test_discovery_is_explicit_and_unavailable_without_a_discoverer(tmp_path: Path) -> None:

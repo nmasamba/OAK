@@ -84,13 +84,11 @@ test.describe("model settings", () => {
 
     await page.getByLabel("Model identifier").fill("openai/gpt-oss-120b");
     await page.getByRole("button", { name: "Use this model" }).click();
-    await expect(
-      page.getByText("huggingface/openai/gpt-oss-120b").first(),
-    ).toBeVisible();
+    await expect(page.getByText("openai/gpt-oss-120b").first()).toBeVisible();
 
     // The masthead says which interpreter the workspace will use.
     await expect(page.locator(".masthead")).toContainText(
-      "huggingface/openai/gpt-oss-120b",
+      "openai/gpt-oss-120b",
     );
 
     await page.getByRole("button", { name: "Remove key" }).click();

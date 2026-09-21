@@ -209,44 +209,49 @@ def model_discoverer(family: str, previous: dict[str, Any] | None) -> dict[str, 
     )
 
 
-def create_model_interpreter() -> ModelInterpreterPort | None:
-    """The model adapter for the user's current selection, or ``None`` when none applies.
+def create_model_interpreter(mode: str) -> ModelInterpreterPort | None:
+    """The adapter for one model mode, or ``None`` when that mode has nothing to call.
 
-    ``None`` means "no model is configured": ``--interpreter model`` then refuses with
-    ``OAK-MODEL-NOT-CONFIGURED`` and ``auto`` stays deterministic. Nothing is imported from
-    the provider modules, and no socket is opened, until a selection actually exists.
+    ``None`` makes the service refuse with ``OAK-MODEL-NOT-CONFIGURED`` and commit nothing.
+    ``online`` calls the Hugging Face pair the user pinned, else the preferred one discovery
+    recorded; ``local`` calls the model pinned for the loopback server. Nothing is imported
+    from the provider modules, and no socket is opened, until one of them is asked for.
     """
 
-    configuration = create_model_configuration_service()
-    selection = configuration.selection()
-    if selection is None or selection.default_interpreter != "model":
+    if mode not in {"online", "local"}:
         return None
-    family = selection.family
+    configuration = create_model_configuration_service()
+    if mode == "local":
+        selection = configuration.selection("local")
+        if selection is None:
+            return None
+        family, model_id, route = "local", selection.model_id, None
+    else:
+        pair = configuration.online_pair()
+        if pair is None:
+            return None
+        family, model_id, route = "huggingface", str(pair["model_id"]), pair.get("provider_route")
     from oak.adapters.models.hosted_interpreter import HostedModelInterpreter, build_path_hints
-    from oak.adapters.models.providers import profile_for, recommended_route
+    from oak.adapters.models.providers import profile_for
 
     profile = profile_for(family, local_endpoint=os.getenv("OAK_MODEL_ENDPOINT_LOCAL"))
-    route = selection.provider_route
-    if route is None and family == "huggingface":
-        snapshot = configuration.discovery_snapshot(family) or {}
-        listed = next(
-            (
-                model
-                for model in snapshot.get("models", [])
-                if model.get("id") == selection.model_id
-            ),
-            None,
-        )
-        route = recommended_route(listed, str(snapshot.get("provider_policy", "cheapest")))
     registry = SchemaRegistry.from_directory(canonical_schema_directory())
     return HostedModelInterpreter(
         profile,
-        selection.model_id,
+        model_id,
         provider_route=route,
         credential_provider=lambda: configuration.credential_for(family),
         transport=_model_transport(profile),
         path_hints=build_path_hints(registry.schema("system-intent.schema.json")),
     )
+
+
+def _choose_route(listed: dict[str, Any] | None, policy: str) -> str | None:
+    """The provider route for a listed model under the user's policy; imported lazily."""
+
+    from oak.adapters.models.providers import recommended_route
+
+    return recommended_route(listed, policy)
 
 
 def canonical_catalogue_directory() -> Path:
@@ -440,9 +445,11 @@ def create_model_configuration_service() -> ModelConfigurationService:
         },
         clock=_utc_now,
         discoverer=model_discoverer,
+        route_chooser=_choose_route,
         discovery_cache_seconds=model_discovery_cache_seconds(),
         token_reader=read_model_token,
         credentials_location=str(credentials_directory),
+        local_endpoint=os.getenv("OAK_MODEL_ENDPOINT_LOCAL"),
         under_compose=os.getenv("OAK_ARTIFACT_ROOT", "").startswith("/var/lib/oak/"),
     )
 

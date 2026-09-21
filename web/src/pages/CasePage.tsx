@@ -92,7 +92,9 @@ export function CasePage({ caseId }: { readonly caseId: string }) {
 
   // The token is sent only when this browser has one; without it the API answers every
   // request that would spend the operator's credential with OAK-MODEL-TOKEN-REQUIRED.
-  const interpretWith = (interpreter?: "model" | "deterministic") => {
+  const interpretWith = (
+    interpreter?: "online" | "local" | "deterministic",
+  ) => {
     const token = currentModelToken();
     return runAction(
       "interpret",

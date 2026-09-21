@@ -1,11 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
-"""OAK-S9-005: looking up the current best free model, without trusting what comes back.
+"""OAK-S9-005 / OAK-S10-003: looking up the current top open model, without trusting the answer.
 
 The lookup reads two public catalogues anonymously. Model-card metadata is author-controlled,
-so the rules under test are that the filter is real (gated, non-permissive and untrusted
-namespaces never survive), that a model with no structured-output route is never recommended,
-that nothing from the brief or the credential store is sent, and that an unreachable
-catalogue produces the pinned chain labelled `pinned` rather than a pretend live answer.
+so the rules under test are that the filter is real (gated models and untrusted namespaces
+never survive), that a model with no structured-output route is never recommended, that the
+licence is recorded rather than trusted, that the preferred model is the first survivor in
+the Hub's trending order, that nothing from the brief or the credential store is sent, and
+that an unreachable catalogue produces the pinned chain labelled `pinned` rather than a
+pretend live answer.
 """
 
 from __future__ import annotations
@@ -17,8 +19,11 @@ import pytest
 
 from oak.adapters.models.huggingface_catalogue import (
     HUB_MODELS_URL,
+    PINNED_AS_OF,
     PINNED_MODELS,
     ROUTER_MODELS_URL,
+    TRUSTED_NAMESPACES,
+    TRUSTED_NAMESPACES_AS_OF,
     discover_huggingface,
     pinned_snapshot,
 )
@@ -82,7 +87,7 @@ def _snapshot(fetcher: _Fetcher) -> dict[str, Any]:
         {
             "schema_version": "0.1.0",
             "id": "model-configuration.local",
-            "selection": None,
+            "selection": {},
             "credential_sources": {},
             "provider_policy": "cheapest",
             "discovery": {"huggingface": snapshot},
@@ -111,7 +116,7 @@ def test_both_catalogue_reads_are_anonymous_public_gets() -> None:
     assert "direction=-1" in HUB_MODELS_URL
 
 
-def test_the_recommended_model_is_the_first_pinned_one_the_router_still_serves() -> None:
+def test_the_preferred_model_is_the_first_trending_survivor_not_a_pin() -> None:
     fetcher = _Fetcher(
         _router(
             _served("Qwen/Qwen3-235B-A22B-Instruct-2507"),
@@ -129,41 +134,61 @@ def test_the_recommended_model_is_the_first_pinned_one_the_router_still_serves()
 
     assert snapshot["source"] == "live"
     assert snapshot["fetched_at"] == FETCHED_AT
-    assert snapshot["recommended"] == "openai/gpt-oss-120b"
-    assert [model["id"] for model in snapshot["models"]][:3] == [
-        "openai/gpt-oss-120b",
-        "openai/gpt-oss-20b",
+    assert snapshot["recommended"] == "Qwen/Qwen3-235B-A22B-Instruct-2507"
+    assert [model["id"] for model in snapshot["models"]] == [
         "Qwen/Qwen3-235B-A22B-Instruct-2507",
-    ]
+        "openai/gpt-oss-20b",
+        "openai/gpt-oss-120b",
+    ], "the Hub's trending order, not the pinned order"
 
 
-def test_a_trending_permissive_model_the_pins_do_not_know_is_still_offered() -> None:
+def test_a_pinned_model_the_hub_did_not_list_is_offered_after_the_trending_ones() -> None:
     fetcher = _Fetcher(
-        _router(_served("zai-org/GLM-5.2"), _served("openai/gpt-oss-120b")),
-        _hub(_listed("zai-org/GLM-5.2", licence="mit"), _listed("openai/gpt-oss-120b")),
+        _router(_served("zai-org/GLM-5.2"), _served(PINNED_MODELS[0].id)),
+        _hub(_listed("zai-org/GLM-5.2", licence="mit")),
     )
 
     snapshot = _snapshot(fetcher)
 
     identifiers = [model["id"] for model in snapshot["models"]]
-    assert identifiers == ["openai/gpt-oss-120b", "zai-org/GLM-5.2"]
-    assert snapshot["models"][1]["licence"] == "mit"
+    assert identifiers == ["zai-org/GLM-5.2", PINNED_MODELS[0].id]
+    assert snapshot["models"][0]["licence"] == "mit"
+    assert snapshot["recommended"] == "zai-org/GLM-5.2"
+
+
+@pytest.mark.parametrize(
+    "entry,licence",
+    [
+        (_listed("moonshotai/Kimi-K2-Instruct", licence="other"), "other"),
+        (_listed("zai-org/GLM-5.3", licence="other"), "other"),
+        (_listed("Qwen/Qwen3-8B", licence=None), "unknown"),
+        (_listed("Qwen/Qwen3-8B", licence="apache-2.0"), "apache-2.0"),
+    ],
+)
+def test_the_licence_is_recorded_and_shown_rather_than_used_to_exclude(
+    entry: dict[str, Any], licence: str
+) -> None:
+    identifier = str(entry["id"])
+    fetcher = _Fetcher(_router(_served(identifier)), _hub(entry))
+
+    snapshot = _snapshot(fetcher)
+
+    assert snapshot["source"] == "live"
+    assert [model["id"] for model in snapshot["models"]] == [identifier]
+    assert snapshot["models"][0]["licence"] == licence
 
 
 @pytest.mark.parametrize(
     "entry,reason",
     [
         (_listed("meta-llama/Llama-3.3-70B-Instruct", licence="llama3.3", gated="manual"), "gated"),
-        (_listed("google/gemma-3-27b-it", licence="gemma", gated="manual"), "gated and bespoke"),
-        (_listed("moonshotai/Kimi-K2-Instruct", licence="other"), "non-permissive licence"),
-        (_listed("zai-org/GLM-5.3", licence="other"), "bespoke licence"),
+        (_listed("google/gemma-3-27b-it", licence="gemma", gated="manual"), "gated"),
         (_listed("OBLITERATUS/Qwen3.8-27B-OBLITERATED"), "untrusted namespace"),
         (_listed("somebody/finetune-of-something"), "untrusted namespace"),
-        (_listed("Qwen/Qwen3-8B", licence=None), "no declared licence"),
         (_listed("Qwen/Qwen3-8B", gated=True), "gated by boolean"),
     ],
 )
-def test_the_filter_drops_gated_bespoke_and_untrusted_candidates(
+def test_the_filter_drops_gated_and_untrusted_candidates(
     entry: dict[str, Any], reason: str
 ) -> None:
     identifier = str(entry["id"])
@@ -256,10 +281,15 @@ def test_hostile_card_metadata_cannot_widen_the_filter_or_the_snapshot() -> None
 
     snapshot = _snapshot(fetcher)
 
-    # Only the single-licence entry survives. The dual-licensed model is refused despite a
-    # permissive first element, and being in the pinned chain does not rescue it.
-    assert [model["id"] for model in snapshot["models"]] == ["openai/gpt-oss-20b"]
-    assert snapshot["models"][0]["licence"] == "mit"
+    # The dual-licensed model is offered as `other`, never as its most generous member; the
+    # malformed entries and the untrusted namespace never appear; the entry with unreadable
+    # card data is offered with its licence honestly unknown.
+    assert [model["id"] for model in snapshot["models"]] == [
+        "openai/gpt-oss-120b",
+        "openai/gpt-oss-20b",
+        "Qwen/Qwen3-8B",
+    ]
+    assert [model["licence"] for model in snapshot["models"]] == ["other", "mit", "unknown"]
     assert snapshot["source"] == "live"
 
 
@@ -274,7 +304,7 @@ def test_an_unreachable_catalogue_falls_back_to_the_pinned_chain(code: str) -> N
     snapshot = discover_huggingface(failing, fetched_at=FETCHED_AT)
 
     assert snapshot["source"] == "pinned"
-    assert snapshot["recommended"] == PINNED_MODELS[0].id == "openai/gpt-oss-120b"
+    assert snapshot["recommended"] == PINNED_MODELS[0].id == "Qwen/Qwen3.8-27B"
     assert [model["id"] for model in snapshot["models"]] == [
         descriptor.id for descriptor in PINNED_MODELS
     ]
@@ -297,14 +327,55 @@ def test_a_refusing_catalogue_falls_back_rather_than_offering_nothing(status: in
     assert snapshot["source"] == "pinned"
 
 
-def test_the_pinned_chain_is_permissive_and_structured_output_capable() -> None:
+def test_the_pinned_chain_is_permissive_trusted_and_structured_output_capable() -> None:
     assert [descriptor.id for descriptor in PINNED_MODELS] == [
+        "Qwen/Qwen3.8-27B",
+        "zai-org/GLM-5.3-Flash",
         "openai/gpt-oss-120b",
-        "openai/gpt-oss-20b",
-        "Qwen/Qwen3-235B-A22B-Instruct-2507",
     ]
+    assert PINNED_AS_OF == TRUSTED_NAMESPACES_AS_OF == "2026-09-21"
     for descriptor in PINNED_MODELS:
         assert descriptor.licence in {"apache-2.0", "mit", "bsd-3-clause"}
         assert descriptor.providers
         assert all(route.supports_structured_output for route in descriptor.providers)
-        assert descriptor.id.split("/", 1)[0] in {"openai", "Qwen"}
+        assert descriptor.id.split("/", 1)[0] in TRUSTED_NAMESPACES
+        assert all(route.throughput is not None for route in descriptor.providers)
+
+
+def test_free_promotions_and_throughput_are_read_into_the_snapshot() -> None:
+    served = {
+        "id": "openai/gpt-oss-120b",
+        "providers": [
+            {
+                "provider": "groq",
+                "status": "live",
+                "supports_structured_output": True,
+                "pricing": {"output": 0.75},
+                "is_free": True,
+                "throughput": 427.2,
+            },
+            {
+                "provider": "deepinfra",
+                "status": "live",
+                "supports_structured_output": True,
+                "pricing": {"output": 0.17},
+                "is_free": "yes",
+                "throughput": -3,
+            },
+            {
+                "provider": "cerebras",
+                "status": "live",
+                "supports_structured_output": True,
+                "throughput": float("inf"),
+            },
+        ],
+    }
+    fetcher = _Fetcher(_router(served), _hub(_listed("openai/gpt-oss-120b")))
+
+    routes = _snapshot(fetcher)["models"][0]["providers"]
+
+    assert [(r["provider"], r["is_free"], r["throughput"]) for r in routes] == [
+        ("groq", True, 427.2),
+        ("deepinfra", False, None),
+        ("cerebras", False, None),
+    ]

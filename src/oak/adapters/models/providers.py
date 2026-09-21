@@ -52,12 +52,16 @@ class ProviderRoute:
     provider: str
     supports_structured_output: bool
     output_price_per_million: float | None
+    is_free: bool = False
+    throughput: float | None = None
 
     def to_document(self) -> dict[str, Any]:
         return {
             "provider": self.provider,
             "supports_structured_output": self.supports_structured_output,
             "output_price_per_million": self.output_price_per_million,
+            "is_free": self.is_free,
+            "throughput": self.throughput,
         }
 
 
@@ -348,25 +352,33 @@ def _huggingface_routes(value: Any) -> tuple[ProviderRoute, ...]:
         if not isinstance(provider, str) or not PROVIDER_NAME.match(provider):
             continue
         pricing = entry.get("pricing")
-        output_price: float | None = None
-        if isinstance(pricing, dict):
-            candidate = pricing.get("output")
-            if isinstance(candidate, (int, float)) and not isinstance(candidate, bool):
-                try:
-                    price = float(candidate)
-                except (OverflowError, ValueError):
-                    price = float("nan")
-                output_price = price if math.isfinite(price) and price >= 0 else None
+        output_price = (
+            _finite_non_negative(pricing.get("output")) if isinstance(pricing, dict) else None
+        )
         routes.append(
             ProviderRoute(
                 provider=provider,
                 supports_structured_output=entry.get("supports_structured_output") is True,
                 output_price_per_million=output_price,
+                is_free=entry.get("is_free") is True,
+                throughput=_finite_non_negative(entry.get("throughput")),
             )
         )
         if len(routes) == 32:
             break
     return tuple(routes)
+
+
+def _finite_non_negative(value: Any) -> float | None:
+    """A catalogue number OAK will store, or ``None``: never a bool, NaN, infinity or a negative."""
+
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    try:
+        number = float(value)
+    except (OverflowError, ValueError):
+        return None
+    return number if math.isfinite(number) and number >= 0 else None
 
 
 def _created(value: Any) -> str | None:
@@ -623,7 +635,13 @@ def _rank(profile: ProviderProfile, descriptors: list[ModelDescriptor]) -> list[
 
 
 def recommended_route(descriptor_document: dict[str, Any] | None, policy: str) -> str | None:
-    """The Hugging Face provider to pin for structured output, or ``None``."""
+    """The Hugging Face provider to pin for structured output, or ``None``.
+
+    Only routes that support structured output are considered. ``cheapest`` takes a route
+    the catalogue flags as free while a promotion lasts, else the lowest published output
+    price; ``fastest`` takes the highest measured throughput. With nothing to compare, the
+    catalogue's first capable route is used.
+    """
 
     if not descriptor_document:
         return None
@@ -634,16 +652,27 @@ def recommended_route(descriptor_document: dict[str, Any] | None, policy: str) -
     ]
     if not capable:
         return None
-    if policy == "cheapest":
-        priced = [route for route in capable if route.get("output_price_per_million") is not None]
-        if priced:
+    if policy == "fastest":
+        measured = [route for route in capable if _finite_non_negative(route.get("throughput"))]
+        if measured:
             return str(
-                min(
-                    priced,
-                    key=lambda route: (
-                        float(route["output_price_per_million"]),
-                        str(route["provider"]),
-                    ),
+                max(
+                    measured,
+                    key=lambda route: (float(route["throughput"]), str(route["provider"])),
                 )["provider"]
             )
-    return str(capable[0]["provider"])
+        return str(capable[0]["provider"])
+    free = [route for route in capable if route.get("is_free") is True]
+    pool = free or capable
+    priced = [route for route in pool if route.get("output_price_per_million") is not None]
+    if priced:
+        return str(
+            min(
+                priced,
+                key=lambda route: (
+                    float(route["output_price_per_million"]),
+                    str(route["provider"]),
+                ),
+            )["provider"]
+        )
+    return str(pool[0]["provider"])

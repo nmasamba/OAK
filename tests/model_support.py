@@ -112,7 +112,7 @@ class BindingFakeModelInterpreter:
 
 def model_factory(
     adapter: ModelInterpreterPort | None,
-) -> Callable[[], ModelInterpreterPort | None]:
-    """A factory in the shape ``DesignCaseService`` accepts."""
+) -> Callable[[str], ModelInterpreterPort | None]:
+    """A factory in the shape ``DesignCaseService`` accepts: the same adapter for any mode."""
 
-    return lambda: adapter
+    return lambda mode: adapter
