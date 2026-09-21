@@ -12,9 +12,11 @@ const REPO_ROOT = path.resolve(
   "..",
 );
 
-// A synthetic key in the repository's test convention. The whole point of this spec is that
-// it never comes back, so it must be distinctive enough to find anywhere it might.
-const TEST_KEY = "oak-test-key-openai-web-0123456789ab";
+// A synthetic token in the repository's test convention. The whole point of this spec is
+// that it never comes back, so it must be distinctive enough to find anywhere it might.
+// Storing it makes the API ask huggingface.co about it once (nothing is generated); the
+// Hub answers that it is not a token it knows, and that verdict is what the page shows.
+const TEST_KEY = "oak-test-key-huggingface-web-0123456789";
 
 function api(command: string): string {
   return execSync(`docker compose exec -T api ${command}`, {
@@ -34,7 +36,8 @@ test.describe("model settings", () => {
   test.afterEach(() => {
     if (process.env["OAK_E2E_DOCKER"] === "1") {
       try {
-        api("oak models clear");
+        api("oak models clear huggingface");
+        api("oak models clear local");
         api("oak models remove-key huggingface");
       } catch {
         // The test may have failed before storing anything.
@@ -42,7 +45,7 @@ test.describe("model settings", () => {
     }
   });
 
-  test("a key can be stored and removed, and never comes back", async ({
+  test("a token can be stored, verified, pinned against and removed, and never comes back", async ({
     page,
   }) => {
     requireStack();
@@ -70,30 +73,49 @@ test.describe("model settings", () => {
 
     // The fragment carried the token, so the paste form is gone and the address bar is clean.
     expect(page.url()).not.toContain("token=");
-    await expect(page.getByLabel("Model family")).toBeVisible();
+    await expect(page.getByLabel("Hugging Face token")).toBeVisible();
+    await expect(
+      page.getByText("No Hugging Face token is stored on this machine."),
+    ).toBeVisible();
 
-    await page.getByLabel("Model family").selectOption("huggingface");
-    await page.getByLabel("API key").fill(TEST_KEY);
-    await page.getByRole("button", { name: "Store key" }).click();
+    await page.getByLabel("Hugging Face token").fill(TEST_KEY);
+    await page.getByRole("button", { name: "Store and verify" }).click();
 
-    await expect(page.getByText(/A key is stored in the/)).toBeVisible();
+    await expect(page.getByText(/A token is stored in the/)).toBeVisible({
+      timeout: 30_000,
+    });
     await expect(page.getByText(/fingerprint/)).toBeVisible();
-    // The field is cleared on submit so the key does not sit in the DOM.
-    await expect(page.getByLabel("API key")).toHaveValue("");
+    // The verdict is shown with the time it was given — whatever the Hub said about a
+    // token it has never issued — never a bare tick.
+    await expect(page.locator("[data-verdict]")).toBeVisible();
+    await expect(page.locator("[data-verdict]")).toContainText(/ago|just now/);
+    // The field is cleared on submit so the token does not sit in the DOM.
+    await expect(page.getByLabel("Hugging Face token")).toHaveValue("");
     expect(await page.content()).not.toContain(TEST_KEY);
 
-    await page.getByLabel("Model identifier").fill("openai/gpt-oss-120b");
+    // Local AI needs nothing but a model name; pinning one makes the mode available.
+    await page.getByLabel("Model the local server serves").fill("qwen3:8b");
     await page.getByRole("button", { name: "Use this model" }).click();
-    await expect(page.getByText("openai/gpt-oss-120b").first()).toBeVisible();
+    await expect(page.getByText("Pinned qwen3:8b for Local AI.")).toBeVisible();
 
-    // The masthead says which interpreter the workspace will use.
-    await expect(page.locator(".masthead")).toContainText(
-      "openai/gpt-oss-120b",
+    // The intake form offers the three ways to read a brief, with Local AI now enabled.
+    await page.goto("/");
+    const chooser = page.getByLabel("How should this brief be read?");
+    await expect(chooser).toBeVisible();
+    await expect(chooser.locator("option")).toHaveCount(3);
+    await expect(chooser).toHaveValue("deterministic");
+    await chooser.selectOption("local");
+    await expect(page.locator("[data-mode-detail=local]")).toContainText(
+      "qwen3:8b",
     );
+    // The masthead names the Online AI pair that would run and the token's verdict age.
+    await expect(page.locator(".masthead")).toContainText("Online AI:");
+    await expect(page.locator(".masthead")).toContainText("token");
 
-    await page.getByRole("button", { name: "Remove key" }).click();
+    await page.goto("/settings/models");
+    await page.getByRole("button", { name: "Remove token" }).click();
     await expect(
-      page.getByText("No key is stored for this family."),
+      page.getByText("No Hugging Face token is stored on this machine."),
     ).toBeVisible();
 
     expect(leaked).toEqual([]);
@@ -109,7 +131,7 @@ test.describe("model settings", () => {
         name: "Paste the model-configuration token",
       }),
     ).toBeVisible();
-    await expect(page.getByLabel("Model family")).toHaveCount(0);
+    await expect(page.getByLabel("Hugging Face token")).toHaveCount(0);
   });
 
   test("the settings page has no accessibility violations", async ({
@@ -119,7 +141,7 @@ test.describe("model settings", () => {
     const token = api("oak models token").trim();
     await page.goto(`/#token=${encodeURIComponent(token)}`);
     await page.goto("/settings/models");
-    await expect(page.getByLabel("Model family")).toBeVisible();
+    await expect(page.getByLabel("Hugging Face token")).toBeVisible();
 
     const results = await new AxeBuilder({ page })
       .withTags(["wcag2a", "wcag2aa"])
@@ -128,7 +150,7 @@ test.describe("model settings", () => {
     expect(results.violations).toEqual([]);
   });
 
-  test("a plain-language brief is the default, and says so when no model is set", async ({
+  test("a plain-language brief is the default, read deterministically unless chosen otherwise", async ({
     page,
   }) => {
     requireStack();
@@ -137,10 +159,10 @@ test.describe("model settings", () => {
       page.getByRole("heading", { name: "Describe what you want to build" }),
     ).toBeVisible();
     await expect(page.getByLabel("Brief content")).toBeVisible();
+    const chooser = page.getByLabel("How should this brief be read?");
+    await expect(chooser).toHaveValue("deterministic");
     await expect(
-      page.locator("p.hint", {
-        hasText: /No model is configured|A model is configured/,
-      }),
-    ).toBeVisible();
+      page.locator("[data-mode-detail=deterministic]"),
+    ).toContainText("nothing leaves");
   });
 });

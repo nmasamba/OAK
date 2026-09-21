@@ -294,9 +294,18 @@ def test_a_sprint_9_configuration_file_is_read_and_upgraded(tmp_path: Path) -> N
             "data_use_acknowledged": False,
             "selected_at": NOW,
         },
-        "credential_sources": {"huggingface": "file"},
+        # Sprint 9 also left per-family entries for families that no longer exist.
+        "credential_sources": {"huggingface": "file", "openai": "none", "xai": "file"},
         "provider_policy": "cheapest",
-        "discovery": {},
+        "discovery": {
+            "gemini": {
+                "fetched_at": NOW,
+                "source": "live",
+                "recommended": "gemini-3.8-flash",
+                "filtered_out_count": 0,
+                "models": [],
+            }
+        },
         "extensions": {},
     }
     (directory / "model-configuration.json").write_text(json.dumps(legacy), encoding="utf-8")
@@ -307,6 +316,9 @@ def test_a_sprint_9_configuration_file_is_read_and_upgraded(tmp_path: Path) -> N
     assert selection is not None
     assert selection.model_id == "openai/gpt-oss-120b" and selection.provider_route == "deepinfra"
     assert service.selection("local") is None
+    status = service.status()
+    assert set(status["credentials"]) == {"huggingface", "local"}, "removed families are dropped"
+    assert status["discovery"] == {}, "a removed family's snapshot is dropped, not refused"
 
     removed = dict(legacy, selection=dict(legacy["selection"], family="openai"))
     (directory / "model-configuration.json").write_text(json.dumps(removed), encoding="utf-8")

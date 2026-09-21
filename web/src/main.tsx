@@ -5,7 +5,7 @@ import { createRoot } from "react-dom/client";
 import { getModels, type ModelStatusResponse } from "./generated/api";
 import { getVersion } from "./generated/api";
 import { MODEL_SETTINGS_CHANGED, currentModelToken } from "./modelToken";
-import { asObject, asString } from "./support";
+import { ageOf, asObject, asString } from "./support";
 import { BundlePage } from "./pages/BundlePage";
 import { CandidatesPage } from "./pages/CandidatesPage";
 import { CaseListPage } from "./pages/CaseListPage";
@@ -105,10 +105,20 @@ function useInterpreterLabel(path: string): string | null {
         const pair = online === null ? null : asObject(online["pair"]);
         const model = pair === null ? null : asString(pair["model_id"]);
         const route = pair === null ? null : asString(pair["provider_route"]);
+        const verification =
+          online === null ? null : asObject(online["verification"]);
+        const verdict =
+          verification === null ? null : asString(verification["verdict"]);
+        const checkedAt =
+          verification === null ? null : asString(verification["checked_at"]);
+        const tokenText =
+          verdict === null || checkedAt === null
+            ? "token not verified"
+            : `token ${verdict} ${ageOf(checkedAt)}`;
         setLabel(
           model === null
-            ? "Online AI: not set up"
-            : `Online AI: ${model}${route === null ? "" : ` via ${route}`}`,
+            ? `Online AI: not set up · ${tokenText}`
+            : `Online AI: ${model}${route === null ? "" : ` via ${route}`} · ${tokenText}`,
         );
       })
       .catch(() => setLabel(null));

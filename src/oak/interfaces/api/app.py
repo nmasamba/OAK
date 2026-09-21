@@ -49,6 +49,7 @@ from oak.interfaces.api.models import (
     EvaluateCandidateRequest,
     FieldProblem,
     HealthResponse,
+    ModelCatalogueResponse,
     ModelCredentialRequest,
     ModelCredentialStatus,
     ModelDiscoveryResponse,
@@ -1063,6 +1064,22 @@ def create_app(
         service.clear_selection(family)
         _no_store(response)
         return _status_document(service)
+
+    @api.get(
+        "/v1/models/{family}/catalogue", response_model=ModelCatalogueResponse, tags=["models"]
+    )
+    def get_model_catalogue(
+        family: str,
+        response: Response,
+        auth: AuthorityDependency,
+        _token: ModelTokenDependency = None,
+    ) -> ModelCatalogueResponse:
+        """The catalogue snapshot `discover` last recorded for a family; contacts nothing."""
+
+        del auth, _token
+        snapshot = configuration().discovery_snapshot(family)
+        _no_store(response)
+        return ModelCatalogueResponse(family=family, discovery=snapshot)
 
     @api.post("/v1/models/{family}:verify", response_model=ModelStatusResponse, tags=["models"])
     def verify_model_credential(

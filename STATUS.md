@@ -7,7 +7,7 @@
 - **Phase:** Sprint 10 in progress — Hugging Face only: Deterministic, Online AI and Local AI modes with a corroborated token (`OAK-S10-001`–`008`), authorized by the owner on 2026-09-21, on branch `hf-only-modes`. Sprint 9 (`OAK-S9-001`–`009`) is merged as PR #21 (`88fa876`). `0.7.1` was approved by `nmasamba` on 2026-08-27 and **published as a GitHub Release on 2026-09-03**; nothing about it changes in this sprint
 - **Completed plans:** `docs/exec-plans/completed/OAK-S0-001-009-walking-skeleton.md`, `docs/exec-plans/completed/OAK-S1-001-010-local-design-case.md`, `docs/exec-plans/completed/OAK-S2-001-011-candidate-planning.md`, `docs/exec-plans/completed/OAK-S3-001-009-persistent-rest-jobs.md`, `docs/exec-plans/completed/OAK-S4-001-009-web-workspace.md`, `docs/exec-plans/completed/OAK-S5-001-011-signed-runner.md`, `docs/exec-plans/completed/OAK-S6-001-008-policy-adapter-sdk.md`, `docs/exec-plans/completed/OAK-S7-001-008-mcp-portal-interface-parity.md`, `docs/exec-plans/completed/OAK-S8-001-009-community-release-hardening.md`, `docs/exec-plans/completed/OAK-PL-001-007-pre-launch-hardening.md`, `docs/exec-plans/completed/OAK-FS-001-003-final-sweep.md`, and `docs/exec-plans/completed/OAK-S9-001-009-model-provider-intake.md`
 - **Active plan:** `docs/exec-plans/active/OAK-S10-001-008-huggingface-only-modes.md`
-- **Next task:** `OAK-S10-001` (claimed below). Sprint 9 is merged (PR #21 → `88fa876`;
+- **Next task:** `OAK-S10-006` (documentation, ADRs and governance); `OAK-S10-001`–`005` are complete on the branch. Sprint 9 is merged (PR #21 → `88fa876`;
   `origin/main` is `3430c71`). The
   pre-launch hardening (PR #13, `2d85322`), the documentation sweep (PR #15 `ca160a7`, PR #16
   `3f9122f`), the `0.7.1` approval and tag (`c614414`), the image-tooling fixes (PRs #18, #19)
@@ -121,12 +121,12 @@
 | `OAK-S9-007` | complete | Models settings page, natural-language default intake, provenance on the confirmation screen, model-failure recovery, browser tests |
 | `OAK-S9-008` | complete | Manual chapter and screenshot, ADR-0003 and ADR-0016, `TM-20`, security invariants, interface contract, `OAK-FR-INT-009`/`OAK-NFR-SEC-007`, `AGENTS.md`, `skills.md`, terminology, evidence |
 | `OAK-S9-009` | complete | Closing adversarial audit (20 findings, 11 confirmed, all fixed with regression tests), status and changelog in both repositories, PR |
-| `OAK-S10-001` | in progress | Branch `hf-only-modes` from `origin/main` (`3430c71`), the ExecPlan, Sprint 10 registered in governance, tasks claimed, baseline gates green |
-| `OAK-S10-002` | claimed | The five hosted families other than Hugging Face removed with their fixtures, variables, rows, enum members and tests |
-| `OAK-S10-003` | claimed | `deterministic` (default), `online` and `local` modes replace `auto`/`model` on every interface; preferred and pinned model × provider pairs |
-| `OAK-S10-004` | claimed | Token corroborated with the Hub's `whoami-v2`; verdict stored with its time, stale after a day; pre-flight before an online interpretation; refusal before spend |
-| `OAK-S10-005` | claimed | Mode dropdown on intake and case pages; Settings with verdict, Refresh, pairs and Local AI model; masthead label repurposed; browser tests and manual capture |
-| `OAK-S10-006` | claimed | Documentation, ADRs, threat model, register (`RR-039`, `RR-042`), evidence, generated artifacts in both repositories |
+| `OAK-S10-001` | complete | Branch `hf-only-modes` from `origin/main` (`3430c71`), the ExecPlan, Sprint 10 registered in governance, tasks claimed, baseline gates green |
+| `OAK-S10-002` | complete | The five hosted families other than Hugging Face removed with their fixtures, variables, rows, enum members and tests |
+| `OAK-S10-003` | complete | `deterministic` (default), `online` and `local` modes replace `auto`/`model` on every interface; preferred and pinned model × provider pairs |
+| `OAK-S10-004` | complete | Token corroborated with the Hub's `whoami-v2`; verdict stored with its time, stale after a day; pre-flight before an online interpretation; refusal before spend |
+| `OAK-S10-005` | complete | Mode dropdown on intake and case pages; Settings with verdict, Refresh, pairs and Local AI model; masthead label repurposed; browser tests and manual capture |
+| `OAK-S10-006` | in progress | Documentation, ADRs, threat model, register (`RR-039`, `RR-042`), evidence, generated artifacts in both repositories |
 | `OAK-S10-007` | claimed | Live run, adversarial audit, documentation sweep, PR with remote CI green |
 | `OAK-S10-008` | claimed | Release `0.8.0` after the merge: touch-list, decision record, evidence, tag; publication stays the owner's |
 

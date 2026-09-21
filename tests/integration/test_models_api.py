@@ -135,6 +135,7 @@ def test_every_model_route_requires_the_capability_token(client: TestClient) -> 
         ("DELETE", "/v1/models/selection/huggingface", None),
         ("POST", "/v1/models/huggingface:discover", None),
         ("POST", "/v1/models/huggingface:verify", None),
+        ("GET", "/v1/models/huggingface/catalogue", None),
     )
     for method, path, body in calls:
         for token in (None, "wrong-token-that-is-long-enough-01"):
@@ -244,6 +245,15 @@ def test_discovery_reports_its_snapshot_and_marks_staleness(
         status = client.get("/v1/models", headers=_headers()).json()
         assert status["discovery"]["huggingface"]["stale"] is True
         assert status["discovery"]["huggingface"]["model_count"] == 1
+
+        # The stored snapshot is readable back without contacting anything, so the
+        # workspace can list the pairs; a family never discovered answers null.
+        catalogue = client.get("/v1/models/huggingface/catalogue", headers=_headers())
+        assert catalogue.status_code == 200
+        assert catalogue.headers["Cache-Control"] == "no-store"
+        assert catalogue.json()["discovery"]["models"][0]["id"] == "openai/gpt-oss-120b"
+        empty = client.get("/v1/models/local/catalogue", headers=_headers())
+        assert empty.status_code == 200 and empty.json()["discovery"] is None
 
 
 def test_discovery_without_a_discoverer_is_an_explicit_refusal(client: TestClient) -> None:
@@ -376,6 +386,7 @@ def test_the_document_declares_the_token_required_where_the_server_requires_it(
         ("/v1/models/selection/{family}", "delete"),
         ("/v1/models/{family}:discover", "post"),
         ("/v1/models/{family}:verify", "post"),
+        ("/v1/models/{family}/catalogue", "get"),
     ):
         parameters = document["paths"][path][method]["parameters"]
         token = next(p for p in parameters if p["name"] == "X-OAK-Model-Token")

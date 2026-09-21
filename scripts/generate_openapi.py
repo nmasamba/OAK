@@ -233,6 +233,8 @@ export interface ModelCredentialStatus {
   readonly source: "keychain" | "file" | "env" | "none";
   readonly fingerprint: string | null;
   readonly length: number | null;
+  /** What the provider last said about the credential, with the time it said it. */
+  readonly verification: JsonObject | null;
 }
 
 export interface ModelFamily {
@@ -268,6 +270,11 @@ export interface ModelStatusResponse {
 export interface ModelDiscoveryResponse {
   readonly family: string;
   readonly discovery: JsonObject;
+}
+
+export interface ModelCatalogueResponse {
+  readonly family: string;
+  readonly discovery: JsonObject | null;
 }
 
 export interface ModelSelectionInput {
@@ -357,6 +364,19 @@ export async function clearModelSelection(
   return requestJson<ModelStatusResponse>(
     `/v1/models/selection/${encodeURIComponent(family)}`,
     { method: "DELETE", headers: modelHeaders(modelToken) },
+    baseUrl,
+  );
+}
+
+/** The catalogue snapshot `discover` last recorded; read from local state, contacts nothing. */
+export async function getModelCatalogue(
+  family: string,
+  modelToken: string,
+  baseUrl = "",
+): Promise<ModelCatalogueResponse> {
+  return requestJson<ModelCatalogueResponse>(
+    `/v1/models/${encodeURIComponent(family)}/catalogue`,
+    { headers: modelHeaders(modelToken) },
     baseUrl,
   );
 }

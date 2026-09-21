@@ -12,6 +12,7 @@ from oak.contracts import SchemaRegistry
 from oak.domain import OAKError, canonical_json_bytes
 
 CONFIGURATION_FILE_NAME = "model-configuration.json"
+CURRENT_FAMILIES = frozenset({"huggingface", "local"})
 CONFIGURATION_SCHEMA = "model-configuration.schema.json"
 CONFIGURATION_CODE = "OAK-MODEL-CONFIGURATION-FILE"
 _MAXIMUM_CONFIGURATION_BYTES = 1_048_576
@@ -69,11 +70,20 @@ def _upgrade(document: dict[str, Any]) -> dict[str, Any]:
     elif isinstance(selection, dict) and "family" in selection:
         family = selection.get("family")
         upgraded: dict[str, Any] = {}
-        if family in {"huggingface", "local"}:
+        if family in CURRENT_FAMILIES:
             upgraded[str(family)] = {
                 "model_id": selection.get("model_id"),
                 "provider_route": selection.get("provider_route"),
                 "selected_at": selection.get("selected_at"),
             }
         document["selection"] = upgraded
+    # Every per-family map may still name a family the Sprint 9 build knew: a key source of
+    # `none` for openai, a discovery snapshot for gemini. The schema's closed family list
+    # would refuse the whole file for it, so the entries are dropped, not the file.
+    for key in ("selection", "credential_sources", "discovery", "verification"):
+        mapping = document.get(key)
+        if isinstance(mapping, dict):
+            document[key] = {
+                family: value for family, value in mapping.items() if family in CURRENT_FAMILIES
+            }
     return document

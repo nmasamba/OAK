@@ -354,6 +354,34 @@
         "title": "InterpreterMode",
         "type": "string"
       },
+      "ModelCatalogueResponse": {
+        "additionalProperties": false,
+        "description": "The stored catalogue snapshot for one family \u2014 what `discover` last recorded \u2014 or null.\n\nRead from local state only; nothing is contacted. The workspace lists the model and\nprovider pairs from it.",
+        "properties": {
+          "discovery": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discovery"
+          },
+          "family": {
+            "title": "Family",
+            "type": "string"
+          }
+        },
+        "required": [
+          "family",
+          "discovery"
+        ],
+        "title": "ModelCatalogueResponse",
+        "type": "object"
+      },
       "ModelCredentialRequest": {
         "additionalProperties": false,
         "description": "The one request body in the API that carries a secret.\n\n``api_key`` is ``writeOnly`` and rendered as a password field, and the model carries no\nexample, so the value cannot appear in the OpenAPI document, in generated clients, or in\ndocumentation rendered from either. Validation failures on this field are answered with a\nfixed message rather than the usual field echo.",
@@ -3231,6 +3259,99 @@
           }
         },
         "summary": "Clear Model Selection",
+        "tags": [
+          "models"
+        ]
+      }
+    },
+    "/v1/models/{family}/catalogue": {
+      "get": {
+        "description": "The catalogue snapshot `discover` last recorded for a family; contacts nothing.",
+        "operationId": "get_model_catalogue_v1_models__family__catalogue_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "family",
+            "required": true,
+            "schema": {
+              "title": "Family",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-OAK-Actor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Oak-Actor"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-OAK-Tenant",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Oak-Tenant"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-OAK-Model-Token",
+            "required": true,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 256,
+                  "minLength": 16,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Oak-Model-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelCatalogueResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Model Catalogue",
         "tags": [
           "models"
         ]

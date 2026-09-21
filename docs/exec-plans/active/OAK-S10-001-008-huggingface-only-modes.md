@@ -482,7 +482,25 @@ or missing key is visible before anyone opens the dropdown.
   is refused before any request that could spend; a token refused mid-interpretation is
   recorded as rejected; the test suite's wiring gets a verifier that answers `unverifiable`
   so no test can reach huggingface.co; `make check` zero `make: ***` lines with PostgreSQL
-  (648 unit/contract, 272 integration, 42 e2e).
+  (648 unit/contract, 272 integration, 42 e2e) (`e595664`).
+- [x] 2026-09-21 Milestone 4: one dropdown — Deterministic / Online AI / Local AI — on the
+  intake form (`web/src/ModeSelect.tsx`, carried per case in `sessionStorage` by
+  `web/src/interpretMode.ts`) and on the case page, each option stating what it needs and
+  costs with the live verdict and pair, disabled when its mode is not ready; choosing Online
+  AI re-checks a stale verdict and refreshes a stale catalogue first; Settings → Models
+  stores and verifies the token (verdict badge with its age, Verify again, Remove), refreshes
+  the catalogue, lists every model × provider pair with a structured-output route (licence,
+  price, throughput, free promotion) with "Use this pair" and "Use the preferred pair
+  instead", and pins the Local AI model; the masthead names the Online AI pair and the
+  token's verification age; new read-only `GET /v1/models/{family}/catalogue` feeds the pairs
+  table; `web/e2e/models.spec.ts` rewritten and the keyboard test admits the select. Running
+  the stack found a defect the unit tests had not: a Sprint 9 configuration file naming a
+  removed family in `credential_sources` or `discovery` failed schema validation on load and
+  every model route answered 500; the loader now drops removed families from every per-family
+  map (pinned by the upgrade test). `make check` zero `make: ***` lines with PostgreSQL (648
+  unit/contract, 272 integration, 42 e2e) before that fix; after it, lint, mypy, the model
+  suites and `make web-e2e` (9 passed, 1 gated capture skipped) against the rebuilt Compose
+  stack; the manual screenshots recaptured and the PDF rebuilt.
 
 ## Discoveries and follow-ups
 

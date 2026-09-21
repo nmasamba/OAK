@@ -500,3 +500,24 @@ summary {
     border-bottom: 1px solid #dfe6de;
   }
 }
+
+select {
+  padding: 0.55rem 0.7rem;
+  border: 1px solid #aab8ab;
+  border-radius: 0.55rem;
+  background: #fff;
+  font: inherit;
+  max-width: 100%;
+}
+
+.badge-warn {
+  border-color: #d9b48c;
+  background: #fbf1e3;
+  color: #6b4a12;
+}
+
+.badge-muted {
+  border-color: #c9cfca;
+  background: #f1f3f1;
+  color: #4b544c;
+}

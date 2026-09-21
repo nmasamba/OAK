@@ -226,3 +226,14 @@ class ModelStatusResponse(StrictResponse):
 class ModelDiscoveryResponse(StrictResponse):
     family: str
     discovery: dict[str, Any]
+
+
+class ModelCatalogueResponse(StrictResponse):
+    """The stored catalogue snapshot for one family — what `discover` last recorded — or null.
+
+    Read from local state only; nothing is contacted. The workspace lists the model and
+    provider pairs from it.
+    """
+
+    family: str
+    discovery: dict[str, Any] | None
