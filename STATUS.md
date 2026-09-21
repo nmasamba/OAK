@@ -7,7 +7,7 @@
 - **Phase:** Sprint 10 in progress — Hugging Face only: Deterministic, Online AI and Local AI modes with a corroborated token (`OAK-S10-001`–`008`), authorized by the owner on 2026-09-21, on branch `hf-only-modes`. Sprint 9 (`OAK-S9-001`–`009`) is merged as PR #21 (`88fa876`). `0.7.1` was approved by `nmasamba` on 2026-08-27 and **published as a GitHub Release on 2026-09-03**; nothing about it changes in this sprint
 - **Completed plans:** `docs/exec-plans/completed/OAK-S0-001-009-walking-skeleton.md`, `docs/exec-plans/completed/OAK-S1-001-010-local-design-case.md`, `docs/exec-plans/completed/OAK-S2-001-011-candidate-planning.md`, `docs/exec-plans/completed/OAK-S3-001-009-persistent-rest-jobs.md`, `docs/exec-plans/completed/OAK-S4-001-009-web-workspace.md`, `docs/exec-plans/completed/OAK-S5-001-011-signed-runner.md`, `docs/exec-plans/completed/OAK-S6-001-008-policy-adapter-sdk.md`, `docs/exec-plans/completed/OAK-S7-001-008-mcp-portal-interface-parity.md`, `docs/exec-plans/completed/OAK-S8-001-009-community-release-hardening.md`, `docs/exec-plans/completed/OAK-PL-001-007-pre-launch-hardening.md`, `docs/exec-plans/completed/OAK-FS-001-003-final-sweep.md`, and `docs/exec-plans/completed/OAK-S9-001-009-model-provider-intake.md`
 - **Active plan:** `docs/exec-plans/active/OAK-S10-001-008-huggingface-only-modes.md`
-- **Next task:** `OAK-S10-006` (documentation, ADRs and governance); `OAK-S10-001`–`005` are complete on the branch. Sprint 9 is merged (PR #21 → `88fa876`;
+- **Next task:** `OAK-S10-007` (live run, adversarial audit, documentation sweep, PR); `OAK-S10-001`–`006` are complete on the branch. Sprint 9 is merged (PR #21 → `88fa876`;
   `origin/main` is `3430c71`). The
   pre-launch hardening (PR #13, `2d85322`), the documentation sweep (PR #15 `ca160a7`, PR #16
   `3f9122f`), the `0.7.1` approval and tag (`c614414`), the image-tooling fixes (PRs #18, #19)
@@ -126,8 +126,8 @@
 | `OAK-S10-003` | complete | `deterministic` (default), `online` and `local` modes replace `auto`/`model` on every interface; preferred and pinned model × provider pairs |
 | `OAK-S10-004` | complete | Token corroborated with the Hub's `whoami-v2`; verdict stored with its time, stale after a day; pre-flight before an online interpretation; refusal before spend |
 | `OAK-S10-005` | complete | Mode dropdown on intake and case pages; Settings with verdict, Refresh, pairs and Local AI model; masthead label repurposed; browser tests and manual capture |
-| `OAK-S10-006` | in progress | Documentation, ADRs, threat model, register (`RR-039`, `RR-042`), evidence, generated artifacts in both repositories |
-| `OAK-S10-007` | claimed | Live run, adversarial audit, documentation sweep, PR with remote CI green |
+| `OAK-S10-006` | complete | Documentation, ADRs, threat model, register (`RR-039`, `RR-042`), evidence, generated artifacts in both repositories |
+| `OAK-S10-007` | in progress | Live run, adversarial audit, documentation sweep, PR with remote CI green |
 | `OAK-S10-008` | claimed | Release `0.8.0` after the merge: touch-list, decision record, evidence, tag; publication stays the owner's |
 
 ## Verification evidence
@@ -334,7 +334,7 @@
   generated inventory now shows LGPL-3.0 Psycopg as the only copyleft entry.
 - Security review produced `docs/security/threat-coverage.md` (all nineteen threat ids mapped
   to tests: 8 direct, 9 partial, 2 structural, 0 uncovered, every cited test verified to
-  exist), `docs/security/residual-risk.md` (41 stable-id entries), and `SECURITY.md`. **No
+  exist), `docs/security/residual-risk.md` (42 stable-id entries), and `SECURITY.md`. **No
   external security review was commissioned**, and a build gate now fails on unqualified
   assurance vocabulary — it caught three of its own author's sentences on first run.
 - Four confidentiality defects were found and fixed, each reproduced before the fix:

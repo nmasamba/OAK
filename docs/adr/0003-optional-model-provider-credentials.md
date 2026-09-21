@@ -30,6 +30,18 @@ ADR-0016 decides that a user-supplied model-provider credential is machine-local
 
 **The capability token is a dependency, not a check inside each handler.** FastAPI resolves dependencies before it parses a request body, so an unauthorised caller is refused without its request being examined and without being told what was wrong with it.
 
+## Sprint 10: one hosted family, three modes, a corroborated token
+
+**Hugging Face Inference Providers is the only hosted family.** The product relies on the open-source ecosystem; five vendor families Sprint 9 described as data were removed rather than left as dead rows, with the one request shape both remaining families speak. Every open model the router serves is reachable through it, so no first-party vendor family is needed to call an open model.
+
+**A mode is named per request; nothing resolves to a model on its own.** `deterministic`, `online` and `local` replace `auto` and `model`. An absent choice is deterministic on every interface, which is what a client written before the model path existed sends and gets. Online AI calls the model × provider pair the user pinned, or else the preferred one: the first ungated model in the Hub's trending order, from a trusted namespace, with a live structured-output route, on the route the provider policy chooses. The licence is recorded and shown rather than used to exclude, because the user chooses among pairs with it in front of them. A server-side policy suffix (`:cheapest`, `:fastest`) is not used: it could route to a provider without structured output, and only such routes are ever called.
+
+**The token is corroborated with the Hub, never with a generation.** `key_verification_request` builds `GET https://huggingface.co/api/whoami-v2`; the answer is reduced to a verdict — accepted, rejected, scope limited, unreachable or unverifiable — plus the token's role, whether the account can pay and, when the Hub says so, whether the token carries the Inference Providers permission. The account's name and email are dropped at parse time and a test proves they are never written. The verdict is stored with the time it was given, shown with its age, and stale after a day; storing or removing a key forgets it. It is a claim about the past, recorded as `RR-042`, and the surfaces say what `accepted` does and does not prove.
+
+**The pre-flight is free and bounded.** Before an online interpretation a stale verdict is re-checked under a 5-second budget and a stale catalogue refreshed under a 15-second budget, and only when `OAK_MODEL_TIMEOUT_SECONDS` leaves 20 seconds of headroom under the 55-second ceiling the shipped proxy imposes; otherwise the stored state is used as it is. A rejected token is refused before any request that could spend, and a token the provider refuses mid-interpretation is recorded as rejected.
+
+**No MCP client.** Hugging Face runs an MCP server for coding assistants that exposes the same Hub data OAK already reads anonymously through its one transport. A client for it would be a second network client and a new runtime dependency, which the egress and declared-dependency gates forbid, to obtain what two public GET requests already give.
+
 ## Consequences
 
 The egress surface is small enough to name in a test, and does not grow quietly: a module importing an SDK nobody listed is caught by a declared-dependency rule rather than by a denylist. The cost is that the transport is hand-written, including its bounded reads and its refusal to follow redirects, and that each provider profile encodes a request shape that can drift; recorded fixtures catch a shape change in review, and `tests/live/` catches it against the real APIs when someone runs it deliberately.

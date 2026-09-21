@@ -42,6 +42,8 @@ A stored key is readable by anything running as that user, and usable by anythin
 
 Sending a brief to a configured provider is a real data egress and is recorded as `RR-039`. It is opt-in, auditable, and absent from the deterministic path.
 
+Sprint 10 added a corroboration step that stays inside this decision: storing the Hugging Face token asks the Hub's `whoami-v2` whether it is accepted — one request carrying the token in a header and generating nothing — and records the verdict with the time it was given. The verdict is machine-local configuration like the rest: it holds no key material, no account name and no email, it is shown with its age and stale after a day (`RR-042`), and it is forgotten when the key changes.
+
 ## Revisit triggers
 
 A multi-user or hosted distribution invalidates the "operator's own machine" premise and needs a different decision entirely. A per-tenant budget (`RR-041`) would also change the analysis, because spend would stop being self-limiting.

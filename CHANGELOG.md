@@ -6,10 +6,81 @@ All notable changes to OAK Community are recorded here.
 
 ## Unreleased
 
+Two sprints are unreleased because no version has been cut for either: `0.7.1` remains the
+published release and nothing here changes it. Sprint 10 narrowed Sprint 9; where the two
+disagree, Sprint 10's entries describe what ships. Every entry holds the four reference
+digests byte-stable unless it says otherwise.
+
+Sprint 10 — Hugging Face only: Deterministic, Online AI and Local AI, with a corroborated
+token (`OAK-S10-001`–`008`), authorized by the owner on 2026-09-21.
+
+### Removed
+
+- The `openai`, `anthropic`, `gemini`, `meta` and `xai` model families, with their request
+  shape, header kinds, paginated list parsers, chat-candidate rules, fixtures,
+  `OAK_MODEL_KEY_*` variables, configuration rows and schema enum members. The product relies
+  on the open-source ecosystem; Hugging Face Inference Providers is the only hosted family and
+  the local OpenAI-compatible server the other. The secret scanner still recognises every
+  vendor's key shape (`OAK-S10-002`).
+- `auto` and `model` as interpreter values, `oak models select --acknowledge-data-use` and
+  `--interpreter`, the `default_interpreter` and `data_use_acknowledged` selection fields,
+  `DELETE /v1/models/selection` without a family, and the "Detect models" family chooser in
+  the workspace (`OAK-S10-003`, `OAK-S10-005`).
+
+### Changed
+
+- A brief is read in one of three modes named per request — `deterministic`, `online`,
+  `local` — on `oak design --interpreter`, the REST `interpreter` query, the remote CLI and
+  the MCP `interpreter` argument. An absent choice is `deterministic` everywhere, which is
+  what a `0.7.1` client gets; nothing resolves to a model on its own. `online` and `local`
+  require the capability token on REST. The `brief_interpreted` audit extension records the
+  mode (`OAK-S10-003`).
+- One pinned model per family instead of one selection: `oak models select huggingface
+  <model_id> [--provider <route>]` pins the Online AI pair (the route must be one the catalogue
+  lists as supporting structured output), `oak models select local <model_id>` the Local AI
+  model, `oak models clear [family]` returns to the preferred model. A configuration file
+  written by the unreleased Sprint 9 build is upgraded on load (`OAK-S10-003`).
+- Discovery ranks by the Hub's trending order and records each model's licence rather than
+  excluding on it; the preferred model is the first ungated, trusted-namespace survivor with a
+  live structured-output route. Routes carry `is_free` and `throughput`; the `cheapest` policy
+  prefers a route the catalogue flags as free while a promotion lasts, `fastest` the highest
+  measured throughput. `PINNED_MODELS` and `TRUSTED_NAMESPACES` are refreshed as of 2026-09-21
+  (`OAK-S10-003`).
+- `oak models status` and `GET /v1/models` report `modes` (whether each mode can run and why
+  not) and `selections` instead of `configured` and `selection` (`OAK-S10-003`).
+
+### Added
+
+- Token corroboration (`OAK-S10-004`). `oak models set-key` stores the Hugging Face token and
+  then asks the Hub's `whoami-v2` about it — one free request that generates nothing —
+  printing what it is doing; `--no-verify` skips it. `oak models verify [family]` and
+  `POST /v1/models/{family}:verify` re-check on demand. The verdict (`accepted`, `rejected`,
+  `scope_limited`, `unreachable` or `unverifiable`), the token's role, whether the account can
+  pay and whether the token carries the Inference Providers permission are stored with the
+  time they were given; the account's name and email are discarded at parse time and a test
+  proves they are never written. A verdict is shown with its age and called stale after
+  `OAK_MODEL_VERIFICATION_STALE_SECONDS` (a day). Storing or removing a key forgets the
+  verdict. A `rejected` verdict takes Online AI offline until a new token is stored, and a
+  token the provider refuses mid-interpretation is recorded as rejected. Before an online
+  interpretation, a stale verdict is re-checked (5-second budget) and a stale catalogue
+  refreshed (15-second budget) when `OAK_MODEL_TIMEOUT_SECONDS` leaves 20 seconds of headroom
+  under the 55-second ceiling; a rejected token is refused before any request that could
+  spend. Register `RR-042` records that a verdict is a claim about the past (count 41 → 42).
+- `GET /v1/models/{family}/catalogue` returns the stored catalogue snapshot without
+  contacting anything, so the workspace can list every model × provider pair with its
+  licence, output price, throughput and structured-output support (`OAK-S10-005`).
+- The workspace's intake form and case page carry one dropdown — Deterministic, Online AI,
+  Local AI — each option saying what it needs and costs, with the live verdict and pair;
+  choosing Online AI re-checks a stale verdict and refreshes a stale catalogue first.
+  Settings → Models stores and verifies the token, shows the verdict with its time, refreshes
+  the catalogue, pins a pair or the Local AI model. The masthead label names the Online AI pair
+  that would run and the token's verification age (`OAK-S10-005`).
+- `tests/integration/test_model_preflight.py`, the verification fixtures under
+  `tests/fixtures/providers/huggingface/whoami-v2*.json`, and a live corroboration test in
+  `tests/live/` (`OAK-S10-004`).
+
 Sprint 9 — optional model provider and natural-language intake (`OAK-S9-001`–`009`), merged
-on 2026-09-17 as PR #21 (`88fa876`). It is unreleased because no version has been cut for it:
-`0.7.1` remains the published release and nothing here changes it. Every entry below holds
-the four reference digests byte-stable unless it says otherwise.
+on 2026-09-17 as PR #21 (`88fa876`). Its entries follow as history.
 
 ### Added
 
@@ -334,7 +405,7 @@ customer readiness claim, and no external security review was commissioned for i
 - **Security record**: [SECURITY.md](SECURITY.md),
   [threat-coverage.md](docs/security/threat-coverage.md) mapping all nineteen threat ids to
   the tests that exercise them, and [residual-risk.md](docs/security/residual-risk.md) with
-  41 stable-id entries. A build gate now rejects unqualified assurance vocabulary.
+  42 stable-id entries. A build gate now rejects unqualified assurance vocabulary.
 - **Measurements**: [performance.md](docs/performance.md) and a provenance-stamped
   `scripts/benchmark.py`. Reference compiler 8.66 s median against a 120 s requirement;
   interactive read p95 30 ms against 500 ms; workspace manifest reads grow from 3.8 ms at

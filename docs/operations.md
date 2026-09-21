@@ -355,14 +355,18 @@ is machine-local: keys are read from a hidden prompt or standard input, stored i
 keychain or an owner-only file, and never accepted as a command argument or returned by any
 interface.
 
-On a host, `oak models set-key <family>` and `oak models select <family> <model_id>` are the
-whole procedure. Under Compose the state belongs to the `api` service, so configure it there:
+On a host, `oak models set-key` (which verifies the token with Hugging Face by default) and
+`oak models discover` are the whole procedure for Online AI; `oak models select local
+<model_id>` pins the model Local AI calls. Under Compose the state belongs to the `api`
+service, so configure it there:
 
 ```bash
 docker compose exec -T api oak models token      # the capability token the API minted
-printf '%s\n' "$YOUR_KEY" | docker compose exec -T api oak models set-key huggingface --stdin
-docker compose exec -T api oak models discover huggingface
-docker compose exec -T api oak models select huggingface openai/gpt-oss-120b
+printf '%s\n' "$YOUR_TOKEN" | docker compose exec -T api oak models set-key --stdin
+docker compose exec -T api oak models discover   # the preferred pair and every callable pair
+docker compose exec -T api oak models select huggingface Qwen/Qwen3.5-9B --provider deepinfra  # optional pin
+docker compose exec -T api oak models select local qwen3:8b                                  # Local AI
+docker compose exec -T api oak models status     # the verdict with its age; what each mode would call
 ```
 
 The web workspace asks for that token once, at Settings → Models, and keeps it for the
@@ -370,9 +374,11 @@ session only. The token is minted per API process: restarting `api` invalidates 
 deliberate — it is a capability, not a password, and `oak models token` reprints the current
 one. The `/v1/models` routes refuse without it (`OAK-MODEL-TOKEN-REQUIRED`).
 
-A configured hosted model means each model-mode interpretation sends the brief to that
-provider (`RR-039`). `oak design --interpreter deterministic`, and the deterministic default
-for structured briefs, never contact one.
+Nothing is called unless a request asks: `oak design --interpreter online` sends the brief
+to Hugging Face and the provider it routes to (`RR-039`), `--interpreter local` to the loopback
+server, and the default — no flag, any brief — contacts nothing. A stored token's verdict is
+shown with its age by `oak models status` and is stale after a day (`RR-042`); `oak models
+verify` re-checks it.
 
 ## Uninstall
 

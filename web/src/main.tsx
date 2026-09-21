@@ -164,9 +164,9 @@ function AppShell() {
       <footer className="boundary-footer">
         <p>
           This workspace has no target mutation and no secret resolution, and
-          compiled plans stay draft review artifacts. It contacts a model
-          provider only when you configure one, and never on the deterministic
-          path.
+          compiled plans stay draft review artifacts. It contacts a model only
+          for a brief you choose to read with Online AI or Local AI; the default
+          contacts nothing.
         </p>
       </footer>
     </>

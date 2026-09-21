@@ -30,7 +30,7 @@ Explicitly *not* being decided:
 | Can a user verify what they downloaded? | [release-process.md](../../release-process.md#verifying-a-release); the refusal path is tested against tampered, substituted, missing and path-escaping inputs |
 | Can it be upgraded, backed up and restored? | [operations.md](../../operations.md); `scripts/verify_deployment.py` plus `tests/integration/test_backup_restore.py`, which rehearses a restore into a clean migrated database and proves a database-only restore is detected |
 | What does it defend against? | [security/threat-coverage.md](../../security/threat-coverage.md) — 19 threats, 8 direct, 9 partial, 2 structural, 0 uncovered at the time of this decision. That index now covers 20 threats (10 direct, 9 partial, 1 structural) after `TM-08` was closed at `0.7.1` and the Sprint 9 model provider moved `TM-13` and added `TM-20`; the counts here describe what was signed, not the live index |
-| What does it *not* defend against? | [security/residual-risk.md](../../security/residual-risk.md) — 41 entries with stable ids |
+| What does it *not* defend against? | [security/residual-risk.md](../../security/residual-risk.md) — 42 entries with stable ids |
 | How fast is it, and on what? | [performance.md](../../performance.md) and [performance.json](performance.json) |
 | Is every claim backed? | A build gate rejects unqualified assurance vocabulary; `tests/contract/test_assurance_claims.py` proves it is not vacuous |
 | Was it externally reviewed? | **No.** See below |
@@ -137,7 +137,7 @@ find it rather than buried in a sprint post-mortem.
 
 [security/residual-risk.md](../../security/residual-risk.md) is the published statement, linked
 from the README, `SECURITY.md`, the operations runbook and the release process. It carries
-41 entries with stable ids, severities scored for the shipped configuration, and an explicit
+42 entries with stable ids, severities scored for the shipped configuration, and an explicit
 note that every owner field is unassigned pending this decision.
 
 ## Approvals required

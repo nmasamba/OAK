@@ -500,7 +500,17 @@ or missing key is visible before anyone opens the dropdown.
   map (pinned by the upgrade test). `make check` zero `make: ***` lines with PostgreSQL (648
   unit/contract, 272 integration, 42 e2e) before that fix; after it, lint, mypy, the model
   suites and `make web-e2e` (9 passed, 1 gated capture skipped) against the rebuilt Compose
-  stack; the manual screenshots recaptured and the PDF rebuilt.
+  stack; the manual screenshots recaptured and the PDF rebuilt (`bb1085a`).
+- [x] 2026-09-21 Milestone 5: `README.md`, `CHANGELOG.md` (a Sprint 10 section above the
+  Sprint 9 history), `docs/operations.md`, `docs/interfaces.md`, `docs/compatibility.md`,
+  `docs/local-design-case.md`, `docs/dependencies.md`, the manual's model chapter (PDF
+  rebuilt), `docs/security/residual-risk.md` (`RR-039` narrowed, `RR-042` added, count 42 in
+  every quoting document), `docs/security/threat-coverage.md` (`TM-13`, `TM-20` cite the new
+  tests), implementation ADR-0003 (a Sprint 10 section), the workspace footer; governance
+  `docs/threat-model.md` (`TM-13`, `TM-20`), ADR-0009 and ADR-0016 (re-mirrored with their
+  provenance header), `evidence/sources.yaml` (four Hugging Face sources and the free-tier
+  survey; the five-vendor entry marked superseded), `SPRINT-10-PROMPT.md` marked superseded;
+  contract suites (147) and governance `make validate` green.
 
 ## Discoveries and follow-ups
 

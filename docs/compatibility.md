@@ -66,6 +66,12 @@ mechanical migration; **breaking** otherwise.
   to `workspace-manifest.schema.json`. Documents from the deterministic path carry none
   of them, so a 0.7.1 reader still validates every export from a workspace that never
   used the model path; an export from a workspace that did cannot be imported by 0.7.1.
+- `model-configuration.schema.json` (Sprint 9) has never been published, so Sprint 10
+  changed it in place at `0.1.0`: the `family` enum shrank to `huggingface` and `local`,
+  `selection` became one entry per family, `verification` was added, and provider routes
+  gained `is_free` and `throughput`. A file written by the unreleased Sprint 9 build is
+  upgraded on load; a file written by Sprint 10 does not load on that build. The document
+  is machine-local and never exported, so no stored canonical object is affected.
 
 ## REST and OpenAPI
 
@@ -106,11 +112,12 @@ mechanical migration; **breaking** otherwise.
 - Local mode and remote mode (`--server`) promise the same stable output and exit
   semantics; a command that cannot honor that in remote mode refuses with
   `OAK-REMOTE-UNSUPPORTED` rather than approximating.
-- `oak design --interpreter auto|model|deterministic` (Sprint 9) defaults to `auto`,
-  which yields the previous deterministic output whenever no model is configured or the
-  brief is structured. `oak questions` prints five open questions per round and counts
-  the rest; the `--output json` document is unchanged and lists every persisted
-  question.
+- `oak design --interpreter deterministic|online|local` (Sprint 10, replacing Sprint 9's
+  unreleased `auto|model|deterministic`) defaults to `deterministic`, which yields the
+  `0.7.1` output for every brief. `oak questions` prints five open questions per round and
+  counts the rest; the `--output json` document is unchanged and lists every persisted
+  question. `oak models` (Sprint 9, reshaped in Sprint 10) is unreleased and carries no
+  compatibility debt until `0.8.0`.
 
 ## MCP
 
@@ -130,10 +137,10 @@ mechanical migration; **breaking** otherwise.
   (currently `2025-06-18` and `2025-03-26`). Dropping a revision is breaking; adding
   one is compatible. Unsupported client revisions negotiate down to the newest
   supported revision rather than failing the handshake.
-- `oak_design_case_interpret` gained the optional `interpreter` argument
-  (`deterministic` | `model`) in Sprint 9. Its default is deterministic, so a client
-  written against the previous registry gets exactly the previous behaviour; the model
-  is spent only when a client opts in.
+- `oak_design_case_interpret` gained the optional `interpreter` argument in Sprint 9;
+  Sprint 10 closed it to `deterministic` | `online` | `local`. Its default is
+  deterministic, so a client written against the previous registry gets exactly the
+  previous behaviour; a model is called only when a client opts in.
 
 ## Runner protocol
 
