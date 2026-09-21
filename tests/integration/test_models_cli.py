@@ -29,30 +29,30 @@ def test_set_key_reads_stdin_stores_owner_only_and_echoes_only_a_fingerprint(
     monkeypatch.setenv("OAK_MODELS_DIRECTORY", str(tmp_path / "models"))
 
     result = runner.invoke(
-        app, ["models", "set-key", "openai", "--store", "file", "--stdin"], input=KEY + "\n"
+        app, ["models", "set-key", "huggingface", "--store", "file", "--stdin"], input=KEY + "\n"
     )
 
     assert result.exit_code == 0, _all_output(result)
     assert KEY not in _all_output(result)
     assert "fingerprint" in result.output
-    key_path = tmp_path / "credentials" / "openai.key"
+    key_path = tmp_path / "credentials" / "huggingface.key"
     assert stat.S_IMODE(os.lstat(key_path).st_mode) == 0o600
 
     status = runner.invoke(app, ["models", "status", "--output", "json"])
     assert status.exit_code == 0
     document = json.loads(status.output)
-    assert document["credentials"]["openai"]["configured"] is True
+    assert document["credentials"]["huggingface"]["configured"] is True
     assert KEY not in status.output
     for path in tmp_path.rglob("*"):
-        if path.is_file() and path.name != "openai.key":
+        if path.is_file() and path.name != "huggingface.key":
             assert KEY not in path.read_text(encoding="utf-8", errors="ignore"), path
 
-    removed = runner.invoke(app, ["models", "remove-key", "openai"])
+    removed = runner.invoke(app, ["models", "remove-key", "huggingface"])
     assert removed.exit_code == 0 and not key_path.exists()
 
 
 def test_set_key_without_a_terminal_and_without_stdin_refuses() -> None:
-    result = runner.invoke(app, ["models", "set-key", "openai", "--store", "file"])
+    result = runner.invoke(app, ["models", "set-key", "huggingface", "--store", "file"])
     assert result.exit_code == 2
     assert "OAK-MODEL-KEY-INPUT" in _all_output(result)
 
@@ -72,19 +72,11 @@ def test_status_without_configuration_says_deterministic() -> None:
     assert "Deterministic interpretation" in result.output
 
 
-def test_families_lists_the_seven_and_marks_the_default() -> None:
+def test_families_lists_hugging_face_and_local_and_marks_the_default() -> None:
     result = runner.invoke(app, ["models", "families", "--output", "json"])
     assert result.exit_code == 0
     families = json.loads(result.output)["families"]
-    assert [row["family"] for row in families] == [
-        "huggingface",
-        "openai",
-        "anthropic",
-        "gemini",
-        "meta",
-        "xai",
-        "local",
-    ]
+    assert [row["family"] for row in families] == ["huggingface", "local"]
     assert [row["family"] for row in families if row["default"]] == ["huggingface"]
 
 

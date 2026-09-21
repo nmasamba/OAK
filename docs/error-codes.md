@@ -346,26 +346,26 @@ documented flow uses it.
 | `OAK-MODEL-DATA-USE` | *dynamic message* | `src/oak/application/model_configuration.py:273` |
 | `OAK-MODEL-DISCOVERY-UNAVAILABLE` | model discovery is not available in this build; select a model identifier directly; the Hugging Face catalogue did not answer within its deadline; the provider's model list could not be read (some dynamic) | `src/oak/adapters/models/huggingface_catalogue.py:107` |
 | `OAK-MODEL-EGRESS-DENIED` | only https is spoken to a provider (plain http only to a loopback address); the request destination is not on the provider's fixed host allowlist | `src/oak/adapters/models/transport.py:185` |
-| `OAK-MODEL-ENDPOINT-INVALID` | OAK_MODEL_ENDPOINT_LOCAL is not a usable URL; OAK_MODEL_ENDPOINT_LOCAL must be an http(s) URL on a loopback address (for example http://127.0.0.1:11434/v1) with no credentials in it | `src/oak/adapters/models/providers.py:208` |
+| `OAK-MODEL-ENDPOINT-INVALID` | OAK_MODEL_ENDPOINT_LOCAL is not a usable URL; OAK_MODEL_ENDPOINT_LOCAL must be an http(s) URL on a loopback address (for example http://127.0.0.1:11434/v1) with no credentials in it | `src/oak/adapters/models/providers.py:139` |
 | `OAK-MODEL-FAMILY-REQUIRED` | *dynamic message* | `src/oak/interfaces/cli/main.py:1542` |
-| `OAK-MODEL-FAMILY-UNKNOWN` | *dynamic message* | `src/oak/adapters/models/providers.py:250` |
+| `OAK-MODEL-FAMILY-UNKNOWN` | *dynamic message* | `src/oak/adapters/models/providers.py:181` |
 | `OAK-MODEL-ID` | a model identifier must be 1 to 256 characters; models select requires a model identifier | `src/oak/application/model_configuration.py:269` |
 | `OAK-MODEL-INTERPRETER` | default_interpreter must be model or deterministic | `src/oak/application/model_configuration.py:265` |
 | `OAK-MODEL-KEY-INPUT` | a provider key must be printable ASCII with no spaces or control characters; no terminal to prompt on; pipe the key with --stdin (it is never accepted as an argument); read no usable key from standard input (some dynamic) | `src/oak/adapters/credentials/environment_reference.py:42` |
 | `OAK-MODEL-KEY-INVALID` | *dynamic message* | `src/oak/adapters/models/transport.py:220` |
 | `OAK-MODEL-KEY-MISSING` | *dynamic message* | `src/oak/adapters/credentials/environment_reference.py:36` |
 | `OAK-MODEL-KEY-PERMISSIONS` | *reason or mapping code; carries no fixed message* | `src/oak/adapters/credentials/file_store.py:18` |
-| `OAK-MODEL-KEY-REJECTED` | *dynamic message* | `src/oak/adapters/models/providers.py:626` |
-| `OAK-MODEL-KEY-SCOPE` | the Hugging Face token lacks the 'Make calls to Inference Providers' permission; create a fine-grained token with that permission and store it with `oak models set-key huggingface` | `src/oak/adapters/models/providers.py:635` |
+| `OAK-MODEL-KEY-REJECTED` | *dynamic message* | `src/oak/adapters/models/providers.py:473` |
+| `OAK-MODEL-KEY-SCOPE` | the Hugging Face token lacks the 'Make calls to Inference Providers' permission; create a fine-grained token with that permission and store it with `oak models set-key huggingface` | `src/oak/adapters/models/providers.py:482` |
 | `OAK-MODEL-KEYCHAIN-` | *reason or mapping code; carries no fixed message* | `src/oak/application/model_configuration.py:246` |
 | `OAK-MODEL-KEYCHAIN-UNAVAILABLE` | *reason or mapping code; carries no fixed message* | `src/oak/adapters/credentials/keychain_store.py:23` |
 | `OAK-MODEL-KEYCHAIN-UNSAFE` | *reason or mapping code; carries no fixed message* | `src/oak/adapters/credentials/keychain_store.py:24` |
-| `OAK-MODEL-NOT-AVAILABLE` | the selected model is gated for this account; accept its licence on the Hugging Face model page or run `oak models discover huggingface` and select an ungated model (some dynamic) | `src/oak/adapters/models/providers.py:642` |
+| `OAK-MODEL-NOT-AVAILABLE` | the selected model is gated for this account; accept its licence on the Hugging Face model page or run `oak models discover huggingface` and select an ungated model (some dynamic) | `src/oak/adapters/models/providers.py:489` |
 | `OAK-MODEL-NOT-CONFIGURED` | no model is configured for interpretation; select one with `oak models select <family> <model_id>` or interpret with --interpreter deterministic | `src/oak/application/design_case.py:276` |
 | `OAK-MODEL-POLICY` | provider policy must be cheapest or fastest | `src/oak/application/model_configuration.py:305` |
-| `OAK-MODEL-QUOTA-EXHAUSTED` | *dynamic message* | `src/oak/adapters/models/providers.py:659` |
+| `OAK-MODEL-QUOTA-EXHAUSTED` | *dynamic message* | `src/oak/adapters/models/providers.py:506` |
 | `OAK-MODEL-RATE-LIMITED` | *dynamic message* | `src/oak/adapters/models/hosted_interpreter.py:285` |
-| `OAK-MODEL-REQUEST-REJECTED` | *dynamic message* | `src/oak/adapters/models/providers.py:696` |
+| `OAK-MODEL-REQUEST-REJECTED` | *dynamic message* | `src/oak/adapters/models/providers.py:543` |
 | `OAK-MODEL-TOKEN-FILE` | *reason or mapping code; carries no fixed message* | `src/oak/adapters/credentials/api_token.py:19` |
 | `OAK-MODEL-TOKEN-MISSING` | no model-configuration token exists; start `oak serve` or `oak-api` first | `src/oak/interfaces/cli/main.py:1529` |
 | `OAK-MODEL-TOKEN-REQUIRED` | the X-OAK-Model-Token header does not match the token this server minted; run `oak models token` to read the current one; this operation requires the X-OAK-Model-Token header; run `oak models token` to read the token this server minted | `src/oak/interfaces/api/app.py:340` |

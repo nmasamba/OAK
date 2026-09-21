@@ -72,7 +72,7 @@ def test_status_before_anything_is_configured_is_deterministic(tmp_path: Path) -
     status = service.status()
     assert status["configured"] is False and status["selection"] is None
     assert all(not row["configured"] for row in status["credentials"].values())
-    assert {row["family"] for row in service.families()} >= {"huggingface", "local", "openai"}
+    assert {row["family"] for row in service.families()} == {"huggingface", "local"}
     assert next(row for row in service.families() if row["default"])["family"] == "huggingface"
 
 
@@ -97,23 +97,23 @@ def test_a_key_lives_in_exactly_one_backend(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     service = _service(tmp_path)
-    service.set_key("openai", SecretValue(KEY), source="file")
-    monkeypatch.setenv("OAK_MODEL_KEY_OPENAI", KEY + "2")
-    service.set_key("openai", SecretValue(""), source="env")
+    service.set_key("huggingface", SecretValue(KEY), source="file")
+    monkeypatch.setenv("OAK_MODEL_KEY_HUGGINGFACE", KEY + "2")
+    service.set_key("huggingface", SecretValue(""), source="env")
 
-    assert not (tmp_path / "credentials" / "openai.key").exists(), "the file copy was removed"
-    assert service.credential_status("openai").source == "env"
-    assert service.credential_for("openai") == SecretValue(KEY + "2")
-    monkeypatch.delenv("OAK_MODEL_KEY_OPENAI")
-    assert service.credential_status("openai").configured is False
-    assert service.remove_key("openai") is True
-    assert service.credential_status("openai").source is None
+    assert not (tmp_path / "credentials" / "huggingface.key").exists(), "the file copy was removed"
+    assert service.credential_status("huggingface").source == "env"
+    assert service.credential_for("huggingface") == SecretValue(KEY + "2")
+    monkeypatch.delenv("OAK_MODEL_KEY_HUGGINGFACE")
+    assert service.credential_status("huggingface").configured is False
+    assert service.remove_key("huggingface") is True
+    assert service.credential_status("huggingface").source is None
 
 
 def test_select_requires_a_key_for_hosted_families_but_not_for_local(tmp_path: Path) -> None:
     service = _service(tmp_path)
     with pytest.raises(OAKError) as missing:
-        service.select("openai", "gpt-6-astra")
+        service.select("huggingface", "openai/gpt-oss-120b")
     assert missing.value.code == "OAK-MODEL-KEY-MISSING"
 
     local = service.select("local", "llama3.2", default_interpreter="model")
@@ -132,34 +132,6 @@ def test_select_requires_a_key_for_hosted_families_but_not_for_local(tmp_path: P
     with pytest.raises(OAKError) as interpreter:
         service.select("local", "llama3.2", default_interpreter="chatty")
     assert interpreter.value.code == "OAK-MODEL-INTERPRETER"
-
-
-def test_models_that_train_on_inputs_need_an_explicit_acknowledgement(tmp_path: Path) -> None:
-    snapshot = {
-        "fetched_at": NOW,
-        "source": "live",
-        "recommended": "muse-spark-1.3",
-        "filtered_out_count": 0,
-        "models": [
-            {
-                "id": "muse-spark-1.3-contributor",
-                "display_name": "contributor",
-                "created": None,
-                "licence": "other",
-                "data_use": "trains_on_inputs",
-                "providers": [],
-            }
-        ],
-    }
-    service = _service(tmp_path, discoverer=lambda family, previous: snapshot)
-    service.set_key("meta", SecretValue(KEY), source="file")
-    service.discover("meta")
-
-    with pytest.raises(OAKError) as refusal:
-        service.select("meta", "muse-spark-1.3-contributor")
-    assert refusal.value.code == "OAK-MODEL-DATA-USE"
-    selection = service.select("meta", "muse-spark-1.3-contributor", acknowledge_data_use=True)
-    assert selection.data_use_acknowledged is True
 
 
 def test_discovery_is_explicit_and_unavailable_without_a_discoverer(tmp_path: Path) -> None:

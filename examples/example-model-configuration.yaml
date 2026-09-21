@@ -12,7 +12,7 @@ selection:
   selected_at: '2026-09-17T10:00:00Z'
 credential_sources:
   huggingface: file
-  openai: none
+  local: none
 provider_policy: cheapest
 discovery:
   huggingface:

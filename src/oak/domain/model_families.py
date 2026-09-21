@@ -5,6 +5,10 @@ This table is the single source for family identifiers, display names, licence c
 (in the vocabulary of `OAK-FR-CAT-003`) and the documented environment variables that may
 carry a key. Provider adapters reference it; interfaces render it; nothing here can reach
 a network or a keychain.
+
+Since Sprint 10 there are two rows: Hugging Face Inference Providers, the only hosted
+family, and the local OpenAI-compatible server. The product relies on the open-source
+ecosystem, so no other hosted vendor is described here.
 """
 
 from __future__ import annotations
@@ -34,11 +38,6 @@ class FamilyDescriptor:
 ENVIRONMENT_VARIABLES: MappingProxyType[str, str] = MappingProxyType(
     {
         "huggingface": "OAK_MODEL_KEY_HUGGINGFACE",
-        "openai": "OAK_MODEL_KEY_OPENAI",
-        "anthropic": "OAK_MODEL_KEY_ANTHROPIC",
-        "gemini": "OAK_MODEL_KEY_GEMINI",
-        "meta": "OAK_MODEL_KEY_META",
-        "xai": "OAK_MODEL_KEY_XAI",
     }
 )
 
@@ -61,59 +60,6 @@ FAMILIES: tuple[FamilyDescriptor, ...] = (
             "https://huggingface.co/settings/tokens/new"
             "?ownUserPermissions=inference.serverless.write&tokenType=fineGrained"
         ),
-    ),
-    FamilyDescriptor(
-        family="openai",
-        display_name="OpenAI",
-        licence_class=LICENCE_PROPRIETARY_HOSTED,
-        credential_required=True,
-        environment_variable="OAK_MODEL_KEY_OPENAI",
-        key_hint="an OpenAI API key (they begin with sk-)",
-        data_use_note="brief content is sent to OpenAI under your account's data-use terms",
-        token_help_url="https://platform.openai.com/api-keys",
-    ),
-    FamilyDescriptor(
-        family="anthropic",
-        display_name="Anthropic",
-        licence_class=LICENCE_PROPRIETARY_HOSTED,
-        credential_required=True,
-        environment_variable="OAK_MODEL_KEY_ANTHROPIC",
-        key_hint="an Anthropic API key (they begin with sk-ant-)",
-        data_use_note="brief content is sent to Anthropic under your account's data-use terms",
-        token_help_url="https://console.anthropic.com/settings/keys",
-    ),
-    FamilyDescriptor(
-        family="gemini",
-        display_name="Google Gemini",
-        licence_class=LICENCE_PROPRIETARY_HOSTED,
-        credential_required=True,
-        environment_variable="OAK_MODEL_KEY_GEMINI",
-        key_hint="a Gemini API key from Google AI Studio (they begin with AIza)",
-        data_use_note="brief content is sent to Google under your account's data-use terms",
-        token_help_url="https://aistudio.google.com/apikey",
-    ),
-    FamilyDescriptor(
-        family="meta",
-        display_name="Meta Model API",
-        licence_class=LICENCE_PROPRIETARY_HOSTED,
-        credential_required=True,
-        environment_variable="OAK_MODEL_KEY_META",
-        key_hint="a Meta Model API key",
-        data_use_note=(
-            "brief content is sent to Meta; the cheaper 'contributor' models permit training "
-            "on your prompts and require an explicit acknowledgement here"
-        ),
-        token_help_url="https://ai.developer.meta.com/",
-    ),
-    FamilyDescriptor(
-        family="xai",
-        display_name="xAI Grok",
-        licence_class=LICENCE_PROPRIETARY_HOSTED,
-        credential_required=True,
-        environment_variable="OAK_MODEL_KEY_XAI",
-        key_hint="an xAI API key (they begin with xai-)",
-        data_use_note="brief content is sent to xAI under your account's data-use terms",
-        token_help_url="https://console.x.ai/",
     ),
     FamilyDescriptor(
         family="local",

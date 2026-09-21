@@ -1,11 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0
-"""The seven model families as data: hosts, request shapes, parsers and status mapping.
+"""The two model families as data: hosts, request shape, parsers and status mapping.
 
 Nothing in this module opens a connection. It builds ``TransportRequest`` values, reads
 ``TransportResponse`` values, and turns provider status codes into fixed OAK codes. Provider
 text is parsed only to choose a code and is then discarded: no message, header or body from
 a provider ever reaches an ``OAKError``. The model hints carry an ``as_of`` date because
 provider catalogues move; discovery, not this table, decides what a key can reach.
+
+Since Sprint 10 the only hosted family is Hugging Face Inference Providers; the other row is
+the local OpenAI-compatible server. Both speak the OpenAI chat-completions shape.
 """
 
 from __future__ import annotations
@@ -23,14 +26,12 @@ from oak.adapters.models.transport import TransportRequest, TransportResponse, i
 from oak.domain import OAKError
 from oak.domain.model_families import FAMILY_IDS
 
-RequestShape = Literal["openai_chat", "anthropic_messages"]
-KeyVerification = Literal["api_key_endpoint", "authenticated_models_list", "unknown"]
-KeyHeader = Literal["bearer", "x-api-key", "x-goog-api-key"]
+RequestShape = Literal["openai_chat"]
+KeyVerification = Literal["authenticated_models_list", "unknown"]
+KeyHeader = Literal["bearer"]
 
 HINTS_AS_OF = "2026-09-16"
-ANTHROPIC_VERSION = "2023-06-01"
 DEFAULT_LOCAL_ENDPOINT = "http://127.0.0.1:11434/v1"
-MAXIMUM_MODEL_PAGES = 5
 MODEL_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]*$")
 PROVIDER_NAME = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
 ERROR_TYPE = re.compile(r"[A-Za-z0-9_.:-]{1,64}")
@@ -102,8 +103,6 @@ class ProviderProfile:
         for candidate, value in self.data_use_overrides:
             if candidate == model_id:
                 return value
-        if self.family == "meta" and model_id.endswith("-contributor"):
-            return "trains_on_inputs"
         return self.default_data_use
 
 
@@ -123,74 +122,6 @@ _HOSTED_PROFILES: dict[str, ProviderProfile] = {
             "Qwen/Qwen3-235B-A22B-Instruct-2507",
         ),
         licence="unknown",
-        default_data_use="unknown",
-    ),
-    "openai": ProviderProfile(
-        family="openai",
-        base_url="https://api.openai.com/v1",
-        allowed_hosts=frozenset({"api.openai.com"}),
-        request_shape="openai_chat",
-        models_path="/models",
-        chat_path="/chat/completions",
-        key_header="bearer",
-        key_verification="authenticated_models_list",
-        preferred_order=("gpt-6-astra", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.4-mini"),
-        licence="other",
-        default_data_use="not_used_for_training",
-    ),
-    "anthropic": ProviderProfile(
-        family="anthropic",
-        base_url="https://api.anthropic.com/v1",
-        allowed_hosts=frozenset({"api.anthropic.com"}),
-        request_shape="anthropic_messages",
-        models_path="/models",
-        chat_path="/messages",
-        key_header="x-api-key",
-        key_verification="authenticated_models_list",
-        preferred_order=("claude-opus-5", "claude-sonnet-5", "claude-haiku-4-5"),
-        licence="other",
-        default_data_use="not_used_for_training",
-    ),
-    "gemini": ProviderProfile(
-        family="gemini",
-        # Listing uses the native Generative Language API; the chat call uses its documented
-        # OpenAI-compatible endpoint under the same host, so one request shape serves it.
-        base_url="https://generativelanguage.googleapis.com/v1beta",
-        allowed_hosts=frozenset({"generativelanguage.googleapis.com"}),
-        request_shape="openai_chat",
-        models_path="/models",
-        chat_path="/openai/chat/completions",
-        key_header="x-goog-api-key",
-        key_verification="unknown",
-        preferred_order=("gemini-3.8-flash", "gemini-3.1-pro-preview", "gemini-2.5-flash"),
-        licence="other",
-        default_data_use="unknown",
-    ),
-    "meta": ProviderProfile(
-        family="meta",
-        base_url="https://api.meta.ai/v1",
-        allowed_hosts=frozenset({"api.meta.ai"}),
-        request_shape="openai_chat",
-        models_path="/models",
-        chat_path="/chat/completions",
-        key_header="bearer",
-        key_verification="authenticated_models_list",
-        preferred_order=("muse-spark-1.3", "muse-spark-1.3-contributor"),
-        licence="other",
-        default_data_use="not_used_for_training",
-        data_use_overrides=(("muse-spark-1.3-contributor", "trains_on_inputs"),),
-    ),
-    "xai": ProviderProfile(
-        family="xai",
-        base_url="https://api.x.ai/v1",
-        allowed_hosts=frozenset({"api.x.ai"}),
-        request_shape="openai_chat",
-        models_path="/models",
-        chat_path="/chat/completions",
-        key_header="bearer",
-        key_verification="api_key_endpoint",
-        preferred_order=("grok-4.6", "grok-4.5", "grok-4.3"),
-        licence="other",
         default_data_use="unknown",
     ),
 }
@@ -257,34 +188,16 @@ def profile_for(family: str, *, local_endpoint: str | None = None) -> ProviderPr
 
 
 def auth_headers(profile: ProviderProfile, key: str | None) -> dict[str, str]:
-    headers: dict[str, str] = {}
-    if profile.request_shape == "anthropic_messages":
-        headers["anthropic-version"] = ANTHROPIC_VERSION
+    del profile  # both families carry the key as a bearer token
     if key is None:
-        return headers
-    if profile.key_header == "x-api-key":
-        headers["x-api-key"] = key
-    elif profile.key_header == "x-goog-api-key":
-        headers["x-goog-api-key"] = key
-    else:
-        headers["Authorization"] = f"Bearer {key}"
-    return headers
+        return {}
+    return {"Authorization": f"Bearer {key}"}
 
 
-def models_request(
-    profile: ProviderProfile, key: str | None, *, page_token: str | None = None
-) -> TransportRequest:
-    query = ""
-    if page_token is not None:
-        parameter = "after_id" if profile.family == "anthropic" else "pageToken"
-        query = "?" + urllib.parse.urlencode({parameter: page_token})
-    if profile.family == "gemini":
-        query = query + ("&" if query else "?") + "pageSize=200"
-    if profile.family == "anthropic":
-        query = query + ("&" if query else "?") + "limit=200"
+def models_request(profile: ProviderProfile, key: str | None) -> TransportRequest:
     return TransportRequest(
         method="GET",
-        url=f"{profile.base_url}{profile.models_path}{query}",
+        url=f"{profile.base_url}{profile.models_path}",
         headers=auth_headers(profile, key),
     )
 
@@ -292,10 +205,6 @@ def models_request(
 def key_verification_request(profile: ProviderProfile, key: str) -> TransportRequest | None:
     """A free request that fails on a bad key, where the provider documents one."""
 
-    if profile.key_verification == "api_key_endpoint":
-        return TransportRequest(
-            method="GET", url=f"{profile.base_url}/api-key", headers=auth_headers(profile, key)
-        )
     if profile.key_verification == "authenticated_models_list":
         return models_request(profile, key)
     return None
@@ -313,32 +222,20 @@ def chat_request(
     max_tokens: int,
 ) -> TransportRequest:
     headers = {"Content-Type": "application/json", **auth_headers(profile, key)}
-    if profile.request_shape == "anthropic_messages":
-        body: dict[str, Any] = {
-            "model": model_id,
-            "max_tokens": max_tokens,
-            "system": system_prompt,
-            "messages": [{"role": "user", "content": user_content}],
-            "output_config": {"format": {"type": "json_schema", "schema": response_schema}},
-        }
-    else:
-        body = {
-            "model": model_id,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_content},
-            ],
-            "response_format": {
-                "type": "json_schema",
-                "json_schema": {"name": schema_name, "schema": response_schema, "strict": True},
-            },
-        }
-        if profile.family == "openai":
-            body["max_completion_tokens"] = max_tokens
-        else:
-            body["max_tokens"] = max_tokens
-        if profile.family == "huggingface":
-            body["stream"] = False
+    body: dict[str, Any] = {
+        "model": model_id,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_content},
+        ],
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": {"name": schema_name, "schema": response_schema, "strict": True},
+        },
+        "max_tokens": max_tokens,
+    }
+    if profile.family == "huggingface":
+        body["stream"] = False
     return TransportRequest(
         method="POST",
         url=f"{profile.base_url}{profile.chat_path}",
@@ -365,7 +262,11 @@ def parse_json(response: TransportResponse) -> Any:
 def parse_models(
     profile: ProviderProfile, response: TransportResponse
 ) -> tuple[list[dict[str, Any]], str | None]:
-    """Raw catalogue entries and the next page token, or a fixed OAK error."""
+    """Raw catalogue entries and the next page token, or a fixed OAK error.
+
+    Neither remaining family paginates its list, so the token is always ``None``; the
+    shape is kept so a paginated family can be added without changing every caller.
+    """
 
     if response.status != 200:
         raise error_for_status(profile, response)
@@ -376,45 +277,31 @@ def parse_models(
             "the provider's model list could not be read",
             retriable=True,
         )
-    if profile.family == "gemini":
+    entries = document.get("data")
+    if entries is None:
         entries = document.get("models")
-        token = document.get("nextPageToken")
-    elif profile.family == "anthropic":
-        entries = document.get("data")
-        token = document.get("last_id") if document.get("has_more") is True else None
-    else:
-        entries = document.get("data")
-        if entries is None:
-            entries = document.get("models")
-        token = None
     if not isinstance(entries, list):
         raise OAKError(
             "OAK-MODEL-DISCOVERY-UNAVAILABLE",
             "the provider's model list could not be read",
             retriable=True,
         )
-    return [entry for entry in entries if isinstance(entry, dict)], (
-        str(token) if isinstance(token, str) and token else None
-    )
+    return [entry for entry in entries if isinstance(entry, dict)], None
 
 
 def descriptor_from(profile: ProviderProfile, raw: dict[str, Any]) -> ModelDescriptor | None:
     """A snapshot entry for a chat-capable model, or ``None`` when the entry is not one."""
 
-    identifier = raw.get("name") if profile.family == "gemini" else raw.get("id")
+    identifier = raw.get("id")
     if not isinstance(identifier, str):
         return None
-    if profile.family == "gemini":
-        identifier = identifier.removeprefix("models/")
     if not _is_model_identifier(identifier):
         return None
     if not _is_chat_candidate(profile, identifier, raw):
         return None
     display = raw.get("display_name") or raw.get("displayName") or identifier
     display_name = str(display)[:200] or identifier[:200]
-    created = _created(
-        raw.get("created_at") if profile.family == "anthropic" else raw.get("created")
-    )
+    created = _created(raw.get("created"))
     providers: tuple[ProviderRoute, ...] = ()
     if profile.family == "huggingface":
         providers = _huggingface_routes(raw.get("providers"))
@@ -443,35 +330,11 @@ def _is_model_identifier(identifier: str) -> bool:
 
 
 def _is_chat_candidate(profile: ProviderProfile, identifier: str, raw: dict[str, Any]) -> bool:
-    lowered = identifier.lower()
-    if profile.family == "anthropic":
-        capabilities = raw.get("capabilities")
-        if isinstance(capabilities, dict):
-            structured = capabilities.get("structured_outputs")
-            if isinstance(structured, dict) and structured.get("supported") is False:
-                return False
-        return lowered.startswith("claude-")
-    if profile.family == "gemini":
-        methods = raw.get("supportedGenerationMethods")
-        if isinstance(methods, list) and not any(
-            method in {"generateContent", "interactions"} for method in methods
-        ):
-            return False
-        return lowered.startswith("gemini") and not NON_CHAT_TERMS.search(lowered)
-    if profile.family == "xai":
-        modalities = raw.get("output_modalities")
-        if isinstance(modalities, list) and "text" not in modalities:
-            return False
-        return lowered.startswith("grok") and not NON_CHAT_TERMS.search(lowered)
-    if profile.family == "openai":
-        return bool(re.match(r"^(gpt-|o\d|chatgpt-)", lowered)) and not NON_CHAT_TERMS.search(
-            lowered
-        )
-    if profile.family == "meta":
-        return not NON_CHAT_TERMS.search(lowered)
+    del raw  # neither remaining catalogue carries a capability field worth reading here
     if profile.family == "huggingface":
+        # The router lists chat-completion models only; the route filter decides the rest.
         return True
-    return not NON_CHAT_TERMS.search(lowered)
+    return not NON_CHAT_TERMS.search(identifier.lower())
 
 
 def _huggingface_routes(value: Any) -> tuple[ProviderRoute, ...]:
@@ -526,22 +389,6 @@ def extract_text(
     document = parse_json(response)
     if not isinstance(document, dict):
         raise OAKError("OAK-INTERPRETER-MALFORMED", "the provider returned an unusable response")
-    if profile.request_shape == "anthropic_messages":
-        stop = document.get("stop_reason")
-        if stop == "refusal":
-            raise OAKError("OAK-INTERPRETER-MALFORMED", "the model declined to answer")
-        if stop == "max_tokens":
-            raise OAKError("OAK-INTERPRETER-OUTPUT-LIMIT", "the model's answer was truncated")
-        text = "".join(
-            str(block.get("text", ""))
-            for block in document.get("content", [])
-            if isinstance(block, dict) and block.get("type") == "text"
-        )
-        usage = document.get("usage")
-        return _non_empty(text), {
-            "input_tokens": _token_count(usage, "input_tokens"),
-            "output_tokens": _token_count(usage, "output_tokens"),
-        }
     choices = document.get("choices")
     if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
         raise OAKError("OAK-INTERPRETER-MALFORMED", "the provider returned no completion")
@@ -712,8 +559,7 @@ def discover_models(
 ) -> dict[str, Any]:
     """A discovery snapshot from the provider's own catalogue.
 
-    ``fetch`` is ``ModelTransport.send``. Pages are followed through the provider's own
-    token, never through a redirect, and stop after ``MAXIMUM_MODEL_PAGES``.
+    ``fetch`` is ``ModelTransport.send``. One request: neither remaining family paginates.
     """
 
     if profile.credential_required and key is None:
@@ -726,36 +572,27 @@ def discover_models(
             f"listing {profile.family} models needs a stored key; run "
             f"`oak models set-key {profile.family}` first",
         )
+    started = time.monotonic()
+    if deadline_seconds is not None:
+        remaining = float(deadline_seconds) - (time.monotonic() - started)
+        if remaining <= 0.05:
+            raise OAKError(
+                "OAK-MODEL-DISCOVERY-UNAVAILABLE",
+                f"listing {profile.family} models did not finish within its deadline",
+                retriable=True,
+            )
+        response = fetch(models_request(profile, key), deadline_seconds=remaining)
+    else:
+        response = fetch(models_request(profile, key))
+    entries, _ = parse_models(profile, response)
     descriptors: list[ModelDescriptor] = []
     filtered_out = 0
-    token: str | None = None
-    # One budget for the walk, not one per page: five pages at the per-request deadline
-    # would be five times the total the configuration promises.
-    started = time.monotonic()
-    budget = float(deadline_seconds) if deadline_seconds is not None else None
-    for _ in range(MAXIMUM_MODEL_PAGES):
-        if budget is not None:
-            remaining = budget - (time.monotonic() - started)
-            if remaining <= 0.05:
-                raise OAKError(
-                    "OAK-MODEL-DISCOVERY-UNAVAILABLE",
-                    f"listing {profile.family} models did not finish within its deadline",
-                    retriable=True,
-                )
-            response = fetch(
-                models_request(profile, key, page_token=token), deadline_seconds=remaining
-            )
+    for entry in entries:
+        descriptor = descriptor_from(profile, entry)
+        if descriptor is None:
+            filtered_out += 1
         else:
-            response = fetch(models_request(profile, key, page_token=token))
-        entries, token = parse_models(profile, response)
-        for entry in entries:
-            descriptor = descriptor_from(profile, entry)
-            if descriptor is None:
-                filtered_out += 1
-            else:
-                descriptors.append(descriptor)
-        if token is None:
-            break
+            descriptors.append(descriptor)
     unique: dict[str, ModelDescriptor] = {}
     for descriptor in descriptors:
         unique.setdefault(descriptor.id, descriptor)
@@ -777,8 +614,7 @@ def _rank(profile: ProviderProfile, descriptors: list[ModelDescriptor]) -> list[
     def key(descriptor: ModelDescriptor) -> tuple[int, int, str, str]:
         rank = preferred.get(descriptor.id, len(preferred))
         created = descriptor.created or ""
-        # Newest first: invert the ISO timestamp ordering with a negative-length trick is
-        # not needed — sort ascending by rank, then descending by created via a tuple of
+        # Newest first: sort ascending by rank, then descending by created via a tuple of
         # the complemented characters.
         inverted = "".join(chr(0x10FFFF - ord(character)) for character in created)
         return (rank, 0 if created else 1, inverted, descriptor.id)

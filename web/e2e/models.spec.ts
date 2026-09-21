@@ -35,7 +35,7 @@ test.describe("model settings", () => {
     if (process.env["OAK_E2E_DOCKER"] === "1") {
       try {
         api("oak models clear");
-        api("oak models remove-key openai");
+        api("oak models remove-key huggingface");
       } catch {
         // The test may have failed before storing anything.
       }
@@ -72,7 +72,7 @@ test.describe("model settings", () => {
     expect(page.url()).not.toContain("token=");
     await expect(page.getByLabel("Model family")).toBeVisible();
 
-    await page.getByLabel("Model family").selectOption("openai");
+    await page.getByLabel("Model family").selectOption("huggingface");
     await page.getByLabel("API key").fill(TEST_KEY);
     await page.getByRole("button", { name: "Store key" }).click();
 
@@ -82,12 +82,16 @@ test.describe("model settings", () => {
     await expect(page.getByLabel("API key")).toHaveValue("");
     expect(await page.content()).not.toContain(TEST_KEY);
 
-    await page.getByLabel("Model identifier").fill("gpt-6-astra");
+    await page.getByLabel("Model identifier").fill("openai/gpt-oss-120b");
     await page.getByRole("button", { name: "Use this model" }).click();
-    await expect(page.getByText("openai/gpt-6-astra").first()).toBeVisible();
+    await expect(
+      page.getByText("huggingface/openai/gpt-oss-120b").first(),
+    ).toBeVisible();
 
     // The masthead says which interpreter the workspace will use.
-    await expect(page.locator(".masthead")).toContainText("openai/gpt-6-astra");
+    await expect(page.locator(".masthead")).toContainText(
+      "huggingface/openai/gpt-oss-120b",
+    );
 
     await page.getByRole("button", { name: "Remove key" }).click();
     await expect(

@@ -44,7 +44,7 @@ def _headers(token: str | None = TOKEN) -> dict[str, str]:
     return {"X-OAK-Model-Token": token} if token is not None else {}
 
 
-def _put_key(client: TestClient, family: str = "openai", key: str = KEY) -> Any:
+def _put_key(client: TestClient, family: str = "huggingface", key: str = KEY) -> Any:
     return client.put(f"/v1/models/credentials/{family}", json={"api_key": key}, headers=_headers())
 
 
@@ -58,8 +58,8 @@ def test_the_status_resource_shows_every_family_and_no_credential(client: TestCl
     document = response.json()
     assert KEY not in response.text
     families = {family["family"] for family in document["families"]}
-    assert families == {"huggingface", "openai", "anthropic", "gemini", "meta", "xai", "local"}
-    openai = next(row for row in document["credentials"] if row["family"] == "openai")
+    assert families == {"huggingface", "local"}
+    openai = next(row for row in document["credentials"] if row["family"] == "huggingface")
     assert openai["configured"] is True
     assert openai["source"] in {"keychain", "file"}
     assert openai["fingerprint"] and len(openai["fingerprint"]) == 8
@@ -74,7 +74,7 @@ def test_a_key_is_never_echoed_by_any_response_or_stored_outside_its_directory(
     assert _put_key(client).status_code == 204
     client.put(
         "/v1/models/selection",
-        json={"family": "openai", "model_id": "gpt-6-astra"},
+        json={"family": "huggingface", "model_id": "openai/gpt-oss-120b"},
         headers=_headers(),
     )
 
@@ -87,7 +87,7 @@ def test_a_key_is_never_echoed_by_any_response_or_stored_outside_its_directory(
         for path in tmp_path.rglob("*")
         if path.is_file() and KEY in path.read_text(encoding="utf-8", errors="ignore")
     ]
-    assert [path.name for path in holders] == ["openai.key"], holders
+    assert [path.name for path in holders] == ["huggingface.key"], holders
     assert KEY not in (tmp_path / "models" / "model-configuration.json").read_text("utf-8")
 
 
@@ -110,7 +110,7 @@ def test_a_malformed_key_body_is_refused_without_echoing_what_was_sent(
     client: TestClient,
 ) -> None:
     for body in ({"api_key": "short"}, {"api_key": "x" * 600}, {"api_key": 7}, {}):
-        response = client.put("/v1/models/credentials/openai", json=body, headers=_headers())
+        response = client.put("/v1/models/credentials/huggingface", json=body, headers=_headers())
         assert response.status_code == 422, body
         rendered = response.text
         assert "short" not in rendered and "x" * 40 not in rendered
@@ -123,11 +123,15 @@ def test_a_malformed_key_body_is_refused_without_echoing_what_was_sent(
 def test_every_model_route_requires_the_capability_token(client: TestClient) -> None:
     calls = (
         ("GET", "/v1/models", None),
-        ("PUT", "/v1/models/credentials/openai", {"api_key": KEY}),
-        ("DELETE", "/v1/models/credentials/openai", None),
-        ("PUT", "/v1/models/selection", {"family": "openai", "model_id": "gpt-6-astra"}),
+        ("PUT", "/v1/models/credentials/huggingface", {"api_key": KEY}),
+        ("DELETE", "/v1/models/credentials/huggingface", None),
+        (
+            "PUT",
+            "/v1/models/selection",
+            {"family": "huggingface", "model_id": "openai/gpt-oss-120b"},
+        ),
         ("DELETE", "/v1/models/selection", None),
-        ("POST", "/v1/models/openai:discover", None),
+        ("POST", "/v1/models/huggingface:discover", None),
     )
     for method, path, body in calls:
         for token in (None, "wrong-token-that-is-long-enough-01"):
@@ -142,11 +146,12 @@ def test_every_model_route_requires_the_capability_token(client: TestClient) -> 
 
 def test_deleting_a_credential_is_idempotent_and_clears_the_status(client: TestClient) -> None:
     assert _put_key(client).status_code == 204
-    assert client.delete("/v1/models/credentials/openai", headers=_headers()).status_code == 204
-    assert client.delete("/v1/models/credentials/openai", headers=_headers()).status_code == 204
+    route = "/v1/models/credentials/huggingface"
+    assert client.delete(route, headers=_headers()).status_code == 204
+    assert client.delete(route, headers=_headers()).status_code == 204
 
     status = client.get("/v1/models", headers=_headers()).json()
-    openai = next(row for row in status["credentials"] if row["family"] == "openai")
+    openai = next(row for row in status["credentials"] if row["family"] == "huggingface")
     assert openai["configured"] is False
     assert openai["source"] == "none"
     assert openai["fingerprint"] is None
@@ -155,7 +160,7 @@ def test_deleting_a_credential_is_idempotent_and_clears_the_status(client: TestC
 def test_a_selection_needs_a_key_and_is_readable_back(client: TestClient) -> None:
     refused = client.put(
         "/v1/models/selection",
-        json={"family": "openai", "model_id": "gpt-6-astra"},
+        json={"family": "huggingface", "model_id": "openai/gpt-oss-120b"},
         headers=_headers(),
     )
     assert refused.status_code == 422
@@ -164,14 +169,14 @@ def test_a_selection_needs_a_key_and_is_readable_back(client: TestClient) -> Non
     _put_key(client)
     accepted = client.put(
         "/v1/models/selection",
-        json={"family": "openai", "model_id": "gpt-6-astra"},
+        json={"family": "huggingface", "model_id": "openai/gpt-oss-120b"},
         headers=_headers(),
     )
     assert accepted.status_code == 200
     assert accepted.headers["Cache-Control"] == "no-store"
     document = accepted.json()
     assert document["configured"] is True
-    assert document["selection"]["model_id"] == "gpt-6-astra"
+    assert document["selection"]["model_id"] == "openai/gpt-oss-120b"
     assert document["selection"]["default_interpreter"] == "model"
 
     cleared = client.delete("/v1/models/selection", headers=_headers())
@@ -242,7 +247,7 @@ def test_discovery_without_a_discoverer_is_an_explicit_refusal(client: TestClien
         model_configuration=lambda: _service_without_discovery(),
     )
     with TestClient(app, base_url="http://127.0.0.1") as bare:
-        response = bare.post("/v1/models/openai:discover", headers=_headers())
+        response = bare.post("/v1/models/huggingface:discover", headers=_headers())
     assert response.status_code == 422
     assert response.json()["code"] == "OAK-MODEL-DISCOVERY-UNAVAILABLE"
 
@@ -274,7 +279,7 @@ def test_a_provider_failure_during_discovery_keeps_its_code(client: TestClient) 
 
     app = create_app(model_token=TOKEN, model_configuration=failing)
     with TestClient(app, base_url="http://127.0.0.1") as rate_limited:
-        response = rate_limited.post("/v1/models/openai:discover", headers=_headers())
+        response = rate_limited.post("/v1/models/huggingface:discover", headers=_headers())
     assert response.status_code == 429
     assert response.json()["code"] == "OAK-MODEL-RATE-LIMITED"
     assert response.json()["retriable"] is True
@@ -296,8 +301,8 @@ def test_an_unchanged_client_keeps_working_after_a_model_is_selected(
     monkeypatch.setenv("OAK_CREDENTIALS_DIRECTORY", str(tmp_path / "credentials"))
     monkeypatch.setenv("OAK_MODELS_DIRECTORY", str(tmp_path / "models"))
     service = create_model_configuration_service()
-    service.set_key("openai", validate_key_input(KEY), source="file")
-    service.select("openai", "gpt-6-astra")
+    service.set_key("huggingface", validate_key_input(KEY), source="file")
+    service.select("huggingface", "openai/gpt-oss-120b")
 
     plane, _ = build_file_control_plane(tmp_path / "plane")
     app = create_app(
@@ -380,7 +385,7 @@ def test_the_status_resource_is_on_the_same_loopback_footing_as_the_rest(
 
     assert is_credential_route("/v1/models")
     assert is_credential_route("/v1/models/selection")
-    assert is_credential_route("/v1/models/credentials/openai")
+    assert is_credential_route("/v1/models/credentials/huggingface")
     assert is_credential_route("/v1/models/huggingface:discover")
     assert not is_credential_route("/v1/design-cases")
 
