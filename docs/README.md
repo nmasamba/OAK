@@ -58,10 +58,12 @@
 
 ## Release evidence
 
-[release/0.7.1/](release/0.7.1/) holds the artefacts for the current release candidate,
-including its (still unsigned) release decision record. [release/0.7.0/](release/0.7.0/)
-holds the superseded `0.7.0` evidence set — approved 2026-08-22, never published, kept as
-history.
+[release/0.8.0/](release/0.8.0/) holds the artefacts for the release this tree builds:
+the image scan with its per-image SBOMs and provenance, and a decision record whose
+evidence table is filled and whose three approval rows are empty. `v0.8.0` is tagged and
+published nowhere. [release/0.7.1/](release/0.7.1/) holds the approved and published
+`0.7.1` evidence set, and [release/0.7.0/](release/0.7.0/) the superseded `0.7.0` one —
+approved 2026-08-22, never published, kept as history.
 
 ## Engineering history — not product documentation
 

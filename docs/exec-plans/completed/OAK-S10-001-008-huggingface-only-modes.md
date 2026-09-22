@@ -9,8 +9,8 @@ OPEN B — the masthead label kept and repurposed). Execution on branch `hf-only
 
 - Owner/agent: owner-directed coding agent
 - Started: 2026-09-21
-- Last updated: 2026-09-22 (Milestone 6 — live run, audit, sweep; gate green at HEAD)
-- State: in-progress
+- Last updated: 2026-09-22 (Milestone 7 — `0.8.0` prepared; merged as PR #22, `052211e`)
+- State: complete
 - Claimed tasks: `OAK-S10-001`–`OAK-S10-008`
 
 ## Owner's answers, and what they settle
@@ -513,6 +513,14 @@ or missing key is visible before anyone opens the dropdown.
   integration (4 skipped), 42 e2e. `make web-e2e` green (10 passed) against the rebuilt
   Compose stack; manual screenshots recaptured, the PDF rebuilt from the corrected HTML,
   `docs/error-codes.md` regenerated last; governance `make validate` green.
+- [x] 2026-09-22 Milestone 7 (`OAK-S10-008`): merged as PR #22 (`052211e`) with both remote
+  CI runs green, then `0.8.0` prepared on `main` — the version touch-list, the `0.8.0`
+  changelog section, `docs/release/0.8.0/release-decision.md` written **unsigned**, the
+  release evidence regenerated, and this plan moved to `completed/`. The release checklist's
+  last box — named maintainer, security and licence approvals — is **not** ticked, and the
+  work that prepares a release cannot self-assign it; the owner then asked for the tag
+  anyway, so `v0.8.0` was cut ahead of the signatures and the documents say so rather than
+  implying an approval that was never given.
 
 ## Live run
 
