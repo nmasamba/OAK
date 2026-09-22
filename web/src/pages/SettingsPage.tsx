@@ -93,6 +93,11 @@ function VerdictBadge({
   const verdict = asString(verification["verdict"]) ?? "unknown";
   const checkedAt = asString(verification["checked_at"]);
   const stale = verification["stale"] === true;
+  const definitive =
+    verdict === "accepted" ||
+    verdict === "rejected" ||
+    verdict === "scope_limited";
+  const attempt = asObject(verification["last_attempt"]);
   const role = asString(verification["token_role"]);
   const permission = verification["inference_permission"];
   const canPay = verification["can_pay"];
@@ -111,13 +116,22 @@ function VerdictBadge({
   }
   return (
     <span data-verdict={verdict}>
-      <span className={`badge ${verdict === "accepted" ? "" : "badge-warn"}`}>
-        {verdict}
+      <span
+        className={`badge ${verdict === "accepted" ? "" : definitive ? "badge-warn" : "badge-muted"}`}
+      >
+        {definitive ? verdict.replace("_", " ") : "not verified"}
       </span>{" "}
-      {checkedAt === null ? "" : `${ageOf(checkedAt)} (${checkedAt})`}
-      {stale ? " — stale; verify again" : ""}
+      {checkedAt === null
+        ? ""
+        : definitive
+          ? `${ageOf(checkedAt)} (${checkedAt})`
+          : `attempted ${ageOf(checkedAt)}`}
+      {stale && definitive ? " — stale; verify again" : ""}
       {details.length > 0 ? ` — ${details.join("; ")}` : ""}
       {reason !== null && verdict !== "accepted" ? ` — ${reason}` : ""}
+      {attempt !== null
+        ? ` (the last check ${ageOf(asString(attempt["at"]) ?? "")} could not reach Hugging Face; this verdict stands)`
+        : ""}
     </span>
   );
 }
@@ -194,12 +208,14 @@ export function SettingsPage() {
             (credential) => credential.family === "huggingface",
           );
           const verdict = asObject(row?.verification ?? null);
+          const word = verdict === null ? null : asString(verdict["verdict"]);
           setNotice(
-            `Stored the Hugging Face token on this machine; Hugging Face says: ${
-              verdict === null
-                ? "not verified"
-                : (asString(verdict["verdict"]) ?? "unknown")
-            }.`,
+            word === "accepted" ||
+              word === "rejected" ||
+              word === "scope_limited"
+              ? `Stored the Hugging Face token on this machine; Hugging Face says: ${word.replace("_", " ")}.`
+              : "Stored the Hugging Face token on this machine; it could not be verified " +
+                  "(Hugging Face was not heard), so it is unverified until you try again.",
           );
         }),
     );

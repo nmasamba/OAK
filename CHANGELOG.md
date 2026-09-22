@@ -36,32 +36,56 @@ token (`OAK-S10-001`–`008`), authorized by the owner on 2026-09-21.
   require the capability token on REST. The `brief_interpreted` audit extension records the
   mode (`OAK-S10-003`).
 - One pinned model per family instead of one selection: `oak models select huggingface
-  <model_id> [--provider <route>]` pins the Online AI pair (the route must be one the catalogue
-  lists as supporting structured output), `oak models select local <model_id>` the Local AI
-  model, `oak models clear [family]` returns to the preferred model. A configuration file
-  written by the unreleased Sprint 9 build is upgraded on load (`OAK-S10-003`).
+  <model_id> [--provider <route>]` pins the Online AI pair, `oak models select local
+  <model_id>` the Local AI model, `oak models clear [family]` returns to the preferred model.
+  Only a pair the catalogue lists with a live structured-output route can be pinned, and the
+  pin is checked again every time it is used, not only when it is made: a route that later
+  loses structured output, or a model that leaves the catalogue, takes Online AI out of
+  service with the reason rather than being called anyway. A `:` suffix in a model identifier
+  is refused, so the router's own `model:provider` and `model:cheapest` spellings cannot
+  smuggle past that check. A configuration file written by the unreleased Sprint 9 build is
+  upgraded on load, and a route it carries is re-checked the same way (`OAK-S10-003`,
+  `OAK-S10-007`).
 - Discovery ranks by the Hub's trending order and records each model's licence rather than
   excluding on it; the preferred model is the first ungated, trusted-namespace survivor with a
-  live structured-output route. Routes carry `is_free` and `throughput`; the `cheapest` policy
+  live structured-output route that is also priced and fast enough to answer inside
+  `OAK_MODEL_TIMEOUT_SECONDS` (see the route-against-the-clock entry below). Routes carry `is_free` and `throughput`; the `cheapest` policy
   prefers a route the catalogue flags as free while a promotion lasts, `fastest` the highest
   measured throughput. `PINNED_MODELS` and `TRUSTED_NAMESPACES` are refreshed as of 2026-09-21
   (`OAK-S10-003`).
 - `oak models status` and `GET /v1/models` report `modes` (whether each mode can run and why
   not) and `selections` instead of `configured` and `selection` (`OAK-S10-003`).
+- `OAK_MODEL_TIMEOUT_SECONDS` defaults to 35 seconds rather than 30: a live run returned a
+  valid proposal in 29.1 seconds, and 35 is the largest default that still leaves the 20
+  seconds of headroom the online pre-flight needs under the 55-second ceiling (`OAK-S10-007`).
 
 ### Added
 
+- The provider route Online AI calls is chosen against the clock as well as the price
+  (`OAK-S10-007`). The catalogue publishes each route's measured throughput, so a route that
+  cannot generate a bounded proposal inside `OAK_MODEL_TIMEOUT_SECONDS` is not offered, and
+  the preferred pair is the first trending model with a route that can answer in time; a model
+  whose every route is too slow is passed over and named. How long a route takes is estimated
+  from a live measurement — 3,074 output tokens on a route published at 72.5 tokens per second,
+  which delivered about 1.57 times its published figure — rather than from an assumed proposal
+  size. A route the catalogue does not price
+  is not offered either. Both rules come from a live run: the cheapest route of the trending
+  top model needed about 80 seconds against a 30-second budget, and the one unpriced route
+  that was fast enough was refused by the router with `402 Pay-as-you go is not enabled for
+  provider …`. That 402 now maps to the new `OAK-MODEL-ROUTE-UNAVAILABLE`, which names the
+  real remedy, instead of telling an account that can pay its credit has run out.
 - Token corroboration (`OAK-S10-004`). `oak models set-key` stores the Hugging Face token and
   then asks the Hub's `whoami-v2` about it — one free request that generates nothing —
   printing what it is doing; `--no-verify` skips it. `oak models verify [family]` and
-  `POST /v1/models/{family}:verify` re-check on demand. The verdict (`accepted`, `rejected`,
-  `scope_limited`, `unreachable` or `unverifiable`), the token's role, whether the account can
-  pay and whether the token carries the Inference Providers permission are stored with the
-  time they were given; the account's name and email are discarded at parse time and a test
+  `POST /v1/models/{family}:verify` re-check on demand. The verdict — `accepted`, `rejected` or `scope_limited`; `unreachable` and
+  `unverifiable` mean the provider was not heard, so they are filed beside the standing
+  verdict as the last attempt rather than replacing it, and never count as a check — with
+  the token's role, whether the account can pay and whether the token carries the Inference
+  Providers permission, all stored with the time they were given; the account's name and email are discarded at parse time and a test
   proves they are never written. A verdict is shown with its age and called stale after
-  `OAK_MODEL_VERIFICATION_STALE_SECONDS` (a day). Storing or removing a key forgets the
+  the new `OAK_MODEL_VERIFICATION_STALE_SECONDS` (default `86400`, one day, documented in `docs/configuration.md`). Storing or removing a key forgets the
   verdict. A `rejected` verdict takes Online AI offline until a new token is stored, and a
-  token the provider refuses mid-interpretation is recorded as rejected. Before an online
+  token the provider refuses with a 401 mid-interpretation is recorded as rejected — a 403 on one route or one gated model is not a verdict about the credential and records nothing. Before an online
   interpretation, a stale verdict is re-checked (5-second budget) and a stale catalogue
   refreshed (15-second budget) when `OAK_MODEL_TIMEOUT_SECONDS` leaves 20 seconds of headroom
   under the 55-second ceiling; a rejected token is refused before any request that could
@@ -123,7 +147,7 @@ on 2026-09-17 as PR #21 (`88fa876`). Its entries follow as history.
 - The provider layer that makes the model path real (`OAK-S9-005`). Seven families — Hugging Face Inference Providers, OpenAI, Anthropic, Google Gemini, Meta, xAI and a local OpenAI-compatible server — are described as data in `oak.adapters.models.providers`: hosts, request shape, catalogue parser, chat-candidate rule, preferred models with an `as_of` date, key-verification strategy, data-use note and a status map from every documented provider error to one stable `OAK-*` code. Provider text is parsed only to choose the code and is then discarded; no provider message, header or body reaches an error, a log or an interface.
 - `oak.adapters.models.transport` is the only module in OAK that opens a connection to a provider, and it is the only model module allowed to import a network client. It refuses any host outside the calling profile's fixed allowlist before touching a socket, speaks https except to a loopback address for the `local` family, never follows a redirect, ignores environment and system proxies, verifies TLS against the system trust store, reads the body in bounded packets against one monotonic deadline of at most 55 seconds, and converts every socket, TLS and protocol failure into a fixed OAK message (`OAK-S9-005`).
 - `oak.adapters.models.hosted_interpreter` sends exactly one request per interpretation, plus at most one retry on a documented rate limit if it fits inside the deadline. The key is read per call and never stored on the adapter; the brief travels as delimited data in the user turn under a system prompt that says it is untrusted; the model answers a strict JSON schema; and every claim it returns is bounded, deduplicated and counted before it becomes a proposal. The proposal records family, model, route, prompt and response digests and token usage — never a prompt or a response body (`OAK-S9-005`).
-- `oak models discover <family>` looks up what a key can actually reach. For Hugging Face the lookup is anonymous and needs no key: it reads the router's chat catalogue and the Hub's trending list, keeps only ungated models under Apache-2.0, MIT or BSD-3-Clause from a namespace allowlist with at least one live structured-output route, and recommends the best of them — falling back to a pinned chain (`openai/gpt-oss-120b`, `openai/gpt-oss-20b`, `Qwen/Qwen3-235B-A22B-Instruct-2507`) labelled `pinned` when a catalogue cannot be reached, rather than pretending the answer was looked up. Discovery is explicit only: `oak models status`, `GET /v1/models` and `interpret` never contact a catalogue (`OAK-S9-005`).
+- `oak models discover <family>` looks up what a key can actually reach. For Hugging Face the lookup is anonymous and needs no key: it reads the router's chat catalogue and the Hub's trending list, keeps only ungated models under Apache-2.0, MIT or BSD-3-Clause from a namespace allowlist with at least one live structured-output route, and recommends the best of them — falling back to a pinned chain labelled `pinned` when a catalogue cannot be reached (refreshed in Sprint 10 to `Qwen/Qwen3.8-27B`, `zai-org/GLM-5.3-Flash` and `openai/gpt-oss-120b`), rather than pretending the answer was looked up. Discovery is explicit only: `oak models status` and `GET /v1/models` never contact a catalogue, and neither does a deterministic or local interpretation (`OAK-S9-005`; since Sprint 10 an **online** interpretation refreshes a stale snapshot in a bounded pre-flight first).
 - `OAK_MODEL_ENDPOINT_LOCAL`, `OAK_MODEL_TIMEOUT_SECONDS` and `OAK_MODEL_DISCOVERY_CACHE_SECONDS` are documented; the timeout is clamped to 1–55 seconds because the shipped nginx proxy gives up at 60 (`OAK-S9-005`).
 - Register `RR-039` (a configured hosted model receives the brief; opt-in, audited, and the provider's own retention and training terms are outside OAK's control) and `RR-041` (a model interpretation is individually bounded but nothing caps aggregate provider spend) — count 39 → 41 (`OAK-S9-005`).
 - The model-configuration REST resources (`OAK-S9-006`), all loopback-only, all `no-store`, and none of them able to return a stored key: `GET /v1/models` (families, selection, per-family backend and salted fingerprint, discovery age and staleness), `PUT`/`DELETE /v1/models/credentials/{family}`, `PUT`/`DELETE /v1/models/selection` and `POST /v1/models/{family}:discover`. The capability token is a dependency rather than a check inside each handler, so an unauthorised caller is refused before its body is parsed and is never told what was wrong with a request it was not entitled to make. `api_key` is `writeOnly` with `format: password` and no example, so it appears in no generated client and no rendered documentation. None of these routes takes an idempotency key, builds a command context, or appends an audit event: configuring a provider is machine-local state, not a case mutation.

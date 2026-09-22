@@ -201,10 +201,14 @@ def test_select_requires_a_key_for_hosted_families_but_not_for_local(tmp_path: P
     assert service.status()["modes"]["local"]["model_id"] == "llama3.2"
 
     service.set_key("huggingface", SecretValue(KEY), source="file")
-    chosen = service.select("huggingface", "openai/gpt-oss-120b")
-    assert chosen.model_id == "openai/gpt-oss-120b"
+    with pytest.raises(OAKError) as unlisted:
+        service.select("huggingface", "openai/gpt-oss-120b")
+    assert unlisted.value.code == "OAK-MODEL-ROUTE", "nothing could check an unlisted pair"
+    service.record_discovery("huggingface", SNAPSHOT)
+    chosen = service.select("huggingface", "Qwen/Qwen3.8-27B")
+    assert chosen.model_id == "Qwen/Qwen3.8-27B"
     status = service.status()
-    assert status["selections"]["huggingface"]["model_id"] == "openai/gpt-oss-120b"
+    assert status["selections"]["huggingface"]["model_id"] == "Qwen/Qwen3.8-27B"
     assert status["selections"]["local"]["model_id"] == "llama3.2", "one pin per family"
     assert status["modes"]["online"]["pair"]["source"] == "pinned"
     assert service.clear_selection("huggingface") is True
@@ -236,6 +240,9 @@ def test_online_ai_uses_the_pinned_pair_else_the_preferred_model(tmp_path: Path)
         "resolved_at": NOW,
         "licence": "apache-2.0",
         "output_price_per_million": 1.49,
+        "valid": True,
+        "reason": None,
+        "passed_over": [],
     }
     assert service.status()["modes"]["online"]["available"] is True
 
@@ -243,20 +250,23 @@ def test_online_ai_uses_the_pinned_pair_else_the_preferred_model(tmp_path: Path)
     # kept; the price shown is that route's.
     service.select("huggingface", "Qwen/Qwen3.8-27B", provider_route="cerebras")
     pinned = service.online_pair()
-    assert pinned is not None and pinned["source"] == "pinned"
+    assert pinned is not None and pinned["source"] == "pinned" and pinned["valid"] is True
     assert pinned["provider_route"] == "cerebras" and pinned["resolved_at"] == NOW
 
-    # A model the catalogue does not know can still be pinned: the router decides.
-    unknown = service.select("huggingface", "openai/gpt-oss-20b")
-    assert unknown.provider_route is None
-    assert service.online_pair() == {
-        "model_id": "openai/gpt-oss-20b",
-        "provider_route": None,
-        "source": "pinned",
-        "resolved_at": NOW,
-        "licence": None,
-        "output_price_per_million": None,
-    }
+    # A model the catalogue does not list cannot be pinned: nothing could check its route,
+    # and an unrouted model reference would let the router pick any provider.
+    with pytest.raises(OAKError) as unlisted:
+        service.select("huggingface", "openai/gpt-oss-20b")
+    assert unlisted.value.code == "OAK-MODEL-ROUTE"
+    assert "oak models discover" in unlisted.value.message
+    with pytest.raises(OAKError) as suffixed:
+        service.select("huggingface", "Qwen/Qwen3.8-27B:nscale")
+    assert suffixed.value.code == "OAK-MODEL-ID"
+    with pytest.raises(OAKError) as policy:
+        service.select("huggingface", "Qwen/Qwen3.8-27B:fastest")
+    assert policy.value.code == "OAK-MODEL-ID"
+    assert service.selection("huggingface") is not None
+    assert service.selection("huggingface").model_id == "Qwen/Qwen3.8-27B"  # type: ignore[union-attr]
 
 
 def test_a_pinned_pair_must_be_able_to_answer_with_structured_output(tmp_path: Path) -> None:
@@ -373,10 +383,12 @@ def test_verify_records_the_verdict_with_its_time_and_a_new_key_forgets_it(tmp_p
 
     verdict = service.verify("huggingface")
     assert asked == ["huggingface"]
+    fingerprint = service.credential_status("huggingface").fingerprint
     assert verdict == {
         "verdict": "accepted",
         "checked_at": NOW,
         "method": "hub_whoami_v2",
+        "credential_fingerprint": fingerprint,
         "token_role": "read",
         "inference_permission": True,
         "can_pay": False,
@@ -456,3 +468,165 @@ def test_a_verdict_goes_stale_after_the_window_and_the_surfaces_say_so(tmp_path:
     now[0] = "2026-09-17T09:00:00Z"
     status = service.verification_status("huggingface")
     assert status is not None and status["stale"] is True, "a future verdict is not current"
+
+
+# ----- OAK-S10-007: what the closing audit found ------------------------------------------------
+
+
+def test_a_pinned_pair_the_refreshed_catalogue_no_longer_supports_is_not_ready(
+    tmp_path: Path,
+) -> None:
+    """A pin is checked when it is used, not only when it is made."""
+
+    snapshots = [dict(SNAPSHOT)]
+    service = _service(
+        tmp_path, discoverer=lambda family, previous: snapshots[-1], route_chooser=_first_capable
+    )
+    service.set_key("huggingface", SecretValue(KEY), source="file")
+    service.discover("huggingface")
+    service.select("huggingface", "Qwen/Qwen3.8-27B", provider_route="cerebras")
+    assert service.status()["modes"]["online"]["available"] is True
+
+    # The route loses structured output on the next refresh.
+    moved = {
+        **SNAPSHOT,
+        "models": [
+            {
+                **SNAPSHOT["models"][0],
+                "providers": [
+                    {
+                        "provider": "cerebras",
+                        "supports_structured_output": False,
+                        "output_price_per_million": 1.49,
+                    },
+                    {
+                        "provider": "deepinfra",
+                        "supports_structured_output": True,
+                        "output_price_per_million": 2.5,
+                    },
+                ],
+            }
+        ],
+    }
+    snapshots.append(moved)
+    service.discover("huggingface")
+    pair = service.online_pair()
+    assert pair is not None and pair["valid"] is False and pair["source"] == "pinned"
+    assert "cerebras" in pair["reason"] and "deepinfra" in pair["reason"]
+    online = service.status()["modes"]["online"]
+    assert online["available"] is False and online["reason"] == pair["reason"]
+
+    # The model vanishes from the catalogue altogether.
+    snapshots.append(
+        {**SNAPSHOT, "recommended": "Qwen/Qwen3-8B", "models": [SNAPSHOT["models"][1]]}
+    )
+    service.discover("huggingface")
+    pair = service.online_pair()
+    assert pair is not None and pair["valid"] is False
+    assert "does not list Qwen/Qwen3.8-27B" in pair["reason"]
+
+    # Clearing the pin returns to the preferred pair, which is checked the same way.
+    service.clear_selection("huggingface")
+    preferred = service.online_pair()
+    assert preferred is not None and preferred["source"] == "preferred"
+    assert preferred["valid"] is False, "the only model listed has no structured route"
+    assert service.status()["modes"]["online"]["available"] is False
+
+
+def test_a_verdict_belongs_to_the_credential_it_was_about(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Rotating the environment variable, or losing the file, leaves no verdict behind."""
+
+    service = _service(tmp_path, verifier=lambda family: dict(ACCEPTED))
+    monkeypatch.setenv("OAK_MODEL_KEY_HUGGINGFACE", KEY)
+    service.set_key("huggingface", SecretValue(""), source="env")
+    service.verify("huggingface")
+    status = service.verification_status("huggingface")
+    assert status is not None and status["verdict"] == "accepted"
+    assert status["credential_fingerprint"] is not None
+
+    monkeypatch.setenv("OAK_MODEL_KEY_HUGGINGFACE", KEY + "-rotated")
+    assert service.verification_status("huggingface") is None, "a different credential"
+    assert service.is_verification_stale("huggingface") is True
+    assert service.status()["credentials"]["huggingface"]["verification"] is None
+
+    monkeypatch.setenv("OAK_MODEL_KEY_HUGGINGFACE", KEY)
+    assert service.verification_status("huggingface") is not None, "the same credential again"
+
+    monkeypatch.delenv("OAK_MODEL_KEY_HUGGINGFACE")
+    assert service.credential_status("huggingface").configured is False
+    assert service.verification_status("huggingface") is None, "no credential, no verdict"
+
+
+def test_an_attempt_that_could_not_reach_the_provider_never_erases_its_last_verdict(
+    tmp_path: Path,
+) -> None:
+    answers: list[dict[str, Any]] = [
+        {"verdict": "rejected", "method": "hub_whoami_v2", "reason": "not accepted (401)"},
+        {"verdict": "unreachable", "method": "hub_whoami_v2", "reason": "could not be reached"},
+    ]
+    now = [NOW]
+    service = _service(
+        tmp_path,
+        verifier=lambda family: answers.pop(0),
+        clock=lambda: now[0],
+        verification_stale_seconds=60,
+    )
+    service.set_key("huggingface", SecretValue(KEY), source="file")
+    service.verify("huggingface")
+    assert service.status()["modes"]["online"]["reason"].startswith("Hugging Face rejected")
+
+    now[0] = "2026-09-17T12:00:00Z"
+    assert service.is_verification_stale("huggingface") is True
+    later = service.verify("huggingface")
+    assert later["verdict"] == "rejected", "the Hub's last word stands"
+    assert later["checked_at"] == NOW
+    assert later["last_attempt"] == {
+        "verdict": "unreachable",
+        "at": "2026-09-17T12:00:00Z",
+        "reason": "could not be reached",
+    }
+    assert service.status()["modes"]["online"]["available"] is False
+
+    # A record that was never definitive is not a check at all: it reads as stale however
+    # fresh it is, so the next use asks again.
+    bare = _service(
+        tmp_path / "bare",
+        verifier=lambda family: {"verdict": "unreachable", "method": "hub_whoami_v2"},
+    )
+    bare.set_key("huggingface", SecretValue(KEY), source="file")
+    bare.verify("huggingface")
+    status = bare.verification_status("huggingface")
+    assert status is not None and status["stale"] is False
+    assert bare.is_verification_stale("huggingface") is True
+
+
+def test_a_naive_timestamp_reads_as_stale_rather_than_crashing(tmp_path: Path) -> None:
+    import json
+
+    service = _service(tmp_path, verifier=lambda family: dict(ACCEPTED))
+    service.set_key("huggingface", SecretValue(KEY), source="file")
+    service.verify("huggingface")
+    path = tmp_path / "models" / "model-configuration.json"
+    document = json.loads(path.read_text(encoding="utf-8"))
+    document["verification"]["huggingface"]["checked_at"] = "2026-09-17T09:59:00"
+    path.write_text(json.dumps(document), encoding="utf-8")
+
+    status = service.verification_status("huggingface")
+    assert status is not None and status["stale"] is False, "a naive time is read as UTC"
+    document["verification"]["huggingface"]["checked_at"] = "yesterday"
+    path.write_text(json.dumps(document), encoding="utf-8")
+    status = service.verification_status("huggingface")
+    assert status is not None and status["stale"] is True
+
+
+def test_a_verdict_method_outside_the_schema_is_refused_before_it_is_saved(tmp_path: Path) -> None:
+    service = _service(tmp_path)
+    service.set_key("huggingface", SecretValue(KEY), source="file")
+    with pytest.raises(OAKError) as refused:
+        service.record_verdict("huggingface", "accepted", method="authenticated_models_list")
+    assert refused.value.code == "OAK-MODEL-VERIFICATION-UNAVAILABLE"
+    assert service.verification_status("huggingface") is None
+    local = service.record_verdict("local", "unreachable", method="models_list")
+    assert local["verdict"] == "unreachable"

@@ -57,24 +57,19 @@ export function CasePage({ caseId }: { readonly caseId: string }) {
       .catch(() => setModels(null));
   };
 
-  useEffect(() => {
-    void loadModels();
-  }, [caseId]);
-
-  // Choosing Online AI re-checks a stale token verdict and refreshes a stale catalogue
-  // first, so what the option says is current before anything is sent. Both are free:
-  // the verification generates nothing and the catalogue reads are anonymous.
-  const chooseMode = (next: InterpretMode) => {
-    setMode(next);
-    rememberInterpretMode(caseId, next);
+  // Online AI re-checks a stale token verdict and refreshes a stale catalogue before the
+  // option is believed, so what it says is current whether the mode was carried in from
+  // the intake form or chosen here. Both are free: the verification generates nothing and
+  // the catalogue reads are anonymous.
+  const refreshForOnline = (status: ModelStatusResponse | null) => {
     const token = currentModelToken();
-    if (next !== "online" || token === null || models === null) {
+    if (token === null || status === null) {
       return;
     }
-    const online = asObject(models.modes["online"]);
+    const online = asObject(status.modes["online"]);
     const verification =
       online === null ? null : asObject(online["verification"]);
-    const catalogue = models.discovery["huggingface"];
+    const catalogue = status.discovery["huggingface"];
     const refreshes: Promise<unknown>[] = [];
     if (verification === null || verification["stale"] === true) {
       refreshes.push(verifyModelCredential("huggingface", token));
@@ -86,6 +81,25 @@ export function CasePage({ caseId }: { readonly caseId: string }) {
       void Promise.all(refreshes)
         .catch(() => undefined)
         .then(loadModels);
+    }
+  };
+
+  useEffect(() => {
+    void loadModels().then(() => {
+      if (recallInterpretMode(caseId) === "online") {
+        setModels((current) => {
+          refreshForOnline(current);
+          return current;
+        });
+      }
+    });
+  }, [caseId]);
+
+  const chooseMode = (next: InterpretMode) => {
+    setMode(next);
+    rememberInterpretMode(caseId, next);
+    if (next === "online") {
+      refreshForOnline(models);
     }
   };
 

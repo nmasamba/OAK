@@ -1693,6 +1693,8 @@ def _verification_text(family: str, verification: dict[str, Any]) -> str:
             f" — {'; '.join(details)}." if details else "."
         )
     reason = verification.get("reason") or "no reason was given"
+    if verdict in {"unreachable", "unverifiable"}:
+        return f"{family}: not verified — {reason} (attempted at {when})"
     return f"{family}: {verdict} at {when} — {reason}"
 
 
@@ -1727,6 +1729,12 @@ def _models_status_text(status: dict[str, Any]) -> str:
         if verification is not None:
             stale = " — stale; run `oak models verify`" if verification.get("stale") else ""
             lines.append(f"  {_verification_text(family, verification)}{stale}")
+            attempt = verification.get("last_attempt")
+            if isinstance(attempt, dict):
+                lines.append(
+                    f"    (the last check at {attempt.get('at')} could not settle it: "
+                    f"{attempt.get('reason') or 'the provider was not heard'})"
+                )
     for family, snapshot in sorted(status.get("discovery", {}).items()):
         age = " (stale)" if snapshot.get("stale") else ""
         lines.append(

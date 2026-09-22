@@ -20,7 +20,7 @@ import copy
 import unicodedata
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from oak.domain import (
@@ -44,6 +44,10 @@ DEFAULT_LOCAL_ENDPOINT = "http://127.0.0.1:11434/v1"
 Discoverer = Callable[[str, dict[str, Any] | None], dict[str, Any]]
 Verifier = Callable[[str], dict[str, Any]]
 VERDICTS = ("accepted", "rejected", "scope_limited", "unreachable", "unverifiable")
+DEFINITIVE_VERDICTS = frozenset({"accepted", "rejected", "scope_limited"})
+VERIFICATION_METHOD_VALUES = frozenset(
+    {"hub_whoami_v2", "models_list", "interpretation", "unknown"}
+)
 RouteChooser = Callable[[dict[str, Any] | None, str], str | None]
 
 
@@ -192,9 +196,44 @@ class ModelConfigurationService:
         policy = str(document["provider_policy"])
         if selection is not None:
             listed = self._listed(snapshot, selection.model_id)
+            capable = self._capable_routes(listed)
             route = selection.provider_route
-            if route is None and self._route_chooser is not None:
+            valid, reason = True, None
+            if listed is None:
+                valid, reason = (
+                    False,
+                    (
+                        f"the catalogue does not list {selection.model_id}; run `oak models "
+                        "discover` and pin a listed pair, or `oak models clear huggingface`"
+                    ),
+                )
+            elif not capable:
+                valid, reason = (
+                    False,
+                    (
+                        f"{selection.model_id} no longer has a live route that supports structured "
+                        "output, which the interpretation needs; pin another pair or run "
+                        "`oak models clear huggingface`"
+                    ),
+                )
+            elif route is not None and route not in capable:
+                valid, reason = (
+                    False,
+                    (
+                        f"the pinned route {route} for {selection.model_id} no longer "
+                        "supports structured output (the catalogue lists "
+                        f"{', '.join(capable)}); pin another with `oak models select "
+                        f"huggingface {selection.model_id} --provider <route>`, or "
+                        "`oak models clear huggingface` for the preferred pair"
+                    ),
+                )
+            elif route is None and self._route_chooser is not None:
                 route = self._route_chooser(listed, policy)
+            if valid and (route is None or route not in capable):
+                valid, reason = (
+                    False,
+                    (f"no structured-output route could be chosen for {selection.model_id}"),
+                )
             return {
                 "model_id": selection.model_id,
                 "provider_route": route,
@@ -202,28 +241,80 @@ class ModelConfigurationService:
                 "resolved_at": selection.selected_at,
                 "licence": (listed or {}).get("licence"),
                 "output_price_per_million": self._price(listed, route),
+                "valid": valid,
+                "reason": reason,
+                "passed_over": [],
             }
-        if snapshot is None or snapshot.get("recommended") is None:
+        if snapshot is None or not snapshot.get("models"):
             return None
-        model_id = str(snapshot["recommended"])
-        listed = self._listed(snapshot, model_id)
-        route = self._route_chooser(listed, policy) if self._route_chooser is not None else None
+        # The catalogue's order is the Hub's trending order, so the preferred pair is the
+        # first model that can actually be called: ungated and structured-output-capable,
+        # which discovery already guaranteed, and reachable inside the request budget, which
+        # only the chooser knows. A model whose every route is too slow is passed over rather
+        # than offered and then timed out on — the cheapest route of a model is routinely its
+        # slowest, and a live run proved the top model unusable at its cheapest route.
+        passed_over: list[str] = []
+        for listed in snapshot["models"]:
+            if not isinstance(listed, dict):
+                continue
+            model_id = str(listed.get("id", ""))
+            capable = self._capable_routes(listed)
+            route = self._route_chooser(listed, policy) if self._route_chooser is not None else None
+            if route is None or route not in capable:
+                passed_over.append(model_id)
+                continue
+            return {
+                "model_id": model_id,
+                "provider_route": route,
+                "source": "preferred",
+                "resolved_at": str(snapshot["fetched_at"]),
+                "licence": listed.get("licence"),
+                "output_price_per_million": self._price(listed, route),
+                "valid": True,
+                "reason": None,
+                "passed_over": passed_over,
+            }
         return {
-            "model_id": model_id,
-            "provider_route": route,
+            "model_id": str(snapshot.get("recommended") or (passed_over[0] if passed_over else "")),
+            "provider_route": None,
             "source": "preferred",
             "resolved_at": str(snapshot["fetched_at"]),
-            "licence": (listed or {}).get("licence"),
-            "output_price_per_million": self._price(listed, route),
+            "licence": None,
+            "output_price_per_million": None,
+            "valid": False,
+            "reason": (
+                f"none of the {len(passed_over)} model(s) in the catalogue has a provider "
+                "route that both supports structured output and is fast enough to answer "
+                "within OAK_MODEL_TIMEOUT_SECONDS; run `oak models discover`, raise that "
+                "budget, or set the provider policy to fastest"
+            ),
+            "passed_over": passed_over,
         }
 
     def verification_status(self, family: str) -> dict[str, Any] | None:
-        """The stored verdict about a family's credential, with its age, or ``None``."""
+        """The stored verdict about the credential now held for a family, with its age.
 
-        self._descriptor(family)
+        ``None`` when nothing was recorded, when no credential is held any more, or when
+        the credential held now is not the one the verdict was about (its fingerprint
+        differs — a rotated environment variable, a replaced file): a verdict about a
+        credential that is gone is not a verdict about this one.
+        """
+
+        descriptor = self._descriptor(family)
         stored = self._document()["verification"].get(family)
         if stored is None:
             return None
+        if descriptor.credential_required:
+            credential = self.credential_status(family)
+            if not credential.configured:
+                return None
+            recorded = stored.get("credential_fingerprint")
+            if (
+                recorded is not None
+                and credential.fingerprint is not None
+                and recorded != credential.fingerprint
+            ):
+                return None
         checked_at = str(stored["checked_at"])
         return {
             **stored,
@@ -231,10 +322,18 @@ class ModelConfigurationService:
         }
 
     def is_verification_stale(self, family: str) -> bool:
-        """Whether the family's verdict is missing or older than the window."""
+        """Whether the credential should be asked about again before it is relied on.
+
+        Missing, older than the window, or not a verdict at all: ``unreachable`` and
+        ``unverifiable`` say the provider was not heard, so they never count as a check.
+        """
 
         status = self.verification_status(family)
-        return status is None or bool(status["stale"])
+        return (
+            status is None
+            or bool(status["stale"])
+            or str(status["verdict"]) not in DEFINITIVE_VERDICTS
+        )
 
     def modes(self) -> dict[str, dict[str, Any]]:
         """Which of the three modes can run now, and the reason when one cannot."""
@@ -252,6 +351,8 @@ class ModelConfigurationService:
                 f"Hugging Face rejected the stored token at {verification['checked_at']}; "
                 "store a current one with `oak models set-key`"
             )
+        elif pair is not None and not pair["valid"]:
+            online["reason"] = pair["reason"]
         elif pair is None:
             online["reason"] = (
                 "no model is known yet; run `oak models discover` to read the catalogue "
@@ -421,14 +522,42 @@ class ModelConfigurationService:
     ) -> dict[str, Any]:
         """Store a verdict the provider gave — from `verify`, or from a refused interpretation."""
 
-        self._descriptor(family)
+        descriptor = self._descriptor(family)
         if verdict not in VERDICTS:
             raise OAKError("OAK-MODEL-VERIFICATION-UNAVAILABLE", "the verdict is not recognised")
+        if method not in VERIFICATION_METHOD_VALUES:
+            raise OAKError(
+                "OAK-MODEL-VERIFICATION-UNAVAILABLE", "the verification method is not recognised"
+            )
         document = self._document()
+        now = self._clock()
+        fingerprint: str | None = None
+        if descriptor.credential_required:
+            secret = self.credential_for(family)
+            fingerprint = self._fingerprint(secret) if secret is not None else None
+        stored = document["verification"].get(family)
+        if (
+            verdict not in DEFINITIVE_VERDICTS
+            and isinstance(stored, dict)
+            and stored.get("verdict") in DEFINITIVE_VERDICTS
+            and stored.get("credential_fingerprint") == fingerprint
+        ):
+            # The provider was not heard this time. That is not a verdict, so the last one
+            # it gave stands; the attempt is recorded beside it so the surfaces can say so.
+            stored["last_attempt"] = {
+                "verdict": verdict,
+                "at": now,
+                "reason": str(reason)[:400] if isinstance(reason, str) and reason else None,
+            }
+            self._configuration.save(document)
+            status = self.verification_status(family)
+            assert status is not None
+            return status
         document["verification"][family] = {
             "verdict": verdict,
-            "checked_at": self._clock(),
+            "checked_at": now,
             "method": method,
+            "credential_fingerprint": fingerprint,
             "token_role": token_role if isinstance(token_role, str) else None,
             "inference_permission": (
                 inference_permission if isinstance(inference_permission, bool) else None
@@ -473,12 +602,25 @@ class ModelConfigurationService:
                 "OAK-MODEL-ROUTE", "a provider route is meaningful only for Hugging Face"
             )
         listed = self._listed(self.discovery_snapshot(family), model_id)
-        if family == "huggingface" and listed is not None:
-            capable = [
-                str(route["provider"])
-                for route in listed.get("providers", [])
-                if isinstance(route, dict) and route.get("supports_structured_output") is True
-            ]
+        if family == "huggingface":
+            if ":" in model_id:
+                # `model:route` and `model:cheapest` are the router's own spellings; a route
+                # is pinned with --provider, where the catalogue can check it, and a
+                # server-side policy is never sent because it may pick a provider without
+                # structured output.
+                raise OAKError(
+                    "OAK-MODEL-ID",
+                    "a Hugging Face model identifier carries no `:` suffix; pin the provider "
+                    "route with --provider instead",
+                )
+            if listed is None:
+                raise OAKError(
+                    "OAK-MODEL-ROUTE",
+                    f"the catalogue does not list {model_id}; run `oak models discover` and "
+                    "pin a listed pair — only a pair the catalogue shows with a "
+                    "structured-output route can be pinned",
+                )
+            capable = self._capable_routes(listed)
             if not capable:
                 raise OAKError(
                     "OAK-MODEL-ROUTE",
@@ -594,10 +736,24 @@ class ModelConfigurationService:
         try:
             taken = datetime.fromisoformat(recorded_at.replace("Z", "+00:00"))
             current = datetime.fromisoformat(now.replace("Z", "+00:00"))
-        except ValueError:
+            if taken.tzinfo is None:
+                taken = taken.replace(tzinfo=UTC)
+            if current.tzinfo is None:
+                current = current.replace(tzinfo=UTC)
+            age = (current - taken).total_seconds()
+        except (TypeError, ValueError):
             return True
-        age = (current - taken).total_seconds()
         return age < 0 or age > window_seconds
+
+    @staticmethod
+    def _capable_routes(listed: dict[str, Any] | None) -> list[str]:
+        if listed is None:
+            return []
+        return [
+            str(route["provider"])
+            for route in listed.get("providers", [])
+            if isinstance(route, dict) and route.get("supports_structured_output") is True
+        ]
 
     @staticmethod
     def _listed(snapshot: dict[str, Any] | None, model_id: str) -> dict[str, Any] | None:

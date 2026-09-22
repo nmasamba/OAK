@@ -181,7 +181,12 @@ every core screen, a denied stale-version transition with its recovery path, and
 interrupted operation that is cancelled cooperatively; that last scenario stops and
 restarts the Compose `worker` service, so it requires Docker control and is skipped unless
 `OAK_E2E_DOCKER=1` (which `make web-e2e` sets). A fourth spec,
+`e2e/models.spec.ts`, covers the model settings page and the Deterministic / Online AI /
+Local AI dropdown end to end, and `e2e/hardening.spec.ts` checks the containers run
+unprivileged with an owner-only model-state volume. A fifth,
 `e2e/manual-screens.spec.ts`, re-captures the user manual's screenshots; it is collected
 by every run but skips unless `OAK_MANUAL_SCREENS=1` (see `docs/manual/README.md`). Override `OAK_WEB_BASE_URL` and
 `OAK_API_BASE_URL` to target other local origins. Browser binaries download from the
-Playwright CDN; everything else runs locally.
+Playwright CDN, and the model-settings spec makes the `api` container ask
+`huggingface.co` once about the synthetic token it stores (one free request that
+generates nothing); everything else runs locally.

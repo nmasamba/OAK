@@ -41,7 +41,20 @@ PROPOSAL_REF = "oak.community/interpretation_proposal_ref"
 REGISTRY = SchemaRegistry.from_directory(ROOT / "schemas")
 
 
-def _adapter() -> BindingFakeModelInterpreter:
+MODES = ("online", "local")
+
+
+def _adapter(mode: str = "online") -> BindingFakeModelInterpreter:
+    if mode == "local":
+        return BindingFakeModelInterpreter(
+            extensions={
+                "oak.community/model": {
+                    "family": "local",
+                    "model_id": "qwen3:8b",
+                    "provider_route": None,
+                }
+            }
+        )
     return BindingFakeModelInterpreter()
 
 
@@ -62,7 +75,9 @@ def _summary(
 # ----- file leg -----------------------------------------------------------------
 
 
-def _file_leg(tmp_path: Path, adapter: ModelInterpreterPort | None) -> dict[str, Any]:
+def _file_leg(
+    tmp_path: Path, adapter: ModelInterpreterPort | None, mode: str = "online"
+) -> dict[str, Any]:
     workspace = tmp_path / "file"
     repository = FileWorkspaceRepository(workspace, REGISTRY)
     service = DesignCaseService(
@@ -82,7 +97,7 @@ def _file_leg(tmp_path: Path, adapter: ModelInterpreterPort | None) -> dict[str,
         interface_origin="cli",
         occurred_at=NOW,
     )
-    result = service.design(BRIEF_PATH, context, interpreter="online")
+    result = service.design(BRIEF_PATH, context, interpreter=mode)
     assert result.intent is not None
     events = [
         repository.read_json_artifact(ArtifactReference.from_document(entry))
@@ -149,7 +164,9 @@ class _Rest:
         return items
 
 
-def _rest_leg(tmp_path: Path, adapter: ModelInterpreterPort | None) -> dict[str, Any]:
+def _rest_leg(
+    tmp_path: Path, adapter: ModelInterpreterPort | None, mode: str = "online"
+) -> dict[str, Any]:
     rest = _Rest(tmp_path, adapter)
     created = rest.create()
     case_id = str(created["id"])
@@ -175,7 +192,7 @@ def _rest_leg(tmp_path: Path, adapter: ModelInterpreterPort | None) -> dict[str,
     rest = _Rest(tmp_path / "model-run", adapter)
     created = rest.create()
     case_id = str(created["id"])
-    status, interpreted = rest.interpret(case_id, "0.1.0", interpreter="online", token=TOKEN)
+    status, interpreted = rest.interpret(case_id, "0.1.0", interpreter=mode, token=TOKEN)
     assert status == 200, interpreted
     return _summary(interpreted["case"], interpreted["intent"], rest.events(case_id))
 
@@ -224,12 +241,14 @@ class _Mcp:
         return list(self.plane.list_audit_events(case_id, tenant_id="local"))
 
 
-def _mcp_leg(tmp_path: Path, adapter: ModelInterpreterPort | None) -> dict[str, Any]:
+def _mcp_leg(
+    tmp_path: Path, adapter: ModelInterpreterPort | None, mode: str = "online"
+) -> dict[str, Any]:
     mcp = _Mcp(tmp_path, adapter)
     created = mcp.create()
     case_id = str(created["id"])
     interpreted = mcp.client.call_ok(
-        "oak_design_case_interpret", mcp.interpret_arguments(case_id, "0.1.0", "online")
+        "oak_design_case_interpret", mcp.interpret_arguments(case_id, "0.1.0", mode)
     )
     return _summary(interpreted["case"], interpreted["intent"], mcp.events(case_id))
 
@@ -237,18 +256,22 @@ def _mcp_leg(tmp_path: Path, adapter: ModelInterpreterPort | None) -> dict[str, 
 # ----- the comparisons ----------------------------------------------------------
 
 
-def test_the_model_path_is_identical_across_file_rest_and_mcp(tmp_path: Path) -> None:
+@pytest.mark.parametrize("mode", MODES)
+def test_the_model_path_is_identical_across_file_rest_and_mcp(tmp_path: Path, mode: str) -> None:
     outcomes = {
-        "file": _file_leg(tmp_path, _adapter()),
-        "rest": _rest_leg(tmp_path, _adapter()),
-        "mcp": _mcp_leg(tmp_path, _adapter()),
+        "file": _file_leg(tmp_path, _adapter(mode), mode),
+        "rest": _rest_leg(tmp_path, _adapter(mode), mode),
+        "mcp": _mcp_leg(tmp_path, _adapter(mode), mode),
     }
     reference = outcomes["file"]
     assert reference["version"] == "0.1.1"
     assert reference["status"] == "needs_confirmation"
     assert reference["event_types"] == ["case_created", "brief_interpreted"]
     assert reference["interpreter_extension"]["kind"] == "model"
-    assert reference["interpreter_extension"]["mode"] == "online"
+    assert reference["interpreter_extension"]["mode"] == mode
+    assert reference["interpreter_extension"]["family"] == (
+        "local" if mode == "local" else "huggingface"
+    )
     assert reference["interpreter_extension"]["proposal_digest"] == reference["proposal_digest"]
     assert len(reference["question_ids"]) == 9
     for name, outcome in outcomes.items():

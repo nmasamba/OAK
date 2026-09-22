@@ -70,7 +70,18 @@
         "inference_permission": {"oneOf": [{"type": "null"}, {"type": "boolean"}]},
         "can_pay": {"oneOf": [{"type": "null"}, {"type": "boolean"}]},
         "is_pro": {"oneOf": [{"type": "null"}, {"type": "boolean"}]},
-        "reason": {"oneOf": [{"type": "null"}, {"type": "string", "maxLength": 400}]}
+        "reason": {"oneOf": [{"type": "null"}, {"type": "string", "maxLength": 400}]},
+        "credential_fingerprint": {"oneOf": [{"type": "null"}, {"type": "string", "minLength": 1, "maxLength": 64}]},
+        "last_attempt": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["verdict", "at"],
+          "properties": {
+            "verdict": {"enum": ["unreachable", "unverifiable"]},
+            "at": {"type": "string", "format": "date-time"},
+            "reason": {"oneOf": [{"type": "null"}, {"type": "string", "maxLength": 400}]}
+          }
+        }
       }
     },
     "discoverySnapshot": {

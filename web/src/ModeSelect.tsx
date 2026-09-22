@@ -16,6 +16,28 @@ export function isInterpretMode(value: unknown): value is InterpretMode {
   return value === "deterministic" || value === "online" || value === "local";
 }
 
+/**
+ * The token's verdict in words a reader cannot mistake: only what the Hub actually said is
+ * called a verdict; "unreachable" and "unverifiable" mean it was not heard.
+ */
+export function describeVerdict(
+  verdict: string | null,
+  checkedAt: string | null,
+  stale: boolean,
+): string {
+  if (verdict === null || checkedAt === null) {
+    return "token not yet verified";
+  }
+  if (verdict === "unreachable") {
+    return `token not verified (Hugging Face could not be reached ${ageOf(checkedAt)})`;
+  }
+  if (verdict === "unverifiable") {
+    return `token not verified (no way to check it ${ageOf(checkedAt)})`;
+  }
+  const word = verdict === "scope_limited" ? "scope limited" : verdict;
+  return `token ${word} ${ageOf(checkedAt)}${stale ? " (stale — verify again)" : ""}`;
+}
+
 /** What the status document says about one mode, flattened for display. */
 export interface ModeSummary {
   readonly available: boolean;
@@ -75,10 +97,7 @@ export function summariseModes(
     online === null
       ? "model settings could not be read"
       : (asString(online["reason"]) ?? null);
-  const verdictText =
-    verdict === null || checkedAt === null
-      ? "token not yet verified"
-      : `token ${verdict} ${ageOf(checkedAt)}${stale ? " (stale — verify again)" : ""}`;
+  const verdictText = describeVerdict(verdict, checkedAt, stale);
   const onlineDetail = onlineAvailable
     ? `Sends this brief to Hugging Face Inference Providers: ${model ?? "?"}${
         route === null ? "" : ` via ${route}`

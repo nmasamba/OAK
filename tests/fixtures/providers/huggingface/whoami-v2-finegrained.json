@@ -8,31 +8,32 @@
   "isPro": true,
   "billingMode": "postpaid",
   "periodEnd": 1761000000,
-  "orgs": [
-    {
-      "name": "sentinel-org",
-      "canPay": true
-    }
-  ],
+  "avatarUrl": "https://huggingface.co/avatars/sentinel.svg",
+  "orgs": [],
   "auth": {
     "type": "access_token",
     "accessToken": {
-      "displayName": "oak-inference-only",
+      "displayName": "oak-community",
       "role": "fineGrained",
-      "createdAt": "2026-09-21T09:00:00.000Z",
+      "createdAt": "2026-09-22T15:40:00.000Z",
       "fineGrained": {
-        "canReadGatedRepos": false,
+        "canReadGatedRepos": true,
         "global": [
-          "inference.serverless.write"
+          "discussion.write",
+          "collection.write"
         ],
         "scoped": [
           {
             "entity": {
+              "_id": "6410a0c9b2f4e5d6c7a8b9c1",
               "type": "user",
               "name": "sentinel-account-name-MUST-NOT-BE-STORED"
             },
             "permissions": [
-              "repo.content.read"
+              "repo.content.read",
+              "inference.serverless.write",
+              "inference.endpoints.infer.write",
+              "inference.endpoints.write"
             ]
           }
         ]

@@ -97,7 +97,7 @@ were re-verified by direct recompilation afterwards — byte-identical.
 | Are the dependency closures clean? | `make audit` re-run clean at `0.7.1` (`pip-audit` + `pnpm audit`) |
 | How fast is it? | Inherited from `0.7.0`: [performance.md](../../performance.md) / [../0.7.0/performance.json](../0.7.0/performance.json). The migration changed compiled *content*, not the compile path; figures were not re-measured |
 | Was a clean-room rehearsal re-run? | **No** — inherited from `0.7.0` ([../0.7.0/clean-room.md](../0.7.0/clean-room.md)). The install path (wheel, packaged data) is unchanged; the web image base changed and is covered by the rescan and `make web-e2e` instead. An approver who weighs the rehearsal heavily may ask for a re-run |
-| What does it *not* defend against? | [security/residual-risk.md](../../security/residual-risk.md) — 42 entries with stable ids, of which eight rows are closed (seven by this work; `RR-035` previously) |
+| What does it *not* defend against? | [security/residual-risk.md](../../security/residual-risk.md) — 38 entries with stable ids at signature, of which eight rows are closed (seven by this work; `RR-035` previously); the live register has grown since |
 | Was it externally reviewed? | **No.** As for `0.7.0`, no external security review was commissioned; the wording restrictions recorded in the [`0.7.0` decision](../0.7.0/release-decision.md#external-review) apply to this release unchanged |
 
 ## The register count, made legible
@@ -109,9 +109,13 @@ covered 35 entries; the "38" in that document describes the register as it stood
 the count was last updated, not as it stood at signature. This approval is asked to
 cover the full 38-entry register as it stood at signature — including the three entries that
 post-dated the previous signatures and the seven closures made since. Entries from `RR-039`
-onward were added after this approval by the Sprint 9 model-provider work and are not
-covered by these signatures; the count quoted above tracks the live register, as the count
-gate requires, not the register as signed.
+onward were added after this approval by the Sprint 9 and Sprint 10 model-provider work
+and are not covered by these signatures. **The count quoted above is the register as it
+stood at signature and does not move.** Until 2026-09-22 it tracked the live register
+instead, because the count gate did not distinguish a signed record from a live document;
+a signed record that silently restates today's number describes a release nobody approved.
+The live count is in [security/residual-risk.md](../../security/residual-risk.md) and in
+`STATUS.md`.
 
 ## Conditions from the 0.7.0 approval
 

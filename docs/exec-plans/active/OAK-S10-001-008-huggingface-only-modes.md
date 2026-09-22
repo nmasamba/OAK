@@ -9,7 +9,7 @@ OPEN B — the masthead label kept and repurposed). Execution on branch `hf-only
 
 - Owner/agent: owner-directed coding agent
 - Started: 2026-09-21
-- Last updated: 2026-09-21 (Milestone 0)
+- Last updated: 2026-09-22 (Milestone 6 — live run, audit, sweep; gate green at HEAD)
 - State: in-progress
 - Claimed tasks: `OAK-S10-001`–`OAK-S10-008`
 
@@ -63,13 +63,10 @@ argument:
 | Mode | What it does | What it needs | What it costs |
 |---|---|---|---|
 | **Deterministic** (default) | Today's offline interpreter. Nothing leaves the machine. Byte-identical to `0.7.1`. | nothing | nothing |
-| **Online AI** | Sends the brief to one open model on Hugging Face Inference Providers: the user's pinned model × provider pair, or else the **preferred** pair — the current top model in the Hub's trending order that is ungated and has a live structured-output route, on the route the user's provider policy chooses. | a Hugging Face token, stored once and **corroborated with Hugging Face first**: accepted or not, its role, whether the account can pay, and the models it can call | the provider's published price, shown next to the pair; the account's free monthly credit applies first; OAK never buys credit |
+| **Online AI** | Sends the brief to one open model on Hugging Face Inference Providers: the user's pinned model × provider pair, or else the **preferred** pair — the first model in the Hub's trending order that is ungated, from a trusted namespace, and has a live route that supports structured output, is priced, and publishes throughput enough to answer inside the request budget; a model whose every route is too slow or unpriced is passed over and named rather than offered. | a Hugging Face token, stored once and **corroborated with Hugging Face first**: accepted or not, the token's role, whether the Hub reports the Inference Providers permission, and whether the account can pay | the provider's published price, shown next to the pair; the account's free monthly credit applies first; OAK never buys credit |
 | **Local AI** | Sends the brief to an OpenAI-compatible server on this machine (Ollama, vLLM, llama.cpp) at a loopback address, using the model the user picked. | `OAK_MODEL_ENDPOINT_LOCAL` (default `http://127.0.0.1:11434/v1`) and a picked model | nothing; nothing leaves the machine |
 
-Today's live catalogue makes the preferred pair concrete: the Hub's trending list starts with
-`Qwen/Qwen3.8-27B` (Apache-2.0, ungated) with three live structured-output routes — Cerebras
-($1.49/M output, ~846 tokens/s), OVHcloud ($3.19/M, ~71 tokens/s), DeepInfra ($2.50/M,
-~40 tokens/s) — so `cheapest` picks Cerebras today and `fastest` also Cerebras. Second is
+A planning read on 2026-09-21 (superseded by the live run below): the Hub's trending list started with `Qwen/Qwen3.8-27B` (Apache-2.0, ungated) on Cerebras, OVHcloud and DeepInfra. The live run on 2026-09-22 showed why a price alone cannot choose the route: the cheapest route of that model publishes 18.6 tokens/s and cannot answer inside the budget, so the preferred pair resolved to `moonshotai/Kimi-K3` via Baseten. Second in the trending order is
 `zai-org/GLM-5.3-Flash` (MIT, $0.50/M on Baseten or DeepInfra). Every figure above will differ
 tomorrow, which is why the catalogue is read live and the pick shows when it was resolved.
 
@@ -82,9 +79,9 @@ oak models set-key --stdin < hf-token.txt
 #   accepted at 2026-09-21T10:02:11Z — read token; account can pay: no.
 oak models discover
 #   preferred: Qwen/Qwen3.8-27B via cerebras (apache-2.0, $1.49/M output, structured output)
-#   88 models this token can call on a structured-output route; 4 gated models excluded
+#   88 models with a live structured-output route; 4 gated models excluded
 #   catalogue read 2026-09-21T10:02:15Z
-oak models select Qwen/Qwen3.5-9B --provider deepinfra        # optional manual pair
+oak models select huggingface Qwen/Qwen3.8-27B --provider cerebras   # optional manual pair, from the catalogue
 oak models select local qwen3:8b                              # the Local AI model
 oak models status                                             # verdict with age; picks; pairs
 oak design brief.md --interpreter online
@@ -163,8 +160,7 @@ and ADR.
   preferred pair. Discovery stores the preferred pair (with the time and the reason) and
   every callable pair's licence, price, throughput and structured-output flag. `oak models
   select [huggingface] <model_id> [--provider <route>]`, `oak models select local <model_id>`,
-  `oak models clear [family]`; REST `PUT/DELETE /v1/models/selection` keep their shape with
-  `provider_route` now meaningful for Hugging Face; the MCP argument's closed enum becomes the
+  `oak models clear [family]`; REST `PUT /v1/models/selection` keeps its shape with `provider_route` now meaningful for Hugging Face, and `DELETE /v1/models/selection` becomes `DELETE /v1/models/selection/{family}` so one family's pin can be cleared without touching the other; the MCP argument's closed enum becomes the
   three words with `deterministic` as default. The audit extension records the mode.
 - **`OAK-S10-004` — Corroborate the token.** `key_verification_request()` (unused since
   Sprint 9) becomes the `whoami-v2` request for Hugging Face and the models list for `local`;
@@ -214,8 +210,7 @@ and ADR.
 - `schemas/model-configuration.schema.json` (unpublished; `schema_version` stays `0.1.0`):
   `$defs.family` enum → `["huggingface", "local"]`; `selection` becomes a map keyed by family,
   each `{model_id, provider_route, selected_at}` (`default_interpreter` and
-  `data_use_acknowledged` removed); `discovery.<family>` gains optional `preferred`
-  `{model_id, provider_route, licence, output_price_per_million, resolved_at, reason}`;
+  `data_use_acknowledged` removed); `discovery.<family>` is otherwise unchanged; the preferred pair is resolved at read time by `ModelConfigurationService.online_pair()` from the snapshot, the provider policy and the request budget, and is never stored;
   `providers[]` items gain optional `is_free` and `throughput`; new optional top-level
   `verification` map keyed by family. A `main`-era document still loads (a single `selection`
   object is up-converted into the map on load); a branch-era document does not load on `main`
@@ -224,18 +219,13 @@ and ADR.
 - REST (unpublished): `interpreter` enum `deterministic|online|local`, omitted =
   `deterministic` (what `0.7.1` clients get; the compatibility test is kept and simplified);
   `X-OAK-Model-Token` required for `online` and `local` (unchanged rule: today `local` also
-  needed it). New `POST /v1/models/{family}:verify`. `GET /v1/models` gains `verification`,
-  `preferred` and `pairs`. `make openapi-compatibility` stays clean.
+  needed it). New `POST /v1/models/{family}:verify` and read-only `GET /v1/models/{family}/catalogue`, which feeds the pairs table from stored state. `GET /v1/models` drops `configured` and `selection` for `modes` (each mode's readiness, the Online AI pair and the token's verdict with its age) and `selections` (the pin per family). `make openapi-compatibility` stays clean.
 - CLI (unpublished): `oak design --interpreter deterministic|online|local`, default
-  `deterministic`; `oak models status|set-key [family] [--no-verify]|remove-key [family]|
-  verify [family]|discover [family]|select [family] <model_id> [--provider]|clear [family]|
-  token`; the family defaults to `huggingface`; `families` removed.
+  `deterministic`; `oak models families|status|token|set-key [family] [--store] [--stdin] [--no-verify]|verify [family]|remove-key [family]|discover [family]|select <family> <model_id> [--provider]|clear [family]`; the family defaults to `huggingface` everywhere except `select`, which requires it.
 - MCP: `interpreter` enum `deterministic|online|local`, default `deterministic`, description
   states what each spends and sends. No configuration tool, as before.
 - Audit: `brief_interpreted` extension gains `mode`; deterministic path unchanged.
-- `OAK_MODEL_VERIFICATION_STALE_SECONDS` (default `86400`) added; five `OAK_MODEL_KEY_*` rows
-  removed; `OAK_MODEL_ENDPOINT_LOCAL` unchanged. No new `OAK-*` code expected; the error
-  reference is regenerated for changed messages.
+- `OAK_MODEL_VERIFICATION_STALE_SECONDS` (default `86400`) added; `OAK_MODEL_TIMEOUT_SECONDS` default raised from `30` to `35` (the largest value that still leaves the pre-flight its 20 seconds of headroom under the 55-second ceiling); five `OAK_MODEL_KEY_*` rows removed; `OAK_MODEL_ENDPOINT_LOCAL` unchanged. Three new codes: `OAK-MODEL-ROUTE` (a pair that cannot be pinned), `OAK-MODEL-ROUTE-UNAVAILABLE` (a 402 that means this provider is not enabled for pay-as-you-go, not an exhausted balance) and `OAK-MODEL-VERIFICATION-UNAVAILABLE`; `OAK-MODEL-DATA-USE` and `OAK-MODEL-INTERPRETER` are removed, and the error reference is regenerated.
 - Residual-risk register: `RR-039` reworded, `RR-042` added; count 41 → 42 in the quoted
   places the count gate checks (the `b954830` precedent).
 
@@ -270,12 +260,10 @@ and ADR.
 - Work: `design_case.py` (`INTERPRETER_MODES`; `resolve_interpreter` without `auto`;
   `interpret(interpreter=mode)`; `request["interpreter"] = mode`; extension `mode`);
   `control_plane.py`; `bootstrap.create_model_interpreter(mode)` (family from mode; pinned
-  pair else preferred; `local` requires a pinned model and refuses with the list otherwise);
+  pair else preferred; `local` requires a pinned model and otherwise refuses with `OAK-MODEL-NOT-CONFIGURED` naming `oak models select local <model_id>` as the remedy);
   `huggingface_catalogue.py` gains `preferred_pair(snapshot, policy)` — ungated, trusted
   namespace (list refreshed against today's trending page, `as_of` recorded), at least one
-  live structured-output route, ranked by the Hub's trending order, route by `provider_policy`
-  (`cheapest` = lowest output price, `fastest` = highest `throughput`, both among
-  structured-output routes only); `providers.py` `_huggingface_routes` reads `is_free` and
+  live structured-output route, ranked by the Hub's trending order, route by `provider_policy` among structured-output routes that are priced and fast enough for the request budget (`cheapest` = a route flagged `is_free` first, else the lowest output price; `fastest` = the highest published `throughput`); a model with no such route is passed over; `providers.py` `_huggingface_routes` reads `is_free` and
   `throughput`; `PINNED_MODELS` refreshed from today's router with `PINNED_AS_OF =
   "2026-09-21"`; `ModelConfigurationService` selection map with up-conversion,
   `select(family, model_id, provider_route)`, `clear(family)`, `preferred(family)`,
@@ -313,7 +301,8 @@ and ADR.
   `rejected` through a thin wrapper in bootstrap. `OAK_MODEL_VERIFICATION_STALE_SECONDS`
   documented.
 - Proof: recorded fixtures `tests/fixtures/providers/huggingface/whoami-v2*.json` (read token,
-  fine-grained, 401, 403, hostile) drive unit tests; API tests for `:verify` (token required,
+  fine-grained, 401, hostile) drive unit tests, the 401 body standing in for every refusal
+  status; API tests for `:verify` (token required,
   `no-store`, verdict in status, no key in any body); CLI test that `set-key --stdin` prints
   the verification sentence and `--no-verify` sends nothing (fake transport counts requests);
   service test that a stale verdict triggers exactly one whoami request before the chat
@@ -400,8 +389,7 @@ and ADR.
   document, store, log and problem; egress under broken sockets; the pre-flight never runs on
   the deterministic path (the fresh-interpreter test extended).
 - Failure and retry: token rejected (before spend); Hub unreachable (verdict `unreachable`,
-  interpretation refused with the existing retriable code); credit exhausted
-  (`OAK-MODEL-QUOTA-EXHAUSTED` names the pricing page); gated pair impossible by construction;
+  interpretation refused with the existing retriable code); credit exhausted (`OAK-MODEL-QUOTA-EXHAUSTED` names the pricing page); a 402 meaning the provider is not enabled for pay-as-you-go (`OAK-MODEL-ROUTE-UNAVAILABLE`, with another route as the remedy); no route in the catalogue both priced and fast enough for the budget (Online AI unavailable with the passed-over models named); gated pair impossible by construction;
   pinned pair whose route died (404/`error` → refused with "refresh and pick again"); local
   server down (`OAK-INTERPRETER-UNAVAILABLE`); snapshot and verdict stale.
 
@@ -501,7 +489,7 @@ or missing key is visible before anyone opens the dropdown.
   unit/contract, 272 integration, 42 e2e) before that fix; after it, lint, mypy, the model
   suites and `make web-e2e` (9 passed, 1 gated capture skipped) against the rebuilt Compose
   stack; the manual screenshots recaptured and the PDF rebuilt (`bb1085a`).
-- [x] 2026-09-21 Milestone 5: `README.md`, `CHANGELOG.md` (a Sprint 10 section above the
+- [x] 2026-09-21 Milestone 5 (`631ad24`): `README.md`, `CHANGELOG.md` (a Sprint 10 section above the
   Sprint 9 history), `docs/operations.md`, `docs/interfaces.md`, `docs/compatibility.md`,
   `docs/local-design-case.md`, `docs/dependencies.md`, the manual's model chapter (PDF
   rebuilt), `docs/security/residual-risk.md` (`RR-039` narrowed, `RR-042` added, count 42 in
@@ -511,15 +499,169 @@ or missing key is visible before anyone opens the dropdown.
   provenance header), `evidence/sources.yaml` (four Hugging Face sources and the free-tier
   survey; the five-vendor entry marked superseded), `SPRINT-10-PROMPT.md` marked superseded;
   contract suites (147) and governance `make validate` green.
+- [x] 2026-09-22 Milestone 6: the live run recorded above; the closing adversarial audit
+  (six lenses, 27 distinct findings, every one reproduced before it was fixed) recorded under
+  `## Post-implementation audit`; and a corpus-wide documentation sweep (90 findings across 34
+  files). Three of the audit's findings were mine and would have shipped: a test whose fixed
+  timestamp made `make check` red six hours after it was written, a pinned model × provider
+  pair that was validated when it was pinned and never again, and a `select` path where the
+  router's `model:route` spelling bypassed the structured-output check. The sweep found the
+  `0.7.0` and `0.7.1` signed release records had been rewritten to today's register count;
+  both are restored to the 38 the published `v0.7.1` carries, marked "at signature", and a
+  contract test now keeps them there while the live count gate goes on covering everything
+  else. `make check` with PostgreSQL: zero `make: ***` lines — 665 unit/contract, 276
+  integration (4 skipped), 42 e2e. `make web-e2e` green (10 passed) against the rebuilt
+  Compose stack; manual screenshots recaptured, the PDF rebuilt from the corrected HTML,
+  `docs/error-codes.md` regenerated last; governance `make validate` green.
+
+## Live run
+
+Run on the owner's machine on 2026-09-22 with their own Hugging Face token, against the real
+Hub and router. `OAK_LIVE_MODEL_TESTS=1 uv run pytest tests/live -v`, with the one test that
+spends credit deselected (see below).
+
+| What ran | Outcome |
+|---|---|
+| `oak models set-key` | The keychain extra was not installed, so it fell back to the owner-only file and said so; the token was stored and corroborated in one step. The extra was then installed (`uv sync --extra keychain`) and the key moved to the macOS keychain through the service, which removed the file copy only after the keychain write succeeded — same salted fingerprint, `0` files left in the credential directory |
+| `test_the_stored_credential_is_corroborated_by_the_provider[huggingface]` | **accepted** at `2026-09-22T15:28:08Z`: `token_role: read`, `inference_permission: true`, `can_pay: true`, `is_pro: true`, `method: hub_whoami_v2`. The account's name and email were in the answer and are not in the stored record |
+| `test_the_stored_key_can_list_that_family_s_models[huggingface]` | 29 models survived the filter out of 138 the router serves; preferred `Qwen/Qwen3.8-27B` |
+| `test_a_wrong_key_is_refused_with_the_stable_code[huggingface]` | **Skipped, and the skip is the finding**: the router answered `200` to a models list carrying a deliberately wrong key. The catalogue is public, so a successful list proves nothing about a token — which is exactly why `key_verification` for this family is `hub_whoami_v2` and not `authenticated_models_list`. A design decision confirmed by the provider rather than by a fixture |
+| `test_a_host_outside_the_profile_allowlist_is_still_refused_live` | `OAK-MODEL-EGRESS-DENIED` before any socket |
+| `oak models discover` | 29 models, 109 filtered out, live; `oak models status` then reported Online AI ready on `Qwen/Qwen3.8-27B` via `deepinfra` at $2.50 per million output tokens |
+
+**The one open question, settled the same day.** The first run used a `read` token, so
+`inference_permission: true` was inferred from the role and the fine-grained path was still
+covered only by a fixture. The owner then stored a full-access fine-grained token, which
+answered it: `whoami-v2` **does** report a fine-grained token's scopes, and it reports the
+Inference Providers permission under `fineGrained.scoped[].permissions` — not under
+`fineGrained.global`, where the recorded fixture had put it. The parser reads both, so it was
+right for the wrong reason: the positive case had been passing without ever exercising the
+path the Hub uses. The fixture is re-recorded from the live shape (identity replaced with
+sentinels, structure and permission vocabulary the Hub's) and a test now asserts that the
+permission is absent from `global` and present in `scoped`.
+
+The full shape, for the next reader: `fineGrained` carries `canReadGatedRepos`, a `global`
+list, and a `scoped` list whose entries are `{entity: {_id, type, name}, permissions: [...]}`.
+The observed permissions included `inference.serverless.write`,
+`inference.endpoints.infer.write` and `inference.endpoints.write`. Verdict on that token:
+accepted, `token_role: fineGrained`, `inference_permission: true`, `can_pay: true`,
+`is_pro: true`; 31 models survived discovery. Nothing of the account — name, full name,
+email, avatar, organisations — reaches the stored record, which a test proves against the
+sentinels.
+
+**What the run found, and what it changed.** The interpretation test was the one that
+spends, and it failed twice before it passed. Both failures were product defects, not test
+defects, and neither would have been found by a fixture:
+
+1. **The recommended default could not answer inside its own deadline.** The `cheapest`
+   policy chose `Qwen/Qwen3.8-27B` via DeepInfra at 18.6 tokens per second — a realistic
+   proposal needs about 80 seconds there, against a 30-second budget and a 55-second ceiling.
+   The cheapest route of a model is routinely its slowest, so the default was systematically
+   unusable. The route choice now uses the throughput the catalogue publishes, and the
+   preferred pair is the first trending model with a route that can answer in time; a model
+   whose every route is too slow is passed over and named rather than offered.
+2. **A 402 was reported as an exhausted balance when the account had credit.** The next
+   candidate, `zai-org/GLM-5.3-Flash` via Fireworks, returned `402 Pay-as-you go is not
+   enabled for provider fireworks-ai yet`, which OAK rendered as "no remaining credit or
+   exceeded its spend limit" — sending a PRO user who can pay to the wrong page. That 402 now
+   maps to `OAK-MODEL-ROUTE-UNAVAILABLE` with the real remedy, and, because the refused route
+   was the only one the catalogue did not price, a route without a published price is no
+   longer offered as the default: a price Hugging Face cannot quote is a route it may not be
+   able to bill, and it also means the user always sees the price beside the pair they will
+   be charged for.
+
+The third attempt succeeded: `moonshotai/Kimi-K3` via Baseten returned 15 claims, none
+dropped, every one on an admissible path, with confidences from 0.6 to 0.95 — 1,902 input
+and 3,074 output tokens, about five US cents at that route's $15 per million. It finished in
+29.1 seconds against the then-default 30-second budget, which is under a second of margin, so
+the default budget is now 35 seconds: the largest value that still leaves the 20 seconds of
+headroom the pre-flight needs under the 55-second ceiling.
+
+The run's two numbers — 3,074 output tokens, on a route published at 72.5 tokens per second
+that plainly did not take the 42 seconds that implies — are now the estimate itself rather
+than a note beside a guessed one. The first version of the filter assumed 1,500 tokens and
+defended that against the measurement on the grounds that the observed figure "would exclude
+every route the catalogue measures". The owner asked why the estimate was not simply updated
+in the face of the new information, and they were right: that is reasoning from the wanted
+answer, and if honest numbers leave nothing callable the conclusion is that the budget is too
+small or the catalogue too slow, not that the estimate should be understated.
+
+Replacing the guess with the measurement changed which pair is offered, and changed it
+towards the evidence: at the 35-second budget a route must publish about 70 tokens per second,
+which drops OVHcloud at 57 — a route the guessed estimate had admitted — and selects
+`moonshotai/Kimi-K3` via Baseten at 72.5, the pair the paid run actually exercised. The
+default is therefore no longer an untested one, and the gap recorded below closed itself. It
+costs $15 per million rather than $3.19: a cheap route that cannot answer within the budget
+is worth nothing, and the price is on every surface that offers the pair.
+
+**What the live run does not cover, stated plainly.** One interpretation, on one route, of
+one short brief. The estimate derived from it is a single measurement with one judgement in
+it (the fifth of the budget reserved for everything that is not generation), and
+`tests/live/` is where it gets corrected rather than a comment. A longer brief produces more
+claims and more tokens; a provider's published throughput can move between catalogue reads.
+Both would move the pair, which is the point of resolving it live rather than pinning it.
+
+**One thing worth changing later, recorded rather than done.** Re-storing the same key moves
+the verdict to `None`, because `set_key` treats any store as a new credential. That is the
+safe default and re-verification is free, but now that a verdict carries the credential's
+fingerprint, `set_key` could keep a verdict whose fingerprint still matches.
+
+## Post-implementation audit
+
+Run against the whole branch before the pull request. Six reviewers took one lens each —
+credential and account leakage, verdict honesty, pre-flight and deadline budgets, mode
+parity and deterministic byte-identity, pinned pairs and the catalogue, and the honesty of
+the branch's own documentation — and were told to settle every claim by running code rather
+than by reading it. They raised 44 findings; duplicates across lenses collapse to 27
+distinct ones, every one of which was reproduced here before it was fixed.
+
+Two reviewers disclosed process failures of their own, which are recorded because a reader
+should weigh them: one wrote probe modules under the scratchpad (not the tracked tree, as
+instructed), and one sent a single chat request to `router.huggingface.co` carrying a
+synthetic probe key before rewriting its probe with a stubbed transport. That request was
+contrary to the instruction not to contact a provider; it generated nothing, carried no real
+credential, and every result reported came from the stubbed re-run.
+
+The findings that mattered:
+
+| Finding | Why it mattered |
+|---|---|
+| `tests/integration/test_model_preflight.py` was a time bomb, and `make check` was red the day after it was written | Its snapshot carried a fixed `fetched_at`, so "the second call asks nothing" held for the six hours of the discovery-cache window and failed for ever afterwards. Three reviewers found it independently. The fixture now follows the clock the service reads |
+| A pinned pair was never checked again after it was pinned | `online_pair` returned the stored route verbatim. A route that lost structured output, or a model that left the catalogue, was still reported ready and still called — `model:route` went to the router with a strict JSON schema the route could no longer honour. The pair is validated at every use now, and an invalid one takes Online AI out of service with the reason instead of being called |
+| `oak models select huggingface <model>:<route>` bypassed the route check entirely | The check ran only for a model id the snapshot listed byte for byte, and a model id may contain `:`. So the route refused as `--provider nscale` could be pinned inside the identifier, and `:cheapest` could ask for the server-side policy ADR-0003 says OAK does not use because it may pick a provider without structured output. A `:` in a Hugging Face model id is refused, and only a listed pair can be pinned |
+| `oak models verify local` crashed instead of recording a verdict | The transport-failure branch recorded the strategy name `authenticated_models_list`, which the schema's `method` enum does not contain, so the write failed: the CLI printed a contract error and the REST route answered 500. The two spellings now come from one table, and `record_verdict` refuses an unknown method before it reaches the file |
+| A non-verdict erased a verdict | A `rejected` token that later could not be re-checked was recorded as `unreachable`, which made Online AI available again beside "token unreachable just now" — the opposite of what the Hub last said. The Hub's last word now stands, with the failed attempt recorded beside it, and the refusal happens before the re-check as well as after |
+| `unreachable` counted as a fresh verification for a whole day | One network blip at `set-key` time meant the day's first online interpretation ran with a token nothing had ever confirmed. Only `accepted`, `rejected` and `scope_limited` count as a check |
+| A verdict outlived the credential it was about | It was keyed by family alone, so rotating `OAK_MODEL_KEY_HUGGINGFACE` or deleting the key file left "accepted — read token; account can pay: no" on every surface. The verdict now carries the credential's salted fingerprint and is not shown for a different or absent credential |
+| The workspace called `unreachable` a verdict about the token | "token unreachable 3 min ago" and "Hugging Face says: unreachable" read as statements about the token in the dropdown, the masthead and the Settings notice, although the Hub had said nothing. All three now distinguish what was heard from what was not |
+| A pre-flight timeout replaced a live catalogue with the pinned chain, stamped fresh | `discover_huggingface` answers with the pinned constant when it cannot read the catalogues, and the pre-flight recorded it, which could invalidate a user's pinned pair on nothing but a slow network. A pinned answer never overwrites a live snapshot |
+| A read-only model-state directory aborted an interpretation | The pre-flight's writes escaped as a bare `OSError`. The refresh is a convenience; the stored state still serves the interpretation |
+| A naive `checked_at` crashed every model surface | `_older_than` caught `ValueError` but a timestamp without an offset raises `TypeError` when subtracted, taking down `oak models status`, `GET /v1/models` and every online interpretation. A naive time reads as UTC, anything unparsable as stale |
+| A bare 403 was recorded as "Hugging Face rejected the stored token" | Any 403 the adapter maps to `OAK-MODEL-KEY-REJECTED` — a per-request refusal on one route — took Online AI offline with a message about the credential. Only a 401 is a verdict about the token, and the local family records none |
+| A malformed `OAK_MODEL_TOKEN` broke deterministic remote interpretation | The header was attached to every remote `:interpret`, including the one the documentation says never needs it. It is sent only when a model would be called |
+| A role with a trailing newline was persisted and printed | `TOKEN_ROLE.match` accepts `read\n` because `$` matches before a final newline; the value then split the `oak models status` line. `fullmatch` closes it |
+| A 200 with no authentication record was an acceptance | The parser read `auth.accessToken` when it was there and said `accepted` when it was not. A 200 that carries no authentication record is not evidence about a token |
+| A provider named twice in a hostile catalogue made the shown price disagree with the chosen route | Routes are de-duplicated by provider name |
+| A Hub id differing in case from the router id lost its trending rank — and let a pin bypass the Hub's gated flag | The two catalogues are joined case-insensitively; the router's spelling is what is stored |
+| Signed release records had been rewritten to today's register count | The published `v0.7.1` artefacts say 38 entries; this tree said 42, because the count gate did not distinguish a signed record from a live document. A signed record restating today's number describes a release nobody approved. Both records carry their signature-time count again, marked as such, and a new test pins that |
+| Four claims in the plan and the documentation were false | "only `oak models discover` contacts a catalogue" (the pre-flight does too), "the models this token can call" (the catalogue read is anonymous and says what the router serves), `oak models families` described as removed when it ships, and a recorded 403 fixture that does not exist |
+
+Findings recorded and deliberately not acted on: the pre-flight's worst case reaches exactly
+55 seconds at `OAK_MODEL_TIMEOUT_SECONDS=35`, which is the ceiling the shipped proxy's own
+60-second limit allows and is now stated in `docs/configuration.md`; and `DesignResult.
+interpreter` on an idempotent retry is read back from the proposal's family rather than from
+the audit event, which gives the right answer for both model modes.
 
 ## Discoveries and follow-ups
 
 - The 2026-09-18 multi-provider research is superseded and not carried forward.
-- Two Hugging Face facts are undocumented and are settled by the live run: whether
-  `whoami-v2` reports fine-grained scopes, and how it answers an inference-only token.
+- One of the two undocumented Hugging Face facts is settled: `whoami-v2` reports a
+  fine-grained token's scopes, under `scoped[].permissions` (live, 2026-09-22). The other —
+  how it answers a token that carries *only* the inference permission and no repository
+  scope — is still open; both observed tokens carried more than that.
 - Documentation follow-up (no code): more free usage is possible by adding a Groq key under
   Hugging Face → Inference Providers settings; requests still route through Hugging Face.
-- `SPRINT-10-PROMPT.md` describes the superseded scope; mark it superseded in Milestone 5.
+- `SPRINT-10-PROMPT.md` described the superseded scope and was marked superseded in Milestone 5; it is kept as the record of what was asked first.
 - The Hub trending list today includes gated Meta Llama models (`gated: "manual"`) and models
   with no structured-output route; both are excluded from the preferred pair by construction
   and the exclusion count is shown.

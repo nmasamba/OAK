@@ -121,6 +121,58 @@ test.describe("model settings", () => {
     expect(leaked).toEqual([]);
   });
 
+  test("the mode chosen on the intake form reaches the case page, and a failed model run recovers deterministically", async ({
+    page,
+  }) => {
+    requireStack();
+    const token = api("oak models token").trim();
+    api("oak models select local qwen3:8b");
+    const interpretRequests: string[] = [];
+    page.on("request", (request) => {
+      if (request.url().includes(":interpret")) {
+        interpretRequests.push(request.url());
+      }
+    });
+
+    await page.goto(`/#token=${encodeURIComponent(token)}`);
+    await page.goto("/");
+    const chooser = page.getByLabel("How should this brief be read?");
+    await chooser.selectOption("local");
+    await page.getByLabel("Brief file name").fill("brief.md");
+    await page
+      .getByLabel("Brief content")
+      .fill(
+        "A support desk wants drafted answers from public manuals, reviewed by a person.",
+      );
+    await page.getByRole("button", { name: "Create case" }).click();
+
+    // The case page starts from the choice made on the form.
+    await expect(page.getByLabel("How should this brief be read?")).toHaveValue(
+      "local",
+    );
+    await page.getByRole("button", { name: "Interpret brief" }).click();
+    // No loopback model server runs under Compose, so Local AI fails honestly and nothing
+    // is recorded; the recovery re-runs the interpretation deterministically.
+    await expect(
+      page.getByText("The model could not interpret this brief."),
+    ).toBeVisible({ timeout: 60_000 });
+    await page
+      .getByRole("button", { name: "Interpret without the model" })
+      .click();
+    await expect(page.getByText("needs_confirmation")).toBeVisible({
+      timeout: 30_000,
+    });
+
+    expect(
+      interpretRequests.some((url) => url.includes("interpreter=local")),
+    ).toBe(true);
+    expect(
+      interpretRequests.some((url) =>
+        url.includes("interpreter=deterministic"),
+      ),
+    ).toBe(true);
+  });
+
   test("without a token the page asks for one and changes nothing", async ({
     page,
   }) => {

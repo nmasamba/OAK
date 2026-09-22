@@ -175,13 +175,17 @@ class RemoteClient:
         idempotency_key: str,
         interpreter: str = "deterministic",
     ) -> dict[str, Any]:
-        query = "" if interpreter == "deterministic" else f"?interpreter={interpreter}"
+        model_mode = interpreter != "deterministic"
+        query = "" if not model_mode else f"?interpreter={interpreter}"
         return self._request(
             "POST",
             f"/v1/design-cases/{case_id}:interpret{query}",
             idempotency_key=idempotency_key,
             expected_version=expected_version,
-            model_token=True,
+            # The token is offered only when a model would be called. Sending it on a
+            # deterministic request cost nothing until a malformed OAK_MODEL_TOKEN in the
+            # environment broke the one command the documentation says never needs it.
+            model_token=model_mode,
         )
 
     def confirm(

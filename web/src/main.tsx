@@ -5,7 +5,8 @@ import { createRoot } from "react-dom/client";
 import { getModels, type ModelStatusResponse } from "./generated/api";
 import { getVersion } from "./generated/api";
 import { MODEL_SETTINGS_CHANGED, currentModelToken } from "./modelToken";
-import { ageOf, asObject, asString } from "./support";
+import { describeVerdict } from "./ModeSelect";
+import { asObject, asString } from "./support";
 import { BundlePage } from "./pages/BundlePage";
 import { CandidatesPage } from "./pages/CandidatesPage";
 import { CaseListPage } from "./pages/CaseListPage";
@@ -111,10 +112,11 @@ function useInterpreterLabel(path: string): string | null {
           verification === null ? null : asString(verification["verdict"]);
         const checkedAt =
           verification === null ? null : asString(verification["checked_at"]);
-        const tokenText =
-          verdict === null || checkedAt === null
-            ? "token not verified"
-            : `token ${verdict} ${ageOf(checkedAt)}`;
+        const tokenText = describeVerdict(
+          verdict,
+          checkedAt,
+          verification?.["stale"] === true,
+        );
         setLabel(
           model === null
             ? `Online AI: not set up · ${tokenText}`

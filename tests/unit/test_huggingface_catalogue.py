@@ -379,3 +379,22 @@ def test_free_promotions_and_throughput_are_read_into_the_snapshot() -> None:
         ("deepinfra", False, None),
         ("cerebras", False, None),
     ]
+
+
+def test_the_two_catalogues_are_joined_without_regard_to_case() -> None:
+    """A Hub spelling that differs in case must neither demote a model nor bypass gating."""
+
+    fetcher = _Fetcher(
+        _router(_served("Qwen/Qwen3.8-27B"), _served("openai/gpt-oss-120b")),
+        _hub(
+            _listed("qwen/qwen3.8-27b", gated="manual"),
+            _listed("OpenAI/GPT-OSS-120B"),
+        ),
+    )
+
+    snapshot = _snapshot(fetcher)
+
+    identifiers = [model["id"] for model in snapshot["models"]]
+    assert "Qwen/Qwen3.8-27B" not in identifiers, "gated on the Hub, however it is spelled"
+    assert identifiers == ["openai/gpt-oss-120b"], "the router's spelling is the one stored"
+    assert snapshot["recommended"] == "openai/gpt-oss-120b"

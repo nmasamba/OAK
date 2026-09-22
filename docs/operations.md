@@ -41,7 +41,7 @@ queued forever with no error.
 The images apply their distribution's security updates at build time, so **rebuilding
 picks up patches**. `make scan-images` reports what a build currently carries. As of
 `0.7.1` the web image reports no findings at any severity and the API image has 3 CRITICAL
-and 14 HIGH with no vendor fix available
+and 13 HIGH with no vendor fix available
 ([container-scan.md](release/0.7.1/container-scan.md)).
 
 Verify the release artifacts you downloaded before installing them — see
@@ -350,7 +350,7 @@ edge into the bundle spine.
 
 ## Configure a model provider
 
-Nothing in OAK contacts a model provider until someone configures one, and the configuration
+Nothing in OAK contacts a model until a request asks for one, and the configuration
 is machine-local: keys are read from a hidden prompt or standard input, stored in the OS
 keychain or an owner-only file, and never accepted as a command argument or returned by any
 interface.
@@ -364,7 +364,7 @@ service, so configure it there:
 docker compose exec -T api oak models token      # the capability token the API minted
 printf '%s\n' "$YOUR_TOKEN" | docker compose exec -T api oak models set-key --stdin
 docker compose exec -T api oak models discover   # the preferred pair and every callable pair
-docker compose exec -T api oak models select huggingface Qwen/Qwen3.5-9B --provider deepinfra  # optional pin
+docker compose exec -T api oak models select huggingface Qwen/Qwen3.8-27B --provider deepinfra  # optional pin
 docker compose exec -T api oak models select local qwen3:8b                                  # Local AI
 docker compose exec -T api oak models status     # the verdict with its age; what each mode would call
 ```

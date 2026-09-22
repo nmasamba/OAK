@@ -265,6 +265,26 @@ def test_the_hub_whoami_answer_becomes_a_verdict_and_nothing_else(
     assert "ignore previous" not in rendered
 
 
+def test_the_inference_permission_is_found_where_the_hub_actually_puts_it() -> None:
+    """A live call on 2026-09-22 settled this: it arrives under `scoped`, not `global`.
+
+    The first fixture put it in `global`, so the positive case passed without ever
+    exercising the path the Hub uses.
+    """
+
+    payload = _fixture("huggingface", "whoami-v2-finegrained")
+    fine_grained = payload["auth"]["accessToken"]["fineGrained"]
+    assert "inference.serverless.write" not in fine_grained["global"]
+    assert "inference.serverless.write" in fine_grained["scoped"][0]["permissions"]
+
+    verdict = parse_verification(_profile("huggingface"), _response(200, payload))
+
+    assert verdict.verdict == "accepted" and verdict.token_role == "fineGrained"
+    assert verdict.inference_permission is True
+    # The entity the permission is scoped to names the account; none of it is kept.
+    assert SENTINEL_NAME not in json.dumps(verdict.to_document())
+
+
 def test_a_fine_grained_token_without_the_inference_permission_is_reported_not_assumed() -> None:
     payload = _fixture("huggingface", "whoami-v2-finegrained")
     payload["auth"]["accessToken"]["fineGrained"] = {
@@ -653,3 +673,147 @@ def test_a_provider_error_type_cannot_end_with_a_newline_and_reach_the_message()
     error = error_for_status(_profile("huggingface"), _response(400, {"error": {"type": "rate\n"}}))
     assert "\n" not in error.message
     assert "unspecified" in error.message
+
+
+# ----- OAK-S10-007: what the closing audit found ------------------------------------------------
+
+
+def test_a_role_with_a_trailing_newline_is_not_a_role() -> None:
+    payload = _fixture("huggingface", "whoami-v2")
+    payload["auth"]["accessToken"]["role"] = "read\n"
+    verdict = parse_verification(_profile("huggingface"), _response(200, payload))
+    assert verdict.verdict == "accepted" and verdict.token_role is None
+    assert verdict.inference_permission is None
+    assert "\n" not in json.dumps(verdict.to_document())
+
+
+def test_a_200_without_an_authentication_record_is_not_an_acceptance() -> None:
+    for document in ({}, {"error": "nothing"}, {"auth": "yes"}, {"auth": None}):
+        verdict = parse_verification(_profile("huggingface"), _response(200, document))
+        assert verdict.verdict == "unreachable", document
+        assert verdict.token_role is None and verdict.can_pay is None
+
+
+def test_a_provider_named_twice_in_a_hostile_catalogue_counts_once() -> None:
+    routes = _huggingface_routes(
+        [
+            {
+                "provider": "cerebras",
+                "status": "live",
+                "supports_structured_output": False,
+                "pricing": {"output": 0.01},
+            },
+            {
+                "provider": "cerebras",
+                "status": "live",
+                "supports_structured_output": True,
+                "pricing": {"output": 5.0},
+            },
+            {
+                "provider": "deepinfra",
+                "status": "live",
+                "supports_structured_output": True,
+                "pricing": {"output": 2.5},
+            },
+        ]
+    )
+    assert [(route.provider, route.supports_structured_output) for route in routes] == [
+        ("cerebras", False),
+        ("deepinfra", True),
+    ]
+    document = ModelDescriptor(
+        id="x/y",
+        display_name="x/y",
+        created=None,
+        licence="unknown",
+        data_use="unknown",
+        providers=routes,
+    ).to_document()
+    assert recommended_route(document, "cheapest") == "deepinfra"
+
+
+def test_a_route_that_cannot_answer_in_time_is_not_offered_as_the_default() -> None:
+    """The cheapest route of a model is routinely its slowest; a live run timed out on one."""
+
+    from oak.adapters.models.providers import (
+        OBSERVED_PROPOSAL_TOKENS,
+        estimated_proposal_seconds,
+        route_answers_in_time,
+    )
+
+    document = ModelDescriptor(
+        id="Qwen/Qwen3.8-27B",
+        display_name="Qwen/Qwen3.8-27B",
+        created=None,
+        licence="apache-2.0",
+        data_use="unknown",
+        providers=(
+            ProviderRoute("deepinfra", True, 2.5, throughput=18.6),
+            ProviderRoute("ovhcloud", True, 3.19, throughput=57.0),
+            ProviderRoute("cerebras", True, 9.0, throughput=846.0),
+        ),
+    ).to_document()
+
+    # With no budget the cheapest route wins, however slow it is: that is the Sprint 9
+    # behaviour and what the live run proved insufficient.
+    assert recommended_route(document, "cheapest") == "deepinfra"
+    # With the default budget only routes that can deliver a proposal in time are eligible.
+    # deepinfra would need about 105 seconds and ovhcloud about 34, against an allowance of
+    # 28, so both are dropped and the one route that can answer is chosen — a cheap route
+    # that times out is worth nothing.
+    assert estimated_proposal_seconds(18.6) > 100
+    assert 34 < estimated_proposal_seconds(57.0) < 35
+    assert recommended_route(document, "cheapest", budget_seconds=35.0) == "cerebras"
+    assert recommended_route(document, "fastest", budget_seconds=35.0) == "cerebras"
+    # A budget nothing can meet yields no route at all, so the caller can try another model
+    # rather than send a request that will expire.
+    assert recommended_route(document, "cheapest", budget_seconds=1.0) is None
+    assert route_answers_in_time({"throughput": 846.0}, 35.0) is True
+    assert route_answers_in_time({"throughput": 18.6}, 35.0) is False
+    assert route_answers_in_time({}, 35.0) is None, "an unmeasured route is not a slow one"
+    assert route_answers_in_time({"throughput": 18.6}, None) is True
+    # The estimate is the live measurement, not a figure chosen to admit a route.
+    assert OBSERVED_PROPOSAL_TOKENS == 3_074
+    assert route_answers_in_time({"throughput": 72.5}, 35.0) is True, (
+        "the route a live run proved can answer must stay eligible at the default budget"
+    )
+
+
+def test_a_route_the_catalogue_cannot_price_is_not_offered_as_the_default() -> None:
+    """A live run chose the one unpriced in-time route and the router refused to bill it."""
+
+    document = ModelDescriptor(
+        id="zai-org/GLM-5.3-Flash",
+        display_name="zai-org/GLM-5.3-Flash",
+        created=None,
+        licence="mit",
+        data_use="unknown",
+        providers=(
+            ProviderRoute("fireworks-ai", True, None, throughput=93.0),
+            ProviderRoute("baseten", True, 0.5, throughput=72.0),
+        ),
+    ).to_document()
+
+    assert recommended_route(document, "cheapest", budget_seconds=35.0) == "baseten"
+    assert recommended_route(document, "fastest", budget_seconds=35.0) == "baseten"
+    # Without a budget the choice is the Sprint 9 one and may be unpriced.
+    assert recommended_route(document, "fastest") == "fireworks-ai"
+
+
+def test_the_two_meanings_of_402_are_told_apart() -> None:
+    """A route the account cannot be billed for is not an exhausted balance."""
+
+    unavailable = error_for_status(
+        _profile("huggingface"),
+        _response(402, {"error": "Pay-as-you go is not enabled for provider fireworks-ai yet."}),
+    )
+    assert unavailable.code == "OAK-MODEL-ROUTE-UNAVAILABLE"
+    assert "--provider" in unavailable.message
+    assert "fireworks-ai" not in unavailable.message, "provider text never reaches the message"
+
+    exhausted = error_for_status(
+        _profile("huggingface"),
+        _response(402, {"error": {"message": "insufficient credit " + SENTINEL}}),
+    )
+    assert exhausted.code == "OAK-MODEL-QUOTA-EXHAUSTED"
+    assert SENTINEL not in exhausted.message

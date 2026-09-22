@@ -29,6 +29,28 @@ pytestmark = pytest.mark.integration
 TOKEN = "models-api-capability-token-0123456789"
 KEY = "oak-test-key-openai-0123456789abcdef"
 ROOT = Path(__file__).resolve().parents[2]
+SNAPSHOT: dict[str, Any] = {
+    "fetched_at": "2026-09-21T11:00:00Z",
+    "source": "live",
+    "recommended": "openai/gpt-oss-120b",
+    "filtered_out_count": 0,
+    "models": [
+        {
+            "id": "openai/gpt-oss-120b",
+            "display_name": "openai/gpt-oss-120b",
+            "created": None,
+            "licence": "apache-2.0",
+            "data_use": "unknown",
+            "providers": [
+                {
+                    "provider": "deepinfra",
+                    "supports_structured_output": True,
+                    "output_price_per_million": 0.17,
+                }
+            ],
+        }
+    ],
+}
 
 
 @pytest.fixture
@@ -171,6 +193,14 @@ def test_a_selection_needs_a_key_and_is_readable_back(client: TestClient) -> Non
     assert refused.json()["code"] == "OAK-MODEL-KEY-MISSING"
 
     _put_key(client)
+    unlisted = client.put(
+        "/v1/models/selection",
+        json={"family": "huggingface", "model_id": "openai/gpt-oss-120b"},
+        headers=_headers(),
+    )
+    assert unlisted.status_code == 422, "only a pair the catalogue lists can be pinned"
+    assert unlisted.json()["code"] == "OAK-MODEL-ROUTE"
+    create_model_configuration_service().record_discovery("huggingface", dict(SNAPSHOT))
     accepted = client.put(
         "/v1/models/selection",
         json={"family": "huggingface", "model_id": "openai/gpt-oss-120b"},
@@ -186,7 +216,9 @@ def test_a_selection_needs_a_key_and_is_readable_back(client: TestClient) -> Non
 
     cleared = client.delete("/v1/models/selection/huggingface", headers=_headers())
     assert cleared.status_code == 200 and cleared.json()["selections"]["huggingface"] is None
-    assert cleared.json()["modes"]["online"]["available"] is False
+    # Clearing the pin does not turn Online AI off: it falls back to the preferred pair the
+    # catalogue names.
+    assert cleared.json()["modes"]["online"]["pair"]["source"] == "preferred"
 
 
 def test_an_unknown_family_is_refused_with_the_shared_code(client: TestClient) -> None:
@@ -317,6 +349,7 @@ def test_an_unchanged_client_keeps_working_after_a_model_is_selected(
     monkeypatch.setenv("OAK_MODELS_DIRECTORY", str(tmp_path / "models"))
     service = create_model_configuration_service()
     service.set_key("huggingface", validate_key_input(KEY), source="file")
+    service.record_discovery("huggingface", dict(SNAPSHOT))
     service.select("huggingface", "openai/gpt-oss-120b")
 
     plane, _ = build_file_control_plane(tmp_path / "plane")

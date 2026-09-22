@@ -34,6 +34,59 @@ HINTS_AS_OF = "2026-09-16"
 WHOAMI_URL = "https://huggingface.co/api/whoami-v2"
 INFERENCE_PERMISSION = "inference.serverless.write"
 VERDICTS = ("accepted", "rejected", "scope_limited", "unreachable", "unverifiable")
+# What a stored verdict says it came from; the local profile's strategy name and the
+# stored spelling differ, and the schema closes the list, so the mapping lives here.
+VERIFICATION_METHODS = {
+    "hub_whoami_v2": "hub_whoami_v2",
+    "authenticated_models_list": "models_list",
+    "unknown": "unknown",
+}
+# The one phrase that identifies a 401 (the credential itself refused) as opposed to a
+# 403 on a single request; the interpretation wrapper records a verdict only for the first.
+KEY_REJECTED_MARKER = "rejected the stored key"
+# How long an interpretation takes on a route, estimated from the one measurement there is.
+#
+# The catalogue publishes each route's measured throughput, so "can this route answer in
+# time?" is arithmetic rather than a guess — and the answer matters: the cheapest route of a
+# model is routinely its slowest, and a live run against the recommended default timed out at
+# 30 seconds on a route that needed 80.
+#
+# The arithmetic is calibrated against that same run, which produced a 15-claim proposal of
+# 3,074 output tokens on a route Hugging Face publishes at 72.5 tokens per second and
+# completed inside a 30-second budget. Both figures are used as observed. The correction
+# exists because they disagree: 3,074 tokens at the published rate would need 42 seconds, and
+# it did not take 42 seconds — the published figure is a floor from Hugging Face's own probe,
+# and the route delivered about 1.57 times it.
+#
+# An earlier version of this table carried an estimate of 1,500 tokens instead, defended on
+# the grounds that the observed 3,074 "would exclude every route the catalogue measures".
+# That is reasoning from the wanted answer: if honest numbers leave nothing callable, the
+# conclusion is that the budget is too small or the catalogue too slow, not that the estimate
+# should be understated. What is below is what was measured; the share is the one judgement,
+# reserving a fifth of the budget for the prompt, the connection and the provider's queueing.
+# One run is one run: `tests/live/` is where this gets corrected, not a comment.
+OBSERVED_PROPOSAL_TOKENS = 3_074
+PUBLISHED_THROUGHPUT_CORRECTION = 1.57
+GENERATION_SHARE_OF_BUDGET = 0.8
+
+
+def estimated_proposal_seconds(published_throughput: float) -> float:
+    """How long a proposal is expected to take on a route publishing this throughput."""
+
+    return OBSERVED_PROPOSAL_TOKENS / (published_throughput * PUBLISHED_THROUGHPUT_CORRECTION)
+
+
+def route_answers_in_time(route: dict[str, Any], budget_seconds: float | None) -> bool | None:
+    """Whether a route can generate a proposal inside the budget. ``None`` when unmeasured."""
+
+    if budget_seconds is None:
+        return True
+    throughput = _finite_non_negative(route.get("throughput"))
+    if not throughput:
+        return None
+    return estimated_proposal_seconds(throughput) <= budget_seconds * GENERATION_SHARE_OF_BUDGET
+
+
 TOKEN_ROLE = re.compile(r"^[A-Za-z]{1,40}$")
 DEFAULT_LOCAL_ENDPOINT = "http://127.0.0.1:11434/v1"
 MODEL_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]*$")
@@ -284,12 +337,14 @@ def _parse_whoami(response: TransportResponse) -> Verdict:
             "unreachable", method, reason=f"the Hub answered with status {response.status}"
         )
     document = parse_json(response)
-    if not isinstance(document, dict):
+    if not isinstance(document, dict) or not isinstance(document.get("auth"), dict):
+        # A 200 that carries no authentication record is not evidence the token was
+        # accepted, whatever else it says.
         return Verdict("unreachable", method, reason="the Hub's answer could not be read")
-    auth = document.get("auth")
+    auth = document["auth"]
     token = auth.get("accessToken") if isinstance(auth, dict) else None
     role_value = token.get("role") if isinstance(token, dict) else None
-    role = role_value if isinstance(role_value, str) and TOKEN_ROLE.match(role_value) else None
+    role = role_value if isinstance(role_value, str) and TOKEN_ROLE.fullmatch(role_value) else None
     permission: bool | None
     if role in {"read", "write"}:
         permission = True
@@ -310,7 +365,14 @@ def _parse_whoami(response: TransportResponse) -> Verdict:
 
 
 def _fine_grained_inference_permission(fine_grained: Any) -> bool | None:
-    """Whether a fine-grained token may call Inference Providers, when the Hub says."""
+    """Whether a fine-grained token may call Inference Providers, when the Hub says.
+
+    The Hub does say, though it does not document that it does: observed live on 2026-09-22,
+    the permission arrives under ``scoped[].permissions`` — the list of what the token may do
+    to a named entity — and not under ``global``. Both are read, because neither placement is
+    promised; a token whose scopes are reported without the permission is a definite ``False``
+    and one whose scopes are not reported at all stays ``None``.
+    """
 
     if not isinstance(fine_grained, dict):
         return None
@@ -486,12 +548,19 @@ def _huggingface_routes(value: Any) -> tuple[ProviderRoute, ...]:
     if not isinstance(value, list):
         return ()
     routes: list[ProviderRoute] = []
+    seen: set[str] = set()
     for entry in value:
         if not isinstance(entry, dict) or entry.get("status") != "live":
             continue
         provider = entry.get("provider")
         if not isinstance(provider, str) or not PROVIDER_NAME.match(provider):
             continue
+        if provider in seen:
+            # One entry per provider: a hostile catalogue that names a provider twice with
+            # different capabilities or prices must not let the shown price and the chosen
+            # route come from different entries.
+            continue
+        seen.add(provider)
         pricing = entry.get("pricing")
         output_price = (
             _finite_non_negative(pricing.get("output")) if isinstance(pricing, dict) else None
@@ -625,7 +694,7 @@ def error_for_status(profile: ProviderProfile, response: TransportResponse) -> O
     if status == 401:
         return OAKError(
             "OAK-MODEL-KEY-REJECTED",
-            f"the {profile.family} provider rejected the stored key; store a current key with "
+            f"the {profile.family} provider {KEY_REJECTED_MARKER}; store a current key with "
             f"`oak models set-key {profile.family}`",
         )
     if status == 403:
@@ -648,6 +717,17 @@ def error_for_status(profile: ProviderProfile, response: TransportResponse) -> O
         return OAKError(
             "OAK-MODEL-KEY-REJECTED",
             f"the {profile.family} provider refused the stored key for this request",
+        )
+    unavailable_route_words = ("not enabled", "not available", "not supported for", "no provider")
+    if status == 402 and any(word in message for word in unavailable_route_words):
+        # A 402 is not always "top up": the router answers one when the account cannot be
+        # billed for *this provider* even though it has credit. Telling such a user their
+        # credit has run out sends them to the wrong page; the remedy is another route.
+        return OAKError(
+            "OAK-MODEL-ROUTE-UNAVAILABLE",
+            "this provider route is not available for pay-as-you-go on the Hugging Face "
+            "account; pick another with `oak models select huggingface <model_id> "
+            "--provider <route>`, or `oak models clear huggingface` for the preferred pair",
         )
     if status == 402 or (
         status in {400, 429}
@@ -775,13 +855,22 @@ def _rank(profile: ProviderProfile, descriptors: list[ModelDescriptor]) -> list[
     return sorted(descriptors, key=key)
 
 
-def recommended_route(descriptor_document: dict[str, Any] | None, policy: str) -> str | None:
-    """The Hugging Face provider to pin for structured output, or ``None``.
+def recommended_route(
+    descriptor_document: dict[str, Any] | None,
+    policy: str,
+    *,
+    budget_seconds: float | None = None,
+) -> str | None:
+    """The Hugging Face provider to call for structured output, or ``None``.
 
-    Only routes that support structured output are considered. ``cheapest`` takes a route
-    the catalogue flags as free while a promotion lasts, else the lowest published output
-    price; ``fastest`` takes the highest measured throughput. With nothing to compare, the
-    catalogue's first capable route is used.
+    A route is considered only when it supports structured output **and** can plausibly
+    generate a proposal inside ``budget_seconds``; a route the catalogue has not measured is
+    considered, because an unmeasured route is not a slow one. Among those, ``cheapest``
+    takes a route flagged free while a promotion lasts, else the lowest published output
+    price; ``fastest`` takes the highest measured throughput.
+
+    ``None`` means this model cannot be called in time, which is a usable answer: the caller
+    moves to the next model rather than sending a request that will expire.
     """
 
     if not descriptor_document:
@@ -791,6 +880,21 @@ def recommended_route(descriptor_document: dict[str, Any] | None, policy: str) -
         for route in descriptor_document.get("providers", [])
         if isinstance(route, dict) and route.get("supports_structured_output") is True
     ]
+    capable = [
+        route for route in capable if route_answers_in_time(route, budget_seconds) is not False
+    ]
+    if budget_seconds is not None:
+        # A route the catalogue does not price is a route Hugging Face may not be able to
+        # bill: a live run chose the one unpriced route that could answer in time and the
+        # router refused it with 402 "pay-as-you go is not enabled for provider …". An
+        # unpriced route can still be pinned deliberately; it is not offered as the default,
+        # which also means the user always sees a price beside the pair they will be charged
+        # for.
+        capable = [
+            route
+            for route in capable
+            if _finite_non_negative(route.get("output_price_per_million")) is not None
+        ]
     if not capable:
         return None
     if policy == "fastest":

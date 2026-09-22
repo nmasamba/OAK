@@ -177,12 +177,16 @@ def discover_huggingface(
         # and namespace checks ran when they did not.
         return pinned_snapshot(fetched_at)
 
+    # The two catalogues are joined on a case-folded id so a spelling difference neither
+    # demotes a trending model nor lets a pin slip past a gated listing; the router's
+    # spelling is the one stored.
+    served_by_key = {identifier.casefold(): descriptor for identifier, descriptor in served.items()}
     candidates: dict[str, ModelDescriptor] = {}
     for entry in hub_entries:
-        identifier = entry["id"]
-        descriptor = served.get(identifier)
-        if descriptor is None or identifier in candidates:
+        descriptor = served_by_key.get(entry["id"].casefold())
+        if descriptor is None or descriptor.id in candidates:
             continue
+        identifier = descriptor.id
         if entry["gated"]:
             continue
         if identifier.split("/", 1)[0] not in TRUSTED_NAMESPACES:
@@ -202,10 +206,11 @@ def discover_huggingface(
     # the Hub listing did not mention it. What is *not* done is overriding the Hub: if the
     # listing says a pinned model is now gated, the pin does not rescue it — a stale constant
     # must never re-admit a model today's catalogue rejects.
-    rejected = {entry["id"] for entry in hub_entries if entry["id"] not in candidates}
+    admitted = {identifier.casefold() for identifier in candidates}
+    rejected = {entry["id"].casefold() for entry in hub_entries} - admitted
     for pinned in PINNED_MODELS:
-        descriptor = served.get(pinned.id)
-        if descriptor is None or pinned.id in candidates or pinned.id in rejected:
+        descriptor = served_by_key.get(pinned.id.casefold())
+        if descriptor is None or pinned.id.casefold() in admitted | rejected:
             continue
         if any(route.supports_structured_output for route in descriptor.providers):
             candidates[pinned.id] = ModelDescriptor(
@@ -218,7 +223,7 @@ def discover_huggingface(
             )
     if not candidates:
         return pinned_snapshot(fetched_at)
-    ordered = _rank(list(candidates.values()), [entry["id"] for entry in hub_entries])
+    ordered = _rank(list(candidates.values()), [entry["id"].casefold() for entry in hub_entries])
     return {
         "fetched_at": fetched_at,
         "source": "live",
@@ -288,13 +293,15 @@ def _rank(descriptors: list[ModelDescriptor], hub_order: list[str]) -> list[Mode
     """The Hub's trending order first; a pinned model the Hub did not list comes after."""
 
     hub_rank = {identifier: index for index, identifier in enumerate(hub_order)}
-    pinned_rank = {descriptor.id: index for index, descriptor in enumerate(PINNED_MODELS)}
+    pinned_rank = {
+        descriptor.id.casefold(): index for index, descriptor in enumerate(PINNED_MODELS)
+    }
 
     def key(descriptor: ModelDescriptor) -> tuple[int, int, int, str]:
         structured = sum(1 for route in descriptor.providers if route.supports_structured_output)
         return (
-            hub_rank.get(descriptor.id, len(hub_rank)),
-            pinned_rank.get(descriptor.id, len(pinned_rank)),
+            hub_rank.get(descriptor.id.casefold(), len(hub_rank)),
+            pinned_rank.get(descriptor.id.casefold(), len(pinned_rank)),
             -structured,
             descriptor.id,
         )

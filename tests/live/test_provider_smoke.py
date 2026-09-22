@@ -105,26 +105,45 @@ def test_the_stored_key_can_list_that_family_s_models(family: str) -> None:
 
 
 @pytest.mark.parametrize("family", FAMILY_IDS)
-def test_the_recommended_model_returns_a_valid_proposal_for_a_real_brief(
+def test_the_pair_online_ai_would_call_returns_a_valid_proposal_for_a_real_brief(
     family: str, registry: SchemaRegistry
 ) -> None:
+    """**This test spends real credit.** It calls the pair the product itself resolves.
+
+    Not a pair the test picks: the first version chose the trending-top model on its cheapest
+    route and timed out at 30 seconds on a route needing 80, which is how the time-aware
+    choice was found. Asking the service for the pair is the only way this test can prove the
+    default a user actually gets works.
+    """
+
     if not _configured(family):
         pytest.skip(f"no key is stored for {family}")
     from oak.adapters.models.hosted_interpreter import HostedModelInterpreter, build_path_hints
-    from oak.adapters.models.providers import profile_for, recommended_route
+    from oak.adapters.models.providers import profile_for
     from oak.bootstrap import _model_transport
 
-    snapshot = model_discoverer(family, None)
-    model_id = snapshot["recommended"]
-    if model_id is None:
-        pytest.skip(f"{family} recommended no model")
-    listed = next((model for model in snapshot["models"] if model["id"] == model_id), None)
     service = create_model_configuration_service()
+    if family == "huggingface":
+        service.discover(family)
+        pair = service.online_pair()
+        assert pair is not None, "discovery produced no pair at all"
+        assert pair["valid"], f"Online AI is not ready: {pair['reason']}"
+        model_id, route = str(pair["model_id"]), pair["provider_route"]
+        print(
+            f"\n{family}: calling {model_id} via {route} "
+            f"({pair['licence']}, ${pair['output_price_per_million']}/M output); "
+            f"passed over {pair['passed_over']}"
+        )
+    else:
+        selection = service.selection(family)
+        if selection is None:
+            pytest.skip(f"no {family} model is pinned")
+        model_id, route = selection.model_id, None
     profile = profile_for(family, local_endpoint=os.environ.get("OAK_MODEL_ENDPOINT_LOCAL"))
     adapter = HostedModelInterpreter(
         profile,
         model_id,
-        provider_route=recommended_route(listed, "cheapest") if family == "huggingface" else None,
+        provider_route=route,
         credential_provider=lambda: service.credential_for(family),
         transport=_model_transport(profile),
         path_hints=build_path_hints(registry.schema("system-intent.schema.json")),
@@ -172,7 +191,7 @@ def test_a_host_outside_the_profile_allowlist_is_still_refused_live() -> None:
     from oak.adapters.models.transport import TransportRequest
     from oak.bootstrap import _model_transport
 
-    transport = _model_transport(profile_for("openai"))
+    transport = _model_transport(profile_for("huggingface"))
     with pytest.raises(OAKError) as refused:
         transport.send(TransportRequest(method="GET", url="https://example.com/"))
     assert refused.value.code == "OAK-MODEL-EGRESS-DENIED"
