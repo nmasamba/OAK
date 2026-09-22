@@ -188,7 +188,7 @@ and this release does not invent one. See
 
 ## Current limits
 
-OAK Community `0.7.1` is a local-first developer release. It carries no production or
+OAK Community `0.8.0` is a local-first developer release. It carries no production or
 customer readiness claim, and no external security review was commissioned for it — every
 security statement in this repository records work the project did itself. The complete,
 identified list of what is not defended is

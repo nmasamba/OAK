@@ -1,6 +1,6 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-# Residual risk register — OAK Community 0.7.1
+# Residual risk register — OAK Community 0.8.0
 
 What this release does **not** defend against, in one place, with stable identifiers.
 

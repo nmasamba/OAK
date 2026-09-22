@@ -34,8 +34,12 @@ paired with a different build.
 
 ## Versioning
 
-`0.7.1` is the current release, published on 2026-09-03; the tree is ahead of it, with
-Sprints 9 and 10 recorded under Unreleased in `CHANGELOG.md` and no version cut for either. `0.7.0` was approved on 2026-08-22 but never
+`0.7.1` is the published release, published on 2026-09-03. The tree is ahead of it: Sprints 9
+and 10 are recorded under `0.8.0` in `CHANGELOG.md`, the version files say `0.8.0`, and the
+evidence is built, but `0.8.0` is **prepared and unsigned** — no tag exists and nothing is
+published, because the approvals in
+[release/0.8.0/release-decision.md](release/0.8.0/release-decision.md) are the owner's to
+give. `0.7.0` was approved on 2026-08-22 but never
 published anywhere, and was re-cut as `0.7.1` when the pre-launch hardening work made a
 deliberate digest-shifting change (see `CHANGELOG.md`); the `0.7.0` record stays as
 history. The `0.7.x` numbering is not `0.1.0`, and the reason is recorded in
@@ -85,8 +89,8 @@ is the point rather than a loophole.
 Then tag, which triggers `.github/workflows/release.yml`:
 
 ```bash
-git tag v0.7.1
-git push origin v0.7.1
+git tag v0.8.0
+git push origin v0.8.0
 ```
 
 That workflow runs `make check` before `make release`, so a release cannot be cut from a
@@ -166,7 +170,7 @@ running Python or the pnpm-provisioned Node differs from the pins.
 To build the images locally, matching what the workflow does:
 
 ```bash
-docker buildx build --platform linux/amd64 --file deploy/images/api.Dockerfile --tag oak-community/api:0.7.1 --load .
+docker buildx build --platform linux/amd64 --file deploy/images/api.Dockerfile --tag oak-community/api:0.8.0 --load .
 ```
 
 ## Publication
@@ -196,5 +200,7 @@ checksums prove the bytes match the manifest, not who produced them (`RR-005`).
 - [ ] Known limitations published and current
       ([security/residual-risk.md](security/residual-risk.md))
 - [ ] Named maintainer, security and licence approvals recorded — see
-      [release/0.7.1/release-decision.md](release/0.7.1/release-decision.md). This is a
-      human decision and cannot be self-approved by the person or agent doing the build
+      [release/0.8.0/release-decision.md](release/0.8.0/release-decision.md). This is a
+      human decision and cannot be self-approved by the person or agent doing the build.
+      Every other box above is ticked for `0.8.0`; this one is not, which is why no
+      `v0.8.0` tag exists

@@ -3,16 +3,11 @@
 # Build status
 
 - **Updated:** 2026-09-22
-- **Repository version:** `0.7.1`
-- **Phase:** Sprint 10 in progress — Hugging Face only: Deterministic, Online AI and Local AI modes with a corroborated token (`OAK-S10-001`–`008`), authorized by the owner on 2026-09-21, on branch `hf-only-modes`. Sprint 9 (`OAK-S9-001`–`009`) is merged as PR #21 (`88fa876`). `0.7.1` was approved by `nmasamba` on 2026-08-27 and **published as a GitHub Release on 2026-09-03**; nothing about it changes in this sprint
-- **Completed plans:** `docs/exec-plans/completed/OAK-S0-001-009-walking-skeleton.md`, `docs/exec-plans/completed/OAK-S1-001-010-local-design-case.md`, `docs/exec-plans/completed/OAK-S2-001-011-candidate-planning.md`, `docs/exec-plans/completed/OAK-S3-001-009-persistent-rest-jobs.md`, `docs/exec-plans/completed/OAK-S4-001-009-web-workspace.md`, `docs/exec-plans/completed/OAK-S5-001-011-signed-runner.md`, `docs/exec-plans/completed/OAK-S6-001-008-policy-adapter-sdk.md`, `docs/exec-plans/completed/OAK-S7-001-008-mcp-portal-interface-parity.md`, `docs/exec-plans/completed/OAK-S8-001-009-community-release-hardening.md`, `docs/exec-plans/completed/OAK-PL-001-007-pre-launch-hardening.md`, `docs/exec-plans/completed/OAK-FS-001-003-final-sweep.md`, and `docs/exec-plans/completed/OAK-S9-001-009-model-provider-intake.md`
-- **Active plan:** `docs/exec-plans/active/OAK-S10-001-008-huggingface-only-modes.md`
-- **Next task:** `OAK-S10-008` (cut `0.8.0` after the merge: touch-list, decision record, evidence, tag); `OAK-S10-001`–`007` are complete on the branch. Sprint 9 is merged (PR #21 → `88fa876`;
-  `origin/main` is `3430c71`). The
-  pre-launch hardening (PR #13, `2d85322`), the documentation sweep (PR #15 `ca160a7`, PR #16
-  `3f9122f`), the `0.7.1` approval and tag (`c614414`), the image-tooling fixes (PRs #18, #19)
-  and the publication truth pass (PR #20, `62bc7a1`) are all merged; the register carries 42
-  entries with eight closed (`RR-042` added in this sprint; `RR-039`–`RR-041` in Sprint 9). PyPI and a container registry remain separate owner decisions
+- **Repository version:** `0.8.0`
+- **Phase:** Sprint 10 complete and merged — Hugging Face only: Deterministic, Online AI and Local AI modes with a corroborated token (`OAK-S10-001`–`008`), authorized by the owner on 2026-09-21, merged as PR #22 (`052211e`). Sprint 9 (`OAK-S9-001`–`009`) is merged as PR #21 (`88fa876`). `0.8.0` is **prepared and unsigned**: the touch-list, changelog section, decision record and evidence are in the tree, and the tag waits on the named maintainer, security and licence approvals in `docs/release/0.8.0/release-decision.md`. `0.7.1` was approved by `nmasamba` on 2026-08-27 and **published as a GitHub Release on 2026-09-03**; nothing about it changes here
+- **Completed plans:** `docs/exec-plans/completed/OAK-S0-001-009-walking-skeleton.md`, `docs/exec-plans/completed/OAK-S1-001-010-local-design-case.md`, `docs/exec-plans/completed/OAK-S2-001-011-candidate-planning.md`, `docs/exec-plans/completed/OAK-S3-001-009-persistent-rest-jobs.md`, `docs/exec-plans/completed/OAK-S4-001-009-web-workspace.md`, `docs/exec-plans/completed/OAK-S5-001-011-signed-runner.md`, `docs/exec-plans/completed/OAK-S6-001-008-policy-adapter-sdk.md`, `docs/exec-plans/completed/OAK-S7-001-008-mcp-portal-interface-parity.md`, `docs/exec-plans/completed/OAK-S8-001-009-community-release-hardening.md`, `docs/exec-plans/completed/OAK-PL-001-007-pre-launch-hardening.md`, `docs/exec-plans/completed/OAK-FS-001-003-final-sweep.md`, `docs/exec-plans/completed/OAK-S9-001-009-model-provider-intake.md`, and `docs/exec-plans/completed/OAK-S10-001-008-huggingface-only-modes.md`
+- **Active plan:** none — Sprint 10 is complete and no further sprint is authorized
+- **Next task:** none authorized. `OAK-S10-001`–`008` are complete and merged (PR #22 → `052211e`); `origin/main` carries `0.8.0` prepared and unsigned. The one remaining step of the release checklist is the owner's: sign `docs/release/0.8.0/release-decision.md`, then tag `v0.8.0`. The pre-launch hardening (PR #13, `2d85322`), the documentation sweep (PR #15 `ca160a7`, PR #16 `3f9122f`), the `0.7.1` approval and tag (`c614414`), the image-tooling fixes (PRs #18, #19), the publication truth pass (PR #20, `62bc7a1`) and Sprint 9 (PR #21) are all merged; the register carries 42 entries with eight closed (`RR-042` added in Sprint 10; `RR-039`–`RR-041` in Sprint 9). Publishing `0.8.0` anywhere, PyPI and a container registry remain separate owner decisions
 
 ## Claimed work
 
@@ -128,7 +123,7 @@
 | `OAK-S10-005` | complete | Mode dropdown on intake and case pages; Settings with verdict, Refresh, pairs and Local AI model; masthead label repurposed; browser tests and manual capture |
 | `OAK-S10-006` | complete | Documentation, ADRs, threat model, register (`RR-039`, `RR-042`), evidence, generated artifacts in both repositories |
 | `OAK-S10-007` | complete | Live run against the real Hub and router (two product defects found and fixed), closing adversarial audit (27 distinct findings), corpus-wide documentation sweep, full gate green at HEAD, PR from `hf-only-modes` |
-| `OAK-S10-008` | claimed | Release `0.8.0` after the merge: touch-list, decision record, evidence, tag; publication stays the owner's |
+| `OAK-S10-008` | complete | `0.8.0` prepared on `main`: version touch-list, `0.8.0` changelog section, `docs/release/0.8.0/release-decision.md` (unsigned), regenerated OpenAPI, manual and error reference, and the release evidence. The tag waits on the owner's signature; publication stays a separate owner decision |
 
 ## Verification evidence
 

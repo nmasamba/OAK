@@ -3,7 +3,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>OAK Community User Manual — 0.7.1</title>
+<title>OAK Community User Manual — 0.8.0</title>
 <style>
   @page { size: A4; margin: 18mm 16mm 20mm 16mm; }
   * { box-sizing: border-box; }
@@ -43,11 +43,11 @@
 <body>
 
 <header class="cover">
-  <div class="kicker">User manual · version 0.7.1</div>
+  <div class="kicker">User manual · version 0.8.0</div>
   <h1>OAK Community</h1>
   <div class="subtitle">From an architecture brief to a signed, independently verified plan — entirely on your own machine.</div>
   <div class="honest">
-    <strong>What this is.</strong> OAK Community 0.7.1 is a <em>local-first developer
+    <strong>What this is.</strong> OAK Community 0.8.0 is a <em>local-first developer
     release</em>. It carries no production or customer readiness claim, and no external
     security review was commissioned for it. Everything in this manual runs on your own
     machine against public or synthetic fixtures; the only mutation the runner can ever
@@ -57,7 +57,7 @@
     repository.
   </div>
   <div class="meta">
-    Covers OAK Community 0.7.1 · generated from <code>docs/manual/</code> in the
+    Covers OAK Community 0.8.0 · generated from <code>docs/manual/</code> in the
     repository — see the colophon for how to rebuild this document and re-capture its
     screenshots from a live system.
   </div>
@@ -167,7 +167,7 @@ make bootstrap</code></pre>
     you build them.
   </p>
   <pre><code>uv run oak --version
-<span class="out">0.7.1</span></code></pre>
+<span class="out">0.8.0</span></code></pre>
   <div class="note">
     Throughout this manual, commands are shown as <code>uv run oak …</code> so they work
     from the repository without activating anything. If you prefer, activate the
@@ -348,7 +348,7 @@ uv run oak import ../case-export --directory ../restored
   <div class="warn">
     Always pass <code>--build</code>: Compose happily reuses a stale cached image after
     you change source. Confirm what you are running with
-    <code>curl http://127.0.0.1:8080/version</code> — it must report 0.7.1.
+    <code>curl http://127.0.0.1:8080/version</code> — it must report 0.8.0.
   </div>
   <p>
     The API listens on <code>127.0.0.1:8080</code> and the workspace on
@@ -624,9 +624,9 @@ make verify-release
 # what a consumer actually runs, against a downloaded directory
 python scripts/verify_release.py ./downloaded-release
 <span class="out">OK  THIRD-PARTY-LICENCES.md
-OK  oak-community-0.7.1.cdx.json
-OK  oak_community-0.7.1-py3-none-any.whl
-OK  oak_community-0.7.1.tar.gz
+OK  oak-community-0.8.0.cdx.json
+OK  oak_community-0.8.0-py3-none-any.whl
+OK  oak_community-0.8.0.tar.gz
 
 verified 4 artifact(s) against SHA256SUMS
 Checksums prove the bytes match the manifest. They do not prove who produced
@@ -645,7 +645,7 @@ them: OAK Community release artifacts are unsigned.</span></code></pre>
     they do not prove who produced them. Release artifacts are deliberately not signed
     yet (<code>RR-005</code> in the residual-risk register), and the container images
     are not byte-reproducible (<code>RR-006</code>) — their SBOMs and provenance under
-    <code>docs/release/0.7.1/</code> record what one build produced.
+    <code>docs/release/0.8.0/</code> record what one build produced.
   </p>
 </section>
 
@@ -736,7 +736,7 @@ pnpm --dir web exec node ../docs/manual/build_manual.mjs</code></pre>
     continuously — except <code>oak revoke-approval</code>, which is covered by the
     revocation integration suite (<code>tests/integration/test_runner_revocation.py</code>)
     instead. The diagrams are inline SVG in the source. This manual
-    describes OAK Community 0.7.1 — a local-first developer release with no production
+    describes OAK Community 0.8.0 — a local-first developer release with no production
     or customer readiness claim; where this document and
     <code>docs/security/residual-risk.md</code> could ever disagree, the register wins.
   </p>

@@ -2,7 +2,7 @@
 
 # Operations runbook
 
-For the person running OAK Community `0.7.1`: install, configure, observe, back up,
+For the person running OAK Community `0.8.0`: install, configure, observe, back up,
 restore, upgrade, troubleshoot, export and remove it.
 
 **Scope.** OAK Community is a local-first developer release. It has no authentication,
@@ -257,14 +257,14 @@ its `downgrade()` deliberately raises — pinned by
 
 ### A file workspace
 
-There is no file-workspace format migration, and none is planned for `0.7.1`. A
+There is no file-workspace format migration, and none is planned for `0.8.0`. A
 workspace whose manifest carries a `schema_version` this build does not know is refused
 with `OAK-WORKSPACE-CORRUPT` — on **every** command, including `export`, so it cannot be
 rescued after the fact
 (`tests/integration/test_backup_restore.py::test_a_workspace_written_by_an_unknown_format_fails_closed`).
 
 **Therefore: `oak export` before upgrading.** The exported tree is the migration unit.
-`0.7.1` does not move any manifest `schema_version`, so upgrading to it needs nothing —
+`0.8.0` does not move any manifest `schema_version`, so upgrading to it needs nothing —
 but make exporting first a habit before it does. Recorded as `RR-017`.
 
 ### Rollback limits

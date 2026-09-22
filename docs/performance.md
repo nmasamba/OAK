@@ -3,9 +3,10 @@
 # Measured performance
 
 What OAK Community was observed to do at `0.7.0`, on one machine, under a stated
-workload. The `0.7.1` re-cut changed compiled content, not the compile path, so these
-figures are inherited rather than re-measured; the `0.7.1` release decision records that
-inheritance explicitly.
+workload. Neither the `0.7.1` re-cut nor `0.8.0` changed the compile path — `0.7.1`
+changed compiled content, and `0.8.0` adds an opt-in model seat that the deterministic
+journey never loads — so these figures are inherited rather than re-measured, and both
+release decisions record that inheritance explicitly.
 
 **These are observations, not a service level objective.** They were taken on a single
 developer laptop with no controlled environment, no warm-up isolation from operating-system

@@ -66,7 +66,7 @@ limitation. If you need a response by a deadline, say so in the report.
 
 ## What this release does and does not assure
 
-OAK Community `0.7.1` is a **local-first developer release**. It carries no production or
+OAK Community `0.8.0` is a **local-first developer release**. It carries no production or
 customer readiness claim, and a release approval is not a deployment approval.
 
 **No external security review was commissioned for this release.** All security work —
@@ -105,8 +105,9 @@ tracked as `RR-036`.
 
 ## Supported versions
 
-`0.7.1` is the current release, published as a GitHub Release on 2026-09-03 (`v0.7.1`);
-`0.7.0` was approved but never published and was re-cut. Only the latest release is
+`0.7.1` is the published release, released as a GitHub Release on 2026-09-03 (`v0.7.1`).
+`0.8.0` is prepared in the tree and unsigned: no tag exists and nothing is published for
+it. `0.7.0` was approved but never published and was re-cut. Only the latest release is
 supported; there is no backport policy yet.
 
 ## Dependencies
