@@ -21,7 +21,7 @@ await page.pdf({
   headerTemplate: "<span></span>",
   footerTemplate:
     '<div style="width:100%;font-size:8px;color:#5a6b63;text-align:center;font-family:Helvetica,Arial,sans-serif;">' +
-    'OAK Community 0.7.1 — user manual · page <span class="pageNumber"></span> of <span class="totalPages"></span></div>',
+    'OAK Community 0.8.0 — user manual · page <span class="pageNumber"></span> of <span class="totalPages"></span></div>',
   margin: { top: "14mm", bottom: "16mm", left: "0", right: "0" },
 });
 await browser.close();

@@ -2,11 +2,12 @@
 
 # Container image scan — OAK Community 0.8.0
 
-The `0.8.0` scan, run from a clean tree at `07880eb` after Sprints 9 and 10 merged. Neither
-sprint changed a Dockerfile or a base pin, so the images are the `0.7.1` images rebuilt
-today; what differs below is what the scanner's database now says about them, not what they
-contain. The superseded `0.7.1` record is at
-[../0.7.1/container-scan.md](../0.7.1/container-scan.md).
+The `0.8.0` scan, run from a clean tree at `07880eb` after Sprints 9 and 10 merged. No base
+pin moved, and the only Dockerfile change since `0.7.1` creates the owner-only model-state
+directory in the API image (`install -d -m 0700`), which installs no package. The scanned
+package set is therefore the `0.7.1` one rebuilt today, and what differs below is what the
+scanner's database now says about it rather than what the image contains. The superseded
+`0.7.1` record is at [../0.7.1/container-scan.md](../0.7.1/container-scan.md).
 
 Reproduce with:
 
@@ -49,7 +50,7 @@ Two changes, in opposite directions, and neither is a change to the image:
   `CVE-2026-78408`, `CVE-2026-78409` and `CVE-2026-78410` — are each reported against the
   nine packages Debian builds from that one source (`bsdutils`, `libblkid1`,
   `liblastlog2-2`, `libmount1`, `libsmartcols1`, `libuuid1`, `login`, `mount`,
-  `util-linux`), which is 36 of the 44. Two `systemd` advisories account for
+  `util-linux`), which is 36 of the 44. One `systemd` advisory (`CVE-2026-16742`) accounts for
   `libsystemd0` and `libudev1`, one `ncurses` advisory for the four `ncurses` packages,
   and `libacl1` and `perl-base` carry one each.
 

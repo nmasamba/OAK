@@ -4,15 +4,16 @@
 
 All notable changes to OAK Community are recorded here.
 
-## 0.8.0 — prepared 2026-09-22, unsigned
+## 0.8.0 — tagged 2026-09-22, approvals unsigned
 
-Two sprints ship under one version because none was cut for either: `0.7.1` remains the
-published release until this record is signed, and nothing here changes what `0.7.1`
-already produced. Sprint 10 narrowed Sprint 9; where the two disagree, Sprint 10's entries
+Two sprints ship under one version because none was cut for either. `0.7.1` remains the
+only **published** release, and nothing here changes what it produced; `v0.8.0` is tagged
+but not published anywhere. Sprint 10 narrowed Sprint 9; where the two disagree, Sprint 10's entries
 describe what ships. Every entry holds the four reference digests byte-stable unless it
 says otherwise. The decision record is
-[`docs/release/0.8.0/release-decision.md`](docs/release/0.8.0/release-decision.md), and it
-is unsigned: approval is a human act that the work preparing it cannot self-assign.
+[`docs/release/0.8.0/release-decision.md`](docs/release/0.8.0/release-decision.md). Its
+approval rows are unsigned: the tag was cut on the owner's instruction, and approval is a
+separate human act that the work preparing a release cannot self-assign.
 
 Sprint 10 — Hugging Face only: Deterministic, Online AI and Local AI, with a corroborated
 token (`OAK-S10-001`–`008`), authorized by the owner on 2026-09-21.

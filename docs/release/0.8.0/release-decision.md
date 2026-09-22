@@ -2,8 +2,10 @@
 
 # Release decision record — OAK Community 0.8.0
 
-**Status: prepared, unsigned.** Nothing below is approved until the three rows in
-"Approvals required" carry a name and a date.
+**Status: tagged, approvals unsigned.** `v0.8.0` was cut on 2026-09-22 on the owner's
+explicit instruction, ahead of the signatures. Nothing below is approved until the three
+rows in "Approvals required" carry a name and a date, and nothing is published on the
+strength of the tag alone.
 
 This document assembles the evidence a maintainer needs to decide whether to declare
 `0.8.0` released, and records who signed. It was prepared by the Sprint 10 work
@@ -61,16 +63,16 @@ is new and machine-local. No reference digest moved.
 
 | Question | Where it is answered |
 |---|---|
-| Does it install on a clean machine? | TODO: `make release` installs the built wheel into a throwaway environment on every build; state the run |
-| Does the artifact that ships actually work? | TODO: `tests/e2e/test_installed_wheel.py`; the full gate at the release commit (counts) |
-| Do the artifacts reproduce? | TODO: `make release` builds twice and compares digests. Container images do **not** reproduce (`RR-006`) |
-| Are the four reference digests unchanged? | `tests/integration/test_reference_digests.py` pins them; TODO: state the run at the release commit |
-| Were the images scanned? | TODO: `make scan-images` from a clean tree; `container-scan.md` in this directory; never from a tree stamped `source_tree_dirty: true` |
-| Do the images carry SBOM and provenance? | TODO: per-image CycloneDX SBOMs and `image-provenance.json` in this directory |
-| Are the dependency closures clean? | TODO: `make audit` (`pip-audit` + `pnpm audit`) |
-| Did the model path work against the real provider? | TODO: the live run recorded in the Sprint 10 ExecPlan — verification, discovery and one online interpretation with the owner's token |
+| Does it install on a clean machine? | `make release` at `8e70825` installed the built wheel into a throwaway environment holding only the locked runtime closure and ran it from outside the checkout (`clean_environment_install_verified: true` in `dist/release/build-provenance.json`). Platform support is unchanged: [platforms.md](../../platforms.md) |
+| Does the artifact that ships actually work? | `tests/e2e/test_installed_wheel.py`, plus the release build's own out-of-checkout run. The full gate at the release commit, with PostgreSQL: zero `make: ***` lines, 665 unit/contract, 276 integration (4 skipped), 42 e2e |
+| Do the artifacts reproduce? | **Yes.** `make release` builds twice into separate directories and compares digests (`reproducible_rebuild_verified: true`); two independent runs on this machine, one before and one after the documentation commit, produced identical digests for all four artifacts. Container images do **not** reproduce (`RR-006`) |
+| Are the four reference digests unchanged? | **Yes.** `tests/integration/test_reference_digests.py` pins them and passed at the release commit; the deterministic journey is byte-identical to `0.7.1` |
+| Were the images scanned? | **Yes**, from a clean tree at `07880eb` (`source_tree_dirty: false`): zero fixable CRITICAL or HIGH findings, the web image reports nothing at any severity, and the API image's 44 HIGH findings are eight distinct unfixable advisories. [container-scan.md](container-scan.md) |
+| Do the images carry SBOM and provenance? | **Yes** — per-image CycloneDX SBOMs and unsigned `image-provenance.json` in this directory, from the same pinned scanner and the same exported tarball as the vulnerability scan |
+| Are the dependency closures clean? | **Yes.** `make audit` at the release commit: `pip-audit` and `pnpm audit` both report no known vulnerabilities. The same command ran clean in CI on the Sprint 10 merge |
+| Did the model path work against the real provider? | **Yes**, on 2026-09-22 with the owner's own Hugging Face token: verification, discovery and one online interpretation that spent real credit, recorded under `## Live run` in [the Sprint 10 plan](../../exec-plans/completed/OAK-S10-001-008-huggingface-only-modes.md). It failed twice first, and both failures were product defects that are fixed |
 | How fast is it? | Inherited from `0.7.0` ([performance.md](../../performance.md)); the deterministic compile path is unchanged and figures were not re-measured |
-| Was a clean-room rehearsal re-run? | TODO |
+| Was a clean-room rehearsal re-run? | **No** — inherited from `0.7.0` ([../0.7.0/clean-room.md](../0.7.0/clean-room.md)). The install path is unchanged: no packaged data moved, no entry point changed, and the model seat is an optional import the deterministic journey never loads. An approver who weighs the rehearsal heavily may ask for a re-run |
 | What does it *not* defend against? | [security/residual-risk.md](../../security/residual-risk.md) — 42 entries with stable ids, of which eight rows are closed; `RR-039` to `RR-042` are new since the `0.7.1` signatures |
 | Was it externally reviewed? | **No.** No external security review was commissioned; two internal adversarial audits (Sprint 9 and Sprint 10) are recorded in their ExecPlans, and the wording restrictions recorded in the [`0.7.0` decision](../0.7.0/release-decision.md#external-review) apply unchanged |
 
@@ -108,8 +110,33 @@ signature.
 > are **not independent** of the maintainer judgement. A reader weighing this release
 > should read the three approvals as one person's, not three.
 
+## What this build produced
+
+`make release` at `8e70825`, from a clean tree, built and verified these. They are the
+artifacts an approval would be approving; nothing here has been uploaded anywhere.
+
+```
+37951c871733de598cb251265852d55e3ef5bc7aa8ce744f783014fb833907a7  THIRD-PARTY-LICENCES.md
+1d391dda282fad926873ce7e4c19ec67acd57c23e856754b3c242b336ec741be  oak-community-0.8.0.cdx.json
+40d108c6354bd679b2617acac171b8d1d62fb2514a06de3dafe84436680b00d3  oak_community-0.8.0-py3-none-any.whl
+96a6110a9fd2c66e426eb9400f5fc39fa760bf11fafa131e58cb6541846dbbd5  oak_community-0.8.0.tar.gz
+```
+
+`make verify-release` checks these against `SHA256SUMS`. Checksums prove the bytes match
+the manifest; they do not prove who produced them, and these artifacts are unsigned
+(`RR-005`).
+
+## The tag, and what it does not mean
+
+`v0.8.0` points at the merge commit that carries everything above. It was cut because the
+owner asked for it on 2026-09-22, having been told the approval rows were empty. Recording
+that plainly is the point: a reader comparing this tree with the record should find the
+tag present and the signatures absent, and should not read one as standing in for the
+other. Signing the rows below remains the act that makes `0.8.0` an approved release.
+
 ## Publication
 
-Approval is not publication. Pushing the tag runs `release.yml`, which builds and verifies
-under read-only permissions and publishes nothing. A GitHub Release, PyPI and a container
-registry are each a separate, later decision.
+Approval is not publication, and neither is a tag. Pushing the tag runs `release.yml`,
+which builds and verifies under read-only permissions and publishes nothing. A GitHub
+Release, PyPI and a container registry are each a separate, later decision, and none has
+been taken.

@@ -38,7 +38,7 @@ image that ships — including its final-stage base — not a build stage.
 **Zero fixable findings.** Debian has published no fix for any of the API image's
 remaining CRITICAL or HIGH findings — the residue is the set `RR-036` records:
 `perl-base` accounts for all three CRITICALs (plus five HIGHs), with single HIGHs in the
-`ncurses` family, `gzip`, `libacl1` and `libsqlite3-0`. The UNKNOWN entries are
+`ncurses` family, `gzip` and `libacl1`, and two in `libsqlite3-0`. The UNKNOWN entries are
 advisories the scanner's database carries without a severity assignment; none is fixable.
 
 **Rescanned 2026-08-27** against a moved vulnerability database, which is why the counts

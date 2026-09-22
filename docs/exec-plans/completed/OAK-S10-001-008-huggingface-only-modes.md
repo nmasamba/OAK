@@ -516,9 +516,11 @@ or missing key is visible before anyone opens the dropdown.
 - [x] 2026-09-22 Milestone 7 (`OAK-S10-008`): merged as PR #22 (`052211e`) with both remote
   CI runs green, then `0.8.0` prepared on `main` — the version touch-list, the `0.8.0`
   changelog section, `docs/release/0.8.0/release-decision.md` written **unsigned**, the
-  release evidence regenerated, and this plan moved to `completed/`. The tag is not cut: the
-  release checklist requires named maintainer, security and licence approvals, and the work
-  that prepares a release cannot self-assign them.
+  release evidence regenerated, and this plan moved to `completed/`. The release checklist's
+  last box — named maintainer, security and licence approvals — is **not** ticked, and the
+  work that prepares a release cannot self-assign it; the owner then asked for the tag
+  anyway, so `v0.8.0` was cut ahead of the signatures and the documents say so rather than
+  implying an approval that was never given.
 
 ## Live run
 

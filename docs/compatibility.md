@@ -89,8 +89,7 @@ mechanical migration; **breaking** otherwise.
   reshaped them freely — `DELETE /v1/models/selection` became
   `DELETE /v1/models/selection/{family}`, and `GET /v1/models` returns `modes` and
   `selections` in place of `configured` and `selection` — and they carry no compatibility
-  debt until `0.8.0`, exactly as `oak models` does below in which the old behavior still
-  works and is marked deprecated in the OpenAPI description.
+  debt until `0.8.0`, exactly as `oak models` does below.
 - Error contracts are part of the surface: problem-details field names, stable
   `OAK-*` error codes, and status-code mappings may gain new codes freely, but an
   existing code may not change meaning or disappear while any documented flow uses it.

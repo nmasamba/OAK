@@ -34,12 +34,11 @@ paired with a different build.
 
 ## Versioning
 
-`0.7.1` is the published release, published on 2026-09-03. The tree is ahead of it: Sprints 9
-and 10 are recorded under `0.8.0` in `CHANGELOG.md`, the version files say `0.8.0`, and the
-evidence is built, but `0.8.0` is **prepared and unsigned** — no tag exists and nothing is
-published, because the approvals in
-[release/0.8.0/release-decision.md](release/0.8.0/release-decision.md) are the owner's to
-give. `0.7.0` was approved on 2026-08-22 but never
+`0.7.1` is the published release, published on 2026-09-03. `0.8.0` is the version this tree builds and is tagged `v0.8.0`, cut on 2026-09-22 on the
+owner's instruction. It is **not published anywhere**, and the approval rows in
+[release/0.8.0/release-decision.md](release/0.8.0/release-decision.md) are unsigned: the
+tag records what was built and the evidence that describes it, not an approval. Publishing
+`0.8.0` is a separate decision that has not been taken. `0.7.0` was approved on 2026-08-22 but never
 published anywhere, and was re-cut as `0.7.1` when the pre-launch hardening work made a
 deliberate digest-shifting change (see `CHANGELOG.md`); the `0.7.0` record stays as
 history. The `0.7.x` numbering is not `0.1.0`, and the reason is recorded in
@@ -202,5 +201,6 @@ checksums prove the bytes match the manifest, not who produced them (`RR-005`).
 - [ ] Named maintainer, security and licence approvals recorded — see
       [release/0.8.0/release-decision.md](release/0.8.0/release-decision.md). This is a
       human decision and cannot be self-approved by the person or agent doing the build.
-      Every other box above is ticked for `0.8.0`; this one is not, which is why no
-      `v0.8.0` tag exists
+      Every other box above is ticked for `0.8.0`; this one is **not**. The `v0.8.0` tag
+      was cut anyway, on the owner's explicit instruction, so the tag exists ahead of the
+      signatures. Nothing is published on that basis
