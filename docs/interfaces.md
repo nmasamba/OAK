@@ -122,7 +122,7 @@ prohibition).
 | Create design case | ● | ● | ● | ● | ● |
 | Read case / intent | ○ | ○ | ○ | ○ | ○ |
 | Interpret brief | ● | ● | ● | ● | ● |
-| Interpret brief with the configured model | ● | ● | ● | ● (explicit `interpreter: "model"`) | ● |
+| Interpret brief with Online AI or Local AI | ● | ● | ● | ● (explicit `interpreter`; default deterministic) | ● |
 | List questions | ○ | ○ | ○ | ○ | ○ |
 | Confirm claims | ● | ● | ● | ● | ● |
 | Generate candidates | ● | ● | ● | ● | ● |
@@ -143,9 +143,9 @@ prohibition).
 | Approve / revoke approval | ● | ✕ | — | ✕ | — |
 | Dispatch runner / ingest | ● | ✕ | — | ✕ | — |
 | Manage keys / extensions / policy | ● | ✕ | — | ✕ | — |
-| Store / remove a user-supplied model-provider key | ● | ✕ | ● | ✕ | ● |
-| Detect the models a key can reach | ● | ✕ | ● | ✕ | ● |
-| Select the model to interpret with | ● | ✕ | ● | ✕ | ● |
+| Store, verify or remove the Hugging Face token | ● | ✕ | ● | ✕ | ● |
+| Read the catalogue and see the pairs a token can call | ● | ✕ | ● | ✕ | ● |
+| Pin the Online AI pair or the Local AI model | ● | ✕ | ● | ✕ | ● |
 | Resolve a secret | ✕ | ✕ | ✕ | ✕ | ✕ |
 | Run a generic command / read a file | ✕ | ✕ | ✕ | ✕ | ✕ |
 | Apply to a production target | ✕ | ✕ | ✕ | ✕ | ✕ |

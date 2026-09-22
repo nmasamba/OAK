@@ -21,6 +21,7 @@ from pathlib import Path
 
 import pytest
 
+from oak import bootstrap
 from oak.adapters.credentials import keychain_store
 
 # An import that cannot resolve, so every keychain operation reports
@@ -37,7 +38,21 @@ def _isolated_model_state(
     monkeypatch.setenv("OAK_MODELS_DIRECTORY", str(tmp_path / "isolated-models"))
     monkeypatch.setenv("OAK_CREDENTIALS_DIRECTORY", str(tmp_path / "isolated-credentials"))
     monkeypatch.setattr(keychain_store, "DEFAULT_KEYCHAIN_MODULE", INERT_KEYCHAIN_MODULE)
-    for family in ("HUGGINGFACE", "OPENAI", "ANTHROPIC", "GEMINI", "META", "XAI"):
-        monkeypatch.delenv(f"OAK_MODEL_KEY_{family}", raising=False)
+    monkeypatch.delenv("OAK_MODEL_KEY_HUGGINGFACE", raising=False)
     monkeypatch.delenv("OAK_MODEL_TOKEN", raising=False)
     monkeypatch.delenv("OAK_MODEL_ENDPOINT_LOCAL", raising=False)
+    # `oak models set-key` verifies by default, which is one request to huggingface.co. No
+    # test may make it: the wiring gets a verifier that answers honestly that it did not ask.
+    # A test about verification injects its own verifier or patches this one.
+    monkeypatch.setattr(bootstrap, "model_verifier", _no_network_verifier)
+
+
+def _no_network_verifier(
+    family: str, *, deadline_seconds: float | None = None
+) -> dict[str, object]:
+    del family, deadline_seconds
+    return {
+        "verdict": "unverifiable",
+        "method": "unknown",
+        "reason": "verification is not performed in the test suite",
+    }

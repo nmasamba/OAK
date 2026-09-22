@@ -41,7 +41,20 @@ PROPOSAL_REF = "oak.community/interpretation_proposal_ref"
 REGISTRY = SchemaRegistry.from_directory(ROOT / "schemas")
 
 
-def _adapter() -> BindingFakeModelInterpreter:
+MODES = ("online", "local")
+
+
+def _adapter(mode: str = "online") -> BindingFakeModelInterpreter:
+    if mode == "local":
+        return BindingFakeModelInterpreter(
+            extensions={
+                "oak.community/model": {
+                    "family": "local",
+                    "model_id": "qwen3:8b",
+                    "provider_route": None,
+                }
+            }
+        )
     return BindingFakeModelInterpreter()
 
 
@@ -62,7 +75,9 @@ def _summary(
 # ----- file leg -----------------------------------------------------------------
 
 
-def _file_leg(tmp_path: Path, adapter: ModelInterpreterPort | None) -> dict[str, Any]:
+def _file_leg(
+    tmp_path: Path, adapter: ModelInterpreterPort | None, mode: str = "online"
+) -> dict[str, Any]:
     workspace = tmp_path / "file"
     repository = FileWorkspaceRepository(workspace, REGISTRY)
     service = DesignCaseService(
@@ -82,7 +97,7 @@ def _file_leg(tmp_path: Path, adapter: ModelInterpreterPort | None) -> dict[str,
         interface_origin="cli",
         occurred_at=NOW,
     )
-    result = service.design(BRIEF_PATH, context, interpreter="model")
+    result = service.design(BRIEF_PATH, context, interpreter=mode)
     assert result.intent is not None
     events = [
         repository.read_json_artifact(ArtifactReference.from_document(entry))
@@ -149,23 +164,24 @@ class _Rest:
         return items
 
 
-def _rest_leg(tmp_path: Path, adapter: ModelInterpreterPort | None) -> dict[str, Any]:
+def _rest_leg(
+    tmp_path: Path, adapter: ModelInterpreterPort | None, mode: str = "online"
+) -> dict[str, Any]:
     rest = _Rest(tmp_path, adapter)
     created = rest.create()
     case_id = str(created["id"])
 
     # Asking for the model by name without the token is refused, and nothing is committed.
     for token in (None, "wrong-token-0123456789"):
-        status, problem = rest.interpret(case_id, "0.1.0", interpreter="model", token=token)
+        status, problem = rest.interpret(case_id, "0.1.0", interpreter="online", token=token)
         assert status == 403, problem
         assert problem["code"] == "OAK-MODEL-TOKEN-REQUIRED"
     assert rest.case(case_id)["case"]["version"] == "0.1.0"
     assert len(rest.events(case_id)) == 1
 
-    # `auto` — and an absent parameter, which is what a client written before the model path
-    # existed sends — must keep meaning what it meant then. Without the token it interprets
-    # deterministically and succeeds, rather than turning into a 403 the moment somebody
-    # configures a model. The deterministic interpreter never needs the token.
+    # An absent parameter — what a client written before the model path existed sends — is
+    # deterministic. Without the token it succeeds rather than turning into a 403 the moment
+    # somebody sets a model up. The deterministic interpreter never needs the token.
     status, deterministic = rest.interpret(
         case_id, "0.1.0", interpreter=None, token=None, key="conform-model-dry-run-01"
     )
@@ -176,7 +192,7 @@ def _rest_leg(tmp_path: Path, adapter: ModelInterpreterPort | None) -> dict[str,
     rest = _Rest(tmp_path / "model-run", adapter)
     created = rest.create()
     case_id = str(created["id"])
-    status, interpreted = rest.interpret(case_id, "0.1.0", interpreter="model", token=TOKEN)
+    status, interpreted = rest.interpret(case_id, "0.1.0", interpreter=mode, token=TOKEN)
     assert status == 200, interpreted
     return _summary(interpreted["case"], interpreted["intent"], rest.events(case_id))
 
@@ -225,12 +241,14 @@ class _Mcp:
         return list(self.plane.list_audit_events(case_id, tenant_id="local"))
 
 
-def _mcp_leg(tmp_path: Path, adapter: ModelInterpreterPort | None) -> dict[str, Any]:
+def _mcp_leg(
+    tmp_path: Path, adapter: ModelInterpreterPort | None, mode: str = "online"
+) -> dict[str, Any]:
     mcp = _Mcp(tmp_path, adapter)
     created = mcp.create()
     case_id = str(created["id"])
     interpreted = mcp.client.call_ok(
-        "oak_design_case_interpret", mcp.interpret_arguments(case_id, "0.1.0", "model")
+        "oak_design_case_interpret", mcp.interpret_arguments(case_id, "0.1.0", mode)
     )
     return _summary(interpreted["case"], interpreted["intent"], mcp.events(case_id))
 
@@ -238,17 +256,22 @@ def _mcp_leg(tmp_path: Path, adapter: ModelInterpreterPort | None) -> dict[str, 
 # ----- the comparisons ----------------------------------------------------------
 
 
-def test_the_model_path_is_identical_across_file_rest_and_mcp(tmp_path: Path) -> None:
+@pytest.mark.parametrize("mode", MODES)
+def test_the_model_path_is_identical_across_file_rest_and_mcp(tmp_path: Path, mode: str) -> None:
     outcomes = {
-        "file": _file_leg(tmp_path, _adapter()),
-        "rest": _rest_leg(tmp_path, _adapter()),
-        "mcp": _mcp_leg(tmp_path, _adapter()),
+        "file": _file_leg(tmp_path, _adapter(mode), mode),
+        "rest": _rest_leg(tmp_path, _adapter(mode), mode),
+        "mcp": _mcp_leg(tmp_path, _adapter(mode), mode),
     }
     reference = outcomes["file"]
     assert reference["version"] == "0.1.1"
     assert reference["status"] == "needs_confirmation"
     assert reference["event_types"] == ["case_created", "brief_interpreted"]
     assert reference["interpreter_extension"]["kind"] == "model"
+    assert reference["interpreter_extension"]["mode"] == mode
+    assert reference["interpreter_extension"]["family"] == (
+        "local" if mode == "local" else "huggingface"
+    )
     assert reference["interpreter_extension"]["proposal_digest"] == reference["proposal_digest"]
     assert len(reference["question_ids"]) == 9
     for name, outcome in outcomes.items():
@@ -260,11 +283,11 @@ def test_every_interface_refuses_the_model_with_one_code_when_none_is_configured
 ) -> None:
     rest = _Rest(tmp_path, None)
     case_id = str(rest.create()["id"])
-    status, problem = rest.interpret(case_id, "0.1.0", interpreter="model", token=TOKEN)
+    status, problem = rest.interpret(case_id, "0.1.0", interpreter="online", token=TOKEN)
     assert status == 422, problem
     assert problem["code"] == "OAK-MODEL-NOT-CONFIGURED"
     assert rest.case(case_id)["case"]["version"] == "0.1.0"
-    # `auto` on a prose brief resolves to deterministic without a token when no model exists.
+    # An absent parameter is deterministic and needs no token whether or not a model exists.
     status, body = rest.interpret(case_id, "0.1.0", interpreter=None, token=None)
     assert status == 200, body
     assert PROPOSAL_REF not in body["intent"]["extensions"]
@@ -272,7 +295,7 @@ def test_every_interface_refuses_the_model_with_one_code_when_none_is_configured
     mcp = _Mcp(tmp_path, None)
     case_id = str(mcp.create()["id"])
     denial = mcp.client.call_error(
-        "oak_design_case_interpret", mcp.interpret_arguments(case_id, "0.1.0", "model")
+        "oak_design_case_interpret", mcp.interpret_arguments(case_id, "0.1.0", "online")
     )
     assert denial["code"] == "OAK-MODEL-NOT-CONFIGURED"
     assert mcp.plane.get_design_case(case_id, tenant_id="local").case["version"] == "0.1.0"
@@ -299,14 +322,16 @@ def test_mcp_defaults_to_the_deterministic_interpreter_even_when_a_model_is_conf
     ]
     events = mcp.events(case_id)
     assert events[-1]["extensions"] == {}
-    # The optional argument is closed to the two documented values; anything else is a
-    # protocol-level argument error, so `auto` cannot be requested over MCP at all.
-    response = mcp.client.request(
-        "tools/call",
-        {
-            "name": "oak_design_case_interpret",
-            "arguments": mcp.interpret_arguments(case_id, "0.1.1", "auto"),
-        },
-    )
-    assert response["error"]["data"]["code"] == "OAK-REQUEST-INVALID"
+    # The optional argument is closed to the three documented values; anything else is a
+    # protocol-level argument error, so neither Sprint 9's `auto` nor `model` can be
+    # requested over MCP at all.
+    for spelling in ("auto", "model"):
+        response = mcp.client.request(
+            "tools/call",
+            {
+                "name": "oak_design_case_interpret",
+                "arguments": mcp.interpret_arguments(case_id, "0.1.1", spelling),
+            },
+        )
+        assert response["error"]["data"]["code"] == "OAK-REQUEST-INVALID", spelling
     assert adapter.calls == []

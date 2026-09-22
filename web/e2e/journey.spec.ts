@@ -199,6 +199,8 @@ test("a reviewer completes the reference journey from brief to compiled bundle",
     const focusedTag = await page.evaluate(
       () => document.activeElement?.tagName ?? "",
     );
-    expect(["A", "BUTTON", "INPUT", "TEXTAREA"]).toContain(focusedTag);
+    expect(["A", "BUTTON", "INPUT", "SELECT", "TEXTAREA"]).toContain(
+      focusedTag,
+    );
   });
 });

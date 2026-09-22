@@ -5,6 +5,8 @@ import { createRoot } from "react-dom/client";
 import { getModels, type ModelStatusResponse } from "./generated/api";
 import { getVersion } from "./generated/api";
 import { MODEL_SETTINGS_CHANGED, currentModelToken } from "./modelToken";
+import { describeVerdict } from "./ModeSelect";
+import { asObject, asString } from "./support";
 import { BundlePage } from "./pages/BundlePage";
 import { CandidatesPage } from "./pages/CandidatesPage";
 import { CaseListPage } from "./pages/CaseListPage";
@@ -100,22 +102,25 @@ function useInterpreterLabel(path: string): string | null {
     }
     getModels(token)
       .then((status: ModelStatusResponse) => {
-        const selection = status.selection;
-        const family =
-          selection === null
-            ? null
-            : (selection["family"] as string | undefined);
-        const model =
-          selection === null
-            ? null
-            : (selection["model_id"] as string | undefined);
+        const online = asObject(status.modes["online"] ?? null);
+        const pair = online === null ? null : asObject(online["pair"]);
+        const model = pair === null ? null : asString(pair["model_id"]);
+        const route = pair === null ? null : asString(pair["provider_route"]);
+        const verification =
+          online === null ? null : asObject(online["verification"]);
+        const verdict =
+          verification === null ? null : asString(verification["verdict"]);
+        const checkedAt =
+          verification === null ? null : asString(verification["checked_at"]);
+        const tokenText = describeVerdict(
+          verdict,
+          checkedAt,
+          verification?.["stale"] === true,
+        );
         setLabel(
-          family === undefined ||
-            family === null ||
-            model === undefined ||
-            model === null
-            ? "Deterministic interpretation"
-            : `Model: ${family}/${model}`,
+          model === null
+            ? `Online AI: not set up · ${tokenText}`
+            : `Online AI: ${model}${route === null ? "" : ` via ${route}`} · ${tokenText}`,
         );
       })
       .catch(() => setLabel(null));
@@ -161,9 +166,9 @@ function AppShell() {
       <footer className="boundary-footer">
         <p>
           This workspace has no target mutation and no secret resolution, and
-          compiled plans stay draft review artifacts. It contacts a model
-          provider only when you configure one, and never on the deterministic
-          path.
+          compiled plans stay draft review artifacts. It contacts a model only
+          for a brief you choose to read with Online AI or Local AI; the default
+          contacts nothing.
         </p>
       </footer>
     </>

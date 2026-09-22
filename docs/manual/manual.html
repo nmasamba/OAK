@@ -210,10 +210,11 @@ cd workspace</code></pre>
     <li><strong>A structured brief</strong>, like the reference
       <code>public-manual-qa.yaml</code> used below, fills the typed intent directly
       field by field, which is what lets the rest of the pipeline run end-to-end with
-      no model involved. With a model configured, the default (<code>--interpreter
-      auto</code>) still interprets a structured brief deterministically and offers only a
-      plain-language one to the model; <code>--interpreter model</code> overrides that and
-      offers either.</li>
+      no model involved. Whichever form you use, the brief is read deterministically
+      unless the request names another mode: <code>--interpreter online</code> sends it to
+      the Hugging Face model this machine is set up for, <code>--interpreter local</code> to
+      the model on your loopback server, and either works with a structured brief as well as
+      a plain-language one.</li>
   </ul>
   <div class="note">
     <strong>Where a language model fits.</strong> OAK's design gives an LLM exactly one
@@ -225,14 +226,17 @@ cd workspace</code></pre>
     values always win, and every section a model touched produces a question you must
     answer before the design can reach candidates.
     <br><br>
-    <strong>No model is configured by default, and this manual uses none.</strong> Every
-    command and screenshot below is deterministic and offline. If you want plain-language
-    briefs interpreted for you, <code>oak models set-key &lt;family&gt;</code> and
-    <code>oak models select &lt;family&gt; &lt;model&gt;</code> configure one from this
-    chapter's command line, and chapter 4 shows the same thing in the browser. Until you do,
-    OAK contacts nothing, and <code>--interpreter deterministic</code> keeps it that way
-    afterwards. Configuring one is a decision with a consequence worth stating plainly:
-    the brief's text is then sent to that provider, under that provider's terms.
+    <strong>Every brief is read deterministically unless the request says otherwise, and
+    this manual never says otherwise.</strong> Every command and screenshot below is
+    deterministic and offline. If you want a model to read a plain-language brief,
+    <code>oak models set-key</code> stores your Hugging Face token (and checks it) and
+    <code>oak design --interpreter online</code> asks for it once, for that brief;
+    <code>--interpreter local</code> asks a model on this machine instead, and chapter 4
+    shows the same choice in the browser. Until you ask,
+    OAK contacts nothing, and <code>--interpreter deterministic</code> — the default —
+    keeps it that way afterwards. Asking for Online AI is a decision with a consequence
+    worth stating plainly: that brief's text is then sent to Hugging Face and on to the
+    inference provider it routes to, under their terms.
   </div>
   <h2>1 · Ingest and interpret the brief</h2>
   <pre><code>uv run oak design ../examples/briefs/public-manual-qa.yaml
@@ -336,8 +340,9 @@ uv run oak import ../case-export --directory ../restored
     The web workspace drives the same journey through a reviewer-friendly interface,
     backed by a persistent PostgreSQL control plane. It needs Docker with Compose (see
     the prerequisites in chapter 2), and the first build pulls the pinned base images.
-    That and the optional <em>Detect models</em> button at the end of this chapter are the
-    only steps here that use the network. Start the stack:
+    That, the optional <em>Refresh models</em> button at the end of this chapter, the single
+    verification request that storing a Hugging Face token makes, and an Online AI
+    interpretation are the only steps here that use the network. Start the stack:
   </p>
   <pre><code>docker compose up -d --build</code></pre>
   <div class="warn">
@@ -361,12 +366,13 @@ uv run oak import ../case-export --directory ../restored
   <figure><img src="assets/09-bundle.png" alt="Compiled bundle review"><figcaption>Bundle review. Plan, approval and apply are deliberately separated — and apply is marked unavailable here: the web surface holds no runner execution authority.</figcaption></figure>
   <figure><img src="assets/10-timeline.png" alt="Audit timeline"><figcaption>The audit timeline: every recorded event from <em>case_created</em> to <em>bundle_compiled</em>, each with its sequence number, actor, interface origin, case version and timestamp — and downloadable as a canonical JSON export.</figcaption></figure>
 
-  <h2>Optional: configure a model provider</h2>
+  <h2>Optional: Online AI and Local AI</h2>
   <p>
-    Everything above is deterministic. If you would rather write briefs in plain language
-    and have them interpreted for you, <strong>Settings → Models</strong> is where you say
-    so. Nothing is configured by default, and nothing here is required by any other part of
-    the manual.
+    Everything above is deterministic, and it stays so unless you say otherwise for a brief.
+    Each brief offers three ways to be read: <strong>Deterministic</strong> (the default;
+    nothing leaves the machine), <strong>Online AI</strong> (one open model on Hugging Face
+    Inference Providers, called with your own token) and <strong>Local AI</strong> (an
+    OpenAI-compatible server on this machine, such as Ollama). <strong>Settings → Models</strong> is where the last two are set up; the choice itself is made per brief, from one dropdown on the "Describe what you want to build" form and again on the case page before Interpret runs, and the masthead names the Online AI pair and how long ago the token was verified. Nothing is set up by default, and nothing here is required by any other part of the manual.
   </p>
   <p>
     The page needs the capability token the API minted when it started — not a password, but
@@ -374,21 +380,30 @@ uv run oak import ../case-export --directory ../restored
   </p>
 <pre><code>docker compose exec -T api oak models token</code></pre>
   <p>
-    Paste it once, then choose a family. Hugging Face is the default and its
-    <em>Detect models</em> button works with no key at all: it reads the public catalogue,
-    keeps only ungated models under a permissive licence with a live structured-output
-    route, and recommends one. Storing a key is a separate step, and the key never comes
-    back — the page shows only which backend holds it and a salted fingerprint.
+    Paste it once. Storing your Hugging Face token asks Hugging Face about it straight away —
+    one request that generates nothing and spends nothing — and the page shows the verdict
+    with the time it was given: accepted or not, the token's role, and whether the account
+    can pay. The token itself never comes back; the page shows only which backend holds it
+    and a salted fingerprint. <em>Refresh models</em> reads the public catalogue anonymously
+    and lists every model × provider pair with a structured-output route, its licence, its
+    price and its measured speed; Online AI calls the pair you pin, or else the preferred one — the highest-trending model on Hugging Face with a route that supports structured output, publishes a price and is fast enough to answer within the request budget; models whose routes are all too slow are passed over and named. Local AI needs only the name of a model your
+    loopback server serves.
   </p>
-  <figure><img src="assets/11-models.png" alt="The model settings screen"><figcaption>Model settings, as they look before anything is configured: the current interpreter, where keys would be stored on this machine, the chosen family with its data-use note and licence class, and the key field. Once a key is stored this panel reports the backend holding it and a salted fingerprint — never the key — and <em>Detect models</em> fills in what that key can reach.</figcaption></figure>
+  <figure><img src="assets/11-models.png" alt="The model settings screen"><figcaption>Model settings, as they look before anything is set up: the Hugging Face token panel with its verdict, Online AI with the preferred pair and the pairs table once the catalogue has been read, and Local AI with its endpoint and model. Once a token is stored the panel reports the backend holding it, a salted fingerprint and what Hugging Face said — never the token.</figcaption></figure>
   <div class="note">
-    <strong>What changes once you select a model.</strong> A plain-language brief is sent to
-    that provider when you interpret it, under that provider's own retention and training
+    <strong>What changes once you choose Online AI.</strong> That brief is sent to Hugging
+    Face and routed to the provider named in the pair, under their retention and training
     terms — OAK records which model ran and the digest of what came back, but it cannot
-    control what the provider then does. The values the model proposes are marked
+    control what they then do. Your free monthly Hugging Face credit applies first and
+    nothing beyond it is promised; when it is spent, Hugging Face refuses and OAK says so.
+    A verdict is a claim about the past: the option shows its age, calls it stale after a
+    day, and re-checks it before sending — unless you have raised
+    <code>OAK_MODEL_TIMEOUT_SECONDS</code> above 35 seconds, when the check is skipped to
+    stay inside the proxy's own limit and the stored verdict is used as it is. The values the model proposes are marked
     <em>Proposed by model</em>, every section it touched raises a question, and candidates
-    are refused until you have answered them. A structured brief stays deterministic, and
-    <code>oak design --interpreter deterministic</code> always does.
+    are refused until you have answered them. Local AI sends the brief to your own server
+    and nothing leaves the machine. Deterministic is what every brief gets when you choose
+    nothing, and <code>oak design --interpreter deterministic</code> always is.
   </div>
 
   <p>Stop the stack with <code>docker compose down</code> (add <code>--volumes</code> to also drop the local database, the artifact store, and the model-state volume holding any provider key you stored).</p>
@@ -638,7 +653,7 @@ them: OAK Community release artifacts are unsigned.</span></code></pre>
   <div class="kicker">Chapter 7</div>
   <h1>Troubleshooting</h1>
   <table>
-    <tr><th>Symptom</th><th>Likely cause</th><th>What to do</th></tr>
+    Add rows: "Online AI refuses with <code>OAK-MODEL-KEY-REJECTED</code> | Hugging Face rejected the stored token when it was last checked or used | Store a current token with <code>oak models set-key</code>; the verdict is forgotten when the key changes"; "<code>OAK-MODEL-ROUTE-UNAVAILABLE</code> | The account cannot be billed for that provider route, even with credit | Pick another route (<code>oak models select huggingface &lt;model_id&gt; --provider &lt;route&gt;</code>) or <code>oak models clear huggingface</code> for the preferred pair"; "Online AI says no route is fast enough | Every catalogued route publishes throughput too low for the request budget | <code>oak models discover</code>, raise <code>OAK_MODEL_TIMEOUT_SECONDS</code> (up to 35 keeps the pre-flight), or set the provider policy to fastest".
     <tr><td>A command refuses with <code>OAK-EXPECTED-VERSION</code></td><td>The case advanced since you last read it</td><td>Re-read the case and retry with the current version — this is optimistic concurrency working, not an error to force past</td></tr>
     <tr><td>The web stack serves an old version</td><td><code>docker compose up -d</code> reused a cached image</td><td>Always <code>--build</code>, then check <code>/version</code></td></tr>
     <tr><td><code>OAK-RUNNER-REVOCATION</code> on every dispatch</td><td>The revocation manifest is missing or the notice set does not match it</td><td>Re-publish from the control plane (<code>oak revoke-approval</code>, or a fresh dispatch establishes an empty manifest). Do not hand-delete notices — the mismatch is the protection working</td></tr>

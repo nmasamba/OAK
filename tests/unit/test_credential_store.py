@@ -45,35 +45,37 @@ def test_secret_value_never_renders_its_content() -> None:
 
 def test_file_store_writes_owner_only_and_fingerprints_with_a_salt(tmp_path: Path) -> None:
     store = FileCredentialStore(tmp_path / "credentials")
-    store.set("openai", SecretValue(KEY))
+    store.set("huggingface", SecretValue(KEY))
 
-    key_path = tmp_path / "credentials" / "openai.key"
+    key_path = tmp_path / "credentials" / "huggingface.key"
     assert stat.S_IMODE(os.lstat(tmp_path / "credentials").st_mode) == 0o700
     assert stat.S_IMODE(os.lstat(key_path).st_mode) == 0o600
-    assert store.get("openai") == SecretValue(KEY)
+    assert store.get("huggingface") == SecretValue(KEY)
     first = store.fingerprint(SecretValue(KEY))
     assert len(first) == 8 and first == store.fingerprint(SecretValue(KEY))
     assert first != store.fingerprint(SecretValue(KEY + "1"))
     other = FileCredentialStore(tmp_path / "other")
     assert other.fingerprint(SecretValue(KEY)) != first, "the fingerprint is salted per install"
     assert stat.S_IMODE(os.lstat(tmp_path / "credentials" / "fingerprint.salt").st_mode) == 0o600
-    assert store.delete("openai") is True
-    assert store.get("openai") is None
-    assert store.delete("openai") is False
+    assert store.delete("huggingface") is True
+    assert store.get("huggingface") is None
+    assert store.delete("huggingface") is False
 
 
 def test_file_store_refuses_loose_permissions_and_links(tmp_path: Path) -> None:
     store = FileCredentialStore(tmp_path / "credentials")
-    store.set("openai", SecretValue(KEY))
-    os.chmod(tmp_path / "credentials" / "openai.key", 0o644)
+    store.set("huggingface", SecretValue(KEY))
+    os.chmod(tmp_path / "credentials" / "huggingface.key", 0o644)
     with pytest.raises(OAKError) as loose:
-        store.get("openai")
+        store.get("huggingface")
     assert loose.value.code == "OAK-MODEL-KEY-PERMISSIONS"
     assert KEY not in loose.value.message
 
-    (tmp_path / "credentials" / "anthropic.key").symlink_to(tmp_path / "credentials" / "openai.key")
+    (tmp_path / "credentials" / "local.key").symlink_to(
+        tmp_path / "credentials" / "huggingface.key"
+    )
     with pytest.raises(OAKError) as linked:
-        store.get("anthropic")
+        store.get("local")
     assert linked.value.code == "OAK-MODEL-KEY-PERMISSIONS"
 
 
@@ -81,15 +83,15 @@ def test_environment_reference_stores_nothing_and_accepts_only_documented_names(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     reference = EnvironmentCredentialReference()
-    assert reference.get("openai") is None
+    assert reference.get("huggingface") is None
     with pytest.raises(OAKError) as missing:
-        reference.set("openai", SecretValue(""))
+        reference.set("huggingface", SecretValue(""))
     assert missing.value.code == "OAK-MODEL-KEY-MISSING"
 
-    monkeypatch.setenv("OAK_MODEL_KEY_OPENAI", KEY + "\n")
-    reference.set("openai", SecretValue(""))
-    assert reference.get("openai") == SecretValue(KEY)
-    assert reference.delete("openai") is False
+    monkeypatch.setenv("OAK_MODEL_KEY_HUGGINGFACE", KEY + "\n")
+    reference.set("huggingface", SecretValue(""))
+    assert reference.get("huggingface") == SecretValue(KEY)
+    assert reference.delete("huggingface") is False
     assert not list(tmp_path.iterdir())
 
     with pytest.raises(OAKError) as undocumented:
@@ -132,12 +134,12 @@ def test_keychain_store_uses_the_service_and_account_convention(
     _fake_keyring("oak_test_keyring_ok", "keyring.backends.macOS", storage)
     store = KeychainCredentialStore("oak_test_keyring_ok")
 
-    store.set("openai", SecretValue(KEY))
-    assert storage == {"oak-community/openai": KEY}
-    assert store.get("openai") == SecretValue(KEY)
-    assert store.delete("openai") is True
-    assert store.get("openai") is None
-    assert store.delete("openai") is False
+    store.set("huggingface", SecretValue(KEY))
+    assert storage == {"oak-community/huggingface": KEY}
+    assert store.get("huggingface") == SecretValue(KEY)
+    assert store.delete("huggingface") is True
+    assert store.get("huggingface") is None
+    assert store.delete("huggingface") is False
 
 
 def test_keychain_store_refuses_plaintext_backends_and_reports_a_missing_one(
@@ -145,15 +147,15 @@ def test_keychain_store_refuses_plaintext_backends_and_reports_a_missing_one(
 ) -> None:
     _fake_keyring("oak_test_keyring_alt", "keyrings.alt.file", {})
     with pytest.raises(OAKError) as unsafe:
-        KeychainCredentialStore("oak_test_keyring_alt").set("openai", SecretValue(KEY))
+        KeychainCredentialStore("oak_test_keyring_alt").set("huggingface", SecretValue(KEY))
     assert unsafe.value.code == "OAK-MODEL-KEYCHAIN-UNSAFE"
 
     _fake_keyring("oak_test_keyring_fail", "keyring.backends.fail", {})
     with pytest.raises(OAKError) as failing:
-        KeychainCredentialStore("oak_test_keyring_fail").get("openai")
+        KeychainCredentialStore("oak_test_keyring_fail").get("huggingface")
     assert failing.value.code == "OAK-MODEL-KEYCHAIN-UNAVAILABLE"
 
     with pytest.raises(OAKError) as absent:
-        KeychainCredentialStore("oak_test_keyring_not_installed").get("openai")
+        KeychainCredentialStore("oak_test_keyring_not_installed").get("huggingface")
     assert absent.value.code == "OAK-MODEL-KEYCHAIN-UNAVAILABLE"
     assert "--store file" in absent.value.message

@@ -49,6 +49,7 @@ from oak.interfaces.api.models import (
     EvaluateCandidateRequest,
     FieldProblem,
     HealthResponse,
+    ModelCatalogueResponse,
     ModelCredentialRequest,
     ModelCredentialStatus,
     ModelDiscoveryResponse,
@@ -313,21 +314,21 @@ class _LoopbackGuardMiddleware:
 
 
 class InterpreterMode(StrEnum):
-    AUTO = "auto"
-    MODEL = "model"
     DETERMINISTIC = "deterministic"
+    ONLINE = "online"
+    LOCAL = "local"
 
 
 InterpreterQuery = Annotated[
     InterpreterMode | None,
     Query(
         description=(
-            "deterministic never calls a provider. model requires a configured model and "
-            "the X-OAK-Model-Token header, and is refused without it. auto (the default) "
-            "uses the configured model for a plain-language brief only when the request "
-            "also carries that header; without it, and for a structured brief, auto "
-            "interprets deterministically — so a client that predates the model path keeps "
-            "the behaviour it had."
+            "deterministic — the default, and what an absent parameter means — never calls "
+            "a model, so a client that predates the model path keeps the behaviour it had. "
+            "online sends the brief to the Hugging Face model this machine is set up for; "
+            "local sends it to the model pinned on the loopback server. Both require the "
+            "X-OAK-Model-Token header and are refused without it, before anything is "
+            "committed."
         ),
     ),
 ]
@@ -737,21 +738,15 @@ def create_app(
             expected_version=_expected_version(expected),
             correlation_id=correlation_id,
         )
-        # Resolve first so the capability token is demanded exactly when the operator's
-        # stored credential would be spent, and nothing is committed without it.
-        requested = (interpreter or InterpreterMode.AUTO).value
+        # Resolve first so the capability token is demanded exactly when a model would be
+        # called, and nothing is committed without it. An absent parameter is deterministic,
+        # which is what a client written before the model path existed sends.
+        requested = (interpreter or InterpreterMode.DETERMINISTIC).value
         mode = plane().resolve_interpreter(
             case_id, tenant_id=context.tenant_id, interpreter=requested
         )
-        if mode == "model":
-            if requested == InterpreterMode.AUTO.value and model_token is None:
-                # `auto` is what a client written before the model path existed sends. It
-                # must keep meaning what it meant then rather than becoming a 403 the moment
-                # somebody configures a model, so with no token it stays deterministic.
-                # Asking for the model by name still requires the token.
-                mode = InterpreterMode.DETERMINISTIC.value
-            else:
-                verify_model_token(model_token, token_provider())
+        if mode != InterpreterMode.DETERMINISTIC.value:
+            verify_model_token(model_token, token_provider())
         result = plane().interpret(case_id, context, interpreter=mode)
         response.headers["ETag"] = _etag(str(result.case["version"]))
         return DesignCaseResponse(
@@ -974,8 +969,8 @@ def create_app(
             for family, summary in status["discovery"].items()
         }
         return ModelStatusResponse(
-            configured=bool(status["configured"]),
-            selection=status["selection"],
+            modes=status["modes"],
+            selections=status["selections"],
             provider_policy=str(status["provider_policy"]),
             families=tuple(ModelFamily(**family) for family in service.families()),
             credentials=tuple(
@@ -1051,25 +1046,57 @@ def create_app(
     ) -> ModelStatusResponse:
         del auth, _token
         service = configuration()
-        service.select(
-            body.family,
-            body.model_id,
-            provider_route=body.provider_route,
-            default_interpreter=body.default_interpreter,
-            acknowledge_data_use=body.acknowledge_data_use,
-        )
+        service.select(body.family, body.model_id, provider_route=body.provider_route)
         _no_store(response)
         return _status_document(service)
 
-    @api.delete("/v1/models/selection", response_model=ModelStatusResponse, tags=["models"])
+    @api.delete(
+        "/v1/models/selection/{family}", response_model=ModelStatusResponse, tags=["models"]
+    )
     def clear_model_selection(
+        family: str,
         response: Response,
         auth: AuthorityDependency,
         _token: ModelTokenDependency = None,
     ) -> ModelStatusResponse:
         del auth, _token
         service = configuration()
-        service.clear_selection()
+        service.clear_selection(family)
+        _no_store(response)
+        return _status_document(service)
+
+    @api.get(
+        "/v1/models/{family}/catalogue", response_model=ModelCatalogueResponse, tags=["models"]
+    )
+    def get_model_catalogue(
+        family: str,
+        response: Response,
+        auth: AuthorityDependency,
+        _token: ModelTokenDependency = None,
+    ) -> ModelCatalogueResponse:
+        """The catalogue snapshot `discover` last recorded for a family; contacts nothing."""
+
+        del auth, _token
+        snapshot = configuration().discovery_snapshot(family)
+        _no_store(response)
+        return ModelCatalogueResponse(family=family, discovery=snapshot)
+
+    @api.post("/v1/models/{family}:verify", response_model=ModelStatusResponse, tags=["models"])
+    def verify_model_credential(
+        family: str,
+        response: Response,
+        auth: AuthorityDependency,
+        _token: ModelTokenDependency = None,
+    ) -> ModelStatusResponse:
+        """Ask the provider whether the stored credential is accepted, and record its verdict.
+
+        One free, generation-free request carrying the credential in its header and nothing
+        else. The verdict comes back in the status document with the time it was given.
+        """
+
+        del auth, _token
+        service = configuration()
+        service.verify(family)
         _no_store(response)
         return _status_document(service)
 

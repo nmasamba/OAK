@@ -12,6 +12,7 @@ from oak.contracts import SchemaRegistry
 from oak.domain import OAKError, canonical_json_bytes
 
 CONFIGURATION_FILE_NAME = "model-configuration.json"
+CURRENT_FAMILIES = frozenset({"huggingface", "local"})
 CONFIGURATION_SCHEMA = "model-configuration.schema.json"
 CONFIGURATION_CODE = "OAK-MODEL-CONFIGURATION-FILE"
 _MAXIMUM_CONFIGURATION_BYTES = 1_048_576
@@ -41,6 +42,7 @@ class ModelConfigurationFileStore:
             ) from error
         if not isinstance(document, dict):
             raise OAKError(CONFIGURATION_CODE, "the model configuration file is malformed")
+        document = _upgrade(document)
         self._registry.validate(CONFIGURATION_SCHEMA, document)
         return document
 
@@ -51,3 +53,37 @@ class ModelConfigurationFileStore:
             canonical_json_bytes(document) + b"\n",
             code=CONFIGURATION_CODE,
         )
+
+
+def _upgrade(document: dict[str, Any]) -> dict[str, Any]:
+    """Bring a file written by an earlier build to the current shape before validating it.
+
+    Sprint 9 stored one ``selection`` object naming its family, or ``null``; Sprint 10 keeps
+    one selection per family and pins nothing by default. Nothing published carries the old
+    shape, so this is a courtesy to machines that ran the unreleased build, not a promise;
+    a selection for a family that no longer exists is dropped.
+    """
+
+    selection = document.get("selection")
+    if selection is None:
+        document["selection"] = {}
+    elif isinstance(selection, dict) and "family" in selection:
+        family = selection.get("family")
+        upgraded: dict[str, Any] = {}
+        if family in CURRENT_FAMILIES:
+            upgraded[str(family)] = {
+                "model_id": selection.get("model_id"),
+                "provider_route": selection.get("provider_route"),
+                "selected_at": selection.get("selected_at"),
+            }
+        document["selection"] = upgraded
+    # Every per-family map may still name a family the Sprint 9 build knew: a key source of
+    # `none` for openai, a discovery snapshot for gemini. The schema's closed family list
+    # would refuse the whole file for it, so the entries are dropped, not the file.
+    for key in ("selection", "credential_sources", "discovery", "verification"):
+        mapping = document.get(key)
+        if isinstance(mapping, dict):
+            document[key] = {
+                family: value for family, value in mapping.items() if family in CURRENT_FAMILIES
+            }
+    return document

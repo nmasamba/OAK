@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""OAK-S9-005: seven provider families, described as data and exercised against fixtures.
+"""OAK-S9-005 / OAK-S10-002: two provider families, described as data, exercised on fixtures.
 
 No network: every response here is a recorded fixture under `tests/fixtures/providers/`.
 The rules under test are the ones that matter if a provider misbehaves or a hostile endpoint
@@ -17,11 +17,12 @@ from typing import Any
 import pytest
 
 from oak.adapters.models.providers import (
-    ANTHROPIC_VERSION,
     HINTS_AS_OF,
+    WHOAMI_URL,
     ModelDescriptor,
     ProviderProfile,
     ProviderRoute,
+    Verdict,
     _huggingface_routes,
     chat_request,
     descriptor_from,
@@ -32,6 +33,7 @@ from oak.adapters.models.providers import (
     local_profile,
     models_request,
     parse_models,
+    parse_verification,
     profile_for,
     recommended_route,
     retry_after_seconds,
@@ -155,13 +157,9 @@ def test_the_key_travels_only_in_a_header_never_in_a_url_or_body(family: str) ->
         assert KEY not in request.url, family
         assert KEY not in (request.body or b"").decode("utf-8"), family
         assert any(KEY in value for value in request.headers.values()), family
-        assert request.url.startswith(profile.base_url), family
-    if family == "gemini":
-        assert requests[0].headers["x-goog-api-key"] == KEY
-        assert "key=" not in requests[0].url
-    if family == "anthropic":
-        assert requests[0].headers["x-api-key"] == KEY
-        assert requests[0].headers["anthropic-version"] == ANTHROPIC_VERSION
+        assert request.url.split("/")[2] in profile.allowed_hosts, family
+        assert request.url.startswith("https://"), family
+        assert request.headers["Authorization"] == f"Bearer {KEY}"
 
 
 @pytest.mark.parametrize("family", FAMILY_IDS)
@@ -179,19 +177,13 @@ def test_the_chat_body_asks_for_the_schema_in_that_provider_s_own_spelling(famil
     )
     body = json.loads(request.body or b"{}")
     assert body["model"] == "model-x"
-    if profile.request_shape == "anthropic_messages":
-        assert body["output_config"]["format"] == {"type": "json_schema", "schema": SCHEMA}
-        assert body["system"] == "SYSTEM"
-        assert body["messages"] == [{"role": "user", "content": "<brief>text</brief>"}]
-        assert body["max_tokens"] == 1024
-        assert "response_format" not in body
-    else:
-        assert body["response_format"]["type"] == "json_schema"
-        assert body["response_format"]["json_schema"]["schema"] == SCHEMA
-        assert body["response_format"]["json_schema"]["strict"] is True
-        assert body["messages"][0] == {"role": "system", "content": "SYSTEM"}
-        assert body["messages"][1]["content"] == "<brief>text</brief>"
-        assert body.get("max_tokens") == 1024 or body.get("max_completion_tokens") == 1024
+    assert profile.request_shape == "openai_chat"
+    assert body["response_format"]["type"] == "json_schema"
+    assert body["response_format"]["json_schema"]["schema"] == SCHEMA
+    assert body["response_format"]["json_schema"]["strict"] is True
+    assert body["messages"][0] == {"role": "system", "content": "SYSTEM"}
+    assert body["messages"][1]["content"] == "<brief>text</brief>"
+    assert body["max_tokens"] == 1024
     assert request.headers["Content-Type"] == "application/json"
 
 
@@ -210,15 +202,118 @@ def test_a_hugging_face_request_pins_the_provider_route_when_one_is_chosen() -> 
     assert json.loads(request.body or b"{}")["model"] == "openai/gpt-oss-120b:groq"
 
 
-def test_only_xai_claims_a_dedicated_key_check_and_gemini_claims_none() -> None:
-    assert _profile("xai").key_verification == "api_key_endpoint"
-    assert key_verification_request(_profile("xai"), KEY).url.endswith("/api-key")
-    for family in ("openai", "anthropic", "meta"):
-        assert _profile(family).key_verification == "authenticated_models_list"
-        assert key_verification_request(_profile(family), KEY) is not None
-    for family in ("gemini", "huggingface"):
-        assert _profile(family).key_verification == "unknown"
-        assert key_verification_request(_profile(family), KEY) is None
+def test_key_verification_asks_the_hub_who_the_token_is_and_the_local_server_whether_it_is_up() -> (
+    None
+):
+    """The router's list is a public catalogue and proves nothing; the Hub's whoami does."""
+
+    assert _profile("huggingface").key_verification == "hub_whoami_v2"
+    verification = key_verification_request(_profile("huggingface"), KEY)
+    assert verification is not None
+    assert verification.method == "GET" and verification.url == WHOAMI_URL
+    assert verification.body is None
+    assert verification.headers == {"Authorization": f"Bearer {KEY}"}
+    local = profile_for("local", local_endpoint="http://127.0.0.1:11434/v1")
+    assert local.key_verification == "authenticated_models_list"
+    listing = key_verification_request(local, None)
+    assert listing is not None and listing.url.endswith("/models") and listing.headers == {}
+
+
+SENTINEL_NAME = "sentinel-account-name-MUST-NOT-BE-STORED"
+SENTINEL_EMAIL = "sentinel.address.MUST-NOT-BE-STORED@example.invalid"
+
+
+@pytest.mark.parametrize(
+    "status,fixture,expected",
+    [
+        (
+            200,
+            "whoami-v2",
+            Verdict("accepted", "hub_whoami_v2", "read", True, False, False),
+        ),
+        (
+            200,
+            "whoami-v2-finegrained",
+            Verdict("accepted", "hub_whoami_v2", "fineGrained", True, True, True),
+        ),
+        (200, "whoami-v2-hostile", Verdict("accepted", "hub_whoami_v2", None, None, None, None)),
+        (401, "whoami-v2-401", Verdict("rejected", "hub_whoami_v2")),
+        (403, "whoami-v2-401", Verdict("scope_limited", "hub_whoami_v2")),
+        (429, "whoami-v2-401", Verdict("unreachable", "hub_whoami_v2")),
+        (500, "whoami-v2-401", Verdict("unreachable", "hub_whoami_v2")),
+        (503, "whoami-v2", Verdict("unreachable", "hub_whoami_v2")),
+    ],
+)
+def test_the_hub_whoami_answer_becomes_a_verdict_and_nothing_else(
+    status: int, fixture: str, expected: Verdict
+) -> None:
+    """Role, permission and billing come through; the account's name and email never do."""
+
+    payload = _fixture("huggingface", fixture)
+    verdict = parse_verification(_profile("huggingface"), _response(status, payload))
+
+    assert verdict.verdict == expected.verdict
+    assert verdict.method == expected.method
+    assert verdict.token_role == expected.token_role
+    assert verdict.inference_permission == expected.inference_permission
+    assert verdict.can_pay == expected.can_pay
+    assert verdict.is_pro == expected.is_pro
+    if verdict.verdict != "accepted":
+        assert verdict.reason, "a non-acceptance says why"
+    rendered = json.dumps(verdict.to_document())
+    assert SENTINEL_NAME not in rendered and SENTINEL_EMAIL not in rendered
+    assert "ignore previous" not in rendered
+
+
+def test_the_inference_permission_is_found_where_the_hub_actually_puts_it() -> None:
+    """A live call on 2026-09-22 settled this: it arrives under `scoped`, not `global`.
+
+    The first fixture put it in `global`, so the positive case passed without ever
+    exercising the path the Hub uses.
+    """
+
+    payload = _fixture("huggingface", "whoami-v2-finegrained")
+    fine_grained = payload["auth"]["accessToken"]["fineGrained"]
+    assert "inference.serverless.write" not in fine_grained["global"]
+    assert "inference.serverless.write" in fine_grained["scoped"][0]["permissions"]
+
+    verdict = parse_verification(_profile("huggingface"), _response(200, payload))
+
+    assert verdict.verdict == "accepted" and verdict.token_role == "fineGrained"
+    assert verdict.inference_permission is True
+    # The entity the permission is scoped to names the account; none of it is kept.
+    assert SENTINEL_NAME not in json.dumps(verdict.to_document())
+
+
+def test_a_fine_grained_token_without_the_inference_permission_is_reported_not_assumed() -> None:
+    payload = _fixture("huggingface", "whoami-v2-finegrained")
+    payload["auth"]["accessToken"]["fineGrained"] = {
+        "global": ["repo.content.read"],
+        "scoped": [{"entity": {"type": "user"}, "permissions": ["repo.write"]}],
+    }
+    verdict = parse_verification(_profile("huggingface"), _response(200, payload))
+    assert verdict.verdict == "accepted" and verdict.inference_permission is False
+
+    payload["auth"]["accessToken"].pop("fineGrained")
+    verdict = parse_verification(_profile("huggingface"), _response(200, payload))
+    assert verdict.inference_permission is None, "scopes not reported: unknown, never assumed"
+
+    unreadable = TransportResponse(status=200, headers={}, body=b"<html>" + SENTINEL.encode())
+    verdict = parse_verification(_profile("huggingface"), unreadable)
+    assert verdict.verdict == "unreachable" and SENTINEL not in json.dumps(verdict.to_document())
+
+
+@pytest.mark.parametrize(
+    "status,expected",
+    [(200, "accepted"), (401, "rejected"), (403, "rejected"), (503, "unreachable")],
+)
+def test_the_local_server_is_verified_by_whether_its_list_answers(
+    status: int, expected: str
+) -> None:
+    local = profile_for("local", local_endpoint="http://127.0.0.1:11434/v1")
+    verdict = parse_verification(local, _response(status, {"data": [], "note": SENTINEL}))
+    assert verdict.verdict == expected and verdict.method == "models_list"
+    assert SENTINEL not in json.dumps(verdict.to_document())
 
 
 # ----- catalogue parsing -----------------------------------------------------------
@@ -239,11 +334,7 @@ def test_the_recorded_model_list_parses_into_chat_models_only(family: str) -> No
         assert 0 < len(descriptor.id) <= 256
         assert len(descriptor.display_name) <= 200
         assert len(descriptor.providers) <= 32
-    if family == "anthropic":
-        assert token == "model_deadbeef"
-    if family == "gemini":
-        assert token == "page-two"
-        assert all(not descriptor.id.startswith("models/") for descriptor in kept)
+    assert token is None, "neither remaining family paginates its list"
     if family == "huggingface":
         assert all(descriptor.providers for descriptor in kept)
         assert any(
@@ -273,10 +364,6 @@ def test_a_hostile_catalogue_entry_cannot_inject_an_identifier_or_a_route(family
         assert descriptor.id in {"openai/gpt-oss-120b"}, (family, descriptor.id)
         assert descriptor.providers == (), family
         assert len(descriptor.display_name) <= 200
-    assert all(descriptor is None for descriptor in survivors) or family in {
-        "meta",
-        "huggingface",
-    }, family
     if family == "huggingface":
         # Live-looking routes with an unusable provider name are dropped, which leaves the
         # entry with no route at all, which disqualifies it.
@@ -293,48 +380,13 @@ def test_an_unreadable_model_list_is_one_retriable_code(family: str) -> None:
         assert refused.value.retriable is True
 
 
-def test_discovery_follows_the_provider_s_own_paging_and_stops(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    profile = _profile("anthropic")
-    pages = [
-        _response(200, _fixture("anthropic", "models")),
-        _response(
-            200,
-            {"data": [{"id": "claude-opus-4-1", "display_name": "Opus 4.1"}], "has_more": False},
-        ),
-    ]
-    seen: list[str] = []
-
-    def fetch(request: TransportRequest) -> TransportResponse:
-        seen.append(request.url)
-        return pages[min(len(seen) - 1, len(pages) - 1)]
-
-    snapshot = discover_models(profile, fetch, key=KEY, fetched_at="2026-09-17T00:00:00Z")
-
-    assert len(seen) == 2
-    assert "after_id=model_deadbeef" in seen[1]
-    assert snapshot["source"] == "live"
-    assert snapshot["recommended"] == "claude-opus-5"
-    assert snapshot["filtered_out_count"] >= 1
-    identifiers = [model["id"] for model in snapshot["models"]]
-    assert identifiers[:2] == ["claude-opus-5", "claude-sonnet-5"]
-    assert len(identifiers) == len(set(identifiers))
-
-
 def test_discovery_refuses_before_a_request_when_the_key_is_missing() -> None:
     def fetch(request: TransportRequest) -> TransportResponse:
         raise AssertionError("discovery called the provider without a key")
 
     with pytest.raises(OAKError) as refused:
-        discover_models(_profile("openai"), fetch, key=None, fetched_at="2026-09-17T00:00:00Z")
+        discover_models(_profile("huggingface"), fetch, key=None, fetched_at="2026-09-17T00:00:00Z")
     assert refused.value.code == "OAK-MODEL-KEY-MISSING"
-
-
-def test_the_meta_contributor_model_is_marked_as_training_on_inputs() -> None:
-    profile = _profile("meta")
-    assert profile.data_use_for("muse-spark-1.3") == "not_used_for_training"
-    assert profile.data_use_for("muse-spark-1.3-contributor") == "trains_on_inputs"
 
 
 def test_the_cheapest_structured_output_route_is_chosen_for_hugging_face() -> None:
@@ -352,8 +404,25 @@ def test_the_cheapest_structured_output_route_is_chosen_for_hugging_face() -> No
         ),
     ).to_document()
     assert recommended_route(document, "cheapest") == "deepinfra"
-    assert recommended_route(document, "fastest") == "groq"
+    assert recommended_route(document, "fastest") == "groq", "no throughput: first capable"
     assert recommended_route(None, "cheapest") is None
+
+    measured = ModelDescriptor(
+        id="Qwen/Qwen3.8-27B",
+        display_name="Qwen/Qwen3.8-27B",
+        created=None,
+        licence="apache-2.0",
+        data_use="unknown",
+        providers=(
+            ProviderRoute("nscale", False, 0.10, throughput=999.0),
+            ProviderRoute("cerebras", True, 1.49, throughput=846.0),
+            ProviderRoute("deepinfra", True, 2.5, throughput=40.0),
+            ProviderRoute("baseten", True, 3.0, is_free=True, throughput=72.0),
+        ),
+    ).to_document()
+    assert recommended_route(measured, "fastest") == "cerebras", "fastest structured route"
+    assert recommended_route(measured, "cheapest") == "baseten", "a free promotion beats price"
+    assert recommended_route(None, "fastest") is None
     assert (
         recommended_route(
             {"providers": [{"provider": "x", "supports_structured_output": False}]}, "cheapest"
@@ -368,22 +437,20 @@ def test_the_cheapest_structured_output_route_is_chosen_for_hugging_face() -> No
 @pytest.mark.parametrize("family", FAMILY_IDS)
 def test_a_recorded_completion_yields_its_text_and_usage(family: str) -> None:
     profile = profile_for(family, local_endpoint="http://127.0.0.1:11434/v1")
-    shape = "anthropic" if profile.request_shape == "anthropic_messages" else "openai"
-    text, usage = extract_text(profile, _response(200, _fixture(shape, "completion")))
+    text, usage = extract_text(profile, _response(200, _fixture("huggingface", "completion")))
     assert json.loads(text)["proposed_claims"]
     assert usage["input_tokens"] == 1200
     assert usage["output_tokens"] == 340
 
 
-@pytest.mark.parametrize("shape,family", [("openai", "openai"), ("anthropic", "anthropic")])
-def test_a_refusal_an_empty_answer_and_a_truncation_are_explicit(shape: str, family: str) -> None:
-    profile = _profile(family)
-    refusal = _fixture(shape, "refusal")
+def test_a_refusal_an_empty_answer_and_a_truncation_are_explicit() -> None:
+    profile = _profile("huggingface")
+    refusal = _fixture("huggingface", "refusal")
     with pytest.raises(OAKError) as refused:
         extract_text(profile, _response(200, refusal))
     assert refused.value.code == "OAK-INTERPRETER-MALFORMED"
 
-    truncated = _fixture(shape, "truncated")
+    truncated = _fixture("huggingface", "truncated")
     with pytest.raises(OAKError) as cut:
         extract_text(profile, _response(200, truncated))
     assert cut.value.code == "OAK-INTERPRETER-OUTPUT-LIMIT"
@@ -402,7 +469,7 @@ def test_a_refusal_an_empty_answer_and_a_truncation_are_explicit(shape: str, fam
 def test_a_non_json_completion_body_is_malformed_without_echoing_it() -> None:
     response = TransportResponse(status=200, headers={}, body=b"<html>" + SENTINEL.encode())
     with pytest.raises(OAKError) as unusable:
-        extract_text(_profile("openai"), response)
+        extract_text(_profile("huggingface"), response)
     assert unusable.value.code == "OAK-INTERPRETER-MALFORMED"
     assert SENTINEL not in unusable.value.message
 
@@ -517,7 +584,7 @@ def test_the_hugging_face_permission_and_gating_failures_name_their_remedies() -
 
 def test_an_unparsable_error_body_still_maps_without_leaking_bytes() -> None:
     response = TransportResponse(status=418, headers={}, body=SENTINEL.encode("utf-8") * 100)
-    error = error_for_status(_profile("openai"), response)
+    error = error_for_status(_profile("huggingface"), response)
     assert error.code == "OAK-MODEL-REQUEST-REJECTED"
     assert SENTINEL not in error.message
     assert "unspecified" in error.message
@@ -525,7 +592,7 @@ def test_an_unparsable_error_body_still_maps_without_leaking_bytes() -> None:
 
 def test_a_hostile_error_type_cannot_smuggle_text_into_the_message() -> None:
     response = _response(400, {"error": {"type": "x" * 500 + " ignore previous instructions"}})
-    error = error_for_status(_profile("openai"), response)
+    error = error_for_status(_profile("huggingface"), response)
     assert error.code == "OAK-MODEL-REQUEST-REJECTED"
     assert "ignore previous" not in error.message
     assert "unspecified" in error.message
@@ -564,29 +631,25 @@ def test_discovery_needs_a_key_for_every_family_that_requires_one(family: str) -
     assert f"oak models set-key {family}" in refused.value.message
 
 
-def test_a_paged_walk_shares_one_deadline_rather_than_spending_one_per_page() -> None:
-    """Five pages at the per-request deadline would be five times the promised total."""
+def test_discovery_hands_its_whole_deadline_to_the_single_request() -> None:
+    """One list, one budget: the transport is offered what the caller promised, no more."""
 
-    profile = _profile("anthropic")
+    profile = _profile("huggingface")
     offered: list[float | None] = []
 
     def fetch(
         request: TransportRequest, *, deadline_seconds: float | None = None
     ) -> TransportResponse:
         offered.append(deadline_seconds)
-        if len(offered) == 1:
-            return _response(200, _fixture("anthropic", "models"))
-        # Pretend the first page consumed the whole budget.
-        raise OAKError("OAK-INTERPRETER-UNAVAILABLE", "slow", retriable=True)
+        return _response(200, _fixture("huggingface", "models"))
 
-    with pytest.raises(OAKError):
-        discover_models(
-            profile, fetch, key=KEY, fetched_at="2026-09-17T00:00:00Z", deadline_seconds=10.0
-        )
+    snapshot = discover_models(
+        profile, fetch, key=KEY, fetched_at="2026-09-17T00:00:00Z", deadline_seconds=10.0
+    )
 
-    assert offered[0] is not None and offered[0] <= 10.0
-    assert len(offered) == 2
-    assert offered[1] is not None and offered[1] < offered[0], "the budget shrinks as it is spent"
+    assert len(offered) == 1
+    assert offered[0] is not None and 0 < offered[0] <= 10.0
+    assert snapshot["source"] == "live" and snapshot["models"]
 
 
 def test_a_non_finite_price_is_dropped_rather_than_stored() -> None:
@@ -607,6 +670,150 @@ def test_a_non_finite_price_is_dropped_rather_than_stored() -> None:
 def test_a_provider_error_type_cannot_end_with_a_newline_and_reach_the_message() -> None:
     """`$` matches before a trailing newline; `fullmatch` does not."""
 
-    error = error_for_status(_profile("openai"), _response(400, {"error": {"type": "rate\n"}}))
+    error = error_for_status(_profile("huggingface"), _response(400, {"error": {"type": "rate\n"}}))
     assert "\n" not in error.message
     assert "unspecified" in error.message
+
+
+# ----- OAK-S10-007: what the closing audit found ------------------------------------------------
+
+
+def test_a_role_with_a_trailing_newline_is_not_a_role() -> None:
+    payload = _fixture("huggingface", "whoami-v2")
+    payload["auth"]["accessToken"]["role"] = "read\n"
+    verdict = parse_verification(_profile("huggingface"), _response(200, payload))
+    assert verdict.verdict == "accepted" and verdict.token_role is None
+    assert verdict.inference_permission is None
+    assert "\n" not in json.dumps(verdict.to_document())
+
+
+def test_a_200_without_an_authentication_record_is_not_an_acceptance() -> None:
+    for document in ({}, {"error": "nothing"}, {"auth": "yes"}, {"auth": None}):
+        verdict = parse_verification(_profile("huggingface"), _response(200, document))
+        assert verdict.verdict == "unreachable", document
+        assert verdict.token_role is None and verdict.can_pay is None
+
+
+def test_a_provider_named_twice_in_a_hostile_catalogue_counts_once() -> None:
+    routes = _huggingface_routes(
+        [
+            {
+                "provider": "cerebras",
+                "status": "live",
+                "supports_structured_output": False,
+                "pricing": {"output": 0.01},
+            },
+            {
+                "provider": "cerebras",
+                "status": "live",
+                "supports_structured_output": True,
+                "pricing": {"output": 5.0},
+            },
+            {
+                "provider": "deepinfra",
+                "status": "live",
+                "supports_structured_output": True,
+                "pricing": {"output": 2.5},
+            },
+        ]
+    )
+    assert [(route.provider, route.supports_structured_output) for route in routes] == [
+        ("cerebras", False),
+        ("deepinfra", True),
+    ]
+    document = ModelDescriptor(
+        id="x/y",
+        display_name="x/y",
+        created=None,
+        licence="unknown",
+        data_use="unknown",
+        providers=routes,
+    ).to_document()
+    assert recommended_route(document, "cheapest") == "deepinfra"
+
+
+def test_a_route_that_cannot_answer_in_time_is_not_offered_as_the_default() -> None:
+    """The cheapest route of a model is routinely its slowest; a live run timed out on one."""
+
+    from oak.adapters.models.providers import (
+        OBSERVED_PROPOSAL_TOKENS,
+        estimated_proposal_seconds,
+        route_answers_in_time,
+    )
+
+    document = ModelDescriptor(
+        id="Qwen/Qwen3.8-27B",
+        display_name="Qwen/Qwen3.8-27B",
+        created=None,
+        licence="apache-2.0",
+        data_use="unknown",
+        providers=(
+            ProviderRoute("deepinfra", True, 2.5, throughput=18.6),
+            ProviderRoute("ovhcloud", True, 3.19, throughput=57.0),
+            ProviderRoute("cerebras", True, 9.0, throughput=846.0),
+        ),
+    ).to_document()
+
+    # With no budget the cheapest route wins, however slow it is: that is the Sprint 9
+    # behaviour and what the live run proved insufficient.
+    assert recommended_route(document, "cheapest") == "deepinfra"
+    # With the default budget only routes that can deliver a proposal in time are eligible.
+    # deepinfra would need about 105 seconds and ovhcloud about 34, against an allowance of
+    # 28, so both are dropped and the one route that can answer is chosen — a cheap route
+    # that times out is worth nothing.
+    assert estimated_proposal_seconds(18.6) > 100
+    assert 34 < estimated_proposal_seconds(57.0) < 35
+    assert recommended_route(document, "cheapest", budget_seconds=35.0) == "cerebras"
+    assert recommended_route(document, "fastest", budget_seconds=35.0) == "cerebras"
+    # A budget nothing can meet yields no route at all, so the caller can try another model
+    # rather than send a request that will expire.
+    assert recommended_route(document, "cheapest", budget_seconds=1.0) is None
+    assert route_answers_in_time({"throughput": 846.0}, 35.0) is True
+    assert route_answers_in_time({"throughput": 18.6}, 35.0) is False
+    assert route_answers_in_time({}, 35.0) is None, "an unmeasured route is not a slow one"
+    assert route_answers_in_time({"throughput": 18.6}, None) is True
+    # The estimate is the live measurement, not a figure chosen to admit a route.
+    assert OBSERVED_PROPOSAL_TOKENS == 3_074
+    assert route_answers_in_time({"throughput": 72.5}, 35.0) is True, (
+        "the route a live run proved can answer must stay eligible at the default budget"
+    )
+
+
+def test_a_route_the_catalogue_cannot_price_is_not_offered_as_the_default() -> None:
+    """A live run chose the one unpriced in-time route and the router refused to bill it."""
+
+    document = ModelDescriptor(
+        id="zai-org/GLM-5.3-Flash",
+        display_name="zai-org/GLM-5.3-Flash",
+        created=None,
+        licence="mit",
+        data_use="unknown",
+        providers=(
+            ProviderRoute("fireworks-ai", True, None, throughput=93.0),
+            ProviderRoute("baseten", True, 0.5, throughput=72.0),
+        ),
+    ).to_document()
+
+    assert recommended_route(document, "cheapest", budget_seconds=35.0) == "baseten"
+    assert recommended_route(document, "fastest", budget_seconds=35.0) == "baseten"
+    # Without a budget the choice is the Sprint 9 one and may be unpriced.
+    assert recommended_route(document, "fastest") == "fireworks-ai"
+
+
+def test_the_two_meanings_of_402_are_told_apart() -> None:
+    """A route the account cannot be billed for is not an exhausted balance."""
+
+    unavailable = error_for_status(
+        _profile("huggingface"),
+        _response(402, {"error": "Pay-as-you go is not enabled for provider fireworks-ai yet."}),
+    )
+    assert unavailable.code == "OAK-MODEL-ROUTE-UNAVAILABLE"
+    assert "--provider" in unavailable.message
+    assert "fireworks-ai" not in unavailable.message, "provider text never reaches the message"
+
+    exhausted = error_for_status(
+        _profile("huggingface"),
+        _response(402, {"error": {"message": "insufficient credit " + SENTINEL}}),
+    )
+    assert exhausted.code == "OAK-MODEL-QUOTA-EXHAUSTED"
+    assert SENTINEL not in exhausted.message

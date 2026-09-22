@@ -51,7 +51,7 @@ from oak.application.gitops import GitOpsRenderer
 from oak.application.rendering import DeploymentRenderService
 from oak.compiler import DeterministicBriefInterpreter
 from oak.contracts import SchemaRegistry
-from oak.domain import SystemInformation
+from oak.domain import OAKError, SystemInformation
 from oak.domain.extension_sdk import (
     HELM_KUBERNETES_RENDERER_ID,
     LOCAL_MANIFEST_RENDERER_ID,
@@ -142,14 +142,31 @@ def create_design_case_service(
 
 
 def model_timeout_seconds() -> float:
-    """The total budget for one provider request, capped below the shipped proxy timeout."""
+    """The total budget for one provider request, capped below the shipped proxy timeout.
+
+    The default is 35 seconds, not 30: a live run of the preferred pair returned a valid
+    proposal in 29.1 seconds, which left under a second of margin, and a longer brief
+    produces more claims and more tokens. 35 is the largest default that still leaves the
+    20 seconds of headroom the online pre-flight needs under the 55-second ceiling.
+    """
 
     raw = os.getenv("OAK_MODEL_TIMEOUT_SECONDS", "").strip()
     try:
-        value = float(raw) if raw else 30.0
+        value = float(raw) if raw else 35.0
     except ValueError:
-        value = 30.0
+        value = 35.0
     return max(1.0, min(value, 55.0))
+
+
+def model_verification_stale_seconds() -> int:
+    """How long a credential verdict is believed before the surfaces call it stale."""
+
+    raw = os.getenv("OAK_MODEL_VERIFICATION_STALE_SECONDS", "").strip()
+    try:
+        value = int(raw) if raw else 86_400
+    except ValueError:
+        value = 86_400
+    return max(0, value)
 
 
 def model_discovery_cache_seconds() -> int:
@@ -166,6 +183,15 @@ def model_discovery_cache_seconds() -> int:
 # provider pricing — so discovery gets its own budget. Sharing the interpretation cap made
 # every real discovery exceed it and silently fall back to the pinned chain.
 MAXIMUM_CATALOGUE_BYTES = 4_194_304
+# A verification answer is a small JSON object; a catalogue is not.
+MAXIMUM_VERIFICATION_BYTES = 65_536
+# The pre-flight before an online interpretation: a stale verdict is re-checked and a stale
+# catalogue refreshed, each under its own budget, and only when the interpretation's own
+# budget leaves this much headroom below the 55-second ceiling the shipped proxy imposes.
+VERIFICATION_BUDGET_SECONDS = 5.0
+PREFLIGHT_DISCOVERY_BUDGET_SECONDS = 15.0
+PREFLIGHT_HEADROOM_SECONDS = 20.0
+INTERPRETATION_CEILING_SECONDS = 55.0
 
 
 def _model_transport(profile: Any, *, maximum_response_bytes: int | None = None) -> Any:
@@ -209,44 +235,221 @@ def model_discoverer(family: str, previous: dict[str, Any] | None) -> dict[str, 
     )
 
 
-def create_model_interpreter() -> ModelInterpreterPort | None:
-    """The model adapter for the user's current selection, or ``None`` when none applies.
+def model_verifier(family: str, *, deadline_seconds: float | None = None) -> dict[str, Any]:
+    """One free request that asks the provider about the stored credential.
 
-    ``None`` means "no model is configured": ``--interpreter model`` then refuses with
-    ``OAK-MODEL-NOT-CONFIGURED`` and ``auto`` stays deterministic. Nothing is imported from
-    the provider modules, and no socket is opened, until a selection actually exists.
+    Called by `ModelConfigurationService.verify` and by the pre-flight. The key travels in
+    the request header only; the answer is parsed into a verdict and every other byte of
+    it is dropped. A transport failure is an ``unreachable`` verdict, not an exception,
+    because it says nothing about the credential.
     """
 
-    configuration = create_model_configuration_service()
-    selection = configuration.selection()
-    if selection is None or selection.default_interpreter != "model":
-        return None
-    family = selection.family
-    from oak.adapters.models.hosted_interpreter import HostedModelInterpreter, build_path_hints
-    from oak.adapters.models.providers import profile_for, recommended_route
+    from oak.adapters.models.providers import (
+        VERIFICATION_METHODS,
+        key_verification_request,
+        parse_verification,
+        profile_for,
+    )
 
     profile = profile_for(family, local_endpoint=os.getenv("OAK_MODEL_ENDPOINT_LOCAL"))
-    route = selection.provider_route
-    if route is None and family == "huggingface":
-        snapshot = configuration.discovery_snapshot(family) or {}
-        listed = next(
-            (
-                model
-                for model in snapshot.get("models", [])
-                if model.get("id") == selection.model_id
-            ),
-            None,
+    configuration = create_model_configuration_service()
+    secret = configuration.credential_for(family)
+    key = secret.reveal() if secret is not None else None
+    if profile.credential_required and key is None:
+        raise OAKError(
+            "OAK-MODEL-KEY-MISSING",
+            f"no key is stored for the {family} family; run `oak models set-key {family}` first",
         )
-        route = recommended_route(listed, str(snapshot.get("provider_policy", "cheapest")))
+    request = key_verification_request(profile, key)
+    del key, secret
+    if request is None:
+        return {
+            "verdict": "unverifiable",
+            "method": "unknown",
+            "reason": f"the {family} provider documents no free way to check a credential",
+        }
+    transport = _model_transport(profile, maximum_response_bytes=MAXIMUM_VERIFICATION_BYTES)
+    budget = min(
+        transport.deadline_seconds,
+        VERIFICATION_BUDGET_SECONDS if deadline_seconds is None else float(deadline_seconds),
+    )
+    try:
+        response = transport.send(request, deadline_seconds=budget)
+    except OAKError as error:
+        if error.code in {"OAK-INTERPRETER-UNAVAILABLE", "OAK-INTERPRETER-OUTPUT-LIMIT"}:
+            return {
+                "verdict": "unreachable",
+                "method": VERIFICATION_METHODS[profile.key_verification],
+                "reason": "the provider could not be reached for verification",
+            }
+        raise
+    return parse_verification(profile, response).to_document()
+
+
+def _preflight_discover(configuration: ModelConfigurationService) -> None:
+    """Refresh a stale Hugging Face catalogue before an online interpretation, if it can."""
+
+    from oak.adapters.models.huggingface_catalogue import discover_huggingface
+    from oak.adapters.models.providers import profile_for
+
+    profile = profile_for("huggingface")
+    transport = _model_transport(profile, maximum_response_bytes=MAXIMUM_CATALOGUE_BYTES)
+    try:
+        snapshot = discover_huggingface(
+            transport.send,
+            fetched_at=_utc_now(),
+            deadline_seconds=PREFLIGHT_DISCOVERY_BUDGET_SECONDS,
+        )
+    except OAKError:
+        # The stored snapshot, or none, is what the interpretation will work from; the
+        # refusal it then meets is the honest one.
+        return
+    if snapshot.get("source") != "live" and configuration.discovery_snapshot("huggingface"):
+        # `discover_huggingface` answers with the pinned chain when it cannot read the
+        # catalogues. Recording that over a real snapshot would stamp a constant as today's
+        # catalogue and could invalidate the user's pinned pair on nothing but a timeout.
+        return
+    try:
+        configuration.record_discovery("huggingface", snapshot)
+    except OSError:
+        # The refresh is a convenience; a model-state directory that cannot be written is
+        # not a reason to abandon an interpretation the stored state can still serve.
+        return
+
+
+def preflight_allowed() -> bool:
+    """Whether the interpretation budget leaves room for the pre-flight under the proxy limit."""
+
+    return model_timeout_seconds() + PREFLIGHT_HEADROOM_SECONDS <= INTERPRETATION_CEILING_SECONDS
+
+
+def _online_preflight(configuration: ModelConfigurationService) -> None:
+    """Corroborate the token and refresh the catalogue when either is stale; refuse a bad token.
+
+    Nothing here spends: the verification is generation-free and the catalogue reads are
+    anonymous. A token the Hub rejected is refused before any request that could spend.
+    """
+
+    # The Hub's last word stands until a new token is stored: a rejection is not re-asked
+    # about, and a later attempt that cannot reach the Hub never erases it.
+    _refuse_if_rejected(configuration)
+    if preflight_allowed():
+        if configuration.is_verification_stale("huggingface"):
+            try:
+                configuration.verify("huggingface")
+            except OAKError as error:
+                if error.code != "OAK-MODEL-VERIFICATION-UNAVAILABLE":
+                    raise
+            except OSError:
+                # The verdict could not be written. The stored one still governs the
+                # refusal below; a read-only model-state directory is not a verdict.
+                pass
+        if configuration.is_discovery_stale("huggingface"):
+            _preflight_discover(configuration)
+    _refuse_if_rejected(configuration)
+
+
+def _refuse_if_rejected(configuration: ModelConfigurationService) -> None:
+    verification = configuration.verification_status("huggingface")
+    if verification is not None and verification["verdict"] == "rejected":
+        raise OAKError(
+            "OAK-MODEL-KEY-REJECTED",
+            f"Hugging Face rejected the stored token at {verification['checked_at']}; store a "
+            "current one with `oak models set-key` (nothing was sent to a model)",
+        )
+
+
+class _VerdictRecordingInterpreter:
+    """Wrap the adapter so a token the provider refuses mid-interpretation is remembered."""
+
+    def __init__(
+        self, inner: ModelInterpreterPort, configuration: ModelConfigurationService, family: str
+    ) -> None:
+        self._inner = inner
+        self._configuration = configuration
+        self._family = family
+
+    def propose(
+        self, source_record: dict[str, Any], source_content: bytes, limits: Any
+    ) -> dict[str, Any]:
+        from oak.adapters.models.providers import KEY_REJECTED_MARKER
+
+        try:
+            return self._inner.propose(source_record, source_content, limits)
+        except OAKError as error:
+            # Only a 401 — the credential itself refused — is a verdict about the token; a
+            # 403 on one request (a route, a gated model) is not, and the local server has
+            # no credential to record a verdict about.
+            if (
+                error.code == "OAK-MODEL-KEY-REJECTED"
+                and self._family == "huggingface"
+                and KEY_REJECTED_MARKER in error.message
+            ):
+                self._configuration.record_verdict(
+                    self._family,
+                    "rejected",
+                    method="interpretation",
+                    reason="the provider rejected the stored credential during an interpretation",
+                )
+            raise
+
+
+def create_model_interpreter(mode: str) -> ModelInterpreterPort | None:
+    """The adapter for one model mode, or ``None`` when that mode has nothing to call.
+
+    ``None`` makes the service refuse with ``OAK-MODEL-NOT-CONFIGURED`` and commit nothing.
+    ``online`` calls the Hugging Face pair the user pinned, else the preferred one discovery
+    recorded; ``local`` calls the model pinned for the loopback server. Nothing is imported
+    from the provider modules, and no socket is opened, until one of them is asked for.
+    """
+
+    if mode not in {"online", "local"}:
+        return None
+    configuration = create_model_configuration_service()
+    if mode == "local":
+        selection = configuration.selection("local")
+        if selection is None:
+            return None
+        family, model_id, route = "local", selection.model_id, None
+    else:
+        if not configuration.credential_status("huggingface").configured:
+            return None
+        _online_preflight(configuration)
+        pair = configuration.online_pair()
+        if pair is None:
+            return None
+        if not pair["valid"]:
+            # A pinned pair the current catalogue no longer supports is refused with the
+            # reason, never called on the off chance: only structured-output routes are sent.
+            raise OAKError("OAK-MODEL-ROUTE", str(pair["reason"]))
+        family, model_id, route = "huggingface", str(pair["model_id"]), pair.get("provider_route")
+    from oak.adapters.models.hosted_interpreter import HostedModelInterpreter, build_path_hints
+    from oak.adapters.models.providers import profile_for
+
+    profile = profile_for(family, local_endpoint=os.getenv("OAK_MODEL_ENDPOINT_LOCAL"))
     registry = SchemaRegistry.from_directory(canonical_schema_directory())
-    return HostedModelInterpreter(
+    adapter = HostedModelInterpreter(
         profile,
-        selection.model_id,
+        model_id,
         provider_route=route,
         credential_provider=lambda: configuration.credential_for(family),
         transport=_model_transport(profile),
         path_hints=build_path_hints(registry.schema("system-intent.schema.json")),
     )
+    return _VerdictRecordingInterpreter(adapter, configuration, family)
+
+
+def _choose_route(listed: dict[str, Any] | None, policy: str) -> str | None:
+    """The provider route for a listed model under the user's policy and its time budget.
+
+    ``None`` means no route of this model can generate a proposal inside
+    ``OAK_MODEL_TIMEOUT_SECONDS``, so the caller should try the next model rather than send
+    a request that will expire.
+    """
+
+    from oak.adapters.models.providers import recommended_route
+
+    return recommended_route(listed, policy, budget_seconds=model_timeout_seconds())
 
 
 def canonical_catalogue_directory() -> Path:
@@ -440,9 +643,13 @@ def create_model_configuration_service() -> ModelConfigurationService:
         },
         clock=_utc_now,
         discoverer=model_discoverer,
+        verifier=model_verifier,
+        route_chooser=_choose_route,
         discovery_cache_seconds=model_discovery_cache_seconds(),
+        verification_stale_seconds=model_verification_stale_seconds(),
         token_reader=read_model_token,
         credentials_location=str(credentials_directory),
+        local_endpoint=os.getenv("OAK_MODEL_ENDPOINT_LOCAL"),
         under_compose=os.getenv("OAK_ARTIFACT_ROOT", "").startswith("/var/lib/oak/"),
     )
 

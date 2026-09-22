@@ -1,12 +1,19 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Find a free, permissively licensed, structured-output-capable chat model on Hugging Face.
+"""Find the current top open chat model on Hugging Face, without trusting what comes back.
 
 Both catalogue calls are anonymous reads of public metadata (the router's chat catalogue and
-the Hub's model list); no brief and no credential is sent. Model-card metadata is written by
-model authors, so every field is treated as untrusted: values are checked against closed
-enumerations and bounded before they reach the configuration file. When the Hub cannot be
-reached the pinned chain below is returned with ``source: "pinned"`` so the user can still
-select a model; the snapshot then says so rather than pretending it was looked up.
+the Hub's model list in trending order); no brief and no credential is sent. Model-card
+metadata is written by model authors, so every field is treated as untrusted: values are
+checked against closed enumerations and bounded before they reach the configuration file.
+When the Hub cannot be reached the pinned chain below is returned with ``source: "pinned"``
+so the user can still select a model; the snapshot then says so rather than pretending it
+was looked up.
+
+What survives the filter: a model the router serves, listed by the Hub as conversational
+and served by at least one provider, not gated, from a namespace on the trusted list, with
+at least one live route that supports structured output. The licence is recorded from the
+model card and shown, not used to exclude: Online AI prefers the current top model, and the
+user picks any pair with the licence in front of them.
 """
 
 from __future__ import annotations
@@ -34,6 +41,10 @@ HUB_MODELS_URL = (
     "&expand[]=cardData&expand[]=gated&expand[]=inferenceProviderMapping"
 )
 PERMISSIVE_LICENCES = frozenset({"apache-2.0", "mit", "bsd-3-clause"})
+# Organisations that publish open weights under their own name. Read against the Hub's
+# trending list on the date below; a namespace outside this set is never offered, however
+# high it trends, because a card is author-controlled and a fine-tune can carry any name.
+TRUSTED_NAMESPACES_AS_OF = "2026-09-21"
 TRUSTED_NAMESPACES = frozenset(
     {
         "openai",
@@ -42,6 +53,12 @@ TRUSTED_NAMESPACES = frozenset(
         "google",
         "deepseek-ai",
         "zai-org",
+        "moonshotai",
+        "meta-llama",
+        "MiniMaxAI",
+        "inclusionAI",
+        "tencent",
+        "thinkingmachines",
         "ibm-granite",
         "microsoft",
         "nvidia",
@@ -49,11 +66,35 @@ TRUSTED_NAMESPACES = frozenset(
         "HuggingFaceTB",
     }
 )
-PINNED_AS_OF = "2026-09-16"
-# The fallback chain, with the providers that supported structured output for each model
-# on the date above. Prices are the providers' published output prices then; they are hints,
-# not a quote.
+PINNED_AS_OF = "2026-09-21"
+# The fallback chain: the top trending, ungated, permissively licensed models with live
+# structured-output routes on the date above, with those routes' published output prices
+# (USD per million tokens) and measured throughput (tokens per second). Hints, not a quote.
 PINNED_MODELS: tuple[ModelDescriptor, ...] = (
+    ModelDescriptor(
+        id="Qwen/Qwen3.8-27B",
+        display_name="Qwen/Qwen3.8-27B",
+        created=None,
+        licence="apache-2.0",
+        data_use="unknown",
+        providers=(
+            ProviderRoute("cerebras", True, 1.49, throughput=846.0),
+            ProviderRoute("deepinfra", True, 2.5, throughput=40.0),
+            ProviderRoute("ovhcloud", True, 3.19, throughput=71.0),
+        ),
+    ),
+    ModelDescriptor(
+        id="zai-org/GLM-5.3-Flash",
+        display_name="zai-org/GLM-5.3-Flash",
+        created=None,
+        licence="mit",
+        data_use="unknown",
+        providers=(
+            ProviderRoute("baseten", True, 0.5, throughput=72.0),
+            ProviderRoute("deepinfra", True, 0.5, throughput=15.0),
+            ProviderRoute("fireworks-ai", True, None, throughput=93.0),
+        ),
+    ),
     ModelDescriptor(
         id="openai/gpt-oss-120b",
         display_name="openai/gpt-oss-120b",
@@ -61,41 +102,16 @@ PINNED_MODELS: tuple[ModelDescriptor, ...] = (
         licence="apache-2.0",
         data_use="unknown",
         providers=(
-            ProviderRoute("deepinfra", True, 0.17),
-            ProviderRoute("ovhcloud", True, 0.47),
-            ProviderRoute("baseten", True, 0.50),
-            ProviderRoute("together", True, 0.60),
-            ProviderRoute("fireworks-ai", True, 0.60),
-            ProviderRoute("scaleway", True, 0.684),
-            ProviderRoute("groq", True, 0.75),
-            ProviderRoute("cerebras", True, 0.75),
-        ),
-    ),
-    ModelDescriptor(
-        id="openai/gpt-oss-20b",
-        display_name="openai/gpt-oss-20b",
-        created=None,
-        licence="apache-2.0",
-        data_use="unknown",
-        providers=(
-            ProviderRoute("deepinfra", True, 0.14),
-            ProviderRoute("novita", True, 0.15),
-            ProviderRoute("ovhcloud", True, 0.18),
-            ProviderRoute("nscale", True, 0.20),
-            ProviderRoute("groq", True, 0.50),
-        ),
-    ),
-    ModelDescriptor(
-        id="Qwen/Qwen3-235B-A22B-Instruct-2507",
-        display_name="Qwen/Qwen3-235B-A22B-Instruct-2507",
-        created=None,
-        licence="apache-2.0",
-        data_use="unknown",
-        providers=(
-            ProviderRoute("deepinfra", True, 0.55),
-            ProviderRoute("novita", True, 0.58),
-            ProviderRoute("nscale", True, 0.60),
-            ProviderRoute("scaleway", True, 2.565),
+            ProviderRoute("deepinfra", True, 0.17, throughput=48.0),
+            ProviderRoute("novita", True, 0.25, throughput=82.0),
+            ProviderRoute("nscale", True, 0.4, throughput=113.0),
+            ProviderRoute("ovhcloud", True, 0.47, throughput=111.0),
+            ProviderRoute("baseten", True, 0.5, throughput=182.0),
+            ProviderRoute("together", True, 0.6, throughput=104.0),
+            ProviderRoute("fireworks-ai", True, 0.6, throughput=159.0),
+            ProviderRoute("scaleway", True, 0.684, throughput=160.0),
+            ProviderRoute("groq", True, 0.75, throughput=427.0),
+            ProviderRoute("cerebras", True, 0.75, throughput=1124.0),
         ),
     ),
 )
@@ -126,7 +142,8 @@ def discover_huggingface(
     """A live snapshot when the catalogues answer; the pinned chain when they do not.
 
     Both reads share one budget: two full per-request deadlines would be twice the total the
-    configuration promises for a single discovery.
+    configuration promises for a single discovery. ``recommended`` is the preferred model:
+    the first survivor in the Hub's trending order.
     """
 
     profile = profile_for("huggingface")
@@ -156,17 +173,21 @@ def discover_huggingface(
     hub_entries = _hub_entries(hub)
     if not served or not hub_entries:
         # Without both catalogues there is no filter, and a snapshot built from the pins
-        # alone is a pinned answer. Labelling it `live` would tell the user their licence
-        # and gating checks ran when they did not.
+        # alone is a pinned answer. Labelling it `live` would tell the user their gating
+        # and namespace checks ran when they did not.
         return pinned_snapshot(fetched_at)
 
+    # The two catalogues are joined on a case-folded id so a spelling difference neither
+    # demotes a trending model nor lets a pin slip past a gated listing; the router's
+    # spelling is the one stored.
+    served_by_key = {identifier.casefold(): descriptor for identifier, descriptor in served.items()}
     candidates: dict[str, ModelDescriptor] = {}
     for entry in hub_entries:
-        identifier = entry["id"]
-        descriptor = served.get(identifier)
-        if descriptor is None or identifier in candidates:
+        descriptor = served_by_key.get(entry["id"].casefold())
+        if descriptor is None or descriptor.id in candidates:
             continue
-        if entry["gated"] or entry["licence"] not in PERMISSIVE_LICENCES:
+        identifier = descriptor.id
+        if entry["gated"]:
             continue
         if identifier.split("/", 1)[0] not in TRUSTED_NAMESPACES:
             continue
@@ -180,16 +201,16 @@ def discover_huggingface(
             data_use=descriptor.data_use,
             providers=descriptor.providers,
         )
-    # The pinned chain was permissively licensed and ungated when it was recorded, and the
-    # trending page does not always list it, so a pinned model the router still serves is
-    # kept even when the Hub listing did not mention it. What is *not* done is overriding
-    # the Hub: if the listing says a pinned model is now gated or has been relicensed, the
-    # pin does not rescue it — a stale constant must never re-admit a model today's
-    # catalogue rejects.
-    rejected = {entry["id"] for entry in hub_entries if entry["id"] not in candidates}
+    # The pinned chain was ungated and trusted when it was recorded, and the trending page
+    # does not always list it, so a pinned model the router still serves is kept even when
+    # the Hub listing did not mention it. What is *not* done is overriding the Hub: if the
+    # listing says a pinned model is now gated, the pin does not rescue it — a stale constant
+    # must never re-admit a model today's catalogue rejects.
+    admitted = {identifier.casefold() for identifier in candidates}
+    rejected = {entry["id"].casefold() for entry in hub_entries} - admitted
     for pinned in PINNED_MODELS:
-        descriptor = served.get(pinned.id)
-        if descriptor is None or pinned.id in candidates or pinned.id in rejected:
+        descriptor = served_by_key.get(pinned.id.casefold())
+        if descriptor is None or pinned.id.casefold() in admitted | rejected:
             continue
         if any(route.supports_structured_output for route in descriptor.providers):
             candidates[pinned.id] = ModelDescriptor(
@@ -202,7 +223,7 @@ def discover_huggingface(
             )
     if not candidates:
         return pinned_snapshot(fetched_at)
-    ordered = _rank(list(candidates.values()), [entry["id"] for entry in hub_entries])
+    ordered = _rank(list(candidates.values()), [entry["id"].casefold() for entry in hub_entries])
     return {
         "fetched_at": fetched_at,
         "source": "live",
@@ -247,12 +268,13 @@ def _hub_entries(response: TransportResponse) -> list[dict[str, Any]]:
         licence_value = card.get("license") if isinstance(card, dict) else None
         if isinstance(licence_value, list):
             # A model card may declare several licences, and they are cumulative: one
-            # restrictive entry restricts the model however permissive the first entry is.
+            # restrictive entry restricts the model however permissive the first entry is,
+            # so a mixed list is recorded as `other`, never as its most generous member.
             values = [str(item).strip().lower() for item in licence_value if isinstance(item, str)]
             licence_value = (
                 values[0]
                 if values and all(value in PERMISSIVE_LICENCES for value in values)
-                else None
+                else ("other" if values else None)
             )
         licence = str(licence_value).strip().lower() if isinstance(licence_value, str) else ""
         entries.append(
@@ -268,15 +290,19 @@ def _hub_entries(response: TransportResponse) -> list[dict[str, Any]]:
 
 
 def _rank(descriptors: list[ModelDescriptor], hub_order: list[str]) -> list[ModelDescriptor]:
-    pinned_rank = {descriptor.id: index for index, descriptor in enumerate(PINNED_MODELS)}
+    """The Hub's trending order first; a pinned model the Hub did not list comes after."""
+
     hub_rank = {identifier: index for index, identifier in enumerate(hub_order)}
+    pinned_rank = {
+        descriptor.id.casefold(): index for index, descriptor in enumerate(PINNED_MODELS)
+    }
 
     def key(descriptor: ModelDescriptor) -> tuple[int, int, int, str]:
         structured = sum(1 for route in descriptor.providers if route.supports_structured_output)
         return (
-            pinned_rank.get(descriptor.id, len(pinned_rank)),
+            hub_rank.get(descriptor.id.casefold(), len(hub_rank)),
+            pinned_rank.get(descriptor.id.casefold(), len(pinned_rank)),
             -structured,
-            hub_rank.get(descriptor.id, len(hub_rank)),
             descriptor.id,
         )
 

@@ -52,8 +52,11 @@ limitation. If you need a response by a deadline, say so in the report.
   create, not a vulnerability. A same-machine browser page is **not** covered by this
   carve-out: the API refuses requests whose `Host` is not a loopback name (or an exact
   `OAK_ALLOWED_HOSTS` entry) and requests whose `Origin` or fetch metadata come from another
-  site, and model-configuration routes additionally require the per-process
-  `X-OAK-Model-Token`. A way past those checks from a web page is in scope.
+  site, and model-configuration routes — every `/v1/models` path, reads included — additionally
+  require the per-process `X-OAK-Model-Token`, as does
+  `POST /v1/design-cases/{case_id}:interpret` whenever the request resolves to `online` or
+  `local`, demanded before anything is committed. A way past those checks from a web page is
+  in scope.
 - Attacks that require write access to the operator's own home directory or Docker daemon.
   Anyone with that already holds the private keys in `~/.oak/trust`.
 - Denial of service through unbounded local workloads. There is no quota or rate limiter

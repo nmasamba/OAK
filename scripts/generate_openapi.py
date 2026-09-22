@@ -129,7 +129,7 @@ export interface CommandOptions {
   readonly modelToken?: string;
 }
 
-export type InterpreterMode = "auto" | "model" | "deterministic";
+export type InterpreterMode = "deterministic" | "online" | "local";
 
 export class OakApiError extends Error {
   constructor(readonly problem: Problem) {
@@ -233,6 +233,8 @@ export interface ModelCredentialStatus {
   readonly source: "keychain" | "file" | "env" | "none";
   readonly fingerprint: string | null;
   readonly length: number | null;
+  /** What the provider last said about the credential, with the time it said it. */
+  readonly verification: JsonObject | null;
 }
 
 export interface ModelFamily {
@@ -256,8 +258,8 @@ export interface ModelDiscoverySummary {
 }
 
 export interface ModelStatusResponse {
-  readonly configured: boolean;
-  readonly selection: JsonObject | null;
+  readonly modes: Readonly<Record<string, JsonObject>>;
+  readonly selections: Readonly<Record<string, JsonObject | null>>;
   readonly provider_policy: string;
   readonly families: readonly ModelFamily[];
   readonly credentials: readonly ModelCredentialStatus[];
@@ -270,12 +272,15 @@ export interface ModelDiscoveryResponse {
   readonly discovery: JsonObject;
 }
 
+export interface ModelCatalogueResponse {
+  readonly family: string;
+  readonly discovery: JsonObject | null;
+}
+
 export interface ModelSelectionInput {
   readonly family: string;
   readonly model_id: string;
   readonly provider_route?: string | null;
-  readonly default_interpreter?: "model" | "deterministic";
-  readonly acknowledge_data_use?: boolean;
 }
 
 /**
@@ -352,12 +357,39 @@ export async function putModelSelection(
 }
 
 export async function clearModelSelection(
+  family: string,
   modelToken: string,
   baseUrl = "",
 ): Promise<ModelStatusResponse> {
   return requestJson<ModelStatusResponse>(
-    "/v1/models/selection",
+    `/v1/models/selection/${encodeURIComponent(family)}`,
     { method: "DELETE", headers: modelHeaders(modelToken) },
+    baseUrl,
+  );
+}
+
+/** The catalogue snapshot `discover` last recorded; read from local state, contacts nothing. */
+export async function getModelCatalogue(
+  family: string,
+  modelToken: string,
+  baseUrl = "",
+): Promise<ModelCatalogueResponse> {
+  return requestJson<ModelCatalogueResponse>(
+    `/v1/models/${encodeURIComponent(family)}/catalogue`,
+    { headers: modelHeaders(modelToken) },
+    baseUrl,
+  );
+}
+
+/** Asks the provider whether the stored credential is accepted; generates nothing. */
+export async function verifyModelCredential(
+  family: string,
+  modelToken: string,
+  baseUrl = "",
+): Promise<ModelStatusResponse> {
+  return requestJson<ModelStatusResponse>(
+    `/v1/models/${encodeURIComponent(family)}:verify`,
+    { method: "POST", headers: modelHeaders(modelToken) },
     baseUrl,
   );
 }

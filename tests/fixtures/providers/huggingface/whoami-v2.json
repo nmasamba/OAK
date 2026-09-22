@@ -1,0 +1,22 @@
+{
+  "type": "user",
+  "id": "6410a0c9b2f4e5d6c7a8b9c0",
+  "name": "sentinel-account-name-MUST-NOT-BE-STORED",
+  "fullname": "Sentinel Account",
+  "email": "sentinel.address.MUST-NOT-BE-STORED@example.invalid",
+  "emailVerified": true,
+  "canPay": false,
+  "isPro": false,
+  "billingMode": "prepaid",
+  "periodEnd": null,
+  "avatarUrl": "https://huggingface.co/avatars/sentinel.svg",
+  "orgs": [],
+  "auth": {
+    "type": "access_token",
+    "accessToken": {
+      "displayName": "oak-community",
+      "role": "read",
+      "createdAt": "2026-09-21T09:00:00.000Z"
+    }
+  }
+}

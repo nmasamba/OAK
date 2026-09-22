@@ -181,6 +181,6 @@ test("capture the manual screenshots from the reference journey", async ({
   await expect(
     page.getByRole("heading", { name: "Models", level: 1 }),
   ).toBeVisible();
-  await expect(page.getByLabel("Model family")).toBeVisible();
+  await expect(page.getByLabel("Hugging Face token")).toBeVisible();
   await shoot(page, "11-models");
 });

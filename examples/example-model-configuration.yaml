@@ -1,45 +1,66 @@
 # SPDX-License-Identifier: Apache-2.0
 # Illustrative only. This document never carries a credential: it records where the
-# key for each family lives, not the key. Written by `oak models`, read by every interface.
+# Hugging Face token lives, not the token. Written by `oak models`, read by every interface.
+# Interpretation modes are chosen per request; what is stored is the pair pinned for each
+# family (Online AI uses the Hugging Face one, Local AI the local one), the catalogue
+# snapshot with the preferred model, and the verdict Hugging Face gave about the token.
 schema_version: 0.1.0
 id: model-configuration.local
 selection:
-  family: huggingface
-  model_id: openai/gpt-oss-120b
-  provider_route: deepinfra
-  default_interpreter: model
-  data_use_acknowledged: false
-  selected_at: '2026-09-17T10:00:00Z'
+  huggingface:
+    model_id: Qwen/Qwen3.5-9B
+    provider_route: deepinfra
+    selected_at: '2026-09-21T10:05:00Z'
+  local:
+    model_id: qwen3:8b
+    provider_route: null
+    selected_at: '2026-09-21T10:06:00Z'
 credential_sources:
   huggingface: file
-  openai: none
+  local: none
 provider_policy: cheapest
+verification:
+  huggingface:
+    verdict: accepted
+    checked_at: '2026-09-21T10:02:11Z'
+    method: hub_whoami_v2
+    token_role: read
+    inference_permission: true
+    can_pay: false
+    is_pro: false
+    reason: null
 discovery:
   huggingface:
-    fetched_at: '2026-09-17T09:58:00Z'
+    fetched_at: '2026-09-21T10:02:15Z'
     source: live
-    recommended: openai/gpt-oss-120b
-    filtered_out_count: 87
+    recommended: Qwen/Qwen3.8-27B
+    filtered_out_count: 49
     models:
-      - id: openai/gpt-oss-120b
-        display_name: gpt-oss-120b
-        created: '2025-08-05T00:00:00Z'
+      - id: Qwen/Qwen3.8-27B
+        display_name: Qwen/Qwen3.8-27B
+        created: '2026-09-01T00:00:00Z'
+        licence: apache-2.0
+        data_use: unknown
+        providers:
+          - provider: cerebras
+            supports_structured_output: true
+            output_price_per_million: 1.49
+            is_free: false
+            throughput: 846.0
+          - provider: deepinfra
+            supports_structured_output: true
+            output_price_per_million: 2.5
+            is_free: false
+            throughput: 40.0
+      - id: Qwen/Qwen3.5-9B
+        display_name: Qwen/Qwen3.5-9B
+        created: '2026-08-20T00:00:00Z'
         licence: apache-2.0
         data_use: unknown
         providers:
           - provider: deepinfra
             supports_structured_output: true
-            output_price_per_million: 0.17
-          - provider: groq
-            supports_structured_output: true
-            output_price_per_million: 0.75
-      - id: openai/gpt-oss-20b
-        display_name: gpt-oss-20b
-        created: '2025-08-05T00:00:00Z'
-        licence: apache-2.0
-        data_use: unknown
-        providers:
-          - provider: deepinfra
-            supports_structured_output: true
-            output_price_per_million: 0.14
+            output_price_per_million: 0.15
+            is_free: false
+            throughput: 12.0
 extensions: {}

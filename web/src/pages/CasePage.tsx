@@ -2,14 +2,20 @@
 import { useEffect, useState } from "react";
 
 import {
+  discoverModels,
   exportDesignCase,
   generateCandidates,
   getDesignCase,
+  getModels,
   interpretDesignCase,
   listAuditEvents,
   listCandidates,
+  verifyModelCredential,
   type JsonObject,
+  type ModelStatusResponse,
 } from "../generated/api";
+import { recallInterpretMode, rememberInterpretMode } from "../interpretMode";
+import { ModeSelect, type InterpretMode } from "../ModeSelect";
 import { currentModelToken } from "../modelToken";
 import { ProblemAlert, toActionFailure, type ActionFailure } from "../problems";
 import { Link, useRouter } from "../router";
@@ -35,6 +41,67 @@ export function CasePage({ caseId }: { readonly caseId: string }) {
   const [auditEvents, setAuditEvents] = useState<readonly JsonObject[]>([]);
   const [failure, setFailure] = useState<ActionFailure | null>(null);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
+  const [mode, setMode] = useState<InterpretMode>(() =>
+    recallInterpretMode(caseId),
+  );
+  const [models, setModels] = useState<ModelStatusResponse | null>(null);
+  const tokenPresent = currentModelToken() !== null;
+
+  const loadModels = () => {
+    const token = currentModelToken();
+    if (token === null) {
+      return Promise.resolve();
+    }
+    return getModels(token)
+      .then((status) => setModels(status))
+      .catch(() => setModels(null));
+  };
+
+  // Online AI re-checks a stale token verdict and refreshes a stale catalogue before the
+  // option is believed, so what it says is current whether the mode was carried in from
+  // the intake form or chosen here. Both are free: the verification generates nothing and
+  // the catalogue reads are anonymous.
+  const refreshForOnline = (status: ModelStatusResponse | null) => {
+    const token = currentModelToken();
+    if (token === null || status === null) {
+      return;
+    }
+    const online = asObject(status.modes["online"]);
+    const verification =
+      online === null ? null : asObject(online["verification"]);
+    const catalogue = status.discovery["huggingface"];
+    const refreshes: Promise<unknown>[] = [];
+    if (verification === null || verification["stale"] === true) {
+      refreshes.push(verifyModelCredential("huggingface", token));
+    }
+    if (catalogue === undefined || catalogue.stale) {
+      refreshes.push(discoverModels("huggingface", token));
+    }
+    if (refreshes.length > 0) {
+      void Promise.all(refreshes)
+        .catch(() => undefined)
+        .then(loadModels);
+    }
+  };
+
+  useEffect(() => {
+    void loadModels().then(() => {
+      if (recallInterpretMode(caseId) === "online") {
+        setModels((current) => {
+          refreshForOnline(current);
+          return current;
+        });
+      }
+    });
+  }, [caseId]);
+
+  const chooseMode = (next: InterpretMode) => {
+    setMode(next);
+    rememberInterpretMode(caseId, next);
+    if (next === "online") {
+      refreshForOnline(models);
+    }
+  };
 
   const load = () => {
     setState({ kind: "loading" });
@@ -92,7 +159,9 @@ export function CasePage({ caseId }: { readonly caseId: string }) {
 
   // The token is sent only when this browser has one; without it the API answers every
   // request that would spend the operator's credential with OAK-MODEL-TOKEN-REQUIRED.
-  const interpretWith = (interpreter?: "model" | "deterministic") => {
+  const interpretWith = (
+    interpreter?: "online" | "local" | "deterministic",
+  ) => {
     const token = currentModelToken();
     return runAction(
       "interpret",
@@ -110,7 +179,7 @@ export function CasePage({ caseId }: { readonly caseId: string }) {
     );
   };
 
-  const onInterpret = () => interpretWith();
+  const onInterpret = () => interpretWith(mode);
 
   const onGenerateCandidates = () =>
     runAction(
@@ -158,6 +227,16 @@ export function CasePage({ caseId }: { readonly caseId: string }) {
             <dd>{openQuestions.length}</dd>
           </div>
         </dl>
+        {status === "draft" && (
+          <ModeSelect
+            id="case-mode"
+            value={mode}
+            onChange={chooseMode}
+            status={models}
+            tokenPresent={tokenPresent}
+            disabled={pendingAction !== null}
+          />
+        )}
         <div className="actions">
           {status === "draft" && (
             <button

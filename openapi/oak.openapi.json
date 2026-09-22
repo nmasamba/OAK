@@ -347,12 +347,40 @@
       },
       "InterpreterMode": {
         "enum": [
-          "auto",
-          "model",
-          "deterministic"
+          "deterministic",
+          "online",
+          "local"
         ],
         "title": "InterpreterMode",
         "type": "string"
+      },
+      "ModelCatalogueResponse": {
+        "additionalProperties": false,
+        "description": "The stored catalogue snapshot for one family \u2014 what `discover` last recorded \u2014 or null.\n\nRead from local state only; nothing is contacted. The workspace lists the model and\nprovider pairs from it.",
+        "properties": {
+          "discovery": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discovery"
+          },
+          "family": {
+            "title": "Family",
+            "type": "string"
+          }
+        },
+        "required": [
+          "family",
+          "discovery"
+        ],
+        "title": "ModelCatalogueResponse",
+        "type": "object"
       },
       "ModelCredentialRequest": {
         "additionalProperties": false,
@@ -375,6 +403,7 @@
       },
       "ModelCredentialStatus": {
         "additionalProperties": false,
+        "description": "A stored credential's backend, fingerprint and the provider's verdict \u2014 never its value.\n\n``verification`` is what the provider last said about the credential, with the time it\nsaid it and whether that is now stale; ``null`` until the credential has been checked.",
         "properties": {
           "configured": {
             "title": "Configured",
@@ -415,6 +444,18 @@
             ],
             "title": "Source",
             "type": "string"
+          },
+          "verification": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verification"
           }
         },
         "required": [
@@ -560,21 +601,8 @@
       },
       "ModelSelectionRequest": {
         "additionalProperties": false,
+        "description": "Pin a model for one family: the Online AI pair for `huggingface`, the Local AI model\nfor `local`. Clearing it returns that mode to the preferred model.",
         "properties": {
-          "acknowledge_data_use": {
-            "default": false,
-            "title": "Acknowledge Data Use",
-            "type": "boolean"
-          },
-          "default_interpreter": {
-            "default": "model",
-            "enum": [
-              "model",
-              "deterministic"
-            ],
-            "title": "Default Interpreter",
-            "type": "string"
-          },
           "family": {
             "maxLength": 40,
             "minLength": 2,
@@ -609,12 +637,8 @@
       },
       "ModelStatusResponse": {
         "additionalProperties": false,
-        "description": "Everything the workspace needs to render the model settings, and no credential.",
+        "description": "Everything the workspace needs to render the model settings, and no credential.\n\n``modes`` says which of deterministic, online and local can run now and why not\notherwise; ``selections`` holds the pair pinned per family, or null for the preferred one.",
         "properties": {
-          "configured": {
-            "title": "Configured",
-            "type": "boolean"
-          },
           "credentials": {
             "items": {
               "$ref": "#/components/schemas/ModelCredentialStatus"
@@ -636,21 +660,19 @@
             "title": "Families",
             "type": "array"
           },
+          "modes": {
+            "additionalProperties": true,
+            "title": "Modes",
+            "type": "object"
+          },
           "provider_policy": {
             "title": "Provider Policy",
             "type": "string"
           },
-          "selection": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Selection"
+          "selections": {
+            "additionalProperties": true,
+            "title": "Selections",
+            "type": "object"
           },
           "stores": {
             "additionalProperties": true,
@@ -659,8 +681,8 @@
           }
         },
         "required": [
-          "configured",
-          "selection",
+          "modes",
+          "selections",
           "provider_policy",
           "families",
           "credentials",
@@ -2432,7 +2454,7 @@
             }
           },
           {
-            "description": "deterministic never calls a provider. model requires a configured model and the X-OAK-Model-Token header, and is refused without it. auto (the default) uses the configured model for a plain-language brief only when the request also carries that header; without it, and for a structured brief, auto interprets deterministically \u2014 so a client that predates the model path keeps the behaviour it had.",
+            "description": "deterministic \u2014 the default, and what an absent parameter means \u2014 never calls a model, so a client that predates the model path keeps the behaviour it had. online sends the brief to the Hugging Face model this machine is set up for; local sends it to the model pinned on the loopback server. Both require the X-OAK-Model-Token header and are refused without it, before anything is committed.",
             "in": "query",
             "name": "interpreter",
             "required": false,
@@ -2445,7 +2467,7 @@
                   "type": "null"
                 }
               ],
-              "description": "deterministic never calls a provider. model requires a configured model and the X-OAK-Model-Token header, and is refused without it. auto (the default) uses the configured model for a plain-language brief only when the request also carries that header; without it, and for a structured brief, auto interprets deterministically \u2014 so a client that predates the model path keeps the behaviour it had.",
+              "description": "deterministic \u2014 the default, and what an absent parameter means \u2014 never calls a model, so a client that predates the model path keeps the behaviour it had. online sends the brief to the Hugging Face model this machine is set up for; local sends it to the model pinned on the loopback server. Both require the X-OAK-Model-Token header and are refused without it, before anything is committed.",
               "title": "Interpreter"
             }
           },
@@ -3058,87 +3080,6 @@
       }
     },
     "/v1/models/selection": {
-      "delete": {
-        "operationId": "clear_model_selection_v1_models_selection_delete",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "X-OAK-Actor",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Oak-Actor"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-OAK-Tenant",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Oak-Tenant"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-OAK-Model-Token",
-            "required": true,
-            "schema": {
-              "anyOf": [
-                {
-                  "maxLength": 256,
-                  "minLength": 16,
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Oak-Model-Token"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ModelStatusResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Clear Model Selection",
-        "tags": [
-          "models"
-        ]
-      },
       "put": {
         "operationId": "put_model_selection_v1_models_selection_put",
         "parameters": [
@@ -3226,6 +3167,191 @@
           }
         },
         "summary": "Put Model Selection",
+        "tags": [
+          "models"
+        ]
+      }
+    },
+    "/v1/models/selection/{family}": {
+      "delete": {
+        "operationId": "clear_model_selection_v1_models_selection__family__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "family",
+            "required": true,
+            "schema": {
+              "title": "Family",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-OAK-Actor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Oak-Actor"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-OAK-Tenant",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Oak-Tenant"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-OAK-Model-Token",
+            "required": true,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 256,
+                  "minLength": 16,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Oak-Model-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Clear Model Selection",
+        "tags": [
+          "models"
+        ]
+      }
+    },
+    "/v1/models/{family}/catalogue": {
+      "get": {
+        "description": "The catalogue snapshot `discover` last recorded for a family; contacts nothing.",
+        "operationId": "get_model_catalogue_v1_models__family__catalogue_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "family",
+            "required": true,
+            "schema": {
+              "title": "Family",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-OAK-Actor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Oak-Actor"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-OAK-Tenant",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Oak-Tenant"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-OAK-Model-Token",
+            "required": true,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 256,
+                  "minLength": 16,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Oak-Model-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelCatalogueResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Model Catalogue",
         "tags": [
           "models"
         ]
@@ -3319,6 +3445,99 @@
           }
         },
         "summary": "Discover Models For Family",
+        "tags": [
+          "models"
+        ]
+      }
+    },
+    "/v1/models/{family}:verify": {
+      "post": {
+        "description": "Ask the provider whether the stored credential is accepted, and record its verdict.\n\nOne free, generation-free request carrying the credential in its header and nothing\nelse. The verdict comes back in the status document with the time it was given.",
+        "operationId": "verify_model_credential_v1_models__family__verify_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "family",
+            "required": true,
+            "schema": {
+              "title": "Family",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-OAK-Actor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Oak-Actor"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-OAK-Tenant",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Oak-Tenant"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-OAK-Model-Token",
+            "required": true,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 256,
+                  "minLength": 16,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Oak-Model-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Verify Model Credential",
         "tags": [
           "models"
         ]

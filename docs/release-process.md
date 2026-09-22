@@ -34,7 +34,8 @@ paired with a different build.
 
 ## Versioning
 
-`0.7.1` is the current release candidate. `0.7.0` was approved on 2026-08-22 but never
+`0.7.1` is the current release, published on 2026-09-03; the tree is ahead of it, with
+Sprints 9 and 10 recorded under Unreleased in `CHANGELOG.md` and no version cut for either. `0.7.0` was approved on 2026-08-22 but never
 published anywhere, and was re-cut as `0.7.1` when the pre-launch hardening work made a
 deliberate digest-shifting change (see `CHANGELOG.md`); the `0.7.0` record stays as
 history. The `0.7.x` numbering is not `0.1.0`, and the reason is recorded in

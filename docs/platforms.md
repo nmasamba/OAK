@@ -115,7 +115,7 @@ feasible"; it is not feasible for this release, for four specific reasons:
 
 1. **There are no images to pull.** Every Compose service builds from a local context. A
    cluster cannot build from a local context, so a Kubernetes profile presupposes published
-   images — which `0.7.0` deliberately does not publish (see
+   images — which no Community release publishes, `0.7.1` included (see
    [release-process.md](release-process.md)).
 2. **The API and worker share a filesystem artifact store.** Artifact bytes are
    content-addressed files under `OAK_ARTIFACT_ROOT`; the PostgreSQL JSONB copy is never read

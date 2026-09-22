@@ -133,16 +133,18 @@ The capability gap is keeping a user-supplied provider API key on the user's mac
 writing it to a plain file when the operating system offers a credential store. Two decisions
 were made here, and one dependency was refused.
 
-**No runtime HTTP dependency was added.** The provider adapters speak to six hosted APIs and a
-local OpenAI-compatible server with one bounded request per interpretation, through a single
+**No runtime HTTP dependency was added.** The provider adapters speak to one hosted API —
+Hugging Face Inference Providers, plus the Hub for a token's verification — and a local
+OpenAI-compatible server, with one bounded request per interpretation, through a single
 standard-library `http.client` transport (`oak.adapters.models.transport`) that pins the
 host allowlist, refuses redirects, reads against a total deadline, and consults no proxy —
 `http.client` connects to the host it is given, whereas `urllib.request.urlopen` would read
 `HTTPS_PROXY` and the macOS system proxy and send the request somewhere else entirely. The Sprint 7 argument for the
 remote CLI (`httpx` "remains a development-only dependency") holds unchanged: one bounded
-request per command does not justify enlarging the released closure, and a provider SDK per
-family — six of them — would dominate it while ADR-0009 rejects "one provider SDK
-throughout" in any case.
+request per command does not justify enlarging the released closure, and a provider SDK —
+or an MCP client for Hugging Face's own server, which Sprint 10 considered and rejected for
+the same reason — would dominate it while ADR-0009 rejects "one provider SDK throughout"
+in any case.
 
 **`keyring` 25.7.0 (MIT) is the optional extra `keychain`.** It is the only cross-platform
 way to reach macOS Keychain, the freedesktop Secret Service and the Windows Credential

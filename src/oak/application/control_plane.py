@@ -149,14 +149,14 @@ class CommunityControlPlane:
         return tuple(events)
 
     def resolve_interpreter(self, case_id: str, *, tenant_id: str, interpreter: str) -> str:
-        """``model`` or ``deterministic`` for this case and request; reads only."""
+        """The mode this case and request will run in; reads only."""
 
         service = self._design_for_case(case_id, tenant_id)
         self._verify_case(case_id, service.current().case)
         return service.resolve_interpreter(interpreter)
 
     def interpret(
-        self, case_id: str, context: CommandContext, *, interpreter: str = "auto"
+        self, case_id: str, context: CommandContext, *, interpreter: str = "deterministic"
     ) -> DesignResult:
         service = self._design_for_case(case_id, context.tenant_id)
         self._verify_case(case_id, service.current().case)

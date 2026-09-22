@@ -109,9 +109,9 @@ def _hints() -> str:
 def _adapter(
     transport: _StubTransport,
     *,
-    family: str = "openai",
+    family: str = "huggingface",
     key: str | None = KEY,
-    model_id: str = "gpt-6-astra",
+    model_id: str = "openai/gpt-oss-120b",
     provider_route: str | None = None,
     sleeps: list[float] | None = None,
 ) -> HostedModelInterpreter:
@@ -172,11 +172,11 @@ def test_the_system_prompt_states_the_brief_is_untrusted_and_the_brief_is_delimi
 def test_the_output_token_budget_follows_the_proposal_limits() -> None:
     transport = _StubTransport(_completion(GOOD_ANSWER))
     _adapter(transport).propose(SOURCE_RECORD, b"brief", ProposalLimits(maximum_output_bytes=4_000))
-    assert json.loads(transport.requests[0].body or b"{}")["max_completion_tokens"] == 1_000
+    assert json.loads(transport.requests[0].body or b"{}")["max_tokens"] == 1_000
 
     transport = _StubTransport(_completion(GOOD_ANSWER))
     _adapter(transport).propose(SOURCE_RECORD, b"brief", ProposalLimits(maximum_output_bytes=400))
-    assert json.loads(transport.requests[0].body or b"{}")["max_completion_tokens"] == 256
+    assert json.loads(transport.requests[0].body or b"{}")["max_tokens"] == 256
 
 
 # ----- the credential ---------------------------------------------------------------
@@ -200,7 +200,7 @@ def test_a_missing_key_refuses_before_any_request_where_one_is_required() -> Non
     with pytest.raises(OAKError) as refused:
         _adapter(transport, key=None).propose(SOURCE_RECORD, b"brief", ProposalLimits())
     assert refused.value.code == "OAK-MODEL-KEY-MISSING"
-    assert "oak models set-key openai" in refused.value.message
+    assert "oak models set-key huggingface" in refused.value.message
     assert transport.requests == []
 
 

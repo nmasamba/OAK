@@ -26,7 +26,7 @@ A user-supplied model-provider credential is **machine-local configuration**, no
 - It is stored by an adapter behind a credential port: the operating system keychain where one exists, otherwise an owner-only file, or a reference to a documented environment variable that stores nothing. A missing keychain is reported, never silently downgraded.
 - It is read at the moment of use and not retained on the object that used it.
 - It is reachable only from the local CLI, from loopback REST routes guarded by a per-process capability token, and from the browser workspace those routes serve. It is permanently absent from MCP and from remote CLI mode, because neither is the operator's own machine.
-- Reading or changing a credential is a narrower thing than causing one to be spent, and the two are separated deliberately. An MCP client cannot store, read, remove or select a credential at all; it can ask for a model-mode interpretation, which spends whichever credential the operator already configured. That is the operator's own decision to have made, it is audited with the family, model and proposal digest, and it defaults to off: an MCP client that says nothing gets the deterministic interpreter.
+- Reading or changing a credential is a narrower thing than causing one to be spent, and the two are separated deliberately. An MCP client cannot store, read, remove or select a credential at all; it can ask for an `online` or `local` interpretation, which spends whichever credential the operator already configured. That is the operator's own decision to have made, it is audited with the family, model and proposal digest, and it defaults to off: an MCP client that says nothing gets the deterministic interpreter.
 - Target-secret resolution is unchanged and stays outside the control plane entirely. This ADR grants no authority over it.
 
 ## Alternatives
@@ -41,6 +41,8 @@ A user-supplied model-provider credential is **machine-local configuration**, no
 A stored key is readable by anything running as that user, and usable by anything that can reach the loopback port and read the token file. That is recorded as `RR-040` rather than mitigated, because the threat model for a local single-user tool does not include a same-user attacker. Backups must exclude the credential directory, which the operations guide states and the Compose volume layout makes practical. The capability token adds a second, separate control so that a web page cannot use the loopback routes even if it reaches them, and the token is per process so a restart revokes it.
 
 Sending a brief to a configured provider is a real data egress and is recorded as `RR-039`. It is opt-in, auditable, and absent from the deterministic path.
+
+Sprint 10 added a corroboration step that stays inside this decision: storing the Hugging Face token asks the Hub's `whoami-v2` whether it is accepted — one request carrying the token in a header and generating nothing — and records the verdict with the time it was given. The verdict is machine-local configuration like the rest: it holds no key material, no account name and no email, it is shown with its age and stale after a day (`RR-042`), and it is forgotten when the key changes.
 
 ## Revisit triggers
 

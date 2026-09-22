@@ -185,10 +185,16 @@ def test_web_side_environment_variables_are_documented_too() -> None:
 
 
 def test_documents_that_quote_the_residual_risk_count_agree_with_the_register() -> None:
-    """Six documents quote this number and it drifted three times in one sprint.
+    """Live documents quote this number and it drifted three times in one sprint.
 
-    A count restated by hand in four places is a fact with four chances to be wrong.
+    A count restated by hand in several places is a fact with several chances to be wrong.
     Pinning it is cheaper than noticing.
+
+    A **signed release record is not a live document**: it describes the register the
+    approvers actually signed. This gate used to rewrite those records too, so the copies in
+    this tree said 42 while the published `v0.7.1` artefacts said 38 — a signed record
+    restating today's number describes a release nobody approved. They are excluded here and
+    say at signature beside their own count instead.
     """
 
     register = (ROOT / "docs" / "security" / "residual-risk.md").read_text(encoding="utf-8")
@@ -201,8 +207,6 @@ def test_documents_that_quote_the_residual_risk_count_agree_with_the_register() 
     for relative in (
         "STATUS.md",
         "CHANGELOG.md",
-        "docs/release/0.7.0/release-decision.md",
-        "docs/release/0.7.1/release-decision.md",
         "docs/security/residual-risk.md",
         "docs/exec-plans/completed/OAK-S8-001-009-community-release-hardening.md",
     ):
@@ -214,3 +218,21 @@ def test_documents_that_quote_the_residual_risk_count_agree_with_the_register() 
                 wrong.append(f"{relative} says {quoted}, register has {entries}")
 
     assert not wrong, wrong
+
+
+def test_a_signed_release_record_keeps_the_count_it_was_signed_with() -> None:
+    """The published `v0.7.1` artefacts say 38. These copies must say the same.
+
+    Not merely "not the live count": the number the approvers signed, marked as such, so a
+    reader comparing the published record with this tree finds them identical.
+    """
+
+    for relative in (
+        "docs/release/0.7.0/release-decision.md",
+        "docs/release/0.7.1/release-decision.md",
+    ):
+        text = (ROOT / relative).read_text(encoding="utf-8")
+        quoted = re.findall(r"(\d+) (?:stable-id entries|entries with stable ids)", text)
+        assert quoted, f"{relative} no longer quotes a register count"
+        assert set(quoted) == {"38"}, f"{relative} quotes {quoted}, not the signed 38"
+        assert "at signature" in text, f"{relative} does not say the count is the signed one"

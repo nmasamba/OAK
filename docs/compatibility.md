@@ -65,7 +65,14 @@ mechanical migration; **breaking** otherwise.
   `interpretation-proposal.schema.json`, and the `interpretation_proposal` artifact kind
   to `workspace-manifest.schema.json`. Documents from the deterministic path carry none
   of them, so a 0.7.1 reader still validates every export from a workspace that never
-  used the model path; an export from a workspace that did cannot be imported by 0.7.1.
+  used the model path; an export from a workspace that did cannot be imported by the
+  published `0.7.1`.
+- `model-configuration.schema.json` (Sprint 9) has never been published, so Sprint 10
+  changed it in place at `0.1.0`: the `family` enum shrank to `huggingface` and `local`,
+  `selection` became one entry per family, `verification` was added, and provider routes
+  gained `is_free` and `throughput`. A file written by the unreleased Sprint 9 build is
+  upgraded on load; a file written by Sprint 10 does not load on that build. The document
+  is machine-local and never exported, so no stored canonical object is affected.
 
 ## REST and OpenAPI
 
@@ -76,7 +83,13 @@ mechanical migration; **breaking** otherwise.
   changes. Additive paths, operations, optional properties, and schemas pass.
 - A breaking REST change therefore requires a deliberate baseline reset
   (`--write-baseline`) in the same change, a changelog entry, and — from `0.7.0` — a
-  deprecation period of at least one minor release in which the old behavior still
+  deprecation period of at least one minor release
+- The Sprint 9 `/v1/models` routes are absent from
+  `openapi/oak.compatibility-baseline.json` because they have never been released. Sprint 10
+  reshaped them freely — `DELETE /v1/models/selection` became
+  `DELETE /v1/models/selection/{family}`, and `GET /v1/models` returns `modes` and
+  `selections` in place of `configured` and `selection` — and they carry no compatibility
+  debt until `0.8.0`, exactly as `oak models` does below in which the old behavior still
   works and is marked deprecated in the OpenAPI description.
 - Error contracts are part of the surface: problem-details field names, stable
   `OAK-*` error codes, and status-code mappings may gain new codes freely, but an
@@ -84,8 +97,9 @@ mechanical migration; **breaking** otherwise.
 - Headers (`Idempotency-Key`, `If-Match`, `X-Correlation-ID`, `X-OAK-Actor`,
   `X-OAK-Tenant`) and their bounds are stable; tightening a bound is breaking.
   `X-OAK-Model-Token` (Sprint 9) is required only on the model-configuration routes it was
-  introduced with and on `:interpret` when the configured model is used; it is never a
-  required parameter of a pre-existing operation.
+  introduced with and on `:interpret` when the request asks for `online` or `local`; it is
+  never a required parameter of a pre-existing operation, and an `:interpret` that names no
+  interpreter never needs it.
 - The loopback guard (Sprint 9) — `Host` allowlist, `Origin` and `Sec-Fetch-Site` checks —
   runs as middleware before routing. It adds no parameter to the OpenAPI contract and is
   therefore outside this baseline; its behaviour is documented in
@@ -106,11 +120,12 @@ mechanical migration; **breaking** otherwise.
 - Local mode and remote mode (`--server`) promise the same stable output and exit
   semantics; a command that cannot honor that in remote mode refuses with
   `OAK-REMOTE-UNSUPPORTED` rather than approximating.
-- `oak design --interpreter auto|model|deterministic` (Sprint 9) defaults to `auto`,
-  which yields the previous deterministic output whenever no model is configured or the
-  brief is structured. `oak questions` prints five open questions per round and counts
-  the rest; the `--output json` document is unchanged and lists every persisted
-  question.
+- `oak design --interpreter deterministic|online|local` (Sprint 10, replacing Sprint 9's
+  unreleased `auto|model|deterministic`) defaults to `deterministic`, which yields the
+  `0.7.1` output for every brief. `oak questions` prints five open questions per round and
+  counts the rest; the `--output json` document is unchanged and lists every persisted
+  question. `oak models` (Sprint 9, reshaped in Sprint 10) is unreleased and carries no
+  compatibility debt until `0.8.0`.
 
 ## MCP
 
@@ -130,10 +145,10 @@ mechanical migration; **breaking** otherwise.
   (currently `2025-06-18` and `2025-03-26`). Dropping a revision is breaking; adding
   one is compatible. Unsupported client revisions negotiate down to the newest
   supported revision rather than failing the handshake.
-- `oak_design_case_interpret` gained the optional `interpreter` argument
-  (`deterministic` | `model`) in Sprint 9. Its default is deterministic, so a client
-  written against the previous registry gets exactly the previous behaviour; the model
-  is spent only when a client opts in.
+- `oak_design_case_interpret` gained the optional `interpreter` argument in Sprint 9;
+  Sprint 10 closed it to `deterministic` | `online` | `local`. Its default is
+  deterministic, so a client written against the previous registry gets exactly the
+  previous behaviour; a model is called only when a client opts in.
 
 ## Runner protocol
 

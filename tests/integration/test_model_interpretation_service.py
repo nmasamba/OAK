@@ -3,7 +3,8 @@
 
 What is pinned: the model path commits intent, proposal, event and case in one mutation
 and only when it ran; a request for the model with no adapter, or a provider failure,
-commits nothing; ``auto`` uses the model only for a prose brief; the deterministic path
+commits nothing; the default is deterministic and ``online``/``local`` must be asked for; the
+deterministic path
 carries no model-specific key anywhere; every model-proposed value keeps the case in
 confirmation until it is confirmed, corrected or rejected; two rounds of five answers reach
 ``ready_for_candidates``.
@@ -55,7 +56,11 @@ def _context(key: str, expected: str | None, occurred_at: str) -> CommandContext
 
 
 def _service(
-    workspace: Path, adapter: ModelInterpreterPort | None, *, with_factory: bool = True
+    workspace: Path,
+    adapter: ModelInterpreterPort | None,
+    *,
+    with_factory: bool = True,
+    factory: Any = None,
 ) -> DesignCaseService:
     repository = FileWorkspaceRepository(workspace, REGISTRY)
     service = DesignCaseService(
@@ -63,7 +68,9 @@ def _service(
         LocalBriefIntake(),
         DeterministicBriefInterpreter(),
         REGISTRY,
-        model_interpreter_factory=model_factory(adapter) if with_factory else None,
+        model_interpreter_factory=(
+            (factory if factory is not None else model_factory(adapter)) if with_factory else None
+        ),
     )
     service.initialize(workspace_id="workspace.model-path", tenant_id="local", created_at=T0)
     return service
@@ -115,9 +122,11 @@ def test_the_model_path_commits_intent_proposal_event_and_case_in_one_mutation(
     adapter = BindingFakeModelInterpreter()
     service = _service(tmp_path / "ws", adapter)
 
-    result = service.design(PROSE, _context("design-prose-model-0001", None, T0))
+    result = service.design(
+        PROSE, _context("design-prose-model-0001", None, T0), interpreter="online"
+    )
 
-    assert result.interpreter == "model"
+    assert result.interpreter == "online"
     assert result.case["status"] == "needs_confirmation"
     assert result.case["version"] == "0.1.1"
     assert result.intent is not None
@@ -167,6 +176,7 @@ def test_the_model_path_commits_intent_proposal_event_and_case_in_one_mutation(
     assert event["extensions"] == {
         INTERPRETER: {
             "kind": "model",
+            "mode": "online",
             "family": "huggingface",
             "model_id": "openai/gpt-oss-120b",
             "provider_route": "fake",
@@ -199,9 +209,11 @@ def test_the_model_path_commits_intent_proposal_event_and_case_in_one_mutation(
     }
     REGISTRY.validate("design-case.schema.json", result.case)
 
-    retry = service.design(PROSE, _context("design-prose-model-0001", None, T0))
+    retry = service.design(
+        PROSE, _context("design-prose-model-0001", None, T0), interpreter="online"
+    )
     assert retry.duplicate is True
-    assert retry.interpreter == "model"
+    assert retry.interpreter == "online"
     assert retry.case == result.case
     assert len(adapter.calls) == 1
 
@@ -214,19 +226,23 @@ def test_requesting_the_model_without_an_adapter_commits_nothing(tmp_path: Path)
         workspace = tmp_path / ("a" if label == "no-factory" else "b")
         with pytest.raises(OAKError) as refused:
             service.design(
-                PROSE, _context("design-prose-model-0002", None, T0), interpreter="model"
+                PROSE, _context("design-prose-model-0002", None, T0), interpreter="online"
             )
         assert refused.value.code == "OAK-MODEL-NOT-CONFIGURED", label
-        assert "oak models select" in refused.value.message
+        assert "oak models set-key" in refused.value.message
         # The create step committed; the interpret step did not.
         assert service.current().case["status"] == "draft", label
         assert service.current().case["version"] == "0.1.0", label
         before = _manifest(workspace)
         with pytest.raises(OAKError) as again:
-            service.interpret(_context("interpret-model-0002", "0.1.0", T1), interpreter="model")
+            service.interpret(_context("interpret-model-0002", "0.1.0", T1), interpreter="online")
         assert again.value.code == "OAK-MODEL-NOT-CONFIGURED", label
         assert _manifest(workspace) == before, label
-        # auto falls back to the deterministic interpreter for the same case.
+        with pytest.raises(OAKError) as local:
+            service.interpret(_context("interpret-local-0002", "0.1.0", T1), interpreter="local")
+        assert local.value.code == "OAK-MODEL-NOT-CONFIGURED", label
+        assert "oak models select local" in local.value.message, label
+        # The default stays deterministic for the same case; nothing had to be asked.
         result = service.interpret(_context("interpret-auto-0002", "0.1.0", T1))
         assert result.interpreter == "deterministic", label
         assert result.intent is not None
@@ -236,7 +252,7 @@ def test_requesting_the_model_without_an_adapter_commits_nothing(tmp_path: Path)
 def test_a_provider_failure_commits_nothing(tmp_path: Path) -> None:
     service = _service(tmp_path / "ws", BindingFakeModelInterpreter(unavailable=True))
     with pytest.raises(OAKError) as failed:
-        service.design(PROSE, _context("design-prose-model-0003", None, T0))
+        service.design(PROSE, _context("design-prose-model-0003", None, T0), interpreter="online")
     assert failed.value.code == "OAK-INTERPRETER-UNAVAILABLE"
     assert failed.value.retriable is True
     manifest = _manifest(tmp_path / "ws")
@@ -246,33 +262,72 @@ def test_a_provider_failure_commits_nothing(tmp_path: Path) -> None:
     assert service.current().case["status"] == "draft"
 
 
-def test_auto_uses_the_model_only_for_a_prose_brief(tmp_path: Path) -> None:
+def test_the_default_is_deterministic_and_a_model_mode_must_be_asked_for(tmp_path: Path) -> None:
     adapter = BindingFakeModelInterpreter()
     structured = _service(tmp_path / "structured", adapter)
-    result = structured.design(STRUCTURED, _context("design-structured-auto-0004", None, T0))
+    result = structured.design(STRUCTURED, _context("design-structured-default-0004", None, T0))
     assert result.interpreter == "deterministic"
     assert adapter.calls == []
     assert result.intent is not None
     assert PROPOSAL_REF not in result.intent["extensions"]
 
+    # A prose brief with a model available is still deterministic unless asked: nothing is
+    # spent on a request that did not choose to spend it.
     prose = _service(tmp_path / "prose", adapter)
-    assert prose.design(PROSE, _context("design-prose-auto-0004", None, T0)).interpreter == (
-        "model"
+    assert prose.design(PROSE, _context("design-prose-default-0004", None, T0)).interpreter == (
+        "deterministic"
     )
-    assert len(adapter.calls) == 1
+    assert adapter.calls == []
 
     explicit = _service(tmp_path / "explicit", adapter)
     forced = explicit.design(
-        STRUCTURED, _context("design-structured-model-0004", None, T0), interpreter="model"
+        STRUCTURED, _context("design-structured-online-0004", None, T0), interpreter="online"
     )
-    assert forced.interpreter == "model"
-    assert len(adapter.calls) == 2
+    assert forced.interpreter == "online"
+    assert len(adapter.calls) == 1
     assert forced.intent is not None
     # Every explicit brief value survived; only genuinely unstated fields were proposed.
     assert forced.intent["provenance"]["/spec/hardware/ram_gib"]["source"] == "explicit"
     assert forced.intent["provenance"]["/spec/stakeholders/accountable_owner"]["source"] == (
         "model_proposed"
     )
+
+
+def test_the_factory_is_asked_for_the_mode_the_caller_chose(tmp_path: Path) -> None:
+    """``online`` and ``local`` are different adapters; the service says which it wants."""
+
+    asked: list[str] = []
+    online_adapter = BindingFakeModelInterpreter()
+    local_adapter = BindingFakeModelInterpreter(
+        extensions={
+            "oak.community/model": {
+                "family": "local",
+                "model_id": "qwen3:8b",
+                "provider_route": None,
+            }
+        }
+    )
+
+    def factory(mode: str) -> ModelInterpreterPort | None:
+        asked.append(mode)
+        return local_adapter if mode == "local" else online_adapter
+
+    service = _service(tmp_path / "local", None, factory=factory)
+    result = service.design(
+        PROSE, _context("design-prose-local-0012", None, T0), interpreter="local"
+    )
+
+    assert asked == ["local"]
+    assert result.interpreter == "local"
+    assert local_adapter.calls and online_adapter.calls == []
+    event = _events(tmp_path / "local")[1]
+    assert event["extensions"][INTERPRETER]["mode"] == "local"
+    assert event["extensions"][INTERPRETER]["family"] == "local"
+    # A retry of the same request reports the mode it ran in, read back from the proposal.
+    retry = service.design(
+        PROSE, _context("design-prose-local-0012", None, T0), interpreter="local"
+    )
+    assert retry.duplicate is True and retry.interpreter == "local"
 
 
 def test_the_deterministic_path_is_identical_with_or_without_a_configured_model(
@@ -320,7 +375,9 @@ def test_model_values_keep_the_case_in_confirmation_until_two_rounds_resolve_the
         LocalTargetProfile(REGISTRY),
         REGISTRY,
     )
-    designed = service.design(PROSE, _context("design-prose-rounds-0007", None, T0))
+    designed = service.design(
+        PROSE, _context("design-prose-rounds-0007", None, T0), interpreter="online"
+    )
     case_id = str(designed.case["id"])
     assert designed.intent is not None
     intent = designed.intent
@@ -419,7 +476,9 @@ def test_model_values_keep_the_case_in_confirmation_until_two_rounds_resolve_the
 
 def test_rejecting_a_section_question_drops_only_the_model_values(tmp_path: Path) -> None:
     service = _service(tmp_path / "ws", BindingFakeModelInterpreter())
-    designed = service.design(PROSE, _context("design-prose-reject-0008", None, T0))
+    designed = service.design(
+        PROSE, _context("design-prose-reject-0008", None, T0), interpreter="online"
+    )
     case_id = str(designed.case["id"])
     assert designed.intent is not None
     before = copy.deepcopy(designed.intent)
@@ -491,7 +550,9 @@ def test_rejecting_a_section_keeps_what_the_brief_itself_stated(tmp_path: Path) 
 
 def test_rejecting_a_section_removes_the_model_and_derived_values_only(tmp_path: Path) -> None:
     service = _service(tmp_path / "ws", BindingFakeModelInterpreter())
-    designed = service.design(PROSE, _context("design-reject-mixed-0011", None, T0))
+    designed = service.design(
+        PROSE, _context("design-reject-mixed-0011", None, T0), interpreter="online"
+    )
     assert designed.intent is not None
     assert designed.intent["spec"]["data"]["classifications"] == ["internal"]
     assert designed.intent["provenance"]["/spec/data/classifications/0"]["source"] == (

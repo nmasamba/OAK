@@ -6,7 +6,10 @@ import {
   getModels,
   listDesignCases,
   type JsonObject,
+  type ModelStatusResponse,
 } from "../generated/api";
+import { rememberInterpretMode } from "../interpretMode";
+import { ModeSelect, type InterpretMode } from "../ModeSelect";
 import { currentModelToken } from "../modelToken";
 import { ProblemAlert, toActionFailure, type ActionFailure } from "../problems";
 import { Link, useRouter } from "../router";
@@ -28,11 +31,12 @@ export function CaseListPage() {
     null,
   );
 
-  // What the workspace can say about interpretation without a token is nothing, so this
-  // distinguishes "deterministic" from "unknown" rather than guessing.
-  const [interpreter, setInterpreter] = useState<
-    "model" | "deterministic" | null
-  >(null);
+  // The three ways a brief can be read. What the status document says about each needs
+  // the capability token; without it the dropdown still shows the choice and says why the
+  // model modes are not available here.
+  const [mode, setMode] = useState<InterpretMode>("deterministic");
+  const [models, setModels] = useState<ModelStatusResponse | null>(null);
+  const tokenPresent = currentModelToken() !== null;
 
   useEffect(() => {
     const token = currentModelToken();
@@ -40,10 +44,8 @@ export function CaseListPage() {
       return;
     }
     getModels(token)
-      .then((status) =>
-        setInterpreter(status.selection === null ? "deterministic" : "model"),
-      )
-      .catch(() => setInterpreter(null));
+      .then((status) => setModels(status))
+      .catch(() => setModels(null));
   }, []);
 
   const load = () => {
@@ -68,6 +70,7 @@ export function CaseListPage() {
       .then((response) => {
         const caseId = asString(response.case["id"]);
         if (caseId !== null) {
+          rememberInterpretMode(caseId, mode);
           navigate(`/cases/${encodeURIComponent(caseId)}`);
         }
       })
@@ -137,12 +140,16 @@ export function CaseListPage() {
         <p className="hint">
           Write it the way you would explain it to a colleague. OAK turns it
           into a typed intent with a source recorded for every value, and asks
-          you to confirm anything it had to propose.{" "}
-          {interpreter === "model"
-            ? "A model is configured, so it will read this brief."
-            : "No model is configured, so this is interpreted deterministically — which maps only what a brief states outright."}{" "}
-          <Link to="/settings/models">Model settings</Link>
+          you to confirm anything it had to propose. Choose below how it is
+          read; the choice is made again on the case page before anything runs.
         </p>
+        <ModeSelect
+          id="brief-mode"
+          value={mode}
+          onChange={setMode}
+          status={models}
+          tokenPresent={tokenPresent}
+        />
         <div className="field">
           <label htmlFor="brief-structured">
             <input
