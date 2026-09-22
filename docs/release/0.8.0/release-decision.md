@@ -128,7 +128,9 @@ the manifest; they do not prove who produced them, and these artifacts are unsig
 
 ## The tag, and what it does not mean
 
-`v0.8.0` points at the merge commit that carries everything above. It was cut because the
+`v0.8.0` points at the merge commit of the pull request that cut this release — the one
+carrying the version touch-list, the evidence and this record — not at the Sprint 10 merge
+(`052211e`), which predates all three. It was cut because the
 owner asked for it on 2026-09-22, having been told the approval rows were empty. Recording
 that plainly is the point: a reader comparing this tree with the record should find the
 tag present and the signatures absent, and should not read one as standing in for the
