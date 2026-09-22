@@ -93,14 +93,14 @@ What does exist, and is checkable:
 ## Scanning
 
 `make audit` runs `pip-audit` over the Python dependency closure and `pnpm audit` over the
-web one. Both were re-run clean at `0.7.1`.
+web one. Both were re-run clean at `0.8.0`.
 
 `make scan-images` scans the API and web images with a pinned scanner and **fails on any
-fixable CRITICAL or HIGH finding**. For `0.7.1` the web image reports no findings at any
-severity and the API image carries 3 CRITICAL and 14 HIGH with **no vendor fix
-available** — `perl-base`, inherited from the Python base image, accounts for all three
-CRITICALs. Full record in
-[docs/release/0.7.1/container-scan.md](docs/release/0.7.1/container-scan.md); residue
+fixable CRITICAL or HIGH finding**. For `0.8.0` the web image reports no findings at any
+severity and the API image carries no CRITICAL findings and 44 HIGH with **no vendor fix
+available**. Those 44 are eight distinct advisories: four against `util-linux`, counted
+once for each of the nine packages Debian builds from it. Full record in
+[docs/release/0.8.0/container-scan.md](docs/release/0.8.0/container-scan.md); residue
 tracked as `RR-036`.
 
 ## Supported versions

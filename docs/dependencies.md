@@ -188,8 +188,8 @@ runtime paths — and pinned by tag plus immutable digest, with the pin guarded 
 publisher already maintains. The publisher changes from the Docker Official Images
 programme to the `nginxinc` organisation — the upstream NGINX maintainers themselves —
 and the image lags Alpine's patch stream exactly as the official one did, so the
-`apk upgrade` layer and the scan gate carry over unchanged. The `0.7.1` scan reports no
-findings at any severity for the rebuilt image. Rollback is restoring the previous `FROM`
+`apk upgrade` layer and the scan gate carry over unchanged. The `0.8.0` scan reports no
+findings at any severity for the rebuilt image, as `0.7.1` did. Rollback is restoring the previous `FROM`
 line and its pin.
 
 **pnpm-managed Node.js runtime.** The capability gap was `RR-034`: nothing made the Node
@@ -228,9 +228,9 @@ would make the gate's verdict depend on when it ran.
 
 The scanner's own vulnerability database is fetched at run time and is not pinned; that is
 inherent to vulnerability scanning and is why the scan is a release step rather than part
-of `make check`, which must work offline. Results for `0.7.1` are recorded in
-`docs/release/0.7.1/container-scan.md`; the superseded `0.7.0` record remains at
-`docs/release/0.7.0/container-scan.md`.
+of `make check`, which must work offline. Results for `0.8.0` are recorded in
+`docs/release/0.8.0/container-scan.md`; the superseded `0.7.1` and `0.7.0` records remain at
+`docs/release/0.7.1/container-scan.md` and `docs/release/0.7.0/container-scan.md`.
 
 ### 2026-08-21 jsonschema `format` extra removed
 

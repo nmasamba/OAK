@@ -40,9 +40,10 @@ queued forever with no error.
 
 The images apply their distribution's security updates at build time, so **rebuilding
 picks up patches**. `make scan-images` reports what a build currently carries. As of
-`0.7.1` the web image reports no findings at any severity and the API image has 3 CRITICAL
-and 13 HIGH with no vendor fix available
-([container-scan.md](release/0.7.1/container-scan.md)).
+`0.8.0` the web image reports no findings at any severity and the API image has no
+CRITICAL findings and 44 HIGH with no vendor fix available — eight distinct advisories, most
+of them counted once per package Debian builds from one source
+([container-scan.md](release/0.8.0/container-scan.md)).
 
 Verify the release artifacts you downloaded before installing them — see
 [release-process.md](release-process.md#verifying-a-release). Remember that OAK

@@ -1,0 +1,111 @@
+{
+  "artifact_version": "0.8.0",
+  "fixable_total": 0,
+  "images": {
+    "api": {
+      "counts": {
+        "CRITICAL": 0,
+        "HIGH": 44,
+        "LOW": 58,
+        "MEDIUM": 53,
+        "UNKNOWN": 2
+      },
+      "fixable": [],
+      "tag": "oak-community/api:0.8.0",
+      "unfixable": {
+        "bsdutils": [
+          "HIGH CVE-2026-76642",
+          "HIGH CVE-2026-78408",
+          "HIGH CVE-2026-78409",
+          "HIGH CVE-2026-78410"
+        ],
+        "libacl1": [
+          "HIGH CVE-2026-54369"
+        ],
+        "libblkid1": [
+          "HIGH CVE-2026-76642",
+          "HIGH CVE-2026-78408",
+          "HIGH CVE-2026-78409",
+          "HIGH CVE-2026-78410"
+        ],
+        "liblastlog2-2": [
+          "HIGH CVE-2026-76642",
+          "HIGH CVE-2026-78408",
+          "HIGH CVE-2026-78409",
+          "HIGH CVE-2026-78410"
+        ],
+        "libmount1": [
+          "HIGH CVE-2026-76642",
+          "HIGH CVE-2026-78408",
+          "HIGH CVE-2026-78409",
+          "HIGH CVE-2026-78410"
+        ],
+        "libncursesw6": [
+          "HIGH CVE-2025-69720"
+        ],
+        "libsmartcols1": [
+          "HIGH CVE-2026-76642",
+          "HIGH CVE-2026-78408",
+          "HIGH CVE-2026-78409",
+          "HIGH CVE-2026-78410"
+        ],
+        "libsystemd0": [
+          "HIGH CVE-2026-16742"
+        ],
+        "libtinfo6": [
+          "HIGH CVE-2025-69720"
+        ],
+        "libudev1": [
+          "HIGH CVE-2026-16742"
+        ],
+        "libuuid1": [
+          "HIGH CVE-2026-76642",
+          "HIGH CVE-2026-78408",
+          "HIGH CVE-2026-78409",
+          "HIGH CVE-2026-78410"
+        ],
+        "login": [
+          "HIGH CVE-2026-76642",
+          "HIGH CVE-2026-78408",
+          "HIGH CVE-2026-78409",
+          "HIGH CVE-2026-78410"
+        ],
+        "mount": [
+          "HIGH CVE-2026-76642",
+          "HIGH CVE-2026-78408",
+          "HIGH CVE-2026-78409",
+          "HIGH CVE-2026-78410"
+        ],
+        "ncurses-base": [
+          "HIGH CVE-2025-69720"
+        ],
+        "ncurses-bin": [
+          "HIGH CVE-2025-69720"
+        ],
+        "perl-base": [
+          "HIGH CVE-2026-9538"
+        ],
+        "util-linux": [
+          "HIGH CVE-2026-76642",
+          "HIGH CVE-2026-78408",
+          "HIGH CVE-2026-78409",
+          "HIGH CVE-2026-78410"
+        ]
+      }
+    },
+    "web": {
+      "counts": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "LOW": 0,
+        "MEDIUM": 0,
+        "UNKNOWN": 0
+      },
+      "fixable": [],
+      "tag": "oak-community/web:0.8.0",
+      "unfixable": {}
+    }
+  },
+  "platform": "linux/amd64",
+  "scanner": "aquasec/trivy:0.74.0"
+}
