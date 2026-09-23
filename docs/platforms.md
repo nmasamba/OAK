@@ -28,8 +28,12 @@ the build images so the host needs none of them.
 
 ## Platform matrix
 
-"Verified" means the path was actually exercised on that platform during the `0.7.0` release
-rehearsal, with the evidence in [release/0.7.0/clean-room.md](release/0.7.0/clean-room.md).
+"Verified" means the path was actually exercised on that platform during a release
+rehearsal. The current evidence is the `0.8.0` rehearsal
+([release/0.8.0/clean-room.md](release/0.8.0/clean-room.md)), which re-ran both verified
+paths: the CLI journey inside a linux/amd64 image, and the Compose control plane on macOS
+arm64 through a full backup-and-restore. The `0.7.0` rehearsal
+([release/0.7.0/clean-room.md](release/0.7.0/clean-room.md)) is kept as the earlier record.
 "Expected" means every dependency publishes a wheel or image for the platform but nobody ran
 it end to end; treat it as unsupported until someone does and records it. A row is downgraded
 to "Expected" rather than argued up — the Linux x86_64 control-plane row is Expected because
