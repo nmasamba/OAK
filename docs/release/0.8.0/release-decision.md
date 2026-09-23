@@ -73,7 +73,7 @@ is new and machine-local. No reference digest moved.
 | Are the dependency closures clean? | **Yes.** `make audit` at the release commit: `pip-audit` and `pnpm audit` both report no known vulnerabilities. The same command ran clean in CI on the Sprint 10 merge |
 | Did the model path work against the real provider? | **Yes**, on 2026-09-22 with the owner's own Hugging Face token: verification, discovery and one online interpretation that spent real credit, recorded under `## Live run` in [the Sprint 10 plan](../../exec-plans/completed/OAK-S10-001-008-huggingface-only-modes.md). It failed twice first, and both failures were product defects that are fixed |
 | How fast is it? | Inherited from `0.7.0` ([performance.md](../../performance.md)); the deterministic compile path is unchanged and figures were not re-measured |
-| Was a clean-room rehearsal re-run? | **No** — inherited from `0.7.0` ([../0.7.0/clean-room.md](../0.7.0/clean-room.md)). The install path is unchanged: no packaged data moved, no entry point changed, and the model seat is an optional import the deterministic journey never loads. An approver who weighs the rehearsal heavily may ask for a re-run |
+| Was a clean-room rehearsal re-run? | **Not at signature** — inherited from `0.7.0` ([../0.7.0/clean-room.md](../0.7.0/clean-room.md)) on the grounds that the install path is unchanged: no packaged data moved, no entry point changed, and the model seat is an optional import the deterministic journey never loads. The owner asked for it the day after signing, and it was run in full — see [clean-room.md](clean-room.md) and "After approval" below |
 | What does it *not* defend against? | [security/residual-risk.md](../../security/residual-risk.md) — 42 entries with stable ids at signature, of which eight rows are closed; `RR-039` to `RR-042` are new since the `0.7.1` signatures |
 | Was it externally reviewed? | **No.** No external security review was commissioned; two internal adversarial audits (Sprint 9 and Sprint 10) are recorded in their ExecPlans, and the wording restrictions recorded in the [`0.7.0` decision](../0.7.0/release-decision.md#external-review) apply unchanged |
 
@@ -130,6 +130,43 @@ artifacts an approval would be approving; nothing here has been uploaded anywher
 `make verify-release` checks these against `SHA256SUMS`. Checksums prove the bytes match
 the manifest; they do not prove who produced them, and these artifacts are unsigned
 (`RR-005`).
+
+## After approval: the clean-room rehearsal was re-run
+
+The evidence table above says the clean-room rehearsal was **inherited** from `0.7.0` rather
+than re-run, and the approval rows were signed with it reading that way. That row is left as
+it was signed. This section records what happened next.
+
+On 2026-09-23, after signing, the owner asked for the rehearsal. It was run in full and is
+recorded in [clean-room.md](clean-room.md): the gate offline with the network refused, the
+release build offline, both artifact-verification refusal paths, the documented journey
+inside a linux/amd64 image, and the backup-and-restore procedure run verbatim with all three
+volumes destroyed.
+
+It found three things, none of which changes what was approved:
+
+1. **`make web-e2e` was not re-runnable against a live stack.** One spec filled a constant
+   brief file name, so its second run collided with its own leftover case and died on a
+   two-minute timeout that named a missing button rather than the conflict. The workspace
+   itself behaved correctly, refusing with `OAK-EXPECTED-VERSION` and a correlation id. The
+   spec now timestamps its slug like every other spec in that directory.
+2. **`scripts/verify_deployment.py` cannot return 0 on a development database** that has
+   been shared with the PostgreSQL-gated test suites, because those suites leave
+   `artifact_versions` rows whose bytes lived in temporary directories. After a faithful
+   restore the tool still reports damage. The runbook now says so and says how to tell that
+   apart from a genuinely broken backup.
+3. **The runtime image ships no `examples/`**, so a journey run inside it needs the brief
+   mounted in.
+4. **The backup procedure writes its two files into the repository root, and neither was
+   ignored.** Following the runbook verbatim put a 5.5 MB dump of a live control-plane
+   database where the next `git add -A` would stage it. It was caught before it left the
+   machine; both filenames are now ignored.
+
+None is treated as a release blocker: the first is a test-isolation defect in the
+repository's own suite, the second a reporting ambiguity on development machines only, the
+third a deliberate omission from a runtime image, and the fourth a hygiene gap now closed.
+None touches the artifacts this approval covers. A future release can
+therefore answer the rehearsal row with **yes** and cite this run.
 
 ## The tag, and when it was cut
 
