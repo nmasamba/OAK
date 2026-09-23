@@ -125,6 +125,11 @@ test.describe("model settings", () => {
     page,
   }) => {
     requireStack();
+    // The case id derives from the brief file name, so a constant one collides with the
+    // case this test left behind last time and the create fails with OAK-EXPECTED-VERSION.
+    // Every other spec here timestamps its slug; this one did not, so `make web-e2e` was
+    // green only against a fresh database.
+    const slug = `web-e2e-modes-${Date.now()}`;
     const token = api("oak models token").trim();
     api("oak models select local qwen3:8b");
     const interpretRequests: string[] = [];
@@ -138,7 +143,7 @@ test.describe("model settings", () => {
     await page.goto("/");
     const chooser = page.getByLabel("How should this brief be read?");
     await chooser.selectOption("local");
-    await page.getByLabel("Brief file name").fill("brief.md");
+    await page.getByLabel("Brief file name").fill(`${slug}.md`);
     await page
       .getByLabel("Brief content")
       .fill(

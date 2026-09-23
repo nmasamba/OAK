@@ -225,6 +225,32 @@ objects and same-length-different-content substitution.
 a failed restore, not a clean one, so the tool treats an empty index as a failure and says
 so loudly. Pass `--allow-empty` only when you genuinely expect nothing — a fresh install.
 
+> **On a development machine, expect false alarms, and know how to read them.** The tool
+> walks *every* row of `artifact_versions`. If this database has ever been the target of
+> `OAK_TEST_DATABASE_URL` — which is how the PostgreSQL-gated suites are meant to be run —
+> it also holds rows those suites wrote while keeping the bytes in per-test temporary
+> directories that no longer exist. Those rows can never verify, so the tool reports
+> "the metadata and the artifact bytes are not from the same backup, or one of them is
+> damaged" on a restore that was in fact perfect. The `0.8.0` rehearsal hit exactly this:
+> 137 of 1,118 referenced digests were already missing *before* the backup was taken,
+> accounting for 5,766 of 8,389 rows.
+>
+> Tell the two apart before you distrust a backup:
+>
+> ```bash
+> # Was the shortfall already there? Count objects in the archive you restored from.
+> tar tzf oak-artifacts.tar.gz | grep -c sha256/
+> # ...against the distinct digests the database references.
+> docker compose exec -T postgres psql -U oak -d oak -tAc \
+>   "select count(distinct digest) from artifact_versions"
+> ```
+>
+> If the archive already held fewer objects than the database references, the restore is
+> faithful and the orphans predate it. If the counts agree but verification still fails, you
+> have a real problem: the two stores are from different points in time, or one is damaged.
+> A production deployment, whose database no test ever wrote to, has no orphans and the
+> tool's verdict is unambiguous.
+
 ---
 
 ## Upgrade

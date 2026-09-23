@@ -163,3 +163,10 @@ sbom/
 *.keystore
 kubeconfig*
 secrets/
+
+# Deployment backups. operations.md tells an operator to write `oak-metadata.dump` and
+# `oak-artifacts.tar.gz` into the repository root, and the 0.8.0 rehearsal did exactly
+# that and then nearly committed a 5.5 MB dump of a live control-plane database. A backup
+# is operator data, not source; it never belongs in version control.
+oak-metadata.dump
+oak-artifacts.tar.gz
