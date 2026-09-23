@@ -34,11 +34,12 @@ paired with a different build.
 
 ## Versioning
 
-`0.7.1` is the published release, published on 2026-09-03. `0.8.0` is the version this tree builds and is tagged `v0.8.0`, cut on 2026-09-22 on the
-owner's instruction. It is **not published anywhere**, and the approval rows in
-[release/0.8.0/release-decision.md](release/0.8.0/release-decision.md) are unsigned: the
-tag records what was built and the evidence that describes it, not an approval. Publishing
-`0.8.0` is a separate decision that has not been taken. `0.7.0` was approved on 2026-08-22 but never
+`0.7.1` is the published release, published on 2026-09-03. `0.8.0` is the version this tree builds, is tagged `v0.8.0`, and was approved by
+`nmasamba` on 2026-09-23 in all three roles
+([release/0.8.0/release-decision.md](release/0.8.0/release-decision.md)). The tag was cut
+the day before, at the owner's instruction and ahead of those signatures, and has not been
+moved onto the commit that carries them. Publishing `0.8.0` is a separate decision that has
+not been taken, so it is **published nowhere**. `0.7.0` was approved on 2026-08-22 but never
 published anywhere, and was re-cut as `0.7.1` when the pre-launch hardening work made a
 deliberate digest-shifting change (see `CHANGELOG.md`); the `0.7.0` record stays as
 history. The `0.7.x` numbering is not `0.1.0`, and the reason is recorded in
@@ -198,9 +199,9 @@ checksums prove the bytes match the manifest, not who produced them (`RR-005`).
 - [ ] `make verify-release` green
 - [ ] Known limitations published and current
       ([security/residual-risk.md](security/residual-risk.md))
-- [ ] Named maintainer, security and licence approvals recorded — see
+- [x] Named maintainer, security and licence approvals recorded — see
       [release/0.8.0/release-decision.md](release/0.8.0/release-decision.md). This is a
       human decision and cannot be self-approved by the person or agent doing the build.
-      Every other box above is ticked for `0.8.0`; this one is **not**. The `v0.8.0` tag
-      was cut anyway, on the owner's explicit instruction, so the tag exists ahead of the
-      signatures. Nothing is published on that basis
+      `nmasamba` signed all three rows on 2026-09-23. The `v0.8.0` tag had been cut the
+      previous day at the owner's instruction, so for one day the tag existed ahead of the
+      signatures; the record says so. Publication remains a separate decision

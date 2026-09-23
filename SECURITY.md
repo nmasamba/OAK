@@ -106,9 +106,9 @@ tracked as `RR-036`.
 ## Supported versions
 
 `0.7.1` is the published release, released as a GitHub Release on 2026-09-03 (`v0.7.1`).
-`0.8.0` is tagged `v0.8.0` and is the version this tree builds. It is **not published**
-anywhere, and the approval rows in its decision record are unsigned; the tag records what
-was built, not an approval. `0.7.0` was approved but never published and was re-cut. Only the latest release is
+`0.8.0` is tagged `v0.8.0`, is the version this tree builds, and was approved by
+`nmasamba` on 2026-09-23 in all three roles. It is **not published anywhere**: approval
+and publication are separate decisions, and only the first has been taken. `0.7.0` was approved but never published and was re-cut. Only the latest release is
 supported; there is no backport policy yet.
 
 ## Dependencies

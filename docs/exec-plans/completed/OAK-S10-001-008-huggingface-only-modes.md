@@ -9,7 +9,7 @@ OPEN B — the masthead label kept and repurposed). Execution on branch `hf-only
 
 - Owner/agent: owner-directed coding agent
 - Started: 2026-09-21
-- Last updated: 2026-09-22 (Milestone 7 — `0.8.0` prepared; merged as PR #22, `052211e`)
+- Last updated: 2026-09-23 (Milestone 7 — `0.8.0` cut, tagged and approved)
 - State: complete
 - Claimed tasks: `OAK-S10-001`–`OAK-S10-008`
 
@@ -517,10 +517,14 @@ or missing key is visible before anyone opens the dropdown.
   CI runs green, then `0.8.0` prepared on `main` — the version touch-list, the `0.8.0`
   changelog section, `docs/release/0.8.0/release-decision.md` written **unsigned**, the
   release evidence regenerated, and this plan moved to `completed/`. The release checklist's
-  last box — named maintainer, security and licence approvals — is **not** ticked, and the
-  work that prepares a release cannot self-assign it; the owner then asked for the tag
-  anyway, so `v0.8.0` was cut ahead of the signatures and the documents say so rather than
-  implying an approval that was never given.
+  last box — named maintainer, security and licence approvals — is one the work preparing a
+  release cannot self-assign; the owner asked for the tag before giving it, so `v0.8.0` was
+  cut on 2026-09-22 ahead of the signatures, and the documents said so rather than implying
+  an approval nobody had given. `nmasamba` then signed all three rows on 2026-09-23, after
+  being shown what each covered and that the clean-room rehearsal is inherited rather than
+  re-run. The tag was left where it was: moving a published tag rewrites what a reader has
+  already fetched, and the one-day gap is worth keeping legible. Publication remains
+  untaken.
 
 ## Live run
 
