@@ -2,10 +2,11 @@
 
 # Release decision record — OAK Community 0.8.0
 
-**Status: tagged, approvals unsigned.** `v0.8.0` was cut on 2026-09-22 on the owner's
-explicit instruction, ahead of the signatures. Nothing below is approved until the three
-rows in "Approvals required" carry a name and a date, and nothing is published on the
-strength of the tag alone.
+**Status: approved by `nmasamba` on 2026-09-23, all three roles.** The tag `v0.8.0` was
+cut a day earlier, on 2026-09-22, at the owner's instruction and ahead of these signatures;
+it therefore points at a commit whose copy of this record still says the rows were empty.
+That sequence is recorded rather than tidied away. Approval is still not publication, and
+`0.8.0` is published nowhere.
 
 This document assembles the evidence a maintainer needs to decide whether to declare
 `0.8.0` released, and records who signed. It was prepared by the Sprint 10 work
@@ -73,17 +74,21 @@ is new and machine-local. No reference digest moved.
 | Did the model path work against the real provider? | **Yes**, on 2026-09-22 with the owner's own Hugging Face token: verification, discovery and one online interpretation that spent real credit, recorded under `## Live run` in [the Sprint 10 plan](../../exec-plans/completed/OAK-S10-001-008-huggingface-only-modes.md). It failed twice first, and both failures were product defects that are fixed |
 | How fast is it? | Inherited from `0.7.0` ([performance.md](../../performance.md)); the deterministic compile path is unchanged and figures were not re-measured |
 | Was a clean-room rehearsal re-run? | **No** — inherited from `0.7.0` ([../0.7.0/clean-room.md](../0.7.0/clean-room.md)). The install path is unchanged: no packaged data moved, no entry point changed, and the model seat is an optional import the deterministic journey never loads. An approver who weighs the rehearsal heavily may ask for a re-run |
-| What does it *not* defend against? | [security/residual-risk.md](../../security/residual-risk.md) — 42 entries with stable ids, of which eight rows are closed; `RR-039` to `RR-042` are new since the `0.7.1` signatures |
+| What does it *not* defend against? | [security/residual-risk.md](../../security/residual-risk.md) — 42 entries with stable ids at signature, of which eight rows are closed; `RR-039` to `RR-042` are new since the `0.7.1` signatures |
 | Was it externally reviewed? | **No.** No external security review was commissioned; two internal adversarial audits (Sprint 9 and Sprint 10) are recorded in their ExecPlans, and the wording restrictions recorded in the [`0.7.0` decision](../0.7.0/release-decision.md#external-review) apply unchanged |
 
 ## The register count, made legible
 
-The `0.7.1` signatures covered 38 entries as the register then stood; this approval is
-asked to cover all 42, including `RR-039` (a brief chosen for Online AI leaves the machine),
+The `0.7.1` signatures covered 38 entries as the register then stood; this approval covers
+all 42 as it stood on 2026-09-23, including `RR-039` (a brief chosen for Online AI leaves the machine),
 `RR-040` (a stored token is readable by same-user processes), `RR-041` (nothing caps
 aggregate provider spend) and `RR-042` (a verification verdict is a claim about the past).
 None is proposed as a release blocker: each is by design, opt-in, and stated on the
 surfaces that expose it.
+
+**That 42 is the count at signature and does not move.** Entries added after 2026-09-23
+are not covered by these signatures; the live count is in
+[security/residual-risk.md](../../security/residual-risk.md) and in `STATUS.md`.
 
 ## What this release does not defend against
 
@@ -101,9 +106,9 @@ signature.
 
 | Role | Approving that | Name | Date |
 |---|---|---|---|
-| Maintainer | The release is functionally what it claims to be, and the evidence above is sufficient | | |
-| Security | The residual-risk register is complete and correctly scoped, including the four entries added since `0.7.1` and the narrowing of `RR-039` | | |
-| Licence | The Apache-2.0 declaration and the generated third-party inventory are correct, including the optional `keychain` extra (`keyring`, MIT) added in Sprint 9 | | |
+| Maintainer | The release is functionally what it claims to be, and the evidence above is sufficient | `nmasamba` | 2026-09-23 |
+| Security | The residual-risk register is complete and correctly scoped, including the four entries added since `0.7.1` and the narrowing of `RR-039` | `nmasamba` | 2026-09-23 |
+| Licence | The Apache-2.0 declaration and the generated third-party inventory are correct, including the optional `keychain` extra (`keyring`, MIT) added in Sprint 9 | `nmasamba` | 2026-09-23 |
 
 > **All three roles are held by one person.** That is a normal situation for a project
 > this size, and it is recorded rather than hidden: the security and licence judgements
@@ -126,15 +131,16 @@ artifacts an approval would be approving; nothing here has been uploaded anywher
 the manifest; they do not prove who produced them, and these artifacts are unsigned
 (`RR-005`).
 
-## The tag, and what it does not mean
+## The tag, and when it was cut
 
 `v0.8.0` points at the merge commit of the pull request that cut this release — the one
 carrying the version touch-list, the evidence and this record — not at the Sprint 10 merge
-(`052211e`), which predates all three. It was cut because the
-owner asked for it on 2026-09-22, having been told the approval rows were empty. Recording
-that plainly is the point: a reader comparing this tree with the record should find the
-tag present and the signatures absent, and should not read one as standing in for the
-other. Signing the rows below remains the act that makes `0.8.0` an approved release.
+(`052211e`), which predates all three. It was cut on 2026-09-22 because the owner asked for
+it, having been told the approval rows were empty, and the signatures came the next day.
+The tag has deliberately **not** been moved onto the commit that carries them. Moving a
+published tag rewrites what a reader already fetched, and the sequence here is worth
+keeping legible: whoever checks out `v0.8.0` finds a record that says, accurately, that it
+was unsigned at that moment. The signed record is on `main`, one commit later.
 
 ## Publication
 
