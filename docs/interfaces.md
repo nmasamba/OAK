@@ -84,10 +84,22 @@ export OAK_DATABASE_URL=postgresql+psycopg://oak:oak-local-only@127.0.0.1:5432/o
 oak-mcp            # or: oak mcp serve
 ```
 
-Configure an MCP client to launch `oak-mcp` as a stdio server. The handshake
+Under Compose, PostgreSQL is not published on the host, so run the server inside the
+`api` container instead. It inherits that service's database, artifact store, actor and
+tenant:
+
+```bash
+docker compose exec -T api oak-mcp
+```
+
+Configure an MCP client to launch `oak-mcp` as a stdio server — under Compose, the
+command `docker` with the arguments
+`compose -f /full/path/to/compose.yaml exec -T api oak-mcp`. The handshake
 accepts protocol revisions `2025-06-18` and `2025-03-26`; an unknown revision
 negotiates down to the newest supported one. The server exposes `tools` only —
-no resources, prompts, or sampling.
+no resources, prompts, or sampling. [tour.md](tour.md) drives the candidate,
+evaluation, assurance, compile and progress tools from a shell, with the real requests
+and replies.
 
 ## Permission model
 

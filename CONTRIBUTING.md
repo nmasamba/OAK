@@ -2,6 +2,24 @@
 
 # Contributing to OAK Community
 
+## Why contribute
+
+OAK is trying to make one thing normal: decisions about AI systems that are written down,
+checkable and repeatable, instead of argued over in chat and then forgotten. If that
+matters to you, there is plenty to do. The project is set up so that a newcomer's change
+gets a careful, specific review, not a rubber stamp.
+
+It's also a good place to learn. One codebase holds a small compiler with byte-stable
+output, a typed state machine with an audit trail, and a security boundary between two
+programs that don't trust each other's say-so (the control plane and the runner). It also
+has reproducible release builds and an optional AI integration that treats model output
+as untrusted. Each part is small, and each has tests that show you what "correct" means.
+
+The gaps are public, too. The [residual-risk register](docs/security/residual-risk.md),
+the threat-coverage [named gaps](docs/security/threat-coverage.md#named-gaps) and the map
+under [Where you could help](#where-you-could-help) are the project's own list of what
+isn't done yet, each with an id you can cite in a pull request.
+
 ## Before anything else
 
 Two things about this project will surprise you if nobody says them out loud.
@@ -44,6 +62,87 @@ each row is a real, scoped, self-contained piece of work with a clear definition
 Otherwise: fix something in [security/residual-risk.md](docs/security/residual-risk.md)
 that is marked Low, or improve an error message you found confusing. A change that makes a
 refusal easier to act on is worth more here than a new capability.
+
+## Where you could help
+
+This map is grouped by what you might enjoy. An item marked **discuss first** changes a
+trust boundary or a public contract. Open an issue and agree the shape before writing code,
+because it often needs an ADR (see [Governance](#governance)).
+
+**Your first afternoon**
+
+- Run the [guided tour](docs/tour.md) on a fresh machine and report anything that confused
+  you or didn't match. A document that is wrong for a newcomer is a bug.
+- Make an error message easier to act on. Every `OAK-*` code is listed in
+  [error-codes.md](docs/error-codes.md) with the place it is raised.
+- Write an example brief for a different kind of system, such as support-ticket triage, a
+  study helper, or search over another document set. Then see how far the deterministic
+  reader and the bundled synthetic catalogue get with it. Where they fall short is exactly
+  what the project needs to learn, and it makes a good issue. Keep examples synthetic
+  ([examples/README.md](examples/README.md)).
+
+**Tests that pin behaviour nobody has pinned**
+
+- The [named gaps](docs/security/threat-coverage.md#named-gaps) are scoped pieces of work.
+  Several are tests nobody has written yet: nothing tampers with an objective weight
+  (`TM-05`), asserts that the runner holds no control-plane credential (`TM-07`), or checks
+  that a rendered system contains no runtime reference to OAK (`TM-19`). Others, such as
+  `TM-02` and `TM-14`, are missing controls, which belong under "Bigger directions" below.
+- The web workspace has no unit tests at all (`RR-021`).
+
+**The web workspace**
+
+- Show the trade-offs between candidates as a chart as well as a table. Keep the table,
+  because it's the accessible representation.
+- Plain-language copy, and keyboard, focus and contrast passes. The browser end-to-end
+  suite (`make web-e2e`) is where a flow gets pinned.
+
+**Deployment backends, serving profiles and packs**
+
+Two renderers ship today (`renderer.local-manifests` and `renderer.helm-kubernetes`). The
+backlog includes OpenTofu or Terraform modules, Crossplane compositions and Kratix Promises,
+Ansible for appliance and edge targets, OPEA or DIAL application definitions, pipeline
+definitions, model-serving profiles such as vLLM and llama.cpp, and policy, domain,
+evaluation and evidence packs. All of them go through the governed extension path and its
+templates, described in [extension-sdk.md](docs/extension-sdk.md). Each backend stays
+replaceable and owned by its own project. OAK compiles *to* them; it doesn't absorb them.
+
+**Where OAK runs**
+
+- Record the first rehearsal of the Linux x86_64 control plane. That row of
+  [platforms.md](docs/platforms.md) is still "Expected" because nobody has run it.
+- Add CI jobs for macOS and arm64 (`RR-014`), and CI that provisions PostgreSQL so the
+  gated suites actually run there (`RR-019`).
+- Native Windows support starts with replacing the Unix-only `fcntl` workspace lock.
+- Let the runner reach rootless Docker, Colima or Podman (`RR-013`). **Discuss first**,
+  because it touches the runner's hardening.
+
+**Operations and supply chain**
+
+- Logging and metrics that leak nothing (`RR-015`). **Discuss first**, because of the data
+  boundary.
+- A readiness check that notices an un-migrated database (`RR-016`), and a file-workspace
+  format migration before the format ever changes (`RR-017`).
+- Byte-reproducible container images (`RR-006`), and bounding how workspace reads grow
+  with history (`RR-030`).
+- Release signing (`RR-005`) needs a named key holder, which is a maintainer decision. The
+  tooling around it can still be prepared.
+
+**Bigger directions (discuss first)**
+
+- Let policy decisions gate state transitions, not just record them (`RR-004`).
+- A signature and provenance gate for catalogue component manifests (`RR-025`), and real
+  manifests backed by evidence.
+- Budgets and rate limits, including for model spend (`RR-024`, `RR-041`).
+- Comparing predicted cost, latency and quality against observed outcomes, the evidence
+  loop OAK is designed to close.
+- A fuller developer-portal plugin, building on the starter in
+  [examples/backstage/](examples/backstage/README.md).
+
+Some things are out of scope for Community by design: real authentication, multi-tenant
+isolation, production targets and a live webhook dispatcher. They are listed under
+"Explicitly unavailable in Community" in [interfaces.md](docs/interfaces.md). A proposal
+there is a product decision, not a pull request.
 
 ## The test topology
 

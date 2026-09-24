@@ -8,6 +8,7 @@
 |---|---|
 | Follow an illustrated end-to-end walkthrough | [manual/OAK-Community-Manual.pdf](manual/OAK-Community-Manual.pdf) (source and rebuild instructions in [manual/](manual/)) |
 | Run OAK on your machine | [../README.md](../README.md), then [platforms.md](platforms.md) |
+| Watch one case pass between the browser, `curl`, the remote CLI and an AI assistant over MCP | [tour.md](tour.md) |
 | Operate it: back up, restore, upgrade, uninstall | [operations.md](operations.md) |
 | Look up a setting | [configuration.md](configuration.md) |
 | Look up an `OAK-*` code you just hit | [error-codes.md](error-codes.md) |
@@ -17,6 +18,9 @@
 
 ## Using OAK
 
+- [tour.md](tour.md) — one case relayed between the browser, `curl`, the remote CLI and
+  an MCP client, checked against an offline local-CLI run of the same design, with every
+  command and output from a real run.
 - [local-design-case.md](local-design-case.md) — the offline brief-to-plan journey.
 - [compiler-flow.md](compiler-flow.md) — what each compilation stage produces and binds.
 - [interfaces.md](interfaces.md) — CLI, REST, MCP and portals; the permission model and
