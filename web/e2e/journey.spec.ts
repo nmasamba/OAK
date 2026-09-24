@@ -104,6 +104,26 @@ test("a reviewer completes the reference journey from brief to compiled bundle",
     await expect(page.getByText("simpler_baseline").first()).toBeVisible();
     await expect(page.getByText("infeasible", { exact: true })).toBeVisible();
     await expect(page.getByText(/constraint\.hardware/).first()).toBeVisible();
+    // Explanation entries are objects: they must read as their fields, never as the
+    // "[object Object]" that String() makes of one.
+    await expect(page.getByRole("main")).not.toContainText("[object Object]");
+    const baseline = page.getByRole("region", { name: /^candidate-00/ });
+    const eligibility = baseline
+      .getByRole("list", { name: "Satisfied requirements" })
+      .getByRole("listitem")
+      .filter({ hasText: "constraint.catalogue-eligibility" });
+    await expect(eligibility).toContainText(
+      "All component manifests are eligible under the snapshot policy.",
+    );
+    await expect(eligibility).toContainText("OAK-FR-CAT-001");
+    await expect(
+      baseline.getByText("Uncertainties: none listed"),
+    ).toBeVisible();
+    await expect(
+      page
+        .getByRole("region", { name: /^candidate-04/ })
+        .getByRole("list", { name: "Uncertainties" }),
+    ).toContainText("constraint.hardware");
     await expectAccessible(page, "candidate comparison");
   });
 

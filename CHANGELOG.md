@@ -6,6 +6,19 @@ All notable changes to OAK Community are recorded here.
 
 ## Unreleased
 
+### Fixed
+
+- The candidate comparison page now shows each candidate's explanation as readable
+  entries (`OAK-FR-ARC-005`, `OAK-NFR-UX-002`). A satisfied requirement lists its
+  constraint, the reason and the requirement ids behind it. An uncertainty lists its
+  constraint and reason. Both lists are labelled, and each says "none listed" when empty.
+  The page used to convert each entry to a string, so every explanation read "Satisfied
+  requirements: [object Object], [object Object], …" and an unconfirmed constraint
+  appeared as a bare "[object Object]". The browser journey now fails if
+  "[object Object]" appears on the page. This is a display change only: candidate
+  documents, the API and compiler output are unchanged, and the four reference digests are
+  untouched.
+
 ### Documentation
 
 These entries change documentation only: no schema, command, REST, MCP or runner

@@ -138,7 +138,57 @@ function ConstraintTable({ candidate }: { readonly candidate: JsonObject }) {
   );
 }
 
+// An explanation entry is a constraint outcome — constraint_id, reason and, for a satisfied
+// one, requirement_ids — so it is listed by those fields, never stringified whole.
+function ExplanationList({
+  labelId,
+  label,
+  entries,
+}: {
+  readonly labelId: string;
+  readonly label: string;
+  readonly entries: unknown;
+}) {
+  const items = asArray(entries)
+    .map(asObject)
+    .filter((entry): entry is JsonObject => entry !== null);
+  if (items.length === 0) {
+    return (
+      <p className="timeline-meta explanation-label">{label}: none listed</p>
+    );
+  }
+  return (
+    <>
+      <p className="timeline-meta explanation-label" id={labelId}>
+        {label}
+      </p>
+      <ul aria-labelledby={labelId}>
+        {items.map((item, index) => {
+          const reason = asString(item["reason"]);
+          const requirementIds = asArray(item["requirement_ids"])
+            .map(asString)
+            .filter((entry): entry is string => entry !== null);
+          return (
+            <li key={index}>
+              <code className="pointer">
+                {asString(item["constraint_id"]) ?? "unnamed constraint"}
+              </code>
+              {reason !== null && <> — {reason}</>}
+              {requirementIds.length > 0 && (
+                <span className="timeline-meta explanation-requirements">
+                  Requirements: {requirementIds.join(", ")}
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </>
+  );
+}
+
 function CandidateDetail({ candidate }: { readonly candidate: JsonObject }) {
+  const candidateId = asString(candidate["id"]) ?? "";
   const topology = asObject(candidate["topology"]) ?? {};
   const nodes = asArray(topology["nodes"])
     .map(asObject)
@@ -167,17 +217,16 @@ function CandidateDetail({ candidate }: { readonly candidate: JsonObject }) {
         {asString(pareto["sensitivity_summary"]) ?? "No sensitivity summary."}
       </p>
       <h3>Explanation</h3>
-      <p className="timeline-meta">
-        Satisfied requirements:{" "}
-        {asArray(explanation["satisfied_requirements"])
-          .map((entry) => String(entry))
-          .join(", ") || "none listed"}
-      </p>
-      <ul>
-        {asArray(explanation["uncertainties"]).map((entry, index) => (
-          <li key={index}>{String(entry)}</li>
-        ))}
-      </ul>
+      <ExplanationList
+        labelId={`candidate-${candidateId}-satisfied`}
+        label="Satisfied requirements"
+        entries={explanation["satisfied_requirements"]}
+      />
+      <ExplanationList
+        labelId={`candidate-${candidateId}-uncertainties`}
+        label="Uncertainties"
+        entries={explanation["uncertainties"]}
+      />
       <details>
         <summary>Raw candidate document</summary>
         <pre className="value">{JSON.stringify(candidate, null, 1)}</pre>
