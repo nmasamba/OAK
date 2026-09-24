@@ -84,7 +84,7 @@ def test_readiness_is_not_ready_without_a_configured_database() -> None:
                 time.sleep(0.05)
 
         # The process still starts and still reports its identity — that is deliberate,
-        # and the README documents it.
+        # and docs/platforms.md documents it.
         assert version is not None
         assert version.status_code == 200
 

@@ -396,6 +396,14 @@ docker compose exec -T api oak models select local qwen3:8b                     
 docker compose exec -T api oak models status     # the verdict with its age; what each mode would call
 ```
 
+**Local AI cannot work under Compose.** Its endpoint must be a loopback address
+(`OAK_MODEL_ENDPOINT_LOCAL`), and inside the `api` container loopback is the container
+itself, not the host, so a model server on your own machine is unreachable from the stack
+and a Local AI interpretation fails and records nothing. The `select local` line above
+only records a choice.
+To use Local AI, run the CLI from a source install on the machine that runs the model
+server.
+
 The web workspace asks for that token once, at Settings → Models, and keeps it for the
 session only. The token is minted per API process: restarting `api` invalidates it, which is
 deliberate — it is a capability, not a password, and `oak models token` reprints the current

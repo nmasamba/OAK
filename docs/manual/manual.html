@@ -70,6 +70,7 @@
     <li>Installing on a fresh machine</li>
     <li>The command-line journey: brief to compiled bundle</li>
     <li>The browser workspace</li>
+    <li>Other ways in: REST, the remote CLI and MCP</li>
     <li>The signed runner: sign, approve, dispatch, verify, revoke</li>
     <li>Verifying release artifacts</li>
     <li>Troubleshooting</li>
@@ -81,6 +82,28 @@
 <section class="chapter">
   <div class="kicker">Chapter 1</div>
   <h1>What OAK Community is — and is not</h1>
+  <h2>In plain words</h2>
+  <p>
+    You describe an AI system you are thinking of building, in plain English or as a
+    structured file. OAK reads it, asks you about anything important it cannot find, lays
+    out several possible designs side by side (always including a simpler baseline, which
+    in the reference example uses no AI model at all), rules out any that break a hard
+    requirement and says why, records the design
+    you choose and your reasons, and compiles a precise, reviewable plan. It never deploys
+    anything by itself, and the same input always gives the same output.
+  </p>
+  <h2>Who it is for</h2>
+  <ul>
+    <li><strong>Engineers, architects and tech leads</strong> who design AI features and
+      have to defend the choice.</li>
+    <li><strong>Security, privacy, compliance and product owners</strong> who sign those
+      features off and need to see every assumption, unknown and trade-off.</li>
+    <li><strong>Students and tinkerers</strong> learning how careful AI-system design is
+      done. Every step is visible and every file readable.</li>
+    <li><strong>Builders of assistants, CI pipelines and developer portals</strong> who want
+      a design step they can call (chapter 5).</li>
+  </ul>
+  <h2>How it works</h2>
   <p>
     OAK Community is a compiler-shaped control plane for designing, evaluating and
     planning AI systems. You feed it an <strong>architecture brief</strong> — a bounded
@@ -120,14 +143,14 @@
         <text x="500" y="186" text-anchor="middle" font-size="12" fill="#5a6b63">except interpret when you have configured a model — see chapter 4.</text>
       </g>
     </svg>
-    <figcaption>Figure 1 — the pipeline. The compiled plan is inert: executing anything requires the separate signing, approval and runner verification described in chapter 5.</figcaption>
+    <figcaption>Figure 1 — the pipeline. The compiled plan is inert: executing anything requires the separate signing, approval and runner verification described in chapter 6.</figcaption>
   </figure>
   <p>
     Three properties shape everything you will see. <strong>Deterministic:</strong> the
     same inputs produce byte-identical canonical artifacts, so digests are meaningful
     and two clean machines agree. <strong>Offline:</strong> after installation, nothing
     in this manual needs a hosted service or a model provider, and the whole CLI journey
-    runs with the network disabled; only the Docker chapters (4 and 5) pull their pinned
+    runs with the network disabled; only the Docker chapters (4, 5 and 6) pull their pinned
     base images once, on first build, and the optional model provider in chapter 4 — which
     nothing requires — is the single feature that ever calls out. <strong>Fail-closed:</strong> anything unknown, malformed, expired, unsigned or
     mismatched is refused with a stable <code>OAK-*</code> error code, never skipped.
@@ -139,32 +162,52 @@
     multi-tenant, has no authentication, and binds to loopback. It is not a hosted
     service and never phones home. And a compiled plan is not permission to run
     anything — execution authority comes only from the signing and approval chain in
-    chapter 5, verified independently by the runner.
+    chapter 6, verified independently by the runner.
   </p>
 </section>
 
 <section class="chapter">
   <div class="kicker">Chapter 2</div>
   <h1>Installing on a fresh machine</h1>
+  <p>
+    There are two ways to install OAK, and you can use either or both. The
+    <strong>Docker way</strong> gives you the browser workspace, the REST API and the MCP
+    server for AI assistants (chapters 4 and 5), and needs nothing on your machine except
+    Docker and <code>git</code>. The <strong>source way</strong> gives you the <code>oak</code> command line
+    (chapters 3 and 6, and the remote-CLI step in chapter 5), and needs only
+    <code>git</code> and <code>uv</code>. Neither
+    installs anything system-wide or needs administrator rights. OAK does not install
+    Docker or <code>uv</code> for you, and in the Docker way <code>uv</code> and Node.js
+    run only inside the image build, never on your machine.
+  </p>
+  <h2>What each way sets up</h2>
+  <table>
+    <tr><th></th><th>Docker way</th><th>Source way</th></tr>
+    <tr><td>You install first</td><td>Docker with Compose (Docker Desktop on a Mac) and <code>git</code></td><td><code>git</code> and <code>uv</code></td></tr>
+    <tr><td>OAK then sets up</td><td>Two images built locally (the API image, shared by the <code>api</code>, <code>worker</code> and <code>migrate</code> services, and the web workspace) plus <code>postgres:17.6-alpine</code>: roughly 1–2&nbsp;GB of disk with what the build needs. Also five containers and three volumes: <code>oak-postgres-data</code> (your cases), <code>oak-artifacts</code> (the files OAK produces) and <code>oak-model-state</code> (a Hugging Face token, if you store one)</td><td>A virtual environment, <code>.venv</code>, inside the checkout, holding the locked dependencies. <code>uv</code> fetches Python 3.13.12 itself and keeps it, with its download cache, in your home folder (<code>~/.local/share/uv</code>, <code>~/.cache/uv</code>)</td></tr>
+    <tr><td>Listens on</td><td><code>127.0.0.1:5173</code> (workspace) and <code>127.0.0.1:8080</code> (API) only</td><td>Nothing, unless you start a server</td></tr>
+    <tr><td>Writes elsewhere</td><td>Nothing outside Docker</td><td>The workspaces you create, wherever you create them, and <code>~/.oak</code> once you use keys, model settings or the runner — besides <code>uv</code>'s own folders above</td></tr>
+  </table>
   <h2>Prerequisites</h2>
   <table>
     <tr><th>Requirement</th><th>Version</th><th>Notes</th></tr>
-    <tr><td>macOS or Linux</td><td>macOS 11+ on Apple silicon (arm64) — Intel Macs are not supported; Linux glibc ≥ 2.24 (x86_64) / ≥ 2.27 (aarch64)</td><td>See <code>docs/platforms.md</code> for the authoritative matrix, including why dependency installation fails outright on macOS x86_64</td></tr>
-    <tr><td><code>git</code></td><td>any recent</td><td>Required even offline: the hygiene check shells out to it</td></tr>
-    <tr><td><code>uv</code></td><td>0.10.x</td><td>Installs and pins Python 3.13.12 itself</td></tr>
-    <tr><td>Node.js + <code>pnpm</code></td><td>pnpm 11.15.1</td><td><code>make bootstrap</code> requires pnpm; the pinned Node 24.18.0 it downloads is only exercised by the web workspace, so your system Node version does not matter</td></tr>
-    <tr><td>Docker with Compose</td><td>any recent, daemon on the default socket</td><td>Only for the web stack (ch. 4) and the runner's apply cycle (ch. 5). The runner strips <code>DOCKER_HOST</code> and friends, so rootless Docker, Colima and Podman socket shims cannot reach it (<code>RR-013</code>)</td></tr>
+    <tr><td>macOS or Linux</td><td>macOS 11+ on Apple silicon (arm64) — Intel Macs are not supported; Linux glibc ≥ 2.24 (x86_64) / ≥ 2.27 (aarch64)</td><td>See <code>docs/platforms.md</code> for the authoritative matrix, including why dependency installation fails outright on macOS x86_64. Windows is not supported; WSL2 follows the Linux rows</td></tr>
+    <tr><td><code>git</code></td><td>any recent</td><td>To clone the repository — and required even offline for the repository checks, which shell out to it</td></tr>
+    <tr><td><code>uv</code></td><td>0.10.x</td><td>The source way. Installs and pins Python 3.13.12 itself</td></tr>
+    <tr><td>Docker with Compose</td><td>any recent, daemon on the default socket</td><td>The browser workspace, REST and MCP (ch. 4 and 5) and the runner's apply cycle (ch. 6). The runner strips <code>DOCKER_HOST</code> and friends, so rootless Docker, Colima and Podman socket shims cannot reach it (<code>RR-013</code>)</td></tr>
+    <tr><td>Node.js + <code>pnpm</code></td><td>pnpm 11.15.1</td><td>Contributors only: <code>make bootstrap</code>, the repository checks and rebuilding this manual. The pinned Node 24.18.0 that pnpm downloads is only exercised by the web workspace, so your system Node version does not matter</td></tr>
   </table>
-  <h2>Install</h2>
+  <h2>Install the command line</h2>
   <pre><code>git clone https://github.com/nmasamba/OAK.git
 cd OAK
-make bootstrap</code></pre>
+uv sync --frozen</code></pre>
   <p>
-    <code>make bootstrap</code> installs the locked Python and web dependencies and
-    downloads pnpm's managed Node runtime. It is the one networked step the CLI journey
-    ever needs: chapters 3, 6 and 8 work with egress disabled from here on, while
-    chapters 4 and 5 additionally pull their pinned Docker base images the first time
-    you build them.
+    <code>uv sync --frozen</code> builds <code>.venv</code> from the lockfile, fetching
+    Python 3.13.12 if this machine does not have it. It took 40 seconds on the machine
+    this edition was checked on. It is the one networked step the CLI journey ever needs:
+    chapter 3 and chapter 9 work with egress disabled from here on, as does checking a
+    download in chapter 7, while chapters 4, 5 and 6 need Docker, which pulls its pinned
+    base images the first time you build.
   </p>
   <pre><code>uv run oak --version
 <span class="out">0.8.0</span></code></pre>
@@ -174,13 +217,23 @@ make bootstrap</code></pre>
     environment once (<code>source .venv/bin/activate</code>) and drop the
     <code>uv run</code> prefix.
   </div>
-  <h2>Optional: run the full verification gate</h2>
-  <pre><code>make check</code></pre>
+  <h2>The Docker way</h2>
   <p>
-    This runs formatting, linting, type checks, boundary rules, contract validation and
-    the unit, integration and end-to-end suites — around ten minutes. The
-    PostgreSQL-gated suites skip silently unless a database is published; that is
-    expected on a fresh machine and documented in <code>docs/development.md</code>.
+    There is nothing more to install. Chapter 4 starts the whole stack with one command
+    from the same checkout. If the Docker way is all you want, clone the repository as
+    above and skip <code>uv sync</code>.
+  </p>
+  <h2>For contributors: bootstrap and the full verification gate</h2>
+  <pre><code>make bootstrap
+make check</code></pre>
+  <p>
+    <code>make bootstrap</code> installs the locked Python and web dependencies and
+    downloads pnpm's managed Node runtime. It is what the repository checks and the manual
+    rebuild in chapter 10 expect. <code>make check</code>
+    runs formatting, linting, type checks, boundary rules, contract validation and the
+    unit, integration and end-to-end suites — around ten minutes. The PostgreSQL-gated
+    suites skip silently unless a database is published; that is expected on a fresh
+    machine and documented in <code>docs/development.md</code>.
   </p>
 </section>
 
@@ -318,8 +371,9 @@ uv run oak assure candidate-03 --output ./assurance
   </p>
   <div class="note">
     Two clean machines running this chapter produce byte-identical semantic manifests —
-    that is the determinism promise, and it is what makes the digests in chapter 5
-    worth signing.
+    that is the determinism promise, and it is what makes the digests in chapter 6
+    worth signing. Chapter 5 shows the server producing the same fingerprint as this
+    chapter.
   </div>
   <h2>Export and import</h2>
   <pre><code>uv run oak export --output ../case-export
@@ -351,6 +405,12 @@ uv run oak import ../case-export --directory ../restored
     <code>curl http://127.0.0.1:8080/version</code> — it must report 0.8.0.
   </div>
   <p>
+    The first build downloads and builds everything. It took about three minutes on the
+    machine this edition was checked on, and later starts take seconds. If it stops with
+    <code>operation timed out</code>, a package download stalled. Run the same command
+    again: the steps that finished are reused.
+  </p>
+  <p>
     The API listens on <code>127.0.0.1:8080</code> and the workspace on
     <code>http://127.0.0.1:5173</code> — loopback only, by design. The screenshots below
     are captured from a real journey against this stack.
@@ -374,6 +434,14 @@ uv run oak import ../case-export --directory ../restored
     Inference Providers, called with your own token) and <strong>Local AI</strong> (an
     OpenAI-compatible server on this machine, such as Ollama). <strong>Settings → Models</strong> is where the last two are set up; the choice itself is made per brief, from one dropdown on the "Describe what you want to build" form and again on the case page before Interpret runs, and the masthead names the Online AI pair and how long ago the token was verified. Nothing is set up by default, and nothing here is required by any other part of the manual.
   </p>
+  <div class="note">
+    <strong>Local AI and this stack.</strong> Local AI's server must sit at a loopback
+    address as the API process sees it, and inside the <code>api</code> container that is
+    the container itself, not your computer. From this Compose stack, then, Local AI cannot
+    reach a model server on your machine, and choosing it fails without recording anything.
+    Use Local AI from the command line (chapter 3) on the machine that runs the model
+    server; Online AI works from here.
+  </div>
   <p>
     The page needs the capability token the API minted when it started — not a password, but
     a capability that dies with that process. Print it on the machine running the API:
@@ -406,11 +474,201 @@ uv run oak import ../case-export --directory ../restored
     nothing, and <code>oak design --interpreter deterministic</code> always is.
   </div>
 
-  <p>Stop the stack with <code>docker compose down</code> (add <code>--volumes</code> to also drop the local database, the artifact store, and the model-state volume holding any provider key you stored).</p>
+  <h2>Day to day</h2>
+  <table>
+    <tr><th>To</th><th>Run, from the repository root</th></tr>
+    <tr><td>Start the stack</td><td><code>docker compose up -d --build</code></td></tr>
+    <tr><td>Check what is running</td><td><code>curl http://127.0.0.1:8080/version</code> · <code>docker compose ps</code></td></tr>
+    <tr><td>See a service's output</td><td><code>docker compose logs -f api</code> (or <code>worker</code>, <code>web</code>): startup messages and errors only, since OAK keeps no application log yet (<code>RR-015</code>)</td></tr>
+    <tr><td>Stop it, keeping your cases</td><td><code>docker compose down</code></td></tr>
+    <tr><td>Update to newer code</td><td><code>git pull</code>, then <code>docker compose up -d --build</code>; the <code>migrate</code> service upgrades the database before the API starts. Back up first — see <code>docs/operations.md</code></td></tr>
+    <tr><td>Start again from nothing</td><td><code>docker compose down --volumes</code>, which deletes the database, the artifact store, and the model-state volume holding any provider key you stored</td></tr>
+  </table>
 </section>
 
 <section class="chapter">
   <div class="kicker">Chapter 5</div>
+  <h1>Other ways in: REST, the remote CLI and MCP</h1>
+  <p>
+    The browser is one of five ways to drive OAK. They all call the same application
+    services and change the same versioned design case, so a step gives the same result —
+    and the same refusal — whichever way it arrives, and the audit trail records which way
+    that was. The Compose stack from chapter 4 serves all of them except the local CLI,
+    which keeps its case in a folder.
+  </p>
+  <figure class="diagram">
+    <svg viewBox="0 0 1000 300" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Five interfaces reaching one set of application services">
+      <defs><marker id="arr4" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 z" fill="#38564a"/></marker></defs>
+      <g font-family="Helvetica, Arial, sans-serif" font-size="14">
+        <rect x="10" y="12" width="210" height="44" rx="6" fill="#eef3ef" stroke="#38564a"/><text x="115" y="32" text-anchor="middle">Browser workspace</text><text x="115" y="48" text-anchor="middle" font-size="11" fill="#5a6b63">127.0.0.1:5173</text>
+        <rect x="10" y="68" width="210" height="44" rx="6" fill="#eef3ef" stroke="#38564a"/><text x="115" y="88" text-anchor="middle">curl or any HTTP client</text><text x="115" y="104" text-anchor="middle" font-size="11" fill="#5a6b63">127.0.0.1:8080/v1/…</text>
+        <rect x="10" y="124" width="210" height="44" rx="6" fill="#eef3ef" stroke="#38564a"/><text x="115" y="144" text-anchor="middle">Remote CLI</text><text x="115" y="160" text-anchor="middle" font-size="11" fill="#5a6b63">oak --server …</text>
+        <rect x="10" y="180" width="210" height="44" rx="6" fill="#eef3ef" stroke="#38564a"/><text x="115" y="200" text-anchor="middle">AI assistant</text><text x="115" y="216" text-anchor="middle" font-size="11" fill="#5a6b63">MCP over stdio</text>
+        <rect x="10" y="240" width="210" height="44" rx="6" fill="#eef3ef" stroke="#38564a"/><text x="115" y="260" text-anchor="middle">Local CLI</text><text x="115" y="276" text-anchor="middle" font-size="11" fill="#5a6b63">uv run oak …</text>
+
+        <rect x="290" y="40" width="170" height="100" rx="6" fill="#fff" stroke="#38564a"/><text x="375" y="84" text-anchor="middle">REST API</text><text x="375" y="102" text-anchor="middle" font-size="11" fill="#5a6b63">audit origin: api</text>
+        <rect x="290" y="170" width="170" height="64" rx="6" fill="#fff" stroke="#38564a"/><text x="375" y="197" text-anchor="middle">oak-mcp</text><text x="375" y="215" text-anchor="middle" font-size="11" fill="#5a6b63">audit origin: mcp</text>
+
+        <rect x="530" y="40" width="200" height="194" rx="8" fill="#24382f" stroke="#24382f"/>
+        <text x="630" y="118" text-anchor="middle" fill="#fff">shared application</text>
+        <text x="630" y="138" text-anchor="middle" fill="#fff">services</text>
+        <text x="630" y="162" text-anchor="middle" font-size="11" fill="#c9d6cf">one set of rules, no bypass</text>
+
+        <rect x="790" y="40" width="200" height="194" rx="8" fill="#eef3ef" stroke="#38564a"/>
+        <text x="890" y="112" text-anchor="middle">the design case</text>
+        <text x="890" y="130" text-anchor="middle">and its audit trail</text>
+        <text x="890" y="154" text-anchor="middle" font-size="11" fill="#5a6b63">PostgreSQL, in Compose</text>
+
+        <rect x="530" y="250" width="460" height="40" rx="6" fill="#fff" stroke="#38564a" stroke-dasharray="5 3"/>
+        <text x="760" y="275" text-anchor="middle" font-size="12.5">the same services over a workspace folder · audit origin: cli</text>
+
+        <line x1="220" y1="34" x2="286" y2="70" stroke="#38564a" stroke-width="1.6" marker-end="url(#arr4)"/>
+        <line x1="220" y1="90" x2="286" y2="90" stroke="#38564a" stroke-width="1.6" marker-end="url(#arr4)"/>
+        <line x1="220" y1="146" x2="286" y2="112" stroke="#38564a" stroke-width="1.6" marker-end="url(#arr4)"/>
+        <line x1="220" y1="202" x2="286" y2="202" stroke="#38564a" stroke-width="1.6" marker-end="url(#arr4)"/>
+        <line x1="220" y1="262" x2="526" y2="270" stroke="#38564a" stroke-width="1.6" marker-end="url(#arr4)"/>
+        <line x1="460" y1="90" x2="526" y2="110" stroke="#38564a" stroke-width="1.6" marker-end="url(#arr4)"/>
+        <line x1="460" y1="202" x2="526" y2="170" stroke="#38564a" stroke-width="1.6" marker-end="url(#arr4)"/>
+        <line x1="730" y1="137" x2="786" y2="137" stroke="#38564a" stroke-width="1.6" marker-end="url(#arr4)"/>
+      </g>
+    </svg>
+    <figcaption>Figure 2 — five ways in, one set of rules. The browser and the remote CLI are clients of the REST API, so their steps are recorded as <code>api</code>. An export moves a case between a workspace folder and the server.</figcaption>
+  </figure>
+
+  <h2>A relay: one case through four of them</h2>
+  <div class="note">
+    This section creates the reference case on the server. A case's id comes from its
+    brief, so if chapter 4 already created <code>design-case.public-manual-qa</code> the
+    create is refused with <code>409 OAK-EXPECTED-VERSION</code>. Either read along, or
+    reset the server first with <code>docker compose down --volumes</code> — which deletes
+    every case on it — and <code>docker compose up -d --build</code>. Run everything from
+    the repository root. Step 3 uses the command line from chapter 2's source install,
+    and the commands use <code>jq</code> to trim JSON replies.
+  </div>
+  <p>
+    <strong>1 · The browser creates and interprets the case.</strong> Under
+    <em>Describe what you want to build</em>, tick <em>I have a structured YAML or JSON
+    brief instead</em>, name it <code>public-manual-qa.yaml</code>, paste the contents of
+    <code>examples/briefs/public-manual-qa.yaml</code>, click <em>Create case</em>, then
+    <em>Interpret brief</em>. The case reaches <code>needs_confirmation</code> at version
+    0.1.1.
+  </p>
+  <p><strong>2 · <code>curl</code> reads the questions</strong>, straight from the REST API:</p>
+  <pre><code>curl -s http://127.0.0.1:8080/v1/design-cases/design-case.public-manual-qa \
+  | jq '.case.unresolved_questions[] | {id, question, reason}'
+<span class="out">{
+  "id": "question.model-hardware",
+  "question": "Which approved model licence and measured target hardware apply?",
+  "reason": "Model eligibility and measured capacity can make generated-answer variants infeasible."
+}
+…four more, each with the reason it matters</span></code></pre>
+  <p><strong>3 · The remote CLI answers them.</strong> The same <code>oak</code> commands, pointed at the server; remote mode always names the case:</p>
+  <pre><code>uv run oak --server http://127.0.0.1:8080 confirm design-case.public-manual-qa \
+  --answers examples/briefs/public-manual-qa-answers.yaml
+<span class="out">Recorded design-case.public-manual-qa@0.1.2 as ready_for_candidates</span></code></pre>
+  <p>
+    <strong>4 · An AI assistant generates and evaluates the options.</strong> An assistant
+    talks to OAK's MCP server in lines of JSON over the server's standard input and
+    output. This shell function plays the assistant for one request: it starts
+    <code>oak-mcp</code> inside the <code>api</code> container, sends the mandatory
+    <code>initialize</code> greeting and the request, and prints the reply.
+  </p>
+  <pre><code>oak_mcp() {
+  printf '%s\n' \
+    '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}' \
+    "$1" | docker compose exec -T api oak-mcp | tail -n 1
+}
+OP=$(oak_mcp '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"oak_candidates_generate","arguments":{"case_id":"design-case.public-manual-qa","expected_version":"0.1.2","idempotency_key":"agent-generate-0001"}}}' \
+  | jq -r '.result.structuredContent.operation_id')
+sleep 2
+oak_mcp '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"oak_operation_get","arguments":{"operation_id":"'"$OP"'"}}}' \
+  | jq -c '.result.structuredContent | {state, result: .result.status}'
+<span class="out">{"state":"succeeded","result":"candidates_ready"}</span></code></pre>
+  <p>
+    Generating is a slow job, so the first reply is an operation to check on, and the
+    <code>worker</code> container does the work. Every tool that changes the case takes
+    the version the caller last saw (<code>expected_version</code>), so a stale caller is
+    refused rather than overwriting, and an <code>idempotency_key</code>, so a retry never
+    does the work twice. The assistant then evaluates <code>candidate-03</code> the same
+    way with <code>oak_candidate_evaluate</code> at version 0.1.3.
+  </p>
+  <p><strong>5 · A person chooses.</strong> Choosing a design is a decision someone must own, so no MCP tool exists for it:</p>
+  <pre><code>oak_mcp '{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"oak_candidate_select","arguments":{"case_id":"design-case.public-manual-qa","candidate_id":"candidate-03"}}}'
+<span class="out">{"error": {"code": -32602, "data": {"code": "OAK-TOOL-UNKNOWN"}, "message": "tool is not available"}, "id": 7, "jsonrpc": "2.0"}</span></code></pre>
+  <p>
+    In the browser, open the case, then <em>Open the full comparison</em>, give a
+    rationale under <code>candidate-03</code> and click <em>Select candidate-03</em>.
+  </p>
+  <p>
+    <strong>6 · The assistant finishes the plan</strong> with
+    <code>oak_assurance_plan_create</code> at version 0.1.5 and
+    <code>oak_bundle_compile</code> at 0.1.6, passing the target profile from
+    <code>examples/targets/local-fixture.yaml</code> as JSON. The compiled runner plan is a
+    <code>draft</code>: nothing that reaches OAK over MCP can sign, approve or dispatch it.
+    <code>docs/tour.md</code> in the repository has these requests written out in full.
+  </p>
+  <p><strong>7 · Check the trail</strong>, which records the way each step came in:</p>
+  <pre><code>curl -s http://127.0.0.1:8080/v1/design-cases/design-case.public-manual-qa/audit \
+  | jq -r '.items[] | "\(.sequence)  \(.event_type)  via \(.interface_origin)  -&gt; \(.case_version)"'
+<span class="out">1  case_created  via api  -&gt; 0.1.0
+2  brief_interpreted  via api  -&gt; 0.1.1
+3  claims_confirmed  via api  -&gt; 0.1.2
+4  candidates_generated  via mcp  -&gt; 0.1.3
+5  candidate_evaluated  via mcp  -&gt; 0.1.4
+6  candidate_selected  via api  -&gt; 0.1.5
+7  assurance_planned  via mcp  -&gt; 0.1.6
+8  bundle_compiled  via mcp  -&gt; 0.1.7</span></code></pre>
+  <p>Finally, compare the compiled design's fingerprint with the one chapter 3 produced offline:</p>
+  <pre><code>curl -s 'http://127.0.0.1:8080/v1/design-cases/design-case.public-manual-qa/artifacts?limit=100' \
+  | jq -r '.items[] | select(.id | startswith("semantic.")) | .digest'
+jq -r '.artifact_index[] | select(.id | startswith("semantic.")) | .digest' case-export/manifest.json
+<span class="out">sha256:2ef34758128e13038d26b82847589b2b0ec2c5f25ba6ba56982a520a92a34d63
+sha256:2ef34758128e13038d26b82847589b2b0ec2c5f25ba6ba56982a520a92a34d63</span></code></pre>
+  <div class="note">
+    The same fingerprint from a folder on your machine and from a database in a container,
+    through four different ways in. Not every record matches: the decision record, for
+    instance, carries the time it was made and who made it. The semantic manifest leaves
+    those out on purpose, which is what makes two runs comparable.
+  </div>
+
+  <h2>Connecting a real assistant</h2>
+  <p>
+    Most AI assistants and code editors that support MCP accept a JSON entry of this shape. Use the
+    full path to your checkout, keep the Compose stack running, and if the assistant
+    cannot find <code>docker</code>, give it the full path that <code>which docker</code>
+    prints:
+  </p>
+  <pre><code>{
+  "mcpServers": {
+    "oak": {
+      "command": "docker",
+      "args": ["compose", "-f", "/full/path/to/OAK/compose.yaml", "exec", "-T", "api", "oak-mcp"]
+    }
+  }
+}</code></pre>
+  <p>
+    The assistant sees eleven tools: create, read and interpret a case; list questions;
+    record answers under a named person; generate, list and evaluate candidates; create
+    the assurance plan; compile the bundle; and check on a slow job. Every call is checked
+    against the tool's schema and then handled by the same services as the browser. A
+    refusal comes back as data (<code>"isError": true</code> with a stable
+    <code>OAK-*</code> code) that the assistant can act on. Interpretation stays
+    deterministic unless the assistant explicitly asks for <code>online</code> or
+    <code>local</code>, so it cannot spend your Hugging Face credit by accident.
+  </p>
+  <div class="warn">
+    What an assistant can never do through OAK: sign, approve or dispatch a plan, read
+    files, run commands, resolve secrets, or change the model settings. The capability
+    matrix in <code>docs/interfaces.md</code> marks each of these "never" for MCP, and the
+    compatibility policy bans the command, file, secret, approval and runner tools under
+    every future version. Choosing the design is left out for a different reason: it is a
+    decision a person must own, so it is offered in the browser, the CLI and REST, but not
+    over MCP. Each <code>oak-mcp</code> process serves one assistant (<code>RR-010</code>).
+  </div>
+</section>
+
+<section class="chapter">
+  <div class="kicker">Chapter 6</div>
   <h1>The signed runner: sign, approve, dispatch, verify, revoke</h1>
   <p>
     Everything so far produced <em>inert</em> artifacts. This chapter is where OAK lets
@@ -451,7 +709,7 @@ uv run oak import ../case-export --directory ../restored
         <line x1="426" y1="185" x2="390" y2="185" stroke="#38564a" stroke-width="1.6" marker-end="url(#arr2)"/>
       </g>
     </svg>
-    <figcaption>Figure 2 — two trust domains, one untrusted mailbox. A tampered mailbox file is an expected adversarial case: the runner recomputes and re-verifies everything from pinned keys, and any failure is a denial with a stable code, published back as a signed message.</figcaption>
+    <figcaption>Figure 3 — two trust domains, one untrusted mailbox. A tampered mailbox file is an expected adversarial case: the runner recomputes and re-verifies everything from pinned keys, and any failure is a denial with a stable code, published back as a signed message.</figcaption>
   </figure>
 
   <h2>Set up and compile against the mutation fixture</h2>
@@ -553,7 +811,7 @@ uv run oak-runner run-once
   </p>
   <table>
     <tr><th>Denial family</th><th>Codes</th><th>What it means</th></tr>
-    <tr><td>Revocation set</td><td><code>OAK-RUNNER-REVOCATION</code></td><td>The signed revocation manifest is missing, does not match the notices on disk, or its sequence regressed. Re-publish from the control plane; do not hand-edit the mailbox (Figure 3)</td></tr>
+    <tr><td>Revocation set</td><td><code>OAK-RUNNER-REVOCATION</code></td><td>The signed revocation manifest is missing, does not match the notices on disk, or its sequence regressed. Re-publish from the control plane; do not hand-edit the mailbox (Figure 4)</td></tr>
     <tr><td>Protocol and schema</td><td><code>OAK-RUNNER-PROTOCOL</code>, <code>OAK-RUNNER-SCHEMA</code></td><td>The envelope's protocol version is unsupported, or an attachment is not schema-valid — usually a version mismatch between control plane and runner</td></tr>
     <tr><td>Attachment integrity</td><td><code>OAK-RUNNER-ATTACHMENT</code>, <code>OAK-RUNNER-DIGEST</code></td><td>An attachment's bytes do not match the digest the envelope references — the mailbox was altered or truncated. Re-dispatch</td></tr>
     <tr><td>Signatures and trust</td><td><code>OAK-RUNNER-SIGNATURE</code>, <code>OAK-RUNNER-TRUST</code></td><td>A signature does not verify against the runner's own pinned anchors — never against a key carried in the document itself</td></tr>
@@ -600,16 +858,19 @@ uv run oak-runner run-once
         <text x="500" y="195" text-anchor="middle" font-size="12" fill="#5a6b63">A revoked approval stays revoked: the runner would rather deny every pending dispatch than guess about a revocation set it cannot prove.</text>
       </g>
     </svg>
-    <figcaption>Figure 3 — the revocation channel. Notices and their signed set manifest; the runner records the highest manifest sequence it has seen in its own home directory.</figcaption>
+    <figcaption>Figure 4 — the revocation channel. Notices and their signed set manifest; the runner records the highest manifest sequence it has seen in its own home directory.</figcaption>
   </figure>
 </section>
 
 <section class="chapter">
-  <div class="kicker">Chapter 6</div>
+  <div class="kicker">Chapter 7</div>
   <h1>Verifying release artifacts</h1>
   <p>
     If you received OAK Community as built artifacts rather than as this repository,
-    verify them before installing anything. The repository builds with:
+    verify them before installing anything. The newest published release is
+    <code>0.7.1</code>, on the project's GitHub Releases page; <code>0.8.0</code>, which
+    this manual describes, is tagged and approved but not published anywhere yet, so its
+    artifacts exist only if you build them. The repository builds them with:
   </p>
   <pre><code>make release</code></pre>
   <p>
@@ -650,7 +911,7 @@ them: OAK Community release artifacts are unsigned.</span></code></pre>
 </section>
 
 <section class="chapter">
-  <div class="kicker">Chapter 7</div>
+  <div class="kicker">Chapter 8</div>
   <h1>Troubleshooting</h1>
   <table>
     <tr><td>Online AI refuses with <code>OAK-MODEL-KEY-REJECTED</code></td><td>Hugging Face rejected the stored token when it was last checked or used</td><td>Store a current token with <code>oak models set-key</code>; the verdict is forgotten when the key changes</td></tr>
@@ -658,10 +919,13 @@ them: OAK Community release artifacts are unsigned.</span></code></pre>
     <tr><td>Online AI says no route is fast enough</td><td>Every catalogued route publishes throughput too low for the request budget</td><td>Run <code>oak models discover</code>, raise <code>OAK_MODEL_TIMEOUT_SECONDS</code> (up to 35 keeps the pre-flight), or set the provider policy to fastest</td></tr>
     <tr><td>A command refuses with <code>OAK-EXPECTED-VERSION</code></td><td>The case advanced since you last read it</td><td>Re-read the case and retry with the current version — this is optimistic concurrency working, not an error to force past</td></tr>
     <tr><td>The web stack serves an old version</td><td><code>docker compose up -d</code> reused a cached image</td><td>Always <code>--build</code>, then check <code>/version</code></td></tr>
+    <tr><td>The first <code>docker compose up -d --build</code> stops with <code>operation timed out</code></td><td>A package download stalled while the images were building</td><td>Run the same command again; the build steps that finished are reused</td></tr>
+    <tr><td>Creating the reference case on the server is refused with <code>409 OAK-EXPECTED-VERSION</code></td><td>A case's id comes from its brief, and this server already holds that case</td><td>Carry on with the existing case, or reset the server with <code>docker compose down --volumes</code>, which deletes every case on it</td></tr>
+    <tr><td>An MCP client reports that it cannot start <code>docker</code></td><td>Assistants often launch their helpers with a minimal <code>PATH</code></td><td>Put the full path that <code>which docker</code> prints into the client's configuration</td></tr>
     <tr><td><code>OAK-RUNNER-REVOCATION</code> on every dispatch</td><td>The revocation manifest is missing or the notice set does not match it</td><td>Re-publish from the control plane (<code>oak revoke-approval</code>, or a fresh dispatch establishes an empty manifest). Do not hand-delete notices — the mismatch is the protection working</td></tr>
     <tr><td><code>OAK-RUNNER-REPLAY</code> on every dispatch</td><td>The consumed-nonce ledger in <code>$OAK_RUNNER_HOME</code> is corrupt; it deliberately refuses rather than reading as empty</td><td>Inspect <code>consumed-nonces.json</code>; remove it only if you accept that previously burned nonces become replayable</td></tr>
     <tr><td><code>OAK-WORKSPACE-CORRUPT</code> on every command</td><td>Manifest unreadable, or written by a format this build does not know</td><td>Restore from your last <code>oak export</code> — this is why the manual says export before upgrading</td></tr>
-    <tr><td><code>run-once</code> exited 0 but printed <code>denied &lt;dispatch&gt;: &lt;reason&gt;</code></td><td>Denying a dispatch is the runner working correctly; exit status reports whether the runner ran, not whether anything succeeded</td><td>Read the signed messages (<code>oak ingest</code>) or the journal, and look the denial code up in the chapter 5 table or <code>docs/error-codes.md</code></td></tr>
+    <tr><td><code>run-once</code> exited 0 but printed <code>denied &lt;dispatch&gt;: &lt;reason&gt;</code></td><td>Denying a dispatch is the runner working correctly; exit status reports whether the runner ran, not whether anything succeeded</td><td>Read the signed messages (<code>oak ingest</code>) or the journal, and look the denial code up in the chapter 6 table or <code>docs/error-codes.md</code></td></tr>
     <tr><td>Runner exits 64 or 70 with a code on stderr</td><td>The runner itself could not run: 64 is a missing required environment variable, 70 a configuration or verification refusal that stopped it before processing (e.g. <code>OAK-RUNNER-CONFIG</code>)</td><td>Fix the environment or target profile it names — every <code>OAK-*</code> code is documented with its raise site in <code>docs/error-codes.md</code></td></tr>
   </table>
   <p>
@@ -671,7 +935,7 @@ them: OAK Community release artifacts are unsigned.</span></code></pre>
 </section>
 
 <section class="chapter">
-  <div class="kicker">Chapter 8</div>
+  <div class="kicker">Chapter 9</div>
   <h1>Uninstalling completely</h1>
   <pre><code># 1 · Stack, volumes (your data), OAK-built images, fixture containers
 docker compose down --volumes --remove-orphans
@@ -682,7 +946,7 @@ docker rm -f $(docker ps -aq --filter "label=oak.fixture=true") 2&gt;/dev/null |
 rm -rf ~/.oak
 
 # 3 · Workspaces you created (you chose these paths; OAK does not track them),
-#     and chapter 5's trust directory and mailbox, which hold DEVELOPMENT PRIVATE KEYS
+#     and chapter 6's trust directory and mailbox, which hold DEVELOPMENT PRIVATE KEYS
 rm -rf ./workspace ./runner-demo ./case-export ./restored ./trust ./mailbox
 
 # 4 · Build output, venv and caches inside the checkout
@@ -701,7 +965,7 @@ cd .. &amp;&amp; rm -rf OAK</code></pre>
     A key stored in the operating-system keychain is <em>not</em> under
     <code>~/.oak</code> and survives this: remove those first, one family at a time, with
     <code>oak models remove-key &lt;family&gt;</code>.
-    Chapter 5 placed its trust directory and mailbox in the repository root and its
+    Chapter 6 placed its trust directory and mailbox in the repository root and its
     runner home inside <code>runner-demo/</code>: <code>trust/</code> holds development
     private keys, which is why step 3 names it explicitly rather than leaving it to the
     checkout's removal. Shared caches
@@ -718,7 +982,7 @@ cd .. &amp;&amp; rm -rf OAK</code></pre>
 </section>
 
 <section class="chapter">
-  <div class="kicker">Chapter 9</div>
+  <div class="kicker">Chapter 10</div>
   <h1>Colophon: how this manual is built</h1>
   <p>
     The source of this manual is <code>docs/manual/manual.html</code>; the PDF is a
@@ -731,13 +995,18 @@ OAK_MANUAL_SCREENS=1 pnpm --dir web exec playwright test e2e/manual-screens.spec
 # the PDF, using the same pinned Chromium the e2e suite uses
 pnpm --dir web exec node ../docs/manual/build_manual.mjs</code></pre>
   <p>
-    Every command in chapters 3 and 5 was verified by running the full journeys against
+    Every command in chapters 3, 5 and 6 was verified by running the full journeys against
     this exact tree, and the expected-output excerpts are what those runs printed. The
     repository's end-to-end suites (<code>tests/e2e/test_cli.py</code>,
     <code>tests/e2e/test_runner_journey.py</code>) exercise the same invocations
     continuously — except <code>oak revoke-approval</code>, which is covered by the
     revocation integration suite (<code>tests/integration/test_runner_revocation.py</code>)
-    instead. The diagrams are inline SVG in the source. This manual
+    instead. Chapter 5's shell commands were run against the Compose stack for this
+    edition. The operations behind them are exercised by the interface conformance and MCP
+    suites (<code>tests/integration/test_interface_conformance.py</code>,
+    <code>tests/e2e/test_mcp_interface.py</code>), which need a PostgreSQL database and so
+    run locally rather than in CI (<code>RR-019</code>). The screenshots were re-captured from
+    the <code>0.8.0</code> stack. The diagrams are inline SVG in the source. This manual
     describes OAK Community 0.8.0 — a local-first developer release with no production
     or customer readiness claim; where this document and
     <code>docs/security/residual-risk.md</code> could ever disagree, the register wins.

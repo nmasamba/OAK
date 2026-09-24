@@ -3,9 +3,12 @@
 # The OAK Community user manual
 
 [`OAK-Community-Manual.pdf`](OAK-Community-Manual.pdf) is the illustrated end-to-end
-manual for OAK Community: install, the CLI journey from brief to compiled bundle, the
-browser workspace, the signed runner journey including revocation, artifact
-verification, troubleshooting, and complete uninstall.
+manual for OAK Community: who it is for, the two install routes and what each sets up,
+the CLI journey from brief to compiled bundle, the browser workspace, the other ways in
+(REST, the remote CLI and MCP, as one case relayed between them), the signed runner
+journey including revocation, artifact verification, troubleshooting, and complete
+uninstall. [`../tour.md`](../tour.md) is the Markdown companion to its chapter 5, with
+every MCP request written out in full.
 
 The authoritative source is [`manual.html`](manual.html); the PDF is a rendering of it.
 The optional model-provider chapter's screenshot (`assets/11-models.png`) is captured the
@@ -28,9 +31,14 @@ OAK_MANUAL_SCREENS=1 pnpm --dir web exec playwright test e2e/manual-screens.spec
 pnpm --dir web exec node ../docs/manual/build_manual.mjs
 ```
 
-Regenerate both whenever the workspace UI or the documented commands change. The
+Regenerate both whenever the workspace UI, the documented commands or the version
+change: the masthead in every screenshot shows the version the stack reports. The
 capture spec (`web/e2e/manual-screens.spec.ts`) is gated behind `OAK_MANUAL_SCREENS=1`:
-`make web-e2e` collects it but reports it as skipped. The PDF rebuild uses the pinned
+`make web-e2e` collects it but reports it as skipped. To capture from a stack on other
+ports or under another Compose project name, so that a stack holding real cases is left
+alone, set `OAK_WEB_BASE_URL` (for example `http://127.0.0.1:15173`) and
+`COMPOSE_PROJECT_NAME`; the spec reads the first and its `docker compose exec` honours
+the second. The PDF rebuild uses the pinned
 Chromium already installed for the e2e suite, so a rebuild on the same platform from
 unchanged source reproduces the same document apart from the PDF's embedded creation
 timestamp. It is not byte-reproducible across machines: the stylesheet names system

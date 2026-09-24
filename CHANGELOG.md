@@ -4,6 +4,41 @@
 
 All notable changes to OAK Community are recorded here.
 
+## Unreleased
+
+### Documentation
+
+These entries change documentation only: no schema, command, REST, MCP or runner
+behaviour, and the four reference digests are untouched.
+
+- `README.md` is rewritten for readers who are not specialists. It covers who OAK is for,
+  what it produces, what makes it different, and exactly what each install route puts on
+  the machine (including that OAK installs neither Docker nor `uv`). It also covers the
+  day-to-day commands after the first run, the five interfaces, how the MCP server works,
+  the optional model modes, the limits in plain words, and where contributions would help.
+  The documentation table and the release-verification section are kept. The latter now
+  names the published release (`0.7.1`) and gives the macOS and standard-library verifiers.
+- `docs/tour.md` is new. It relays one design case through the browser, `curl`, the
+  remote CLI and an MCP client, and pairs it with an offline CLI run whose
+  semantic-manifest digest matches the server's. Every command and output comes from a
+  live run: the offline part against a file workspace, and the rest against the Compose
+  stack.
+- `CONTRIBUTING.md` gains "Why contribute" and "Where you could help", a map of open work
+  drawn from the residual-risk register, the threat-coverage named gaps and the backlog.
+- The user manual gains a plain-language opening and an install chapter that separates
+  the Docker and source routes and says what each sets up. It also gains a new chapter 5
+  on REST, the remote CLI and MCP (later chapters are renumbered), day-to-day Compose
+  commands, and three troubleshooting rows. Its screenshots are re-captured from the
+  `0.8.0` stack, because the previous set showed a `v0.7.1` masthead, and the PDF is
+  rebuilt.
+- `docs/interfaces.md` documents running the MCP server inside the Compose `api`
+  container, because Compose publishes no PostgreSQL port for a host-run `oak-mcp` to
+  reach.
+- `docs/operations.md`, the manual and the README now say that Local AI cannot work from
+  the Compose stack. Its endpoint must be a loopback address, and inside the `api`
+  container that is the container itself. The instructions had previously implied that
+  pinning a Local AI model under Compose was enough.
+
 ## 0.8.0 — approved 2026-09-23, unpublished
 
 Two sprints ship under one version because none was cut for either. `0.7.1` remains the
