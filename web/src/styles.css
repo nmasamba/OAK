@@ -435,6 +435,18 @@ legend {
   font-size: 0.95rem;
 }
 
+.candidate-detail .explanation-label {
+  margin: 0.6rem 0 0.2rem;
+}
+
+.candidate-detail .explanation-label + ul {
+  margin-top: 0;
+}
+
+.candidate-detail .explanation-requirements {
+  display: block;
+}
+
 .objective-value {
   font-weight: 700;
 }
