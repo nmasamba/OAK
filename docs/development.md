@@ -185,8 +185,53 @@ restarts the Compose `worker` service, so it requires Docker control and is skip
 Local AI dropdown end to end, and `e2e/hardening.spec.ts` checks the containers run
 unprivileged with an owner-only model-state volume. A fifth,
 `e2e/manual-screens.spec.ts`, re-captures the user manual's screenshots; it is collected
-by every run but skips unless `OAK_MANUAL_SCREENS=1` (see `docs/manual/README.md`). Override `OAK_WEB_BASE_URL` and
-`OAK_API_BASE_URL` to target other local origins. Browser binaries download from the
-Playwright CDN, and the model-settings spec makes the `api` container ask
-`huggingface.co` once about the synthetic token it stores (one free request that
-generates nothing); everything else runs locally.
+by every run but skips unless `OAK_MANUAL_SCREENS=1` (see `docs/manual/README.md`).
+Browser binaries download from the Playwright CDN, and the model-settings spec makes the
+`api` container ask `huggingface.co` once about the synthetic token it stores (one free
+request that generates nothing); everything else runs locally.
+
+The Compose-backed specs act on whichever stack `docker compose` reaches from the
+repository root. They stop and restart its `worker`, clear its Hugging Face and Local AI
+model selections, and remove its Hugging Face credential setting, including any stored
+token and its verification record. With nothing overridden, that is the default
+`oak-community` project serving `http://127.0.0.1:5173` and `http://127.0.0.1:8080`, so
+point the suite at a stack whose model settings you can lose. To run it against a
+throwaway project beside that one, give the throwaway its own name and ports. The
+override needs `!override` (Docker Compose 2.24.4 or later), because otherwise Compose
+adds to the port list and still binds 8080 and 5173:
+
+```yaml
+# e2e-ports.yaml, kept out of the repository
+services:
+  api:
+    ports: !override
+      - "127.0.0.1:28080:8080"
+  web:
+    ports: !override
+      - "127.0.0.1:25173:8080"
+```
+
+Then set `OAK_WEB_BASE_URL` and `OAK_API_BASE_URL` to its origins and
+`COMPOSE_PROJECT_NAME` to its project name, and remove it afterwards:
+
+```bash
+docker compose -p oak-e2e -f compose.yaml -f /path/to/e2e-ports.yaml up -d --build --wait
+OAK_WEB_BASE_URL=http://127.0.0.1:25173 OAK_API_BASE_URL=http://127.0.0.1:28080 \
+  COMPOSE_PROJECT_NAME=oak-e2e make web-e2e
+docker compose -p oak-e2e -f compose.yaml -f /path/to/e2e-ports.yaml down -v --rmi local
+```
+
+Before the first `docker compose` command, `web/e2e/support.ts` checks where Compose will
+land. It refuses without calling Docker at all in two cases: either origin is overridden
+without an exported `COMPOSE_PROJECT_NAME`, or an origin's host is not `127.x.x.x` or
+`[::1]`. Write `127.0.0.1` rather than `localhost`, which can resolve to either family.
+Otherwise it asks Compose, with the read-only `docker compose port`, where the project
+publishes `api` and `web`. It refuses unless each is on its origin's port and address, or
+on that address family's wildcard (`0.0.0.0` or `[::]`). The check trusts the Docker
+engine the shell is configured for (`DOCKER_HOST`, the current `docker context`), and it
+assumes that engine runs on this machine. `compose()` also refuses a command that starts
+with a global flag such as `-p` or `--file`, which would choose the project after the
+check. `e2e/compose-target.spec.ts` covers these decisions without Docker. A spec that
+needs Docker must call `compose()` from `web/e2e/support.ts` rather than run its own
+`execSync`. `tests/contract/test_browser_suite_compose_scope.py` fails if any other script
+under `web/e2e` mentions `child_process`.

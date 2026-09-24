@@ -18,6 +18,24 @@ All notable changes to OAK Community are recorded here.
   "[object Object]" appears on the page. This is a display change only: candidate
   documents, the API and compiler output are unchanged, and the four reference digests are
   untouched.
+- The Compose-backed browser specs can no longer act on the default `oak-community` stack
+  when the suite is pointed at another one. `failures.spec.ts`, `hardening.spec.ts`,
+  `models.spec.ts` and the manual capture each ran a bare `docker compose`. From the
+  repository root, that reaches the project named in `compose.yaml` whatever
+  `OAK_WEB_BASE_URL` and `OAK_API_BASE_URL` say. So a run aimed at a throwaway stack would
+  stop the default stack's worker and delete its stored Hugging Face token. The specs now
+  share one helper in `web/e2e/support.ts`. It calls Docker not at all if an origin is
+  overridden without an exported `COMPOSE_PROJECT_NAME`, or if an origin's host is not
+  `127.x.x.x` or `[::1]`. Otherwise it first asks `docker compose port` where the project
+  publishes `api` and `web`. It refuses unless each is on its origin's port and address,
+  or on that family's wildcard. It also refuses a command that starts with a Compose
+  global flag such as `-p`. The manual capture makes the check before its first
+  screenshot, and now also needs `OAK_API_BASE_URL` when it targets another stack. A
+  contract test, which `make check` runs, keeps the other specs from starting processes
+  of their own, because the browser suite itself is not part of `make check` (`RR-021`).
+  This changes test tooling and its documentation only: no schema, command, REST, MCP or
+  runner behaviour changes, the wheel and the container images are unchanged, and the
+  four reference digests are untouched.
 
 ### Documentation
 

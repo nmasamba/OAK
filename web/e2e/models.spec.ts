@@ -1,16 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
-import { execSync } from "node:child_process";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
-const REPO_ROOT = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-  "..",
-  "..",
-);
+import { compose } from "./support";
 
 // A synthetic token in the repository's test convention. The whole point of this spec is
 // that it never comes back, so it must be distinctive enough to find anywhere it might.
@@ -19,10 +11,7 @@ const REPO_ROOT = path.resolve(
 const TEST_KEY = "oak-test-key-huggingface-web-0123456789";
 
 function api(command: string): string {
-  return execSync(`docker compose exec -T api ${command}`, {
-    cwd: REPO_ROOT,
-    stdio: "pipe",
-  }).toString();
+  return compose(`exec -T api ${command}`);
 }
 
 function requireStack() {

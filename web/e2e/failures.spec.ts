@@ -1,26 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
-import { execSync } from "node:child_process";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-
 import { expect, test } from "@playwright/test";
 
 import {
+  API_BASE,
   apiPost,
   briefFor,
+  compose,
   referenceAnswers,
   waitForOperation,
 } from "./support";
-
-const REPO_ROOT = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-  "..",
-  "..",
-);
-
-function compose(command: string) {
-  execSync(`docker compose ${command}`, { cwd: REPO_ROOT, stdio: "pipe" });
-}
 
 test("a stale action is denied and the reviewer recovers to current state", async ({
   page,
@@ -121,7 +109,7 @@ test("an interrupted operation is cancelled cooperatively and durably", async ({
   const deadline = Date.now() + 60_000;
   for (;;) {
     const response = await request.get(
-      `${process.env["OAK_API_BASE_URL"] ?? "http://127.0.0.1:8080"}/v1/operations/${operationId}`,
+      `${API_BASE}/v1/operations/${operationId}`,
     );
     const body = (await response.json()) as { state: string };
     if (body.state === "cancelled") {

@@ -36,12 +36,15 @@ change: the masthead in every screenshot shows the version the stack reports. Th
 capture spec (`web/e2e/manual-screens.spec.ts`) is gated behind `OAK_MANUAL_SCREENS=1`:
 `make web-e2e` collects it but reports it as skipped. To capture from a stack on other
 ports or under another Compose project name, so that a stack holding real cases is left
-alone, set `OAK_WEB_BASE_URL` (for example `http://127.0.0.1:15173`) and
-`COMPOSE_PROJECT_NAME`; the spec reads the first and its `docker compose exec` honours
-the second. The PDF rebuild uses the pinned
-Chromium already installed for the e2e suite, so a rebuild on the same platform from
-unchanged source reproduces the same document apart from the PDF's embedded creation
-timestamp. It is not byte-reproducible across machines: the stylesheet names system
-font families (Georgia, Helvetica Neue, SF Mono) with generic fallbacks, so a host
-without them substitutes fonts and can repaginate. That is why the HTML source, not
-the PDF, is authoritative — the PDF is a convenience rendering.
+alone, set `OAK_WEB_BASE_URL` and `OAK_API_BASE_URL` to that stack's origins (for example
+`http://127.0.0.1:15173` and `http://127.0.0.1:18080`) and `COMPOSE_PROJECT_NAME` to its
+project name, exported. The spec drives the first. Before the first screenshot it fetches
+its token through `compose()` in `web/e2e/support.ts`, which first checks with a read-only
+`docker compose port` that Compose reaches the project serving both origins. If not, the
+spec stops there and no asset is overwritten. The PDF rebuild uses the pinned Chromium
+already installed for the e2e suite, so a rebuild on the same platform from unchanged
+source reproduces the same document apart from the PDF's embedded creation timestamp. It
+is not byte-reproducible across machines: the stylesheet names system font families
+(Georgia, Helvetica Neue, SF Mono) with generic fallbacks, so a host without them
+substitutes fonts and can repaginate. That is why the HTML source, not the PDF, is
+authoritative — the PDF is a convenience rendering.
