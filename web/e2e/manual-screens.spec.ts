@@ -3,13 +3,12 @@
 // Gated: set OAK_MANUAL_SCREENS=1 (and have `docker compose up -d --build` healthy), then
 //   OAK_MANUAL_SCREENS=1 pnpm --dir web exec playwright test e2e/manual-screens.spec.ts
 // Output lands in docs/manual/assets/; the manual embeds those files by relative path.
-import { execSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { expect, test, type Page } from "@playwright/test";
 
-import { LOCAL_FIXTURE_TARGET, briefFor } from "./support";
+import { LOCAL_FIXTURE_TARGET, briefFor, compose } from "./support";
 
 const ASSETS = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -36,6 +35,10 @@ test("capture the manual screenshots from the reference journey", async ({
   );
   test.setTimeout(360_000);
   await page.setViewportSize({ width: 1200, height: 800 });
+  // Fetched first, although only chapter 4's figure uses it: compose() refuses a Compose
+  // project that does not serve the suite's origins, and it should do so before any file
+  // in docs/manual/assets is overwritten.
+  const token = compose("exec -T api oak models token").trim();
 
   const slug = `getting-started-${Date.now()}`;
   const caseId = `design-case.${slug}`;
@@ -170,12 +173,6 @@ test("capture the manual screenshots from the reference journey", async ({
   // Chapter 4's model settings figure. Captured with the real capability token so the page
   // shows the family list and the key form rather than the token prompt; no key is stored,
   // so nothing about this capture changes the stack's configuration.
-  const token = execSync("docker compose exec -T api oak models token", {
-    cwd: path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", ".."),
-    stdio: "pipe",
-  })
-    .toString()
-    .trim();
   await page.goto(`/#token=${encodeURIComponent(token)}`);
   await page.goto("/settings/models");
   await expect(

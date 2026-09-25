@@ -1,22 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-import { execSync } from "node:child_process";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-
 import { expect, test } from "@playwright/test";
 
-const REPO_ROOT = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-  "..",
-  "..",
-);
-
-function composeOutput(command: string): string {
-  return execSync(`docker compose ${command}`, {
-    cwd: REPO_ROOT,
-    stdio: "pipe",
-  }).toString();
-}
+import { compose } from "./support";
 
 // RR-037 regression: a USER directive in a Dockerfile is a claim; the running
 // container is the fact. These assertions interrogate the live stack the rest of
@@ -28,9 +13,9 @@ test("the web and api containers run as their unprivileged users", () => {
     "requires the compose stack (set OAK_E2E_DOCKER=1)",
   );
 
-  expect(composeOutput("exec -T web id -u").trim()).toBe("101");
-  expect(composeOutput("exec -T api id -u").trim()).toBe("10001");
-  expect(composeOutput("exec -T worker id -u").trim()).toBe("10001");
+  expect(compose("exec -T web id -u").trim()).toBe("101");
+  expect(compose("exec -T api id -u").trim()).toBe("10001");
+  expect(compose("exec -T worker id -u").trim()).toBe("10001");
 });
 
 // RR-040: provider keys live on a volume the api service alone mounts. A named volume
@@ -43,9 +28,7 @@ test("the model-state volume is owner-only on api and holds nothing on the worke
   );
 
   expect(
-    composeOutput(
-      "exec -T api stat -c '%u %g %a' /var/lib/oak/model-state",
-    ).trim(),
+    compose("exec -T api stat -c '%u %g %a' /var/lib/oak/model-state").trim(),
   ).toBe("10001 10001 700");
 
   // The worker is built from the same image, so the directory exists there too — what
@@ -53,12 +36,12 @@ test("the model-state volume is owner-only on api and holds nothing on the worke
   // worker's copy stays the empty one the image created, and no key or token is
   // reachable from it. That, not the path's absence, is the property worth asserting.
   expect(
-    composeOutput(
+    compose(
       "exec -T worker sh -c 'ls -A /var/lib/oak/model-state | wc -l'",
     ).trim(),
   ).toBe("0");
   expect(
-    composeOutput(
+    compose(
       "exec -T worker sh -c 'find /var/lib/oak -name \"*.key\" -o -name api-token | wc -l'",
     ).trim(),
   ).toBe("0");
