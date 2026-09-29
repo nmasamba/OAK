@@ -329,9 +329,9 @@ export function BundlePage({ caseId }: { readonly caseId: string }) {
                   <dd>
                     {runnerResults} signed runner result
                     {runnerResults === 1 ? "" : "s"} and {observations}{" "}
-                    observation record{observations === 1 ? "" : "s"},
-                    recorded through the local command line; this page
-                    cannot install, approve or observe.
+                    observation record{observations === 1 ? "" : "s"}, recorded
+                    through the local command line; this page cannot install,
+                    approve or observe.
                   </dd>
                 </div>
               )}
