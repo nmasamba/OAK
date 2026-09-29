@@ -14,6 +14,8 @@ Key build fixtures:
 - `example-evaluation-result.yaml`, `example-architecture-decision.yaml`, and `example-assurance-plan.yaml` show immutable review lineage;
 - `example-runner-plan.yaml` demonstrates the canonical signed-plan schema shape and contains no arbitrary command;
 - `targets/local-fixture.yaml` permits only inventory, validate, render, plan, and verify operations and is never a production target;
+- `targets/local-mutation-fixture.yaml` and `targets/local-started-fixture.yaml` are the only shipped profiles that also permit `apply`, `rollback` and `destroy`. Each maps every catalogue component to the same digest-pinned placeholder image, which implements none of them. The first never starts the containers it creates; the second starts and smoke-tests them under the runner's fixed hardening;
+- `example-observation-record.yaml` is a record `oak observe` wrote after one install and one rollback against `targets/local-started-fixture.yaml`;
 - `example-webhook-envelope.yaml` is a really-signed portal event envelope whose publisher key is pinned in `portal/webhook-publisher.identity.json`.
 
 The executable Sprint 2 fixture uses `candidate-00` as the simpler baseline and `candidate-03` as the selected balanced candidate. A compiled runner plan is inert until it is separately signed, approved and independently verified by the runner.

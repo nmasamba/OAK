@@ -609,7 +609,7 @@ customer readiness claim, and no external security review was commissioned for i
 - **Security record**: [SECURITY.md](SECURITY.md),
   [threat-coverage.md](docs/security/threat-coverage.md) mapping all nineteen threat ids to
   the tests that exercise them, and [residual-risk.md](docs/security/residual-risk.md) with
-  42 stable-id entries. A build gate now rejects unqualified assurance vocabulary.
+  43 stable-id entries. A build gate now rejects unqualified assurance vocabulary.
 - **Measurements**: [performance.md](docs/performance.md) and a provenance-stamped
   `scripts/benchmark.py`. Reference compiler 8.66 s median against a 120 s requirement;
   interactive read p95 30 ms against 500 ms; workspace manifest reads grow from 3.8 ms at

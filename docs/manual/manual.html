@@ -50,9 +50,12 @@
     <strong>What this is.</strong> OAK Community 0.8.0 is a <em>local-first developer
     release</em>. It carries no production or customer readiness claim, and no external
     security review was commissioned for it. Everything in this manual runs on your own
-    machine against public or synthetic fixtures; the only mutation the runner can ever
-    perform is creating and removing one network-isolated, never-started container that
-    you explicitly acknowledge. The authoritative statements of scope and limitation are
+    machine against public or synthetic fixtures; the only mutation the runner can
+    perform is creating, in your local Docker, one network-isolated container per
+    component of the chosen design, from an image pinned by digest in a target profile
+    you explicitly acknowledge, and removing them again. It starts them, under fixed
+    hardening, only where that profile acknowledges it. The authoritative statements of
+    scope and limitation are
     <code>SECURITY.md</code> and <code>docs/security/residual-risk.md</code> in the
     repository.
   </div>
@@ -71,7 +74,7 @@
     <li>The command-line journey: brief to compiled bundle</li>
     <li>The browser workspace</li>
     <li>Other ways in: REST, the remote CLI and MCP</li>
-    <li>The signed runner: sign, approve, dispatch, verify, revoke</li>
+    <li>The signed runner: sign, approve, install, observe, revoke</li>
     <li>Verifying release artifacts</li>
     <li>Troubleshooting</li>
     <li>Uninstalling completely</li>
@@ -150,9 +153,10 @@
     same inputs produce byte-identical canonical artifacts, so digests are meaningful
     and two clean machines agree. <strong>Offline:</strong> after installation, nothing
     in this manual needs a hosted service or a model provider, and the whole CLI journey
-    runs with the network disabled; only the Docker chapters (4, 5 and 6) pull their pinned
-    base images once, on first build, and the optional model provider in chapter 4 — which
-    nothing requires — is the single feature that ever calls out. <strong>Fail-closed:</strong> anything unknown, malformed, expired, unsigned or
+    runs with the network disabled. The network is used only when the Docker chapters (4
+    and 5) pull their pinned base images once, on first build; when chapter 6's first
+    install has Docker pull one pinned placeholder image anonymously from Docker Hub; and
+    by the optional model provider in chapter 4, which nothing requires. <strong>Fail-closed:</strong> anything unknown, malformed, expired, unsigned or
     mismatched is refused with a stable <code>OAK-*</code> error code, never skipped.
   </p>
   <h2>What it is not</h2>
@@ -186,7 +190,7 @@
     <tr><td>You install first</td><td>Docker with Compose (Docker Desktop on a Mac) and <code>git</code></td><td><code>git</code> and <code>uv</code></td></tr>
     <tr><td>OAK then sets up</td><td>Two images built locally (the API image, shared by the <code>api</code>, <code>worker</code> and <code>migrate</code> services, and the web workspace) plus <code>postgres:17.6-alpine</code>: roughly 1–2&nbsp;GB of disk with what the build needs. Also five containers and three volumes: <code>oak-postgres-data</code> (your cases), <code>oak-artifacts</code> (the files OAK produces) and <code>oak-model-state</code> (a Hugging Face token, if you store one)</td><td>A virtual environment, <code>.venv</code>, inside the checkout, holding the locked dependencies. <code>uv</code> fetches Python 3.13.12 itself and keeps it, with its download cache, in your home folder (<code>~/.local/share/uv</code>, <code>~/.cache/uv</code>)</td></tr>
     <tr><td>Listens on</td><td><code>127.0.0.1:5173</code> (workspace) and <code>127.0.0.1:8080</code> (API) only</td><td>Nothing, unless you start a server</td></tr>
-    <tr><td>Writes elsewhere</td><td>Nothing outside Docker</td><td>The workspaces you create, wherever you create them, and <code>~/.oak</code> once you use keys, model settings or the runner — besides <code>uv</code>'s own folders above</td></tr>
+    <tr><td>Writes elsewhere</td><td>Nothing outside Docker</td><td>The workspaces you create, wherever you create them, and <code>~/.oak</code> once you use keys, model settings or the runner — besides <code>uv</code>'s own folders above. The runner's install (chapter 6) also has your local Docker pull one pinned image and create labelled containers from it, which rollback removes</td></tr>
   </table>
   <h2>Prerequisites</h2>
   <table>
@@ -194,7 +198,7 @@
     <tr><td>macOS or Linux</td><td>macOS 11+ on Apple silicon (arm64) — Intel Macs are not supported; Linux glibc ≥ 2.24 (x86_64) / ≥ 2.27 (aarch64)</td><td>See <code>docs/platforms.md</code> for the authoritative matrix, including why dependency installation fails outright on macOS x86_64. Windows is not supported; WSL2 follows the Linux rows</td></tr>
     <tr><td><code>git</code></td><td>any recent</td><td>To clone the repository — and required even offline for the repository checks, which shell out to it</td></tr>
     <tr><td><code>uv</code></td><td>0.10.x</td><td>The source way. Installs and pins Python 3.13.12 itself</td></tr>
-    <tr><td>Docker with Compose</td><td>any recent, daemon on the default socket</td><td>The browser workspace, REST and MCP (ch. 4 and 5) and the runner's apply cycle (ch. 6). The runner strips <code>DOCKER_HOST</code> and friends, so rootless Docker, Colima and Podman socket shims cannot reach it (<code>RR-013</code>)</td></tr>
+    <tr><td>Docker with Compose</td><td>any recent, daemon on the default socket</td><td>The browser workspace, REST and MCP (ch. 4 and 5) and the runner's install cycle (ch. 6), whose first install pulls <code>rancher/mirrored-pause</code> anonymously from Docker Hub. The runner gives Docker only <code>PATH</code> and an empty Docker configuration of its own, so <code>DOCKER_HOST</code>, CLI contexts and your registry credentials are never used, and rootless Docker, Colima and Podman socket shims cannot reach it (<code>RR-013</code>)</td></tr>
     <tr><td>Node.js + <code>pnpm</code></td><td>pnpm 11.15.1</td><td>Contributors only: <code>make bootstrap</code>, the repository checks and rebuilding this manual. The pinned Node 24.18.0 that pnpm downloads is only exercised by the web workspace, so your system Node version does not matter</td></tr>
   </table>
   <h2>Install the command line</h2>
@@ -206,8 +210,9 @@ uv sync --frozen</code></pre>
     Python 3.13.12 if this machine does not have it. It took 40 seconds on the machine
     this edition was checked on. It is the one networked step the CLI journey ever needs:
     chapter 3 and chapter 9 work with egress disabled from here on, as does checking a
-    download in chapter 7, while chapters 4, 5 and 6 need Docker, which pulls its pinned
-    base images the first time you build.
+    download in chapter 7, while chapters 4 and 5 need Docker, which pulls its pinned
+    base images the first time you build, and chapter 6's first install has Docker pull
+    one pinned placeholder image.
   </p>
   <pre><code>uv run oak --version
 <span class="out">0.8.0</span></code></pre>
@@ -669,7 +674,7 @@ sha256:2ef34758128e13038d26b82847589b2b0ec2c5f25ba6ba56982a520a92a34d63</span></
 
 <section class="chapter">
   <div class="kicker">Chapter 6</div>
-  <h1>The signed runner: sign, approve, dispatch, verify, revoke</h1>
+  <h1>The signed runner: sign, approve, install, observe, revoke</h1>
   <p>
     Everything so far produced <em>inert</em> artifacts. This chapter is where OAK lets
     something run — under the strictest discipline in the system. Two separate trust
@@ -714,12 +719,15 @@ sha256:2ef34758128e13038d26b82847589b2b0ec2c5f25ba6ba56982a520a92a34d63</span></
 
   <h2>Set up and compile against the mutation fixture</h2>
   <p>
-    The runner demonstration uses the one mutation-capable target that ships: an
-    acknowledged, network-isolated fixture whose only permitted mutation is creating
-    and removing a single never-started container (Docker required). Start from the
+    Two mutation-capable targets ship, and both need Docker.
+    <code>local-mutation-fixture.yaml</code>, used first, is an acknowledged,
+    network-isolated fixture whose only permitted mutation is creating one container per
+    node of the selected candidate (two for <code>candidate-03</code>) and removing them
+    again; it never starts them. <code>local-started-fixture.yaml</code>, used at the end
+    of this chapter, also starts and smoke-tests them. Start from the
     repository root again — chapter 3 left you inside <code>./workspace</code>, and the
     <code>../examples/…</code> paths below resolve from a workspace created in the root.
-    Set the environment, then compile chapter 3's journey against that target:
+    Set the environment, then compile chapter 3's journey against the first of them:
   </p>
   <pre><code>export OAK_TRUST_DIRECTORY=$PWD/trust
 export OAK_DISPATCH_MAILBOX=$PWD/mailbox
@@ -745,17 +753,22 @@ extension-steward: sha256:edbb…ce5e (development)</span>
 uv run oak sign
 <span class="out">Signed plan for design-case.public-manual-qa@0.1.8</span>
 uv run oak approve dry_run
+uv run oak approve architecture
 uv run oak approve apply
 uv run oak approve rollback
 uv run oak dispatch apply verify rollback
-<span class="out">Dispatched apply, verify, rollback as dispatch.public-manual-qa.13</span></code></pre>
+<span class="out">Dispatched apply, verify, rollback as dispatch.public-manual-qa.14</span></code></pre>
   <p>
     <code>keys init</code> creates three development-labelled Ed25519 identities with
     separated roles (your fingerprints will differ — keys are generated fresh) — the
     plan-signer may not approve, and the runner enforces that the
     two signatures come from different keys. Each <code>approve</code> is bound to one
     action, the exact plan and bundle digests, the target's identity and fingerprint, a
-    nonce, and an expiry. <code>dispatch</code> writes the signed lease envelope and
+    nonce, and an expiry. <code>approve architecture</code> approves the design itself:
+    it also names the decision, the chosen candidate and the digest of what
+    <code>apply</code> would install, and <code>approve apply</code> is refused
+    (<code>OAK-APPROVAL-ARCHITECTURE</code>) until a current one exists. Rollback and
+    destroy never need it. <code>dispatch</code> writes the signed lease envelope and
     every attachment into the mailbox — delivery, not execution.
   </p>
 
@@ -765,17 +778,22 @@ OAK_RUNNER_TRUST_ANCHORS=$OAK_TRUST_DIRECTORY \
 OAK_RUNNER_TARGET_PROFILE=../examples/targets/local-mutation-fixture.yaml \
 OAK_RUNNER_HOME=$PWD/runner-home \
 uv run oak-runner run-once
-<span class="out">completed dispatch.public-manual-qa.13: succeeded</span></code></pre>
+<span class="out">completed dispatch.public-manual-qa.14: succeeded</span></code></pre>
   <p>
     The runner independently verifies the revocation set, the envelope, every digest
     and signature against its own pinned anchors, the target fingerprint it recomputes
     locally, the lease and nonce, the compiled verification policy's clauses, the
-    adapter allowlist and typed parameters, and the approvals — all before touching
-    anything. It then executes the requested operations in
-    plan order, which puts <code>verify</code> first: it verifies, then applies —
-    creating the fixture container with <code>docker create --network=none</code>,
-    reading back the image digest the daemon actually resolved and refusing on any
-    mismatch — then rolls back, removing exactly what it created, and publishes a
+    adapter allowlist and typed parameters, and the approvals — for <code>apply</code>,
+    both the apply approval and the architecture approval, whose decision and
+    installation must match what was dispatched — all before touching anything. It then
+    executes the requested operations in plan order, which puts <code>verify</code>
+    first: it verifies, then applies. The apply creates one container per node with
+    <code>docker create --network=none</code>, named from the case, target and node and
+    labelled <code>oak.fixture</code>, <code>oak.case</code> and <code>oak.node</code>.
+    For each it reads back the image digest the daemon actually resolved and refuses on
+    any mismatch, and checks that it is only created, because this profile does not
+    start it. It then rolls back, removing only containers this case owns, with their
+    volumes, and inspecting afterwards to prove each is gone. Finally it publishes a
     signed completion message recording
     <code>"applied_kinds": ["verify", "apply", "rollback"]</code>. Then:
   </p>
@@ -785,7 +803,7 @@ uv run oak-runner run-once
   "journals": [
     {
       "chain": "verified",
-      "dispatch": "dispatch.public-manual-qa.13",
+      "dispatch": "dispatch.public-manual-qa.14",
       "entries": 8,
       "manual_recovery_required": false
     }
@@ -793,7 +811,10 @@ uv run oak-runner run-once
 }</span></code></pre>
   <p>
     <code>ingest</code> verifies the runner's signed messages — delivery never implies
-    success — and <code>status</code> reports the journal's hash-chain integrity and
+    success. A completion whose <code>apply</code> succeeded and was not rolled back
+    moves the case to <code>deployed</code>; this one rolled back in the same run, so it
+    is recorded as <code>runner_rolled_back</code> and the case's status does not change.
+    <code>status</code> reports the journal's hash-chain integrity and
     any manual-recovery state. <code>status</code> reads
     <code>OAK_RUNNER_HOME</code> — pass it as shown, because the variables above were
     prefixes on the <code>run-once</code> command and do not persist. Without it,
@@ -816,12 +837,12 @@ uv run oak-runner run-once
     <tr><td>Attachment integrity</td><td><code>OAK-RUNNER-ATTACHMENT</code>, <code>OAK-RUNNER-DIGEST</code></td><td>An attachment's bytes do not match the digest the envelope references — the mailbox was altered or truncated. Re-dispatch</td></tr>
     <tr><td>Signatures and trust</td><td><code>OAK-RUNNER-SIGNATURE</code>, <code>OAK-RUNNER-TRUST</code></td><td>A signature does not verify against the runner's own pinned anchors — never against a key carried in the document itself</td></tr>
     <tr><td>Identity and plan state</td><td><code>OAK-RUNNER-TENANT</code>, <code>OAK-RUNNER-ENVIRONMENT</code>, <code>OAK-RUNNER-TARGET</code>, <code>OAK-RUNNER-PLAN-STATE</code>, <code>OAK-RUNNER-PLAN-EXPIRED</code></td><td>Tenant, environment or target identity mismatch — the target fingerprint is recomputed locally, not read from the envelope — or the plan is not dispatchable or has expired</td></tr>
-    <tr><td>Lease and replay</td><td><code>OAK-RUNNER-LEASE</code>, <code>OAK-RUNNER-REPLAY</code></td><td>The lease is outside its validity window or its nonce was already consumed; an unreadable nonce ledger refuses rather than reading as empty</td></tr>
+    <tr><td>Lease and replay</td><td><code>OAK-RUNNER-LEASE</code>, <code>OAK-RUNNER-REPLAY</code></td><td>The lease is outside its validity window or its nonce was already consumed; an unreadable nonce ledger refuses rather than reading as empty. During an install, the same code stops the runner if the lease lapses before its next side effect</td></tr>
     <tr><td>Separation of duties</td><td><code>OAK-RUNNER-SEPARATION</code></td><td>The signing and approving identities are the same key — re-sign and re-approve with separated roles</td></tr>
     <tr><td>Verification policy</td><td><code>OAK-RUNNER-POLICY</code></td><td>A requested kind is outside the target-derived <code>allowed_operation_kinds</code>, or a mutating kind was requested where the target forbids mutation</td></tr>
     <tr><td>Operations and adapters</td><td><code>OAK-RUNNER-ADAPTER</code>, <code>OAK-RUNNER-PARAMETERS</code>, <code>OAK-RUNNER-REGISTRY</code>, <code>OAK-RUNNER-SECRETS</code>, <code>OAK-RUNNER-NETWORK</code>, <code>OAK-RUNNER-TARGET-CAPABILITY</code></td><td>An operation names an adapter or parameters outside the code-level allowlist and schema, an image registry outside the target's allowance, a secret reference or network destination the target does not permit, or a capability the target does not have</td></tr>
-    <tr><td>Approvals</td><td><code>OAK-RUNNER-APPROVAL</code></td><td>The approval for the requested action is missing, revoked, expired, or bound to different digests or a different target</td></tr>
-    <tr><td>Execution time</td><td><code>OAK-RUNNER-IMAGE</code>, <code>OAK-RUNNER-SUBPROCESS</code>, <code>OAK-RUNNER-DRIFT</code>, <code>OAK-RUNNER-APPLY</code>, <code>OAK-RUNNER-ROLLBACK</code></td><td>After every verification passed: the image digest the daemon actually resolved does not match the approved one (the container is removed), the docker invocation itself failed, target state drifted mid-run, or the fixture apply or its rollback failed — a failed rollback is what raises <code>manual_recovery_required</code></td></tr>
+    <tr><td>Approvals</td><td><code>OAK-RUNNER-APPROVAL</code></td><td>The approval for the requested action is missing, revoked, expired, or bound to different digests or a different target — or, for <code>apply</code>, the separate architecture approval is missing, not current, or names a different decision or installation</td></tr>
+    <tr><td>Execution time</td><td><code>OAK-RUNNER-IMAGE</code>, <code>OAK-RUNNER-FOREIGN</code>, <code>OAK-RUNNER-SMOKE-TEST</code>, <code>OAK-RUNNER-SUBPROCESS</code>, <code>OAK-RUNNER-DRIFT</code>, <code>OAK-RUNNER-APPLY</code>, <code>OAK-RUNNER-ROLLBACK</code></td><td>After every verification passed: the image digest the daemon actually resolved does not match the approved one, a container with the planned name exists but is not this case's own (it is left alone), a started container failed its smoke test, the docker invocation itself failed, target state drifted mid-run, or the install or its rollback failed. A failed install removes exactly the containers it created; a failed rollback or destroy, or a clean-up that fails after a failed install, is what raises <code>manual_recovery_required</code></td></tr>
   </table>
   <p>
     Every code is documented with its raise site in <code>docs/error-codes.md</code>,
@@ -860,6 +881,122 @@ uv run oak-runner run-once
     </svg>
     <figcaption>Figure 4 — the revocation channel. Notices and their signed set manifest; the runner records the highest manifest sequence it has seen in its own home directory.</figcaption>
   </figure>
+
+  <h2>Install, test and observe</h2>
+  <p>
+    The dispatch above installed and removed in one run, so that case never reached
+    <code>deployed</code>. To keep an installation, test it and record what it did,
+    compile the same journey once more against
+    <code>local-started-fixture.yaml</code>, the profile that also acknowledges starting
+    each container. Go back to the repository root and give it its own workspace and
+    mailbox: both workspaces hold the same case, so their dispatch numbers can collide in
+    one mailbox. The trust directory, and the keys in it, stay the same.
+  </p>
+  <pre><code>cd ..
+export OAK_DISPATCH_MAILBOX=$PWD/mailbox-started
+
+uv run oak init ./runner-started &amp;&amp; cd runner-started
+uv run oak design ../examples/briefs/public-manual-qa.yaml
+uv run oak confirm --answers ../examples/briefs/public-manual-qa-answers.yaml
+uv run oak candidates
+uv run oak evaluate candidate-03
+printf 'Balanced fixture for the runner demonstration.\n' &gt; decision.md
+uv run oak select candidate-03 --rationale-file decision.md
+uv run oak assure candidate-03 --output ./assurance
+uv run oak plan candidate-03 \
+  --target ../examples/targets/local-started-fixture.yaml \
+  --output ./bundle
+uv run oak architecture
+<span class="out">candidate-03 (balanced_enterprise) in design-case.public-manual-qa — selected by local-user
+
+Nodes:
+  node.retrieval           Deterministic cited passage retrieval -&gt; component.fixture-lexical-search@1.0.0
+  node.generation          Bounded cited-answer drafting -&gt; component.fixture-local-model@1.0.0
+
+Edges:
+  node.retrieval -&gt; node.generation (Local HTTP)
+
+Predictions (value [lower, upper] unit):
+  monthly_cost             36.0 [32.4, 39.6] USD/month
+  latency_p95              1200.0 [900.0, 1500.0] milliseconds
+  quality                  0.86 [0.81, 0.91] normalized_fixture_score
+  operability              0.72 [0.64, 0.8] normalized_fixture_score
+  energy                   0.73 [0.511, 0.949] Wh/request
+
+Would install on target.local-started-fixture (starts containers):
+  node.retrieval           rancher/mirrored-pause@sha256:ee65…917a
+  node.generation          rancher/mirrored-pause@sha256:ee65…917a
+Approvals needed before any install: architecture absent, apply absent
+
+Read from the design case. Producing this compiled, signed, approved and installed nothing; a user who wants only the architecture can stop here.</span></code></pre>
+  <p>
+    <code>oak architecture</code> reads the design case and writes nothing. If the design
+    is all you want, this is the place to stop: nothing has been signed, approved or
+    installed. To install it:
+  </p>
+  <pre><code>uv run oak sign
+<span class="out">Signed plan for design-case.public-manual-qa@0.1.8</span>
+uv run oak approve architecture
+uv run oak approve apply
+uv run oak dispatch apply
+<span class="out">Dispatched apply as dispatch.public-manual-qa.12</span>
+OAK_RUNNER_MAILBOX=$OAK_DISPATCH_MAILBOX \
+OAK_RUNNER_TRUST_ANCHORS=$OAK_TRUST_DIRECTORY \
+OAK_RUNNER_TARGET_PROFILE=../examples/targets/local-started-fixture.yaml \
+OAK_RUNNER_HOME=$PWD/runner-home \
+uv run oak-runner run-once
+uv run oak ingest</code></pre>
+  <p>
+    The install creates one container per node, as before, then starts each under fixed
+    hardening: no network, a read-only root, no capabilities, no new privileges, user
+    65534, 256&nbsp;MiB of memory and no swap, half a CPU, at most 64 processes, no
+    restart policy, no log driver, and no volumes, environment or published ports. Each
+    must be running (or healthy, if its image declares a health check) within 15 seconds
+    and still running a second later. Otherwise the install fails with
+    <code>OAK-RUNNER-SMOKE-TEST</code> and removes the containers it created. Ingesting
+    the successful install moves the case to <code>deployed</code>, and the containers
+    keep running until a rollback or destroy removes them.
+  </p>
+  <p>
+    To measure a repeated install as well, run <code>oak dispatch apply</code> again,
+    then the same <code>run-once</code> command and <code>oak ingest</code>: the runner
+    finds each container already there, carrying this case's labels, and checks its
+    image digest again instead of creating another. Then record what was observed:
+  </p>
+  <pre><code>uv run oak observe</code></pre>
+  <p>
+    <code>oak observe</code> is local-only. It writes an observation record and moves the
+    case to <code>observing</code>. The record gives install success, the repeated
+    install and rollback recovery (<code>EV-DEP-01</code>, <code>EV-DEP-02</code>,
+    <code>EV-DEP-03</code>) and the smoke test, each with its sample size, or
+    <code>unknown</code> with a reason where nothing has been tried yet; none of them
+    satisfies a gate. Beside every predicted objective and contract metric it puts the
+    observed value, and here every one reads <code>unknown</code> with a reason code,
+    because the placeholder image serves no requests and nothing measured cost, latency,
+    quality or energy. Startup time and memory are recorded as measurements with no prediction to
+    compare. The record proposes nothing, and nothing from it is fed back into a dispatch.
+    Before the case is <code>deployed</code>, <code>oak observe</code> refuses with
+    <code>OAK-OBSERVE-STATE</code>.
+  </p>
+  <p>
+    To remove the installation, approve and dispatch the rollback, run the runner once
+    more, and record it:
+  </p>
+  <pre><code>uv run oak approve rollback
+uv run oak dispatch rollback
+OAK_RUNNER_MAILBOX=$OAK_DISPATCH_MAILBOX \
+OAK_RUNNER_TRUST_ANCHORS=$OAK_TRUST_DIRECTORY \
+OAK_RUNNER_TARGET_PROFILE=../examples/targets/local-started-fixture.yaml \
+OAK_RUNNER_HOME=$PWD/runner-home \
+uv run oak-runner run-once
+uv run oak ingest
+uv run oak observe</code></pre>
+  <p>
+    The rollback removes each container with its volumes and inspects afterwards to prove
+    it is gone. The second observation record reports rollback recovery and the
+    installation as <code>removed</code>. The pinned placeholder image stays in your
+    Docker; chapter 9 says how to remove it.
+  </p>
 </section>
 
 <section class="chapter">
@@ -927,6 +1064,7 @@ them: OAK Community release artifacts are unsigned.</span></code></pre>
     <tr><td><code>OAK-WORKSPACE-CORRUPT</code> on every command</td><td>Manifest unreadable, or written by a format this build does not know</td><td>Restore from your last <code>oak export</code> — this is why the manual says export before upgrading</td></tr>
     <tr><td><code>run-once</code> exited 0 but printed <code>denied &lt;dispatch&gt;: &lt;reason&gt;</code></td><td>Denying a dispatch is the runner working correctly; exit status reports whether the runner ran, not whether anything succeeded</td><td>Read the signed messages (<code>oak ingest</code>) or the journal, and look the denial code up in the chapter 6 table or <code>docs/error-codes.md</code></td></tr>
     <tr><td>Runner exits 64 or 70 with a code on stderr</td><td>The runner itself could not run: 64 is a missing required environment variable, 70 a configuration or verification refusal that stopped it before processing (e.g. <code>OAK-RUNNER-CONFIG</code>)</td><td>Fix the environment or target profile it names — every <code>OAK-*</code> code is documented with its raise site in <code>docs/error-codes.md</code></td></tr>
+    <tr><td><code>oak approve apply</code> refuses with <code>OAK-APPROVAL-ARCHITECTURE</code></td><td>An install needs a current approval of the architecture first, and there is none, or it is not current for this plan</td><td>Run <code>oak approve architecture</code>, then <code>oak approve apply</code> again</td></tr>
   </table>
   <p>
     The full runbook is <code>docs/operations.md</code>; the complete generated
@@ -946,8 +1084,8 @@ docker rm -f $(docker ps -aq --filter "label=oak.fixture=true") 2&gt;/dev/null |
 rm -rf ~/.oak
 
 # 3 · Workspaces you created (you chose these paths; OAK does not track them),
-#     and chapter 6's trust directory and mailbox, which hold DEVELOPMENT PRIVATE KEYS
-rm -rf ./workspace ./runner-demo ./case-export ./restored ./trust ./mailbox
+#     and chapter 6's trust directory and mailboxes; trust/ holds DEVELOPMENT PRIVATE KEYS
+rm -rf ./workspace ./runner-demo ./runner-started ./case-export ./restored ./trust ./mailbox ./mailbox-started
 
 # 4 · Build output, venv and caches inside the checkout
 make clean-all
@@ -965,15 +1103,16 @@ cd .. &amp;&amp; rm -rf OAK</code></pre>
     A key stored in the operating-system keychain is <em>not</em> under
     <code>~/.oak</code> and survives this: remove those first, one family at a time, with
     <code>oak models remove-key &lt;family&gt;</code>.
-    Chapter 6 placed its trust directory and mailbox in the repository root and its
-    runner home inside <code>runner-demo/</code>: <code>trust/</code> holds development
-    private keys, which is why step 3 names it explicitly rather than leaving it to the
-    checkout's removal. Shared caches
+    Chapter 6 placed its trust directory and two mailboxes in the repository root and its
+    runner homes inside <code>runner-demo/</code> and <code>runner-started/</code>:
+    <code>trust/</code> holds development private keys, which is why step 3 names it
+    explicitly rather than leaving it to the checkout's removal. Shared caches
     (<code>~/.cache/uv</code>, the pnpm store, Playwright browsers) and
     the third-party images OAK pulled (<code>postgres:17.6-alpine</code>,
     <code>python:3.13.12-slim</code>, <code>node:24.18.0-alpine</code>,
-    <code>nginxinc/nginx-unprivileged:1.29.1-alpine</code>) are shared Docker and
-    toolchain state, yours to keep or remove with <code>docker image rm</code>. The full
+    <code>nginxinc/nginx-unprivileged:1.29.1-alpine</code>, and
+    <code>rancher/mirrored-pause</code>, which chapter 6's install pulled by digest) are
+    shared Docker and toolchain state, yours to keep or remove with <code>docker image rm</code>. The full
     runbook version, including the named-volume and release-image variants, is
     <code>docs/operations.md</code> § Uninstall. Step 5 reports any OAK-related state
     that survived — run it while the checkout still exists, because step 6 removes the

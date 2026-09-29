@@ -67,6 +67,16 @@ mechanical migration; **breaking** otherwise.
   of them, so a 0.7.1 reader still validates every export from a workspace that never
   used the model path; an export from a workspace that did cannot be imported by the
   published `0.7.1`.
+- Sprint 11 added `architecture` to the approval and revocation `action` enums,
+  `isolated-non-production-hardened-start` to the target profile's
+  `execution.mutation_acknowledgement`, the optional `execution.component_images`, the
+  `observation_recorded` audit event, the `observation_record` artifact kind in
+  `workspace-manifest.schema.json`, and the new `observation-record.schema.json` at
+  `0.1.0`. A published `0.8.0` reader cannot validate a document that uses any of them. The
+  target profile's `container_image_reference` and `container_image_digest` became
+  optional and deprecated, and the compiler refuses a profile that still declares them
+  (`OAK-TARGET-EXECUTION`). For producers of mutation profiles that is a tightening,
+  recorded in the changelog.
 - `model-configuration.schema.json` (Sprint 9) has never been published, so Sprint 10
   changed it in place at `0.1.0`: the `family` enum shrank to `huggingface` and `local`,
   `selection` became one entry per family, `verification` was added, and provider routes
@@ -125,6 +135,14 @@ mechanical migration; **breaking** otherwise.
   counts the rest; the `--output json` document is unchanged and lists every persisted
   question. `oak models` (Sprint 9, reshaped in Sprint 10) is unreleased and carries no
   compatibility debt until `0.8.0`.
+- Sprint 11 adds `oak architecture`, `oak observe` and the `architecture` action of
+  `oak approve` and `oak revoke-approval`. It also tightens `oak approve apply`: without a
+  current architecture approval it now refuses (exit `2`, `OAK-APPROVAL-ARCHITECTURE`),
+  and `oak dispatch apply` attaches both approvals. A script that approved and dispatched
+  an install against `0.8.0` must run `oak approve architecture` first; the changelog
+  records this as breaking. `oak approve` and `oak dispatch` now derive their default
+  idempotency keys from the case version, so a renewed approval or a deliberate re-apply
+  is a new request.
 
 ## MCP
 
@@ -155,6 +173,12 @@ mechanical migration; **breaking** otherwise.
   version it does not support; it never "best-effort" parses. Signature formats,
   digest algorithms (`sha256:`), and the verification order documented in
   [docs/signed-runner.md](signed-runner.md) are part of the contract.
+- Sprint 11 changed that contract. The container adapter is `0.2.0`, with a node-list
+  parameter schema, so the runner denies a plan compiled before it (`OAK-RUNNER-ADAPTER`).
+  Step 8 of the verification order gained the installation checks, and step 9 requires an
+  `architecture` approval beside the `apply` approval. Completion payloads gained
+  `requested_kinds` and `failed_kind`. Plans expire after a day and none is pinned, so no
+  stored plan needs migrating.
 - Any change to signed-payload canonicalization is breaking for every existing
   signature and requires an explicit migration (re-signing) note; trust-anchor file
   formats follow the schema rules above.

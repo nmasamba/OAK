@@ -134,8 +134,11 @@ replaceable and owned by its own project. OAK compiles *to* them; it doesn't abs
 - A signature and provenance gate for catalogue component manifests (`RR-025`), and real
   manifests backed by evidence.
 - Budgets and rate limits, including for model spend (`RR-024`, `RR-041`).
-- Comparing predicted cost, latency and quality against observed outcomes, the evidence
-  loop OAK is designed to close.
+- Closing the evidence loop. `oak observe` already records each prediction beside an
+  observed value, but every observed cost, latency, quality and energy value is still
+  `unknown`: the shipped profiles install a placeholder image, and nothing runs a
+  workload against it. Real component images, a representative workload and the
+  measurements to go with them would let it fill those in.
 - A fuller developer-portal plugin, building on the starter in
   [examples/backstage/](examples/backstage/README.md).
 

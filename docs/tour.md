@@ -82,7 +82,10 @@ sha256:2ef34758128e13038d26b82847589b2b0ec2c5f25ba6ba56982a520a92a34d63
 ```
 
 Keep it for the end of Part 2. The server hasn't been involved at all, and this case lives
-only in `tour-offline/`.
+only in `tour-offline/`. If the design is all you need, you can stop here: run inside
+`tour-offline/`, `uv run oak architecture` prints the chosen architecture, with its
+components and predictions, and writes nothing. Installing it on a local test target and
+observing it is chapter 6 of the [manual](manual/OAK-Community-Manual.pdf).
 
 ## Part 2 — The relay: one case through four interfaces
 
@@ -467,8 +470,9 @@ contract.
 ## Where next
 
 - [The user manual](manual/OAK-Community-Manual.pdf) has screenshots of every workspace
-  screen, and covers the signed runner: signing, approving, dispatching, and what each
-  refusal means.
+  screen, and covers the signed runner: signing, approving the architecture and then the
+  install, dispatching, installing the chosen design on a local test target, observing
+  it, and what each refusal means.
 - [compiler-flow.md](compiler-flow.md) explains what each stage produces and why it's
   deterministic.
 - [interfaces.md](interfaces.md) is the capability matrix: which interface can do what.

@@ -76,8 +76,10 @@ answers questions from a set of public technical manuals and cites the passage i
 6. **OAK compiles the plan.** It writes an assurance plan (the tests, evidence and
    controls to put in place before anything goes live) and a deployment **bundle** (five
    files that say exactly what to build and where). **Nothing gets deployed.** The plan
-   is inert. Running anything takes a separate signing, approval and verification step,
-   which is deliberately hard to skip.
+   is inert. Installing it takes a separate signing step, two approvals (one of the
+   architecture, one of the install) and the runner's own checks, which is deliberately
+   hard to skip. If the design is all you want, `oak architecture` prints it, and you can
+   stop there.
 
 <details>
 <summary><strong>New to the jargon?</strong> A few words you'll meet below</summary>
@@ -160,9 +162,12 @@ Node.js are used *inside* the image build, so you don't need them on your machin
 source way, `uv` keeps the Python it downloads and its package cache in your home folder
 (`~/.local/share/uv` and `~/.cache/uv`), where any other project that uses `uv` shares
 them. Apart from the folders you point it at, OAK itself writes only to `~/.oak`, and
-only once you use signing keys, AI-model settings or the runner. The one exception is
-optional: if you install OAK's keychain support in the source way, a stored AI token goes
-into your operating system's keychain instead.
+only once you use signing keys, AI-model settings or the runner. There are two
+exceptions. If you use the runner to install a design, your Docker pulls one small
+placeholder image (`docker.io/rancher/mirrored-pause`, pinned by digest) and creates
+labelled containers from it; a rollback removes the containers, and the image stays until
+you remove it. And if you install OAK's keychain support in the source way, a stored AI
+token goes into your operating system's keychain instead.
 
 This is what `docker compose up` starts:
 
@@ -468,15 +473,23 @@ means:
   repository describes work the project did itself.
 - **It's single-user and local.** There are no logins and no multi-user separation, and
   it listens only on your own machine.
-- **It won't deploy anything real.** Signing keys are development keys. The runner will
-  only touch a built-in demonstration target, and the only change it can ever make is
-  creating and then removing one network-isolated container that never starts.
+- **It won't deploy anything real.** Signing keys are development keys. The runner changes
+  something only on a local, non-production target whose profile explicitly permits it,
+  and only after both the architecture and the install are approved. There it creates one
+  network-isolated container for each component of the chosen design, from an image the
+  profile pins by digest, and a rollback removes them. It starts them only where the
+  profile allows a locked-down start (no network, read-only, no privileges, capped memory,
+  CPU and processes), and then checks that each one stays up. The example targets use a
+  placeholder image that does none of the components' work. So `oak observe` can record
+  install, rollback, startup and memory results, but the observed cost, speed, quality and
+  energy stay `unknown` beside their predictions, because no real workload runs.
 - **Some parts record rather than enforce.** Policy checks are recorded but don't block
   anything yet. The bundled component catalogue and the bundled set of policy rules (the
   "policy pack") are synthetic examples: not real prices, and not legal advice.
 - **Some interfaces are deliberately narrow.** The MCP server serves one assistant per
   process. The remote CLI trusts whichever server you point it at, and refuses the
-  local-only signing and runner commands. OAK defines the signed webhook format and ships
+  local-only signing, approval, runner and `oak observe` commands; `oak architecture`
+  works in both. OAK defines the signed webhook format and ships
   a checker for it, but nothing that actually sends the notifications.
 - **Your Hugging Face token is stored like a setting, not locked away.** Other programs
   running as you can read it ([`RR-040`](docs/security/residual-risk.md)), nothing caps

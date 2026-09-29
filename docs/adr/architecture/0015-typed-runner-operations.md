@@ -20,7 +20,7 @@ Customer-environment runners need powerful target credentials and must translate
 
 The compiler emits an immutable `DeploymentBundle` plus a `RunnerPlan` containing only typed operations. Each operation declares a fixed kind, adapter identity/version/digest, adapter parameter-schema digest, typed parameters, artifact and secret references, permission envelope, timeout/retry/idempotency behavior, dependencies, expected state and failure action.
 
-The control plane signs the plan under an explicit verification policy. A target mutation additionally requires a current approval bound to plan/bundle digest, target, action and expiry. The runner independently validates plan, target, lease, policy, approvals, adapter and parameters before target access.
+The control plane signs the plan under an explicit verification policy. A target mutation additionally requires a current approval bound to plan/bundle digest, target, action and expiry. The runner independently validates plan, target, lease, policy, approvals, adapter and parameters before target access. See ADR-0017 for the separate `architecture` approval an install also requires, and for when an install may start what it created.
 
 Adapter code maps validated fields to a fixed allowlisted executable and argument vector. It must not use a shell interpreter, plan-selected executable, dynamic downloaded code or free-form command field. The runner resolves secrets locally, journals side effects and returns only evidence allowed by the observation/data contract. Communication is outbound-initiated where possible.
 

@@ -93,9 +93,9 @@ when you harden a runner environment. Recorded as `RR-033`.
 | Variable | Default | Meaning | Safety-relevant |
 |---|---|---|---|
 | `OAK_RUNNER_MAILBOX` | *(none — required)* | Mailbox directory the runner reads dispatched leases from | Yes |
-| `OAK_RUNNER_HOME` | `~/.oak/runner` | Runner state: journal, consumed nonces, processed dispatches, recorded revocation-manifest sequence | Yes |
+| `OAK_RUNNER_HOME` | `~/.oak/runner` | Runner state: journal, consumed nonces, processed dispatches, recorded revocation-manifest sequence, and `docker-config/`, the empty Docker client configuration the runner's `docker` commands use instead of yours | Yes |
 | `OAK_RUNNER_TRUST_ANCHORS` | *(none — required)* | Directory of pinned public identities the runner verifies signatures against. **Never** a key carried inside the document being checked | Yes |
-| `OAK_RUNNER_TARGET_PROFILE` | *(none — required)* | Path to the target profile the runner is permitted to act against | Yes |
+| `OAK_RUNNER_TARGET_PROFILE` | *(none — required)* | Path to the target profile the runner is permitted to act against. The runner checks every dispatched install against this copy, not the plan's: its `execution.component_images` decides which image each component may run, and its `execution.mutation_acknowledgement` whether containers are only created or also started under fixed hardening flags (`RR-043`) | Yes |
 | `OAK_RUNNER_ID` | `runner.local-fixture-runner` | Runner identity recorded in leases and evidence | Yes |
 
 > `OAK_RUNNER_TRUST_ANCHORS` defaults in the documented single-host walkthrough to the
@@ -104,6 +104,13 @@ when you harden a runner environment. Recorded as `RR-033`.
 > `*.identity.json` files to a separate anchor directory as soon as the runner is
 > anywhere else. Recorded as `RR-012` in
 > [security/residual-risk.md](security/residual-risk.md).
+
+> The runner's `docker` commands do not inherit its environment. Each runs with only a
+> minimal `PATH` (`/bin:/usr/bin`) and `DOCKER_CONFIG` set to the empty, runner-owned
+> `$OAK_RUNNER_HOME/docker-config`. `DOCKER_HOST`, `DOCKER_CONTEXT`, your
+> `~/.docker/config.json`, and its registry credentials and credential helpers are never
+> used: the runner reaches only the default daemon socket and pulls public images
+> anonymously (`RR-013`).
 
 ## Test-only
 
