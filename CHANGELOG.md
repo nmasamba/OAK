@@ -104,6 +104,73 @@ All notable changes to OAK Community are recorded here.
   key as well as by value, including credentials inside URLs (`RR-023`). The runner
   refuses to start another side effect once its lease has lapsed.
 
+### Fixed — Sprint 11 closing audit
+
+A six-lens adversarial review raised 29 findings. Each went to an independent skeptic
+told to refute it, and 28 survived. Every surviving defect is fixed and has a regression
+test that fails without its fix.
+
+**Installation**
+- **Adoption checks isolation.** An existing container is adopted only if its
+  `oak.isolation` label matches the plan's isolation. The adapter then reads back every
+  container's actual configuration from the daemon (network, read-only root, capabilities,
+  no-new-privileges, user, memory, processes, restart) before starting it or reporting it
+  installed (`OAK-RUNNER-ISOLATION`). Before, a never-started container could be adopted
+  into a hardened-start install and started without its hardening, while the evidence
+  claimed it was hardened.
+- **Installation identity.** Each installation has an identity (`installation_id`,
+  label `oak.installation`) derived from the case version, the target and the workspace
+  that compiled the plan (`oak.community/installation_scope` on a mutation plan). Container
+  names derive from that identity, and the runner re-derives it from the signed plan. Two
+  workspaces built from the same brief can no longer adopt or remove each other's
+  containers.
+- **Failed creates.** A `docker create` that failed or timed out after making the
+  container now has that container compensated.
+- **Removal records.** A removal that stops part-way records the container it did not
+  remove, and `removed_all` is never true for it.
+- **Crash recovery.** A dispatch that an earlier run took up but never finished is
+  reported as `manual_recovery_required`: in its journal, in a signed completion, and in
+  `oak-runner status`. It is no longer denied as a replay that "did nothing".
+- **Clock.** Each dispatch in one run is judged at the moment it is taken up.
+- **Registry host.** An image reference whose first component contains an uppercase
+  letter is treated as a registry host, as Docker treats it, so the registry allowlist
+  applies to it.
+
+**Evidence and observation**
+- **Smoke test.** A smoke test cut short is `complete: false` and not passed.
+- **Startup time.** A re-apply over running containers reports no startup time;
+  startup time comes only from a fresh install.
+- **Memory.** `docker stats` reporting `0B / 0B` (no accounting) is unknown, not a
+  reading of zero.
+- **Rollback recovery.** A rollback or compensation that ended in manual recovery now
+  scores `EV-DEP-03` as a failure. It used to score a pass, or "no rollback has run". A
+  removal of nothing is not a recovery sample.
+- **Ordering and older completions.** Completions are scored in dispatch order. An older
+  runner's completion that failed without naming what it attempted leaves the deployment
+  measures `unknown` with that reason. A plan from before the topology installer no
+  longer crashes `oak observe` or `oak architecture`.
+
+**Approvals and ingest**
+- **Renewed approvals.** A renewed approval has its own identity
+  (`approval.<action>.<plan>.issue-<n>`). The runner no longer denies it forever because
+  the earlier issuance was revoked, and revoking it no longer collides with the earlier
+  notice in the signed revocation set.
+- **Idempotency keys.** Default keys for approve, revoke, dispatch and observe are scoped
+  to the case version, so a repeat is a new request. An explicit `--idempotency-key` is
+  not scoped, so a retry after a commit still returns the committed result.
+- **Late completions.** A completion answering any lease this control plane issued for
+  the case is accepted (`oak.community/dispatch_refs`). Before, a completion arriving after
+  a later dispatch was refused forever and dropped from the observation.
+- **Removal in the same completion.** A completion that applied and then destroyed is
+  classified as a removal and never moves the case to `deployed`.
+
+**Displays**
+- `oak architecture` reports each install approval as `absent`, `current`, `expired` or
+  `revoked`, with its expiry.
+- The bundle page reads each recorded approval and shows it as current, expired or
+  revoked. It says the web workspace holds no runner execution authority and names where
+  install happens, instead of "unavailable in Community".
+
 ### Fixed — Sprint 11
 
 - The runner could not pull any image on Docker Desktop. Its Docker child ran with only

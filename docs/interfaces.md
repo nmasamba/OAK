@@ -167,7 +167,9 @@ Notes:
 
 - The **local-only** commands are `init`, `serve`, `mcp serve`, `keys`, `models`, `sign`, `approve` (every action, including `approve architecture`), `revoke-approval`, `dispatch`, `ingest`, `observe`, `gitops`, `policy`, `render`, `extensions` and `validate`.
   With `--server` set they fail closed with `OAK-REMOTE-UNSUPPORTED` rather than
-  acting on local state, and none of them is reachable over REST or MCP.
+  acting on local state. None of them is reachable over MCP, and none but `models` over
+  REST: the model configuration also has loopback `/v1/models` routes guarded by the
+  per-process capability token (ADR-0016).
 - `oak architecture` is not local-only. In remote mode it is composed from the
   existing case and artifact reads; REST has no route of its own for it, and it
   writes nothing.

@@ -28,6 +28,7 @@ type PageState =
       readonly bundle: JsonObject | null;
       readonly runnerPlan: JsonObject | null;
       readonly artifactIndex: readonly JsonObject[];
+      readonly approvals: Readonly<Record<string, JsonObject>>;
     }
   | { readonly kind: "failed"; readonly failure: ActionFailure };
 
@@ -115,12 +116,30 @@ export function BundlePage({ caseId }: { readonly caseId: string }) {
             : getJsonArtifact(caseId, runnerReference),
           listArtifacts(caseId).then((listed) => listed.items),
         ]);
+        // Read each recorded approval, so a revoked or expired one is shown as such
+        // rather than as merely "recorded".
+        const approvalRefs =
+          asObject(
+            (asObject(caseDocument["extensions"]) ?? {})[
+              "oak.community/approval_refs"
+            ],
+          ) ?? {};
+        const approvals: Record<string, JsonObject> = {};
+        await Promise.all(
+          Object.entries(approvalRefs).map(async ([action, value]) => {
+            const reference = toReference(value);
+            if (reference !== null) {
+              approvals[action] = await getJsonArtifact(caseId, reference);
+            }
+          }),
+        );
         setState({
           kind: "ready",
           caseDocument,
           bundle,
           runnerPlan,
           artifactIndex,
+          approvals,
         });
       })
       .catch((error: unknown) =>
@@ -151,9 +170,19 @@ export function BundlePage({ caseId }: { readonly caseId: string }) {
   // dispatch and observation happen only on the local command line, and this page
   // reports them without offering any of them.
   const caseExtensions = asObject(caseDocument["extensions"]) ?? {};
-  const recordedApprovals = Object.keys(
-    asObject(caseExtensions["oak.community/approval_refs"]) ?? {},
-  ).sort();
+  const recordedApprovals = Object.keys(state.approvals)
+    .sort()
+    .map((action) => {
+      const approval = state.approvals[action] ?? {};
+      const expires = asString(approval["expires_at"]);
+      const condition =
+        approval["revoked"] === true
+          ? "revoked"
+          : expires !== null && Date.parse(expires) <= Date.now()
+            ? "expired"
+            : "current";
+      return `${action} (${condition})`;
+    });
   const runnerResults = asArray(
     caseExtensions["oak.community/runner_result_refs"],
   ).length;
@@ -320,7 +349,10 @@ export function BundlePage({ caseId }: { readonly caseId: string }) {
               <div>
                 <dt>Apply</dt>
                 <dd>
-                  unavailable in Community — no runner execution authority
+                  not available here — the web workspace holds no runner
+                  execution authority; install with{" "}
+                  <code>oak dispatch apply</code> and a runner on the local
+                  command line
                 </dd>
               </div>
               {(runnerResults > 0 || observations > 0) && (
@@ -408,7 +440,7 @@ export function BundlePage({ caseId }: { readonly caseId: string }) {
                     caseDocument["runner_plan_ref"],
                   ) as ArtifactReference
                 }
-                label="Draft runner plan (typed, read-only, unsigned)"
+                label="Draft runner plan (typed; its signature and approvals are separate artifacts)"
               />
             )}
             {asArray(bundle["artifacts"])

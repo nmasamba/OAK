@@ -36,7 +36,7 @@ CI and container builds are the reproducible builder boundary. They pin `uv` 0.1
 | `make clean` | Empty the `uv` cache |
 | `make clean-all` | Remove every build artifact, virtual environment and cache in the tree. It does **not** touch a `.oak` workspace — that is your data; see [operations.md](operations.md#uninstall) |
 
-The bootstrap step may use the public package registries, and downloads the pinned Node.js runtime for pnpm on first use. After dependencies are installed, `make check` requires no hosted service, credentials, model provider, database, or public network, with one exception: when a Docker daemon answers, its runner journeys pull `docker.io/rancher/mirrored-pause:3.10` by digest unless the image is already cached. It does require `git`: `tools/check_repository.py` shells out to `git check-ignore`.
+The bootstrap step may use the public package registries, and downloads the pinned Node.js runtime for pnpm on first use. After dependencies are installed, `make check` requires no hosted service, credentials, model provider, database, or public network: the runner journeys that drive a real Docker daemon use the pinned stand-in image `docker.io/rancher/mirrored-pause:3.10` only if it is already cached, and are skipped otherwise (`docker pull docker.io/rancher/mirrored-pause@sha256:ee6521f290b2168b6e0935a181d4cff9be1ac3f505666ef0e3c98fae8199917a` once to run them; CI does this as a setup step). It does require `git`: `tools/check_repository.py` shells out to `git check-ignore`.
 
 **`make check` reports success wrongly when backgrounded.** Verify it by counting `make: ***` lines in its output rather than by its exit code.
 
@@ -61,7 +61,7 @@ CI never sets it, so a green CI run is not evidence those suites ran. Recorded a
 - one creates and removes never-started containers against `examples/targets/local-mutation-fixture.yaml`;
 - the other runs the whole install, smoke test, re-apply, observe and rollback journey against `examples/targets/local-started-fixture.yaml`.
 
-They run only when `docker info` answers. A `docker` binary with no reachable daemon (Docker Desktop not running, say) is a skip, and the summary line does not distinguish a skip from a pass. When they run, they need the public network or a cached copy of `docker.io/rancher/mirrored-pause:3.10` at its pinned digest; without either, they fail rather than skip. They use the reference case `design-case.public-manual-qa` and the shipped target ids, so their container names and labels are the ones your own reference install against the same profiles has. They would adopt such containers and their rollback would remove them, so roll back your own reference install before running them on the same daemon.
+They run only when `docker info` answers and the pinned stand-in image is already cached. A `docker` binary with no reachable daemon (Docker Desktop not running, say), or a daemon without the image, is a skip, and the summary line does not distinguish a skip from a pass. Each journey compiles in its own temporary workspace, and an installation's identity includes the workspace that compiled it, so the journeys never adopt or remove the containers of your own install of the reference case.
 
 ## Local DesignCase workflow
 

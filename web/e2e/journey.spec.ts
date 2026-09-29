@@ -185,10 +185,9 @@ test("a reviewer completes the reference journey from brief to compiled bundle",
     await expect(
       page.getByRole("heading", { name: "Plan, approval, and apply" }),
     ).toBeVisible();
+    // The web workspace can never install: the page says so, and names where it can.
     await expect(
-      page.getByText(
-        "unavailable in Community — no runner execution authority",
-      ),
+      page.getByText(/the web workspace holds no runner\s+execution authority/),
     ).toBeVisible();
     await expect(
       page.getByRole("heading", { name: "Component lock" }),

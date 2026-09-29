@@ -29,11 +29,14 @@ from oak.domain import OAKError
 from oak.domain.runner_adapters import (
     CONTAINER_LABEL_CASE,
     CONTAINER_LABEL_FIXTURE,
+    CONTAINER_LABEL_INSTALLATION,
+    CONTAINER_LABEL_ISOLATION,
     CONTAINER_LABEL_NODE,
     CONTAINER_NAME_PATTERN,
     HARDENING_FLAGS,
     IDENTIFIER_PATTERN,
     IMAGE_REFERENCE_PATTERN,
+    INSTALLATION_ID_PATTERN,
     ISOLATION_NEVER_STARTED,
     ISOLATION_STARTED_HARDENED,
     MAXIMUM_CONTAINERS,
@@ -53,6 +56,7 @@ _NAME_PATTERN = re.compile(CONTAINER_NAME_PATTERN)
 _IDENTIFIER = re.compile(IDENTIFIER_PATTERN)
 _IMAGE_PATTERN = re.compile(IMAGE_REFERENCE_PATTERN)
 _DIGEST_PATTERN = re.compile(r"sha256:[a-f0-9]{64}")
+_INSTALLATION_ID = re.compile(INSTALLATION_ID_PATTERN)
 _CONTAINER_STATES = frozenset(
     {"created", "restarting", "running", "removing", "paused", "exited", "dead"}
 )
@@ -172,6 +176,7 @@ class _Container:
 class _Installation:
     case_id: str
     target_id: str
+    installation_id: str
     isolation: str
     containers: tuple[_Container, ...]
 
@@ -235,13 +240,17 @@ class ContainerFixtureAdapter:
                 }
             ]
             if tested:
+                # A smoke test cut short (a failed start, a lapsed lease) tested only some
+                # nodes: it is incomplete, and an incomplete test has not passed.
+                complete = len(tested) == len(installation.containers)
                 items.append(
                     {
                         "category": "test_result",
                         "operation": "apply",
                         "content": {
                             "started": installation.started,
-                            "passed": all(row["passed"] for row in tested),
+                            "complete": complete,
+                            "passed": complete and all(row["passed"] for row in tested),
                             "smoke_test": tested,
                         },
                     }
@@ -261,13 +270,24 @@ class ContainerFixtureAdapter:
                 self._before_side_effect(deadline)
                 labels = self._labels(container.name, timeout_seconds)
                 if labels is None:
-                    self._create(container, installation, timeout_seconds)
+                    try:
+                        self._create(container, installation, timeout_seconds)
+                    except OAKError:
+                        # A create that failed or timed out may still have made the
+                        # container; if it is this installation's own, compensate for it.
+                        if self._created_despite_failure(container, installation, timeout_seconds):
+                            created.append(container.name)
+                        raise
                     created.append(container.name)
                     outcome = "created"
                 else:
                     self._require_owned(labels, installation, container)
+                    self._require_isolation(labels, installation)
                     outcome = "already_present"
                 self._verify_resolved_digest(container.name, container.digest, timeout_seconds)
+                # Never trust a label for what matters most: read the container's actual
+                # configuration back before anything is started or reported as installed.
+                self._verify_configuration(container.name, installation, timeout_seconds)
                 installed.append(
                     {
                         "node_id": container.node_id,
@@ -291,7 +311,7 @@ class ContainerFixtureAdapter:
             raise AdapterFailureError(
                 error.code, error.message, created=tuple(created), evidence=evidence()
             ) from error
-        if not all(row["passed"] for row in tested):
+        if len(tested) != len(installation.containers) or not all(row["passed"] for row in tested):
             raise AdapterFailureError(
                 "OAK-RUNNER-SMOKE-TEST",
                 "the installation did not pass its smoke test",
@@ -315,12 +335,67 @@ class ContainerFixtureAdapter:
             f"{CONTAINER_LABEL_CASE}={installation.case_id}",
             "--label",
             f"{CONTAINER_LABEL_NODE}={container.node_id}",
+            "--label",
+            f"{CONTAINER_LABEL_INSTALLATION}={installation.installation_id}",
+            "--label",
+            f"{CONTAINER_LABEL_ISOLATION}={installation.isolation}",
             "--name",
             container.name,
             container.image,
         )
         if self._run(argv, timeout_seconds).returncode != 0:
             raise OAKError("OAK-RUNNER-APPLY", "fixture container creation failed")
+
+    def _created_despite_failure(
+        self, container: _Container, installation: _Installation, timeout_seconds: int
+    ) -> bool:
+        try:
+            labels = self._labels(container.name, timeout_seconds)
+            if labels is None:
+                return False
+            self._require_owned(labels, installation, container)
+        except OAKError:
+            return False
+        return True
+
+    def _verify_configuration(
+        self, name: str, installation: _Installation, timeout_seconds: int
+    ) -> None:
+        """Require the container's real configuration to match the isolation approved.
+
+        Every container must have no network. A container that will be started must also
+        carry every hardening flag: a read-only root, no capabilities, no new privileges,
+        the unprivileged user, and the memory, process and restart settings. An adopted
+        container left by a never-started install, or one created by hand with this
+        installation's labels, is refused (`OAK-RUNNER-ISOLATION`) rather than started
+        without its hardening while the evidence claimed otherwise.
+        """
+
+        result = self._run(
+            (
+                "docker",
+                "inspect",
+                "--type=container",
+                "--format",
+                "{{json .HostConfig}}\t{{json .Config.User}}",
+                name,
+            ),
+            timeout_seconds,
+        )
+        host: Any = None
+        user: Any = None
+        if result.returncode == 0:
+            host_text, _, user_text = result.stdout.strip().partition("\t")
+            try:
+                host = json.loads(host_text)
+                user = json.loads(user_text) if user_text else ""
+            except ValueError:
+                host = None
+        if not isinstance(host, dict) or not _configuration_matches(host, user, installation):
+            raise OAKError(
+                "OAK-RUNNER-ISOLATION",
+                "the container's configuration does not match the approved isolation",
+            )
 
     def _verify_resolved_digest(self, name: str, digest: str, timeout_seconds: int) -> None:
         """Require the runtime's resolved image to carry the approved repo digest.
@@ -375,6 +450,10 @@ class ContainerFixtureAdapter:
     def _start_and_test(
         self, container: _Container, timeout_seconds: int
     ) -> tuple[dict[str, Any], dict[str, Any]]:
+        # A re-apply over a running installation starts nothing: its "startup" would be a
+        # no-op, so it is reported as already running with no startup time at all.
+        before, _, _ = self._state(container.name, timeout_seconds)
+        already_running = before == "running"
         started_at = self._clock()
         result = self._run(("docker", "start", container.name), timeout_seconds)
         state, health, exit_code = "unknown", "none", None
@@ -413,7 +492,12 @@ class ContainerFixtureAdapter:
             "health": health,
             "exit_code": exit_code if state in {"exited", "dead"} else None,
             "ready": ready,
-            "startup_seconds": round(ready_at - started_at, 2) if ready_at is not None else None,
+            "already_running": already_running,
+            "startup_seconds": (
+                round(ready_at - started_at, 2)
+                if ready_at is not None and not already_running
+                else None
+            ),
             "passed": ready,
             "reason": reason,
         }
@@ -463,10 +547,14 @@ class ContainerFixtureAdapter:
         )
         if result.returncode != 0:
             return None
-        match = _MEMORY_PATTERN.match(result.stdout)
-        if match is None or match.group(2) not in _MEMORY_UNITS:
+        usage_text, _, limit_text = result.stdout.partition("/")
+        usage = _parse_memory(usage_text)
+        limit = _parse_memory(limit_text)
+        # "0B / 0B" is what the daemon prints when it keeps no memory accounting; a
+        # running process never uses nothing, so that is unknown, not a reading of zero.
+        if usage is None or limit is None or usage == 0 or limit == 0:
             return None
-        return int(float(match.group(1)) * _MEMORY_UNITS[match.group(2)])
+        return usage
 
     # -- plan / removal ---------------------------------------------------------------
 
@@ -508,22 +596,31 @@ class ContainerFixtureAdapter:
 
         installation = _installation(parameters)
         rows: list[dict[str, Any]] = []
+        targeted = [
+            container
+            for container in reversed(installation.containers)
+            if only is None or container.name in only
+        ]
 
-        def evidence() -> dict[str, Any]:
+        def evidence(*, failed: bool) -> dict[str, Any]:
+            # removed_all is a claim about every container this removal targeted, and it
+            # is never true for a removal that stopped part-way.
             return {
                 "category": "rollback_result",
                 "operation": operation,
                 "content": {
-                    "removed_all": all(row["absent_after"] for row in rows),
+                    "removed_all": not failed
+                    and len(rows) == len(targeted)
+                    and all(row["absent_after"] for row in rows),
                     "containers": rows,
                 },
             }
 
-        try:
-            for container in reversed(installation.containers):
-                if only is not None and container.name not in only:
-                    continue
+        for container in targeted:
+            present_before: bool | None = None
+            try:
                 labels = self._labels(container.name, timeout_seconds)
+                present_before = labels is not None
                 if labels is not None:
                     self._require_owned(labels, installation, container)
                     removed = self._run(
@@ -535,22 +632,35 @@ class ContainerFixtureAdapter:
                             "OAK-RUNNER-ROLLBACK", f"fixture container {operation} failed"
                         )
                 absent_after = self._labels(container.name, timeout_seconds) is None
+            except OAKError as error:
+                # The container whose removal failed is part of the record: it was not
+                # removed, whatever happened to the ones before it.
                 rows.append(
                     {
                         "node_id": container.node_id,
                         "container_name": container.name,
-                        "present_before": labels is not None,
-                        "absent_after": absent_after,
+                        "present_before": present_before is not False,
+                        "absent_after": False,
                     }
                 )
-                if not absent_after:
-                    raise OAKError(
-                        "OAK-RUNNER-ROLLBACK",
-                        f"a container is still present after {operation}",
-                    )
-        except OAKError as error:
-            raise AdapterFailureError(error.code, error.message, evidence=(evidence(),)) from error
-        return evidence()
+                raise AdapterFailureError(
+                    error.code, error.message, evidence=(evidence(failed=True),)
+                ) from error
+            rows.append(
+                {
+                    "node_id": container.node_id,
+                    "container_name": container.name,
+                    "present_before": present_before,
+                    "absent_after": absent_after,
+                }
+            )
+            if not absent_after:
+                raise AdapterFailureError(
+                    "OAK-RUNNER-ROLLBACK",
+                    f"a container is still present after {operation}",
+                    evidence=(evidence(failed=True),),
+                )
+        return evidence(failed=False)
 
     # -- shared -----------------------------------------------------------------------
 
@@ -588,11 +698,22 @@ class ContainerFixtureAdapter:
             labels.get(CONTAINER_LABEL_FIXTURE) == "true"
             and labels.get(CONTAINER_LABEL_CASE) == installation.case_id
             and labels.get(CONTAINER_LABEL_NODE) == container.node_id
+            and labels.get(CONTAINER_LABEL_INSTALLATION) == installation.installation_id
         )
         if not owned:
             raise OAKError(
                 "OAK-RUNNER-FOREIGN",
-                "a container this case does not own already has the planned name",
+                "a container this installation does not own already has the planned name",
+            )
+
+    @staticmethod
+    def _require_isolation(labels: dict[str, str], installation: _Installation) -> None:
+        # Adoption is for a re-apply of the same installation under the same isolation;
+        # anything else is removed first (rollback), never silently upgraded in place.
+        if labels.get(CONTAINER_LABEL_ISOLATION) != installation.isolation:
+            raise OAKError(
+                "OAK-RUNNER-ISOLATION",
+                "the existing container was created under a different isolation",
             )
 
     def _before_side_effect(self, deadline: datetime | None) -> None:
@@ -628,14 +749,19 @@ def _installation(parameters: dict[str, Any]) -> _Installation:
 
     The adapter does not trust that it was called only after verification: every value
     that reaches an argument vector is checked here again, and each container name must
-    be the one derived from this case, target and node.
+    be the one derived from this installation and node.
     """
 
     case_id = str(parameters.get("case_id", ""))
     target_id = str(parameters.get("target_id", ""))
+    installation_id = str(parameters.get("installation_id", ""))
     isolation = parameters.get("isolation")
     entries = parameters.get("containers")
-    if _IDENTIFIER.fullmatch(case_id) is None or _IDENTIFIER.fullmatch(target_id) is None:
+    if (
+        _IDENTIFIER.fullmatch(case_id) is None
+        or _IDENTIFIER.fullmatch(target_id) is None
+        or _INSTALLATION_ID.fullmatch(installation_id) is None
+    ):
         raise OAKError("OAK-RUNNER-PARAMETERS", "installation identity is not permitted")
     if isolation not in {ISOLATION_NEVER_STARTED, ISOLATION_STARTED_HARDENED}:
         raise OAKError("OAK-RUNNER-PARAMETERS", "isolation is not permitted")
@@ -654,9 +780,10 @@ def _installation(parameters: dict[str, Any]) -> _Installation:
             raise OAKError("OAK-RUNNER-PARAMETERS", "node identity is not permitted")
         if _NAME_PATTERN.fullmatch(name) is None:
             raise OAKError("OAK-RUNNER-PARAMETERS", "container name is not permitted")
-        if name != container_name_for(case_id, target_id, node_id):
+        if name != container_name_for(installation_id, node_id):
             raise OAKError(
-                "OAK-RUNNER-PARAMETERS", "container name is not the one derived for this case"
+                "OAK-RUNNER-PARAMETERS",
+                "container name is not the one derived for this installation",
             )
         # The approved digest is the only pin that may reach the runtime. A reference
         # that carries its own digest could otherwise smuggle a different image past
@@ -683,6 +810,43 @@ def _installation(parameters: dict[str, Any]) -> _Installation:
     return _Installation(
         case_id=case_id,
         target_id=target_id,
+        installation_id=installation_id,
         isolation=str(isolation),
         containers=tuple(containers),
     )
+
+
+# What `docker inspect` reports for a container created with HARDENING_FLAGS. Kept beside
+# the flags' meaning rather than parsed from them, and pinned by a test that creates a
+# container through the fake daemon and reads it back.
+_HARDENED_MEMORY_BYTES = 256 * 1_048_576
+_HARDENED_PIDS = 64
+_HARDENED_USER = "65534:65534"
+
+
+def _configuration_matches(host: dict[str, Any], user: Any, installation: _Installation) -> bool:
+    if host.get("NetworkMode") != "none":
+        return False
+    if not installation.started:
+        return True
+    capabilities = {str(item).upper() for item in host.get("CapDrop") or []}
+    security = [str(item) for item in host.get("SecurityOpt") or []]
+    restart = host.get("RestartPolicy") or {}
+    return (
+        host.get("ReadonlyRootfs") is True
+        and "ALL" in capabilities
+        and any(item.startswith("no-new-privileges") for item in security)
+        and host.get("Memory") == _HARDENED_MEMORY_BYTES
+        and host.get("MemorySwap") == _HARDENED_MEMORY_BYTES
+        and host.get("PidsLimit") == _HARDENED_PIDS
+        and isinstance(restart, dict)
+        and restart.get("Name") in {"no", ""}
+        and user == _HARDENED_USER
+    )
+
+
+def _parse_memory(text: str) -> int | None:
+    match = _MEMORY_PATTERN.match(text)
+    if match is None or match.group(2) not in _MEMORY_UNITS:
+        return None
+    return int(float(match.group(1)) * _MEMORY_UNITS[match.group(2)])

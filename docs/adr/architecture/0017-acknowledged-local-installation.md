@@ -32,7 +32,8 @@ Sprint 11 closes that loop on the local target. That means OAK starts a process 
 - **Install exactly the chosen topology.**
   - One container per node of the selected candidate that has a component.
   - Each container's image is the digest-pinned image the operator acknowledges for that component in the target profile (`execution.component_images`). A component without one fails compile-time preflight, and nothing falls back to another image.
-  - Names derive from the case, target and node, and labels carry the same identity.
+  - Names derive from the installation — the case version, the workspace that compiled it and the target — and the node; labels carry the same identity.
+  - Before anything is adopted or started, the runner reads each container's configuration back from the daemon and refuses one whose network or hardening does not match what was approved.
   - Apply adopts only its own labelled, digest-matching container and denies a foreign one.
   - A failed apply removes exactly what it created. Removal touches only owned containers and proves absence afterwards.
 - **Start only on acknowledgement.**

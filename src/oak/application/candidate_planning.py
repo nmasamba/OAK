@@ -399,7 +399,7 @@ class CandidatePlanningService:
             duplicate=False,
         )
 
-    def architecture(self, candidate_id: str | None = None) -> dict[str, Any]:
+    def architecture(self, candidate_id: str | None = None, *, now: str) -> dict[str, Any]:
         """The chosen (or named) architecture as one document; reads only, writes nothing."""
 
         case = self._require_case()
@@ -425,7 +425,12 @@ class CandidatePlanningService:
             if isinstance(item, dict)
         }
         return architecture_document(
-            case=case, candidate=candidate, decision=decision, plan=plan, approvals=approvals
+            case=case,
+            candidate=candidate,
+            decision=decision,
+            plan=plan,
+            approvals=approvals,
+            now=now,
         )
 
     def plan(self, candidate_id: str, target_path: Path, context: CommandContext) -> PlanResult:
@@ -497,6 +502,7 @@ class CandidatePlanningService:
             catalogue_snapshot=catalogue_snapshot,
             registry=self._registry,
             created_at=context.occurred_at,
+            installation_scope=str(self._repository.manifest()["id"]),
         )
         extensions = copy.deepcopy(current.extensions or {})
         extensions["oak.community/semantic_manifest_ref"] = (

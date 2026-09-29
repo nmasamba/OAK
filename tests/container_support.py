@@ -4,7 +4,9 @@
 The fake keeps a small container table and answers exactly the argument vectors the
 adapter builds, so tests assert on behaviour (what exists afterwards, what evidence
 says) and on the argv, without a daemon. Anything the adapter was never meant to
-send fails the test loudly.
+send fails the test loudly. A created container's configuration is derived from the
+flags it was created with, the way the daemon reports it, so the adapter's read-back
+of the hardening is exercised against what the create actually asked for.
 """
 
 from __future__ import annotations
@@ -15,12 +17,14 @@ from typing import Any
 
 from oak.domain.runner_adapters import (
     ISOLATION_NEVER_STARTED,
+    ISOLATION_STARTED_HARDENED,
     container_name_for,
 )
 from oak.runner.adapters import CommandResult
 
 CASE_ID = "design-case.public-manual-qa"
 TARGET_ID = "target.local-started-fixture"
+INSTALLATION_ID = "installation." + "0123456789abcdef01234567"
 IMAGE = "rancher/mirrored-pause"
 DIGEST = "sha256:" + "e" * 64
 NODES = (
@@ -35,18 +39,20 @@ def parameters(
     nodes: tuple[tuple[str, str], ...] = NODES,
     case_id: str = CASE_ID,
     target_id: str = TARGET_ID,
+    installation_id: str = INSTALLATION_ID,
     image: str = IMAGE,
     digest: str = DIGEST,
 ) -> dict[str, Any]:
     return {
         "case_id": case_id,
         "target_id": target_id,
+        "installation_id": installation_id,
         "isolation": isolation,
         "containers": [
             {
                 "node_id": node_id,
                 "manifest_id": manifest_id,
-                "container_name": container_name_for(case_id, target_id, node_id),
+                "container_name": container_name_for(installation_id, node_id),
                 "image_reference": image,
                 "image_digest": digest,
             }
@@ -59,8 +65,39 @@ def names(document: dict[str, Any]) -> list[str]:
     return [str(entry["container_name"]) for entry in document["containers"]]
 
 
-def owned_labels(node_id: str, case_id: str = CASE_ID) -> dict[str, str]:
-    return {"oak.fixture": "true", "oak.case": case_id, "oak.node": node_id}
+def owned_labels(
+    node_id: str,
+    case_id: str = CASE_ID,
+    *,
+    installation_id: str = INSTALLATION_ID,
+    isolation: str = ISOLATION_NEVER_STARTED,
+) -> dict[str, str]:
+    return {
+        "oak.fixture": "true",
+        "oak.case": case_id,
+        "oak.node": node_id,
+        "oak.installation": installation_id,
+        "oak.isolation": isolation,
+    }
+
+
+def host_configuration(argv: tuple[str, ...]) -> tuple[dict[str, Any], str]:
+    """What the daemon reports back for a container created with these flags."""
+
+    flags = dict(item.split("=", 1) for item in argv if item.startswith("--") and "=" in item)
+    memory = {"256m": 268_435_456}.get(flags.get("--memory", ""), 0)
+    swap = {"256m": 268_435_456}.get(flags.get("--memory-swap", ""), 0)
+    host = {
+        "NetworkMode": flags.get("--network", "bridge"),
+        "ReadonlyRootfs": "--read-only" in argv,
+        "CapDrop": [flags["--cap-drop"]] if "--cap-drop" in flags else None,
+        "SecurityOpt": [flags["--security-opt"]] if "--security-opt" in flags else None,
+        "Memory": memory,
+        "MemorySwap": swap,
+        "PidsLimit": int(flags["--pids-limit"]) if "--pids-limit" in flags else None,
+        "RestartPolicy": {"Name": flags.get("--restart", "no"), "MaximumRetryCount": 0},
+    }
+    return host, flags.get("--user", "")
 
 
 def _ok(stdout: str = "") -> CommandResult:
@@ -84,14 +121,34 @@ class FakeDocker:
     stats: str = "1.5MiB / 256MiB"
     status_after_settle: str | None = None
     fail_create_for: set[str] = field(default_factory=set)
+    create_then_fail_for: set[str] = field(default_factory=set)
     fail_inspect: bool = False
+    fail_rm_for: set[str] = field(default_factory=set)
     keep_after_rm: bool = False
     containers: dict[str, dict[str, Any]] = field(default_factory=dict)
     calls: list[tuple[str, ...]] = field(default_factory=list)
     _state_reads: dict[str, int] = field(default_factory=dict)
 
-    def add(self, name: str, labels: dict[str, str], status: str = "created") -> None:
-        self.containers[name] = {"labels": dict(labels), "status": status}
+    def add(
+        self,
+        name: str,
+        labels: dict[str, str],
+        status: str = "created",
+        *,
+        hardened: bool = False,
+    ) -> None:
+        """A container that already exists, as if created by OAK (or by hand)."""
+
+        from oak.domain.runner_adapters import HARDENING_FLAGS
+
+        argv = ("docker", "create", "--network=none", *(HARDENING_FLAGS if hardened else ()))
+        host, user = host_configuration(argv)
+        self.containers[name] = {
+            "labels": dict(labels),
+            "status": status,
+            "host": host,
+            "user": user,
+        }
 
     def __call__(self, argv: tuple[str, ...], timeout_seconds: int) -> CommandResult:
         self.calls.append(argv)
@@ -106,7 +163,15 @@ class FakeDocker:
                 for index, value in enumerate(argv[:-1])
                 if value == "--label"
             )
-            self.add(name, labels)
+            host, user = host_configuration(argv)
+            self.containers[name] = {
+                "labels": labels,
+                "status": "created",
+                "host": host,
+                "user": user,
+            }
+            if name in self.create_then_fail_for:
+                return CommandResult(returncode=1, stdout="", stderr="context deadline exceeded")
             return _ok(name + "\n")
         if verb == "inspect":
             if self.fail_inspect:
@@ -120,6 +185,8 @@ class FakeDocker:
                 return _ok(json.dumps(container["labels"]) + "\n")
             if template == "{{.Image}}":
                 return _ok("sha256:imageid\n")
+            if template == "{{json .HostConfig}}\t{{json .Config.User}}":
+                return _ok(json.dumps(container["host"]) + "\t" + json.dumps(container["user"]))
             if template == "{{json .State}}":
                 reads = self._state_reads.get(name, 0) + 1
                 self._state_reads[name] = reads
@@ -136,11 +203,16 @@ class FakeDocker:
         if verb == "start":
             name = argv[-1]
             self.containers[name]["status"] = self.start_status
+            # Count state reads from the start, so a scripted change after the settle
+            # applies to the reads that follow it.
+            self._state_reads[name] = 0
             return _ok(name + "\n")
         if verb == "stats":
             return _ok(self.stats + "\n")
         if verb == "rm":
             name = argv[-1]
+            if name in self.fail_rm_for:
+                return CommandResult(returncode=1, stdout="", stderr="device or resource busy")
             if not self.keep_after_rm:
                 self.containers.pop(name, None)
             return _ok(name + "\n")
@@ -161,3 +233,19 @@ class FakeClock:
 
     def sleep(self, seconds: float) -> None:
         self.now += seconds
+
+
+__all__ = [
+    "CASE_ID",
+    "DIGEST",
+    "IMAGE",
+    "INSTALLATION_ID",
+    "ISOLATION_STARTED_HARDENED",
+    "TARGET_ID",
+    "FakeClock",
+    "FakeDocker",
+    "host_configuration",
+    "names",
+    "owned_labels",
+    "parameters",
+]

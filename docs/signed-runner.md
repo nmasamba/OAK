@@ -140,8 +140,12 @@ In this order, and any failure denies the dispatch before an adapter is construc
        (`OAK-RUNNER-PARAMETERS`);
      - its `isolation` is the one the profile's `execution.mutation_acknowledgement`
        permits (`OAK-RUNNER-TARGET-CAPABILITY`);
-     - every container name is the one derived from case, target and node, and is unique
+     - its installation identity is the one derived from the plan's case reference (id
+       and digest), this target and the plan's installation scope — the workspace that
+       compiled it — so two workspaces built from the same brief never share one
        (`OAK-RUNNER-PARAMETERS`);
+     - every container name is the one derived from that installation identity and the
+       node, and is unique (`OAK-RUNNER-PARAMETERS`);
      - each node's image reference and digest are the profile's
        `execution.component_images` entry for that node's component (`OAK-RUNNER-IMAGE`);
      - if the profile declares `execution.allowed_registries`, each image's registry
@@ -184,21 +188,33 @@ declares the superseded `container_image_reference`/`container_image_digest` is 
 Compilation emits typed `apply`, `rollback`, and `destroy` operations; `apply` fails over to
 `rollback`, and the other two to `manual_recovery`. Each carries the same installation: one
 container per node of the selected candidate that has a component, named
-`oak-fixture-<node slug>-<first 12 hex digits of a SHA-256 over case, target and node>`.
+`oak-fixture-<node slug>-<first 12 hex digits of a SHA-256 over the installation identity
+and node>`. The installation identity (`installation.<24 hex>`) is derived from the case
+version, the target and the workspace that compiled the plan.
 
 ### What the container adapter does
 
 The container adapter is `0.2.0`. For each container, `apply` runs `docker create
 --network=none` with the labels `oak.fixture=true`, `oak.case=<case id>` and
-`oak.node=<node id>`, and the image `<image>@<digest>`. On a hardened-start profile the
+`oak.node=<node id>`, `oak.installation=<installation id>` and `oak.isolation=<isolation>`,
+and the image `<image>@<digest>`. On a hardened-start profile the
 create also carries the fixed flags `--read-only --cap-drop=ALL
 --security-opt=no-new-privileges --user=65534:65534 --memory=256m --memory-swap=256m
 --cpus=0.5 --pids-limit=64 --restart=no --log-driver=none`. They are code, and part of the
 adapter's identity digest. No create carries a volume, an environment variable or a port.
 
 - **Idempotence.** A container that already has the derived name is adopted
-  (`already_present`) only if it carries this case's and node's labels. Any other is denied
-  with `OAK-RUNNER-FOREIGN` and never touched.
+  (`already_present`) only if it carries this case's, node's and installation's labels. Any
+  other is denied with `OAK-RUNNER-FOREIGN` and never touched. One created under a
+  different isolation — a never-started container on a profile that now acknowledges
+  starting, say — is denied with `OAK-RUNNER-ISOLATION` rather than started as it is.
+- **Configuration read-back.** After creating or adopting each container, and before
+  anything is started or reported as installed, the adapter reads the container's actual
+  configuration back from the daemon. Every container must have no network; one that will
+  be started must also have a read-only root, every capability dropped, no new privileges,
+  uid 65534, the 256 MiB memory and swap ceiling, the 64-process ceiling and no restart
+  policy. Anything else is denied with `OAK-RUNNER-ISOLATION`: a label is a claim, and the
+  daemon's own report is the check.
 - **Resolved digest.** After creating or adopting each container, the adapter reads back
   what the daemon actually resolved and requires a `RepoDigests` entry carrying the
   approved digest. An inspect failure, an image that cannot prove its identity (no repo
@@ -272,8 +288,14 @@ processing.
 ## Recovery
 
 Journals are append-only and hash-chained under `OAK_RUNNER_HOME/journals`. A run that finds
-an interrupted side effect refuses to continue and records `manual_recovery_required`;
-resolve it by inspecting the journal and the case's labelled containers
-(`docker ps --all --filter label=oak.case=<case id>`), then re-dispatch. Losing the
+an interrupted side effect refuses to continue and records `manual_recovery_required`.
+A dispatch that an earlier run took up and never finished — the process died mid-operation
+— is never re-run: the next run appends `manual_recovery_required` to its journal, naming
+the open operation and the containers it lists, and publishes a signed completion saying
+so, which `oak ingest` records as `runner_recovery_required`. `oak-runner status` reports
+any journal with an open operation as needing recovery. Resolve it by inspecting the journal
+and the installation's labelled containers
+(`docker ps --all --filter label=oak.installation=<installation id>`), removing them with a
+signed rollback or by hand, then re-dispatch. Losing the
 trust directory invalidates outstanding envelopes and approvals, which are re-signable from
 the unchanged canonical artifacts.

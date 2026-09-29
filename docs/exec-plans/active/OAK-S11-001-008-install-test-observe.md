@@ -631,6 +631,48 @@ Requirements served:
   (`oak-s11-testpg`), not the owner's `oak-community` PostgreSQL on 15432. The integration
   suites write to the database they are given.
 
+## Post-implementation audit
+
+2026-09-29, after Milestone 6 and a green full gate:
+- **Method.** Six read-only reviewers, one per lens: runner authority, adapter argv and isolation, approvals and lifecycle, observation honesty, compiler determinism, interface boundaries. Each finding went to one independent skeptic told to refute it (35 agents in all).
+- **Result.** 29 raised, 28 survived, 1 refuted: the refuted claim was that the schema lets a measure pass without evidence; the builder and the schema's `unknown` rules already prevent it.
+- **Duplicates.** Several survivors are one defect seen from two lenses (S1/S5, S4/S8, S9/S10/S21, S11/S24, S12/S17).
+- **Verification.** Every survivor was checked against the code before it was fixed.
+- **Tests.** Each fix has a regression test that fails without it, mutation-checked below.
+
+| # | Lens | Severity (verified) | Finding | Fix |
+|---|---|---|---|---|
+| S1 | runner-authority | medium | Adopted container is started without checking that it carries the hardening flags or --network=none | `oak.isolation` label must match; configuration read back before any start (`OAK-RUNNER-ISOLATION`) |
+| S2 | runner-authority | medium | A crash mid-apply is reported as a replay denial; the journal's interrupted-operation recovery is unreachable, and status says no recovery is needed | `_resume_interrupted`: journal entry, signed `manual_recovery_required` completion; `status` counts open operations |
+| S3 | runner-authority | low | All dispatches in one run are verified against a single start-of-run clock, and removal has no wall-clock lease guard | per-dispatch clock (removal deliberately keeps no lease guard: taking an installation down is always allowed) |
+| S4 | runner-authority | low | A container created by a `docker create` that timed out is never compensated | `_created_despite_failure` adds an owned container left by a failed create to `created` |
+| S5 | adapter-argv | medium | Hardened start can run a container that was never hardened, while the evidence says it was | same as S1 |
+| S6 | adapter-argv | low | registry_host treats an uppercase first path component as docker.io, but Docker treats it as a registry host, so the registry allowlist can be bypassed | `registry_host` treats an uppercase first component as a host |
+| S7 | adapter-argv | low | docker stats '0B / 0B' (memory accounting unavailable) is recorded as a measured 0 bytes | `0B / 0B` (or any zero) is `None` |
+| S8 | adapter-argv | low | A container whose create timed out is left out of `created`, so compensation skips it and still reports a clean rollback | same as S4 |
+| S9 | approval-lifecycle | medium | A re-approved action after a revocation passes dispatch but the runner always denies it | approval identity per issuance (`.issue-<n>`) |
+| S10 | approval-lifecycle | medium | A second revocation of a re-approved action corrupts the revocation set and the runner then denies every dispatch | same as S9 |
+| S11 | approval-lifecycle | medium | Revoking a re-approved action with the default key silently returns the earlier revocation, and the new approval stays live | derived keys scoped to the case version for revoke too |
+| S12 | approval-lifecycle | medium | Only the last dispatch's completion is accepted: an earlier completion is rejected forever and the observation then misreports install and re-apply | `oak.community/dispatch_refs`; ingest accepts any issued lease; builder scores in dispatch order |
+| S13 | approval-lifecycle | low | A completion that applied and then destroyed moves the case to deployed with nothing installed | `destroy` is a removal in ingest classification |
+| S14 | approval-lifecycle | low | Retrying with the same --idempotency-key after a commit now fails with OAK-IDEMPOTENCY-CONFLICT instead of returning the result | only derived keys are scoped; an explicit key retries |
+| S15 | observation-honesty | high | A failed rollback or compensation that ends in manual_recovery_required scores EV-DEP-03 as pass, or as 'no rollback has run' | a removal that ended in manual recovery is a failed sample, rows or not; failing row recorded |
+| S16 | observation-honesty | medium | An interrupted smoke test counts as a passed smoke test | `complete` flag; incomplete never passes (adapter and builder) |
+| S17 | observation-honesty | medium | Signed completions for a superseded lease are rejected forever, so the observation silently omits failed attempts and removals | same as S12 |
+| S18 | observation-honesty | low | A rollback that removed nothing counts as a passing EV-DEP-03 recovery sample | a removal of nothing is not a sample |
+| S19 | observation-honesty | low | The 'older completion' path crashes on the only plan shape older runners ran, and would hide older failed installs | both plan shapes read; unattributable older failures make EV-DEP `unknown` |
+| S20 | observation-honesty | low | A re-apply replaces the install's startup time with the near-zero 'startup' of an already-running container | startup only from fresh installs; `already_running` rows carry none |
+| S21 | compiler-determinism | medium | A renewed approval keeps the revoked approval's id, so the runner denies it forever, and revoking it again breaks the whole revocation channel | same as S9 |
+| S22 | compiler-determinism | medium | Container names and ownership labels use only case, target and node, so two workspaces for the same brief adopt and remove each other's containers | installation identity scoped by case version, target and workspace |
+| S23 | compiler-determinism | low | The superseded-pair refusal also applies to read-only profiles, contrary to the CHANGELOG and the plan | superseded-pair refusal applies to mutation profiles only |
+| S24 | interfaces-boundary | high | A second revoke-approval, run with the default key after a re-approval, silently revokes nothing | same as S11 |
+| S25 | interfaces-boundary | low | BundlePage shows revoked approvals as 'recorded' | bundle page reads approvals: current/expired/revoked |
+| S26 | interfaces-boundary | low | `oak architecture` reports expired approvals as 'recorded' next to 'Approvals needed before any install' | `absent`/`current`/`expired`/`revoked` with expiry |
+| S27 | interfaces-boundary | low | Bundle page still says apply is 'unavailable in Community' and calls the plan 'read-only, unsigned' next to the new signed/installed rows | page wording corrected; assertion kept on 'no runner execution authority' |
+| S28 | interfaces-boundary | low | `oak architecture` crashes with an uncaught KeyError on plans compiled by 0.7.1/0.8.0 mutation targets | superseded plan reported, no traceback |
+
+Mutation checks on the fixes: see Progress.
+
 ## Discoveries and follow-ups
 
 - **The runner could not pull any image on Docker Desktop (pre-existing, latent).** Its child environment was `{"PATH": os.defpath}`, but the Docker CLI still reads the operator's `~/.docker/config.json` (it finds the home directory without `HOME`); Docker Desktop writes `credsStore: desktop`, and `docker-credential-desktop` is not on `/bin:/usr/bin`, so every pull failed with "error getting credentials", even for a public image. It never surfaced because the old stand-in (`postgres:17.6-alpine`) was already cached by the operator's own Compose stack. Fixed by giving the child an empty runner-owned `DOCKER_CONFIG` (`isolated_executor`): public images pull anonymously, the operator's credentials, helpers and CLI contexts are never used, and only the default socket is reached (`RR-013`). A unit test pins the exact child environment.

@@ -29,6 +29,7 @@ from tests.container_support import (
     CASE_ID,
     DIGEST,
     IMAGE,
+    INSTALLATION_ID,
     FakeClock,
     FakeDocker,
     names,
@@ -89,6 +90,10 @@ def test_a_never_started_install_creates_each_node_and_starts_nothing() -> None:
         f"oak.case={CASE_ID}",
         "--label",
         "oak.node=node.retrieval",
+        "--label",
+        f"oak.installation={INSTALLATION_ID}",
+        "--label",
+        "oak.isolation=network-none-never-started",
         "--name",
         first["container_name"],
         f"{IMAGE}@{DIGEST}",
@@ -147,6 +152,8 @@ def test_re_apply_adopts_only_this_cases_own_containers() -> None:
         {"oak.fixture": "true"},
         owned_labels("node.retrieval", case_id="design-case.someone-else"),
         owned_labels("node.generation"),
+        # The same case and node from another workspace's installation of the same brief.
+        owned_labels("node.retrieval", installation_id="installation." + "9" * 24),
     ],
 )
 def test_a_foreign_container_with_the_planned_name_is_denied_never_adopted_or_removed(
@@ -415,13 +422,13 @@ def test_poisoned_parameters_are_refused_before_anything_executes(document: dict
     assert docker.calls == []
 
 
-def test_a_name_not_derived_for_this_case_is_refused() -> None:
+def test_a_name_not_derived_for_this_installation_is_refused() -> None:
     document = parameters()
     document["containers"][0]["container_name"] = container_name_for(
-        "design-case.another", document["target_id"], "node.retrieval"
+        "installation." + "f" * 24, "node.retrieval"
     )
 
-    with pytest.raises(OAKError, match="derived for this case"):
+    with pytest.raises(OAKError, match="derived for this installation"):
         _adapter(FakeDocker()).apply(document, 120)
 
 
@@ -496,3 +503,169 @@ def test_renderer_pins_images_to_the_attested_digest_not_the_reference() -> None
             }
         )
     assert mismatch.value.code == "OAK-RENDER-IMAGE"
+
+
+# -- audit regressions (Sprint 11 closing audit) ---------------------------------------
+
+
+def test_a_never_started_container_is_never_adopted_into_a_hardened_start() -> None:
+    """S1/S5: adoption must not start a container that was created without hardening."""
+
+    docker = FakeDocker()
+    document = parameters(ISOLATION_STARTED_HARDENED)
+    for entry in document["containers"]:
+        docker.add(entry["container_name"], owned_labels(entry["node_id"]))
+
+    with pytest.raises(AdapterFailureError) as caught:
+        _adapter(docker).apply(document, 120)
+
+    assert caught.value.code == "OAK-RUNNER-ISOLATION"
+    assert "start" not in docker.verbs()
+
+
+def test_labels_claiming_hardening_are_checked_against_the_real_configuration() -> None:
+    """S1/S5: a label is a claim; the daemon's HostConfig is read back before any start."""
+
+    docker = FakeDocker()
+    document = parameters(ISOLATION_STARTED_HARDENED)
+    for entry in document["containers"]:
+        docker.add(
+            entry["container_name"],
+            owned_labels(entry["node_id"], isolation=ISOLATION_STARTED_HARDENED),
+            hardened=False,
+        )
+
+    with pytest.raises(AdapterFailureError) as caught:
+        _adapter(docker).apply(document, 120)
+
+    assert caught.value.code == "OAK-RUNNER-ISOLATION"
+    assert "start" not in docker.verbs()
+
+
+def test_a_properly_hardened_container_is_adopted_and_already_running_has_no_startup_time() -> None:
+    """S20: a re-apply over a running installation reports no startup time."""
+
+    docker = FakeDocker()
+    document = parameters(ISOLATION_STARTED_HARDENED)
+    for entry in document["containers"]:
+        docker.add(
+            entry["container_name"],
+            owned_labels(entry["node_id"], isolation=ISOLATION_STARTED_HARDENED),
+            status="running",
+            hardened=True,
+        )
+
+    status, test, _metric = _adapter(docker).apply(document, 120)
+
+    assert {row["outcome"] for row in status["content"]["installation"]} == {"already_present"}
+    rows = test["content"]["smoke_test"]
+    assert all(row["already_running"] is True and row["startup_seconds"] is None for row in rows)
+    assert test["content"]["passed"] is True
+
+
+def test_a_created_container_that_is_not_network_none_is_refused() -> None:
+    docker = FakeDocker()
+    document = parameters()
+    entry = document["containers"][0]
+    docker.add(entry["container_name"], owned_labels(entry["node_id"]))
+    docker.containers[entry["container_name"]]["host"]["NetworkMode"] = "bridge"
+
+    with pytest.raises(AdapterFailureError) as caught:
+        _adapter(docker).apply(document, 120)
+
+    assert caught.value.code == "OAK-RUNNER-ISOLATION"
+
+
+def test_a_create_that_failed_after_making_the_container_is_still_compensated() -> None:
+    """S4/S8: a timed-out create can leave a container behind; it is named for removal."""
+
+    document = parameters()
+    first = names(document)[0]
+    docker = FakeDocker(create_then_fail_for={first})
+
+    with pytest.raises(AdapterFailureError) as caught:
+        _adapter(docker).apply(document, 120)
+
+    assert caught.value.code == "OAK-RUNNER-APPLY"
+    assert caught.value.created == (first,)
+
+
+def test_memory_with_no_accounting_is_unknown_not_zero() -> None:
+    """S7: '0B / 0B' means the daemon keeps no memory accounting."""
+
+    docker = FakeDocker(stats="0B / 0B")
+
+    _status, _test, metric = _adapter(docker).apply(parameters(ISOLATION_STARTED_HARDENED), 120)
+
+    assert {row["memory_bytes"] for row in metric["content"]["memory"]} == {None}
+
+
+def test_a_smoke_test_cut_short_is_incomplete_and_not_passed() -> None:
+    """S16: a lapsed lease between starts leaves a test that covered only some nodes."""
+
+    docker = FakeDocker()
+    moments = iter(
+        [datetime(2026, 9, 29, 12, 0, tzinfo=UTC)] * 3 + [datetime(2026, 9, 29, 13, 0, tzinfo=UTC)]
+    )
+    clock = FakeClock()
+    adapter = ContainerFixtureAdapter(
+        docker, clock=clock, sleeper=clock.sleep, wall_clock=lambda: next(moments)
+    )
+
+    with pytest.raises(AdapterFailureError) as caught:
+        adapter.apply(
+            parameters(ISOLATION_STARTED_HARDENED),
+            120,
+            deadline=datetime(2026, 9, 29, 12, 30, tzinfo=UTC),
+        )
+
+    assert caught.value.code == "OAK-RUNNER-LEASE"
+    test = next(item for item in caught.value.evidence if item["category"] == "test_result")
+    assert test["content"]["complete"] is False and test["content"]["passed"] is False
+
+
+def test_a_removal_that_fails_part_way_records_the_container_it_did_not_remove() -> None:
+    """S15: the failing container is in the record, and removed_all is false."""
+
+    document = parameters()
+    first, second = names(document)
+    docker = FakeDocker(fail_rm_for={first})
+    for entry in document["containers"]:
+        docker.add(entry["container_name"], owned_labels(entry["node_id"]))
+
+    with pytest.raises(AdapterFailureError) as caught:
+        _adapter(docker).rollback(document, 120)
+
+    content = caught.value.evidence[0]["content"]
+    assert content["removed_all"] is False
+    rows = {row["container_name"]: row for row in content["containers"]}
+    assert rows[second]["absent_after"] is True
+    assert rows[first]["absent_after"] is False
+
+
+@pytest.mark.parametrize(
+    ("reference", "host"),
+    [("Registry/tool", "Registry"), ("myHost/team/tool", "myHost")],
+)
+def test_an_uppercase_first_component_is_a_registry_host(reference: str, host: str) -> None:
+    """S6: Docker reads a first component with an uppercase letter as a registry."""
+
+    assert registry_host(reference) == host
+
+
+def test_a_container_created_for_another_isolation_is_not_adopted() -> None:
+    """Adoption is for a re-apply under the same isolation; the label says which."""
+
+    docker = FakeDocker()
+    document = parameters(ISOLATION_NEVER_STARTED)
+    for entry in document["containers"]:
+        docker.add(
+            entry["container_name"],
+            owned_labels(entry["node_id"], isolation=ISOLATION_STARTED_HARDENED),
+            hardened=True,
+        )
+
+    with pytest.raises(AdapterFailureError) as caught:
+        _adapter(docker).apply(document, 120)
+
+    assert caught.value.code == "OAK-RUNNER-ISOLATION"

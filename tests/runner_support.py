@@ -59,6 +59,7 @@ def build_compiled_case(
     *,
     target_name: str = "local-fixture.yaml",
     now: str | None = None,
+    workspace_id: str = "workspace.fixture",
 ) -> ReleaseHarness:
     """Drive a fresh workspace to bundle_compiled against the named target.
 
@@ -74,7 +75,7 @@ def build_compiled_case(
     registry = SchemaRegistry.from_directory(ROOT / "schemas")
 
     design = create_design_case_service(workspace)
-    design.initialize(workspace_id="workspace.fixture", tenant_id="local", created_at=stamp)
+    design.initialize(workspace_id=workspace_id, tenant_id="local", created_at=stamp)
     design.design(
         ROOT / "examples/briefs/public-manual-qa.yaml",
         _context(stamp, "harness-design-000001", None),

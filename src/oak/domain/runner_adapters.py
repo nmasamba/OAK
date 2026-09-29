@@ -88,14 +88,16 @@ CONTAINER_NAME_PATTERN = r"^oak-fixture-[a-z0-9][a-z0-9-]{0,62}$"
 # no whitespace, so a value can never be read as a flag or split into two arguments.
 IDENTIFIER_PATTERN = r"^[A-Za-z][A-Za-z0-9._:/-]{2,159}$"
 IMAGE_REFERENCE_PATTERN = r"^[a-z0-9][a-zA-Z0-9./_:-]*$"
+INSTALLATION_ID_PATTERN = r"^installation\.[a-f0-9]{24}$"
 MAXIMUM_CONTAINERS = 16
 CONTAINER_PARAMETER_SCHEMA: dict[str, Any] = {
     "type": "object",
     "additionalProperties": False,
-    "required": ["case_id", "target_id", "isolation", "containers"],
+    "required": ["case_id", "target_id", "installation_id", "isolation", "containers"],
     "properties": {
         "case_id": {"type": "string", "pattern": IDENTIFIER_PATTERN},
         "target_id": {"type": "string", "pattern": IDENTIFIER_PATTERN},
+        "installation_id": {"type": "string", "pattern": INSTALLATION_ID_PATTERN},
         "isolation": {"enum": [ISOLATION_NEVER_STARTED, ISOLATION_STARTED_HARDENED]},
         "containers": {
             "type": "array",
@@ -133,20 +135,47 @@ CONTAINER_PARAMETER_SCHEMA_DIGEST = content_digest(canonical_json_bytes(CONTAINE
 CONTAINER_LABEL_FIXTURE = "oak.fixture"
 CONTAINER_LABEL_CASE = "oak.case"
 CONTAINER_LABEL_NODE = "oak.node"
+CONTAINER_LABEL_INSTALLATION = "oak.installation"
+CONTAINER_LABEL_ISOLATION = "oak.isolation"
 
 
-def container_name_for(case_id: str, target_id: str, node_id: str) -> str:
-    """The one name a node's container may have for this case on this target.
+INSTALLATION_SCOPE_EXTENSION = "oak.community/installation_scope"
+
+
+def installation_id_for(design_case_ref: dict[str, Any], target_id: str, scope: str) -> str:
+    """The identity of one compiled installation: this case version, in this workspace,
+    on this target.
+
+    Derived from the plan's own ``design_case_ref`` (id and digest) and its installation
+    scope (the workspace that compiled it), so two workspaces built from the same brief —
+    which share a case id, and at the same instant even the same case bytes — never share
+    an installation, and neither can adopt or remove the other's containers. The runner
+    re-derives it from the plan it verified.
+    """
+
+    material = "\n".join(
+        (
+            str(design_case_ref.get("id")),
+            str(design_case_ref.get("digest")),
+            target_id,
+            scope,
+        )
+    )
+    return "installation." + hashlib.sha256(material.encode()).hexdigest()[:24]
+
+
+def container_name_for(installation_id: str, node_id: str) -> str:
+    """The one name a node's container may have in this installation.
 
     Both the compiler and the runner derive it; the runner refuses a plan naming any
-    other container, so a plan cannot address a container outside its own case. The
-    hash carries case and target identity (a long target id never truncates it); the
-    node slug is only there so an operator can read ``docker ps``.
+    other container, so a plan cannot address a container outside its own installation.
+    The hash carries the identity; the node slug is only there so an operator can read
+    ``docker ps``.
     """
 
     slug = re.sub(r"[^a-z0-9]+", "-", node_id.removeprefix("node.").casefold()).strip("-")
     slug = (slug or "node")[:40].strip("-") or "node"
-    identity = hashlib.sha256(f"{case_id}\n{target_id}\n{node_id}".encode()).hexdigest()
+    identity = hashlib.sha256(f"{installation_id}\n{node_id}".encode()).hexdigest()
     return f"oak-fixture-{slug}-{identity[:12]}"
 
 
@@ -179,17 +208,17 @@ ALLOWED_KINDS_BY_ADAPTER: dict[str, frozenset[str]] = {
 def registry_host(reference: str) -> str:
     """Return the registry host a Docker image reference resolves to.
 
-    Docker's own resolution rule: the first path component names a registry only
-    when it contains a dot or a colon or is exactly ``localhost``; every other
-    reference is a Docker Hub name and resolves to ``docker.io``. The runner uses
-    this to enforce a target profile's ``execution.allowed_registries`` before any
-    adapter exists (RR-003, TM-08).
+    Docker's own resolution rule: the first path component names a registry when
+    it contains a dot or a colon, is exactly ``localhost``, or contains an uppercase
+    letter (a repository name cannot); every other reference is a Docker Hub name and
+    resolves to ``docker.io``. The runner uses this to enforce a target profile's
+    ``execution.allowed_registries`` before any adapter exists (RR-003, TM-08).
     """
 
     head, separator, _ = reference.partition("/")
     if not separator:
         return "docker.io"
-    if head == "localhost" or "." in head or ":" in head:
+    if head == "localhost" or "." in head or ":" in head or head != head.lower():
         return head
     return "docker.io"
 

@@ -10,6 +10,7 @@ nothing, and it publishes no case successor and no audit event.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Any
 
 from oak.domain import OAKError
@@ -46,6 +47,7 @@ def architecture_document(
     decision: dict[str, Any] | None,
     plan: dict[str, Any] | None,
     approvals: dict[str, dict[str, Any]],
+    now: str,
 ) -> dict[str, Any]:
     selected = case.get("selected_candidate_ref")
     is_selected = isinstance(selected, dict) and selected.get("id") == candidate.get("id")
@@ -60,14 +62,14 @@ def architecture_document(
             "selected": is_selected,
             "candidate": candidate,
             "decision": decision if is_selected else None,
-            "installation": _installation(plan, approvals) if is_selected else None,
+            "installation": _installation(plan, approvals, now) if is_selected else None,
             "notice": NOTICE,
         }
     }
 
 
 def _installation(
-    plan: dict[str, Any] | None, approvals: dict[str, dict[str, Any]]
+    plan: dict[str, Any] | None, approvals: dict[str, dict[str, Any]], now: str
 ) -> dict[str, Any] | None:
     if plan is None:
         return None
@@ -75,10 +77,23 @@ def _installation(
     if apply is None:
         return None
     parameters = apply["parameters"]
+    entries = parameters.get("containers")
+    if not isinstance(entries, list):
+        # A plan compiled before the topology installer installs one stand-in container
+        # that is not the architecture; the runner no longer accepts it.
+        return {
+            "target_id": plan["target"]["id"],
+            "superseded": True,
+            "note": "compiled before the topology installer; recompile to install the architecture",
+            "containers": [],
+            "approvals": {},
+        }
+    isolation = parameters.get("isolation")
     return {
         "target_id": plan["target"]["id"],
-        "isolation": parameters["isolation"],
-        "starts_containers": parameters["isolation"] == "network-none-started-hardened",
+        "superseded": False,
+        "isolation": isolation,
+        "starts_containers": isolation == "network-none-started-hardened",
         "containers": [
             {
                 "node_id": entry["node_id"],
@@ -86,19 +101,33 @@ def _installation(
                 "container_name": entry["container_name"],
                 "image": f"{entry['image_reference']}@{entry['image_digest']}",
             }
-            for entry in parameters["containers"]
+            for entry in entries
         ],
         "approvals": {
-            action: (
-                "absent"
-                if action not in approvals
-                else "revoked"
-                if approvals[action].get("revoked") is True
-                else "recorded"
-            )
+            action: {
+                "state": _approval_state(approvals.get(action), now),
+                "expires_at": (approvals.get(action) or {}).get("expires_at"),
+            }
             for action in INSTALL_APPROVALS
         },
     }
+
+
+def _approval_state(approval: dict[str, Any] | None, now: str) -> str:
+    """Absent, revoked, expired or current — never "recorded" for one dispatch refuses."""
+
+    if approval is None:
+        return "absent"
+    if approval.get("revoked") is True:
+        return "revoked"
+    expires = approval.get("expires_at")
+    if isinstance(expires, str) and _instant(expires) <= _instant(now):
+        return "expired"
+    return "current"
+
+
+def _instant(value: str) -> datetime:
+    return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(UTC)
 
 
 def architecture_human(document: dict[str, Any]) -> str:
@@ -132,13 +161,15 @@ def architecture_human(document: dict[str, Any]) -> str:
             f"  {objective['name']:<24} {objective['value']}{interval} {objective['unit']}"
         )
     installation = architecture.get("installation")
-    if installation:
+    if installation and installation.get("superseded"):
+        lines += ["", f"The plan for {installation['target_id']} was {installation['note']}."]
+    elif installation:
         starts = "starts containers" if installation["starts_containers"] else "never starts them"
         lines += ["", f"Would install on {installation['target_id']} ({starts}):"]
         lines += [f"  {item['node_id']:<24} {item['image']}" for item in installation["containers"]]
         approvals = ", ".join(
-            f"{action} {state}" for action, state in installation["approvals"].items()
+            f"{action} {entry['state']}" for action, entry in installation["approvals"].items()
         )
-        lines += [f"Approvals needed before any install: {approvals}"]
+        lines += [f"Approvals an install needs, both current: {approvals}"]
     lines += ["", architecture["notice"]]
     return "\n".join(lines)

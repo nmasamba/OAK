@@ -22,10 +22,12 @@ from oak.domain.runner_adapters import (
     ADAPTER_IDENTITY_BY_ID,
     ALLOWED_KINDS_BY_ADAPTER,
     CONTAINER_ADAPTER_ID,
+    INSTALLATION_SCOPE_EXTENSION,
     ISOLATION_BY_ACKNOWLEDGEMENT,
     PARAMETER_SCHEMA_BY_ADAPTER,
     architecture_binding_matches,
     container_name_for,
+    installation_id_for,
     registry_host,
 )
 
@@ -451,7 +453,7 @@ def verify_dispatch(
         )
         if str(adapter["id"]) == CONTAINER_ADAPTER_ID:
             _check_installation(
-                operation["parameters"], envelope, target_document, allowed_registries
+                operation["parameters"], envelope, plan, target_document, allowed_registries
             )
         _check(
             operation["secret_references"] == [],
@@ -536,6 +538,7 @@ def verify_dispatch(
 def _check_installation(
     parameters: dict[str, Any],
     envelope: dict[str, Any],
+    plan: dict[str, Any],
     target_document: dict[str, Any],
     allowed_registries: Any,
 ) -> None:
@@ -559,6 +562,17 @@ def _check_installation(
         "OAK-RUNNER-PARAMETERS",
         "installation names a different target",
     )
+    installation_id = str(parameters["installation_id"])
+    _check(
+        installation_id
+        == installation_id_for(
+            plan["design_case_ref"],
+            target_id,
+            str(plan.get("extensions", {}).get(INSTALLATION_SCOPE_EXTENSION, "")),
+        ),
+        "OAK-RUNNER-PARAMETERS",
+        "installation identity is not the one derived from this plan's case and target",
+    )
     execution = target_document.get("execution")
     execution = execution if isinstance(execution, dict) else {}
     acknowledged = ISOLATION_BY_ACKNOWLEDGEMENT.get(str(execution.get("mutation_acknowledgement")))
@@ -576,9 +590,9 @@ def _check_installation(
     for container in parameters["containers"]:
         name = str(container["container_name"])
         _check(
-            name == container_name_for(case_id, target_id, str(container["node_id"])),
+            name == container_name_for(installation_id, str(container["node_id"])),
             "OAK-RUNNER-PARAMETERS",
-            "container name is not the one derived for this case, target and node",
+            "container name is not the one derived for this installation and node",
         )
         _check(name not in names, "OAK-RUNNER-PARAMETERS", "container names must be unique")
         names.add(name)

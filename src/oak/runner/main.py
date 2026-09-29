@@ -88,10 +88,15 @@ def run_once(
         raise OAKError(
             "OAK-RUNNER-CONFIG", "the runner home, mailbox or trust anchors are unreadable"
         ) from error
-    now = _now()
-
     processed_any = False
     for dispatch_id, envelope, attachments in mailbox.pending_dispatches():
+        # Each dispatch is judged at the moment it is taken up, not at the start of the
+        # run: an earlier long install must not stretch a later dispatch's lease.
+        now = _now()
+        journal = RunnerJournal(home / "journals" / f"{dispatch_id}.jsonl")
+        if _resume_interrupted(journal, mailbox, identity, envelope, dispatch_id, now):
+            processed_any = True
+            continue
         # dispatch_id comes from the filesystem, never from the unverified envelope.
         # The lease block is untrusted and unvalidated at this point — the schema check
         # happens inside `verify_dispatch`, below — so its *shape* cannot be assumed
@@ -127,7 +132,6 @@ def run_once(
             print(f"denied {dispatch_id}: {denial}", file=sys.stderr)
             continue
         mailbox.consume_lease_nonce(str(envelope["lease"]["nonce"]))
-        journal = RunnerJournal(home / "journals" / f"{dispatch_id}.jsonl")
         journal.verify_chain()
         outcome = execute_dispatch(
             verified,
@@ -166,6 +170,75 @@ def run_once(
     if not processed_any:
         print("no pending dispatches")
     return 0
+
+
+def _resume_interrupted(
+    journal: RunnerJournal,
+    mailbox: RunnerMailbox,
+    identity: RunnerIdentity,
+    envelope: dict[str, Any],
+    dispatch_id: str,
+    now: str,
+) -> bool:
+    """Report a dispatch an earlier run started but never finished; never re-run it.
+
+    A dispatch whose journal already has entries was taken up before: its nonce is spent,
+    so re-verifying it could only ever end in a replay denial that says nothing was done —
+    while containers may exist. Instead the interruption is recorded where `status` and
+    the control plane can see it: a `manual_recovery_required` journal entry naming the
+    open operation and its resources, and a signed completion saying so.
+    """
+
+    try:
+        entries = journal.entries()
+    except OAKError:
+        entries = ()
+    if not entries:
+        return False
+    requested: list[str] = []
+    for entry in entries:
+        if entry.entry_type == "lease_accepted":
+            kinds = entry.details.get("requested_kinds")
+            requested = [str(kind) for kind in kinds] if isinstance(kinds, list) else []
+    interrupted: dict[str, Any] | None = None
+    with contextlib.suppress(OAKError):
+        interrupted = journal.incomplete_operation()
+        if not journal.requires_manual_recovery():
+            journal.append(
+                "manual_recovery_required",
+                now,
+                {
+                    "reason": "the dispatch was interrupted before it published a completion",
+                    **(interrupted or {}),
+                },
+            )
+    lease = envelope.get("lease")
+    lease_id = lease.get("lease_id") if isinstance(lease, dict) else None
+    with contextlib.suppress(OSError, ValueError, OAKError):
+        mailbox.publish_message(
+            identity,
+            kind="completion",
+            tenant_id=str(envelope.get("tenant_id", "local")),
+            environment=str(envelope.get("environment", "development")),
+            correlation_id=str(lease_id or dispatch_id),
+            sequence=1,
+            lease_id=str(lease_id) if isinstance(lease_id, str) else None,
+            operation_id=None,
+            occurred_at=now,
+            payload={
+                "outcome": "manual_recovery_required",
+                "requested_kinds": requested,
+                "applied_kinds": [],
+                "failed_kind": str(interrupted["kind"]) if interrupted else None,
+                "journal_digest": journal.digest(),
+                "detail": "an earlier run was interrupted; inspect the journal and the "
+                "named resources before any further dispatch",
+                "evidence": [],
+            },
+        )
+    mailbox.mark_processed(dispatch_id)
+    print(f"interrupted {dispatch_id}: manual recovery required", file=sys.stderr)
+    return True
 
 
 def _publish_denial(
@@ -216,7 +289,11 @@ def status() -> int:
             chain = "unreadable"
         try:
             entries = len(journal.entries())
-            manual_recovery = journal.requires_manual_recovery()
+            # An open operation with no after-entry is an interrupted side effect even
+            # before any run has written the explicit manual-recovery entry for it.
+            manual_recovery = (
+                journal.requires_manual_recovery() or journal.incomplete_operation() is not None
+            )
         except (OAKError, ValueError, OSError):
             entries = 0
             manual_recovery = True

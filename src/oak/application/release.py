@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import re
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
@@ -169,7 +170,7 @@ class ReleaseService:
         # retry at the same version stays idempotent.
         input_digest = self._request_digest(
             context,
-            {"action": "approve", "kind": action, "case_version": context.expected_version},
+            {"action": "approve", "kind": action, **_derived_key_scope(context)},
         )
         context = self._normalized_context(context, f"approve-{action}", input_digest)
         self._check_context(context)
@@ -210,15 +211,14 @@ class ReleaseService:
             approval_extensions[ARCHITECTURE_EXTENSION] = self._architecture_binding(
                 current_document, plan
             )
-        # A renewed approval is a successor version, never a second document under the
-        # same immutable identity.
-        previous = existing_approvals.get(action)
-        approval_version = (
-            _next_patch(str(previous["version"])) if isinstance(previous, dict) else "0.1.0"
-        )
+        # Each issuance is a new approval with its own identity. Reusing the previous id
+        # would inherit its revocation (the runner revokes by id) and make revoking the
+        # renewal collide with the earlier notice in the signed revocation set.
+        approval_id = _approval_identity(action, plan_ref, existing_approvals.get(action))
+        approval_version = "0.1.0"
         document: dict[str, Any] = {
             "schema_version": "0.1.0",
-            "id": f"approval.{action.replace('_', '-')}.{plan_ref.id.removeprefix('runner-plan.')}",
+            "id": approval_id,
             "version": approval_version,
             "case_id": current.id,
             "tenant_id": context.tenant_id,
@@ -283,7 +283,9 @@ class ReleaseService:
             raise OAKError("OAK-APPROVAL-ACTION", "approval action is not recognized")
         if not reason.strip():
             raise OAKError("OAK-REVOCATION-REASON", "revocation requires a reason")
-        input_digest = self._request_digest(context, {"action": "revoke", "kind": action})
+        input_digest = self._request_digest(
+            context, {"action": "revoke", "kind": action, **_derived_key_scope(context)}
+        )
         context = self._normalized_context(context, f"revoke-{action}", input_digest)
         self._check_context(context)
         self._check_tenant(context)
@@ -380,7 +382,7 @@ class ReleaseService:
         # dispatch rather than a replay of the first one.
         input_digest = self._request_digest(
             context,
-            {"action": "dispatch", "kinds": list(kinds), "case_version": context.expected_version},
+            {"action": "dispatch", "kinds": list(kinds), **_derived_key_scope(context)},
         )
         context = self._normalized_context(context, "dispatch", input_digest)
         self._check_context(context)
@@ -496,6 +498,11 @@ class ReleaseService:
         }
         extensions = copy.deepcopy(current.extensions or {})
         extensions["oak.community/last_dispatch_ref"] = artifact.reference.to_document()
+        # Every dispatch is remembered, so a completion for an earlier lease is still
+        # recognised as this control plane's work when it is ingested after a later one.
+        dispatched = list(extensions.get("oak.community/dispatch_refs", []))
+        dispatched.append(artifact.reference.to_document())
+        extensions["oak.community/dispatch_refs"] = dispatched
         successor = current.revise(
             status=current.status,
             updated_at=context.occurred_at,
@@ -563,7 +570,7 @@ class ReleaseService:
         """
 
         input_digest = self._request_digest(
-            context, {"action": "observe", "case_version": context.expected_version}
+            context, {"action": "observe", **_derived_key_scope(context)}
         )
         context = self._normalized_context(context, "observe", input_digest)
         self._check_context(context)
@@ -673,16 +680,23 @@ class ReleaseService:
         case = self._repository.current_case()
         if case is None:
             return False
-        reference = case.get("extensions", {}).get("oak.community/last_dispatch_ref")
-        if not isinstance(reference, dict):
-            return False
-        try:
-            envelope = self._repository.read_json_artifact(
-                ArtifactReference.from_document(reference)
-            )
-        except OAKError:
-            return False
-        return str(envelope.get("lease", {}).get("lease_id")) == lease_id
+        extensions = case.get("extensions", {})
+        references = list(extensions.get("oak.community/dispatch_refs", []))
+        last = extensions.get("oak.community/last_dispatch_ref")
+        if isinstance(last, dict) and last not in references:
+            references.append(last)  # a case dispatched before dispatch_refs existed
+        for reference in references:
+            if not isinstance(reference, dict):
+                continue
+            try:
+                envelope = self._repository.read_json_artifact(
+                    ArtifactReference.from_document(reference)
+                )
+            except OAKError:
+                continue
+            if str(envelope.get("lease", {}).get("lease_id")) == lease_id:
+                return True
+        return False
 
     def _record_completion(
         self,
@@ -704,8 +718,10 @@ class ReleaseService:
         payload = message.get("payload", {})
         outcome = str(payload.get("outcome", "unknown"))
         applied = bool(payload.get("applied_kinds")) and "apply" in payload.get("applied_kinds", [])
-        rolled_back = bool(payload.get("applied_kinds")) and "rollback" in payload.get(
-            "applied_kinds", []
+        # Rollback and destroy both remove what apply installed; a completion that applied
+        # and then removed leaves nothing installed and is never `deployed`.
+        rolled_back = any(
+            kind in payload.get("applied_kinds", []) for kind in ("rollback", "destroy")
         )
         if outcome == "manual_recovery_required":
             event_type = "runner_recovery_required"
@@ -1050,6 +1066,27 @@ def _key_id_derives_from_key(signature: Any) -> bool:
         )
     )
     return key_id == expected
+
+
+def _derived_key_scope(context: CommandContext) -> dict[str, Any]:
+    """Scope a derived idempotency key to the case version; leave an explicit one alone.
+
+    A derived key would otherwise be the same for every later approval, revocation,
+    dispatch or observation of the same kind, so a deliberate repeat would silently return
+    the first result. An explicit key is the caller's own retry handle: a retry after a
+    commit sends the same key at the new case version and must still return the result.
+    """
+
+    return {} if context.idempotency_key else {"case_version": context.expected_version}
+
+
+def _approval_identity(action: str, plan_ref: ArtifactReference, previous: Any) -> str:
+    base = f"approval.{action.replace('_', '-')}.{plan_ref.id.removeprefix('runner-plan.')}"
+    if not isinstance(previous, dict):
+        return base
+    match = re.fullmatch(re.escape(base) + r"\.issue-(\d+)", str(previous.get("id", "")))
+    issue = int(match.group(1)) + 1 if match else 2
+    return f"{base}.issue-{issue}"
 
 
 def _deterministic_nonce(*parts: str) -> str:

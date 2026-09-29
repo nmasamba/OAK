@@ -18,6 +18,7 @@ from oak.domain import (
 from oak.domain.runner_adapters import (
     ADAPTER_IDENTITY_BY_ID,
     CONTAINER_ADAPTER_ID,
+    INSTALLATION_SCOPE_EXTENSION,
     ISOLATION_BY_ACKNOWLEDGEMENT,
     ISOLATION_STARTED_HARDENED,
     MAXIMUM_CONTAINERS,
@@ -26,6 +27,7 @@ from oak.domain.runner_adapters import (
     REVIEW_ADAPTER_VERSION,
     REVIEW_PARAMETER_SCHEMA_DIGEST,
     container_name_for,
+    installation_id_for,
 )
 
 BUNDLE_MEDIA_TYPE = "application/vnd.oak.deployment-bundle+json"
@@ -74,6 +76,7 @@ def compile_review_plan(
     catalogue_snapshot: Artifact,
     registry: SchemaRegistry,
     created_at: str,
+    installation_scope: str,
 ) -> CompiledReviewPlan:
     candidate_document = _document(candidate)
     _reject_superseded_execution(target)
@@ -197,6 +200,7 @@ def compile_review_plan(
     )
     runner_document = _runner_plan_document(
         case_ref=case_ref,
+        installation_scope=installation_scope,
         candidate_document=candidate_document,
         bundle=bundle,
         target=target,
@@ -390,6 +394,7 @@ def _target_constraints(target: dict[str, Any]) -> list[str]:
 def _runner_plan_document(
     *,
     case_ref: ArtifactReference,
+    installation_scope: str,
     candidate_document: dict[str, Any],
     bundle: Artifact,
     target: dict[str, Any],
@@ -444,7 +449,8 @@ def _runner_plan_document(
     if mutation:
         operations.extend(
             _mutation_operations(
-                case_id=case_ref.id,
+                case_ref=case_ref,
+                installation_scope=installation_scope,
                 candidate_document=candidate_document,
                 target=target,
                 target_fingerprint=target_fingerprint,
@@ -494,13 +500,20 @@ def _runner_plan_document(
             "maximum_bytes": 1_048_576,
             "redact_fields": ["credentials", "secrets", "environment"],
         },
-        "extensions": {"oak.community/dispatch_allowed": False},
+        "extensions": {
+            "oak.community/dispatch_allowed": False,
+            # Only a plan that can install names its installation scope (the workspace),
+            # which the runner needs to re-derive the installation identity; the
+            # read-only plan's bytes are pinned and stay as they were.
+            **({INSTALLATION_SCOPE_EXTENSION: installation_scope} if mutation else {}),
+        },
     }
 
 
 def _mutation_operations(
     *,
-    case_id: str,
+    case_ref: ArtifactReference,
+    installation_scope: str,
     candidate_document: dict[str, Any],
     target: dict[str, Any],
     target_fingerprint: str,
@@ -516,11 +529,15 @@ def _mutation_operations(
     isolation = ISOLATION_BY_ACKNOWLEDGEMENT[str(execution["mutation_acknowledgement"])]
     # One operation carries the whole topology: the runner refuses two operations of the
     # same kind, which keeps what it verified and what it executes the same list.
+    installation_id = installation_id_for(
+        case_ref.to_document(), str(target["id"]), installation_scope
+    )
     parameters = {
-        "case_id": case_id,
+        "case_id": case_ref.id,
         "target_id": str(target["id"]),
+        "installation_id": installation_id,
         "isolation": isolation,
-        "containers": _installation(case_id, candidate_document, target),
+        "containers": _installation(installation_id, candidate_document, target),
     }
     identity = ADAPTER_IDENTITY_BY_ID[CONTAINER_ADAPTER_ID]
     verbs = ["get", "list", "create", "delete"]
@@ -601,7 +618,7 @@ def _acknowledged_images(target: dict[str, Any]) -> dict[str, dict[str, Any]]:
 
 
 def _installation(
-    case_id: str, candidate_document: dict[str, Any], target: dict[str, Any]
+    installation_id: str, candidate_document: dict[str, Any], target: dict[str, Any]
 ) -> list[dict[str, Any]]:
     images = _acknowledged_images(target)
     containers: list[dict[str, Any]] = []
@@ -616,7 +633,7 @@ def _installation(
             {
                 "node_id": node_id,
                 "manifest_id": manifest_id,
-                "container_name": container_name_for(case_id, str(target["id"]), node_id),
+                "container_name": container_name_for(installation_id, node_id),
                 "image_reference": str(image["image_reference"]),
                 "image_digest": str(image["image_digest"]),
             }
@@ -633,7 +650,7 @@ def _reject_superseded_execution(target: dict[str, Any]) -> None:
     """
 
     execution = target.get("execution")
-    if not isinstance(execution, dict):
+    if target["permissions"].get("mutation_allowed") is not True or not isinstance(execution, dict):
         return
     if "container_image_reference" in execution or "container_image_digest" in execution:
         raise OAKError(

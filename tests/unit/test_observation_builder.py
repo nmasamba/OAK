@@ -295,3 +295,165 @@ def test_the_schema_refuses_a_proposal_a_passing_unknown_and_a_gate_claim() -> N
         mutate(broken)
         with pytest.raises(ContractValidationError):
             REGISTRY.validate("observation-record.schema.json", broken)
+
+
+# -- audit regressions (Sprint 11 closing audit) ---------------------------------------
+
+
+def _failed_removal(operation: str = "rollback", *, first_fails: bool = True) -> dict:
+    """A removal that stopped part-way: one container gone, the other not."""
+
+    document = parameters()
+    rows = [
+        {
+            "node_id": entry["node_id"],
+            "container_name": entry["container_name"],
+            "present_before": True,
+            "absent_after": not (index == 0 and first_fails),
+        }
+        for index, entry in enumerate(document["containers"])
+    ]
+    return {
+        "outcome": "manual_recovery_required",
+        "requested_kinds": ["rollback"] if operation == "rollback" else ["apply"],
+        "applied_kinds": [],
+        "failed_kind": "rollback" if operation == "rollback" else "apply",
+        "evidence": [
+            {
+                "category": "rollback_result",
+                "operation": operation,
+                "content": {"removed_all": False, "containers": rows},
+            }
+        ],
+    }
+
+
+def test_a_rollback_that_ended_in_manual_recovery_fails_recovery() -> None:
+    """S15: whatever the rows say, a removal that failed is a failed recovery sample."""
+
+    record = _record(_install(), _failed_removal())
+
+    recovery = _measure(record, "EV-DEP-03")
+    assert (recovery["result"], recovery["sample_size"]) == ("fail", 1)
+    assert record["installation_state"] == "partial"
+
+
+def test_a_rollback_that_failed_before_removing_anything_is_still_a_failed_sample() -> None:
+    """S15: an empty record of a failed rollback is not 'no rollback has run'."""
+
+    failed = _failed_removal()
+    failed["evidence"][0]["content"]["containers"] = []
+    record = _record(_install(), failed)
+
+    assert _measure(record, "EV-DEP-03")["result"] == "fail"
+
+
+def test_a_compensation_that_ended_in_manual_recovery_fails_recovery() -> None:
+    record = _record(_failed_removal("compensation"))
+
+    assert _measure(record, "EV-DEP-03")["result"] == "fail"
+
+
+def test_a_rollback_of_nothing_is_not_a_recovery_sample() -> None:
+    """S18: removing an installation that was never there proves nothing."""
+
+    empty = _removal()
+    for row in empty["evidence"][0]["content"]["containers"]:
+        row["present_before"] = False
+    record = _record(empty)
+
+    assert _measure(record, "EV-DEP-03")["result"] == "unknown"
+
+
+def test_an_incomplete_smoke_test_is_not_a_pass() -> None:
+    """S16: a test that covered only some nodes has not passed."""
+
+    partial = _install("failed")
+    test = next(item for item in partial["evidence"] if item["category"] == "test_result")
+    test["content"]["smoke_test"] = test["content"]["smoke_test"][:1]
+    test["content"]["passed"] = True
+    record = _record(partial)
+
+    smoke = _measure(record, "smoke-test")
+    assert (smoke["successes"], smoke["sample_size"]) == (0, 1)
+
+
+def test_an_older_failed_completion_makes_the_measures_unattributable_not_passing() -> None:
+    """S19: a failure with no requested kinds cannot be scored against anything."""
+
+    older_failure = {"outcome": "failed", "applied_kinds": [], "evidence": []}
+    record = _record(older_failure, _install())
+
+    for identifier in ("EV-DEP-01", "EV-DEP-02", "EV-DEP-03"):
+        measure = _measure(record, identifier)
+        assert measure["result"] == "unknown"
+        assert "cannot be attributed" in measure["reason"]
+
+
+def test_a_single_container_plan_from_before_the_topology_installer_does_not_crash() -> None:
+    """S19: the plan shape released in 0.7.1 and 0.8.0 is read, not a KeyError."""
+
+    older_plan = {
+        "target": {"id": "target.local-mutation-fixture", "fingerprint": "sha256:" + "b" * 64},
+        "operations": [
+            {
+                "kind": "apply",
+                "parameters": {
+                    "container_name": "oak-fixture-local-mutation-fixture",
+                    "image_reference": "postgres:17.6-alpine",
+                    "image_digest": "sha256:" + "e" * 64,
+                    "isolation": "network-none-never-started",
+                },
+            }
+        ],
+    }
+    record = _record(_install(), plan=older_plan)
+
+    assert record["installation_state"] in {"present", "partial", "unknown"}
+
+
+def test_startup_time_comes_from_the_fresh_install_not_a_re_apply() -> None:
+    """S20: a re-apply over a running installation measured no startup."""
+
+    reapply = _install(already=True)
+    for row in next(item for item in reapply["evidence"] if item["category"] == "test_result")[
+        "content"
+    ]["smoke_test"]:
+        row["startup_seconds"] = 0.0
+    record = _record(_install(), reapply)
+
+    startups = {
+        item["value"]
+        for item in record["unpredicted_measurements"]
+        if item["metric"] == "startup_seconds"
+    }
+    assert startups == {0.12}
+    assert all(
+        item["evidence_ref"]["id"] == "runner-message.completion.1"
+        for item in record["unpredicted_measurements"]
+    )
+
+
+def test_completions_are_scored_in_dispatch_order_whatever_the_ingest_order() -> None:
+    """S12: an earlier dispatch's completion ingested late still counts as earlier."""
+
+    first = {**_install(), "evidence": _install()["evidence"]}
+    second = _install(already=True)
+    results = (
+        RunnerResult(
+            reference=_ref("runner-message.completion.late"),
+            message={"payload": second, "lease_id": "lease.public-manual-qa.20", "id": "b"},
+        ),
+        RunnerResult(
+            reference=_ref("runner-message.completion.early"),
+            message={"payload": first, "lease_id": "lease.public-manual-qa.12", "id": "a"},
+        ),
+    )
+    from oak.compiler.observation import _score
+
+    scored = _score(
+        results, {"isolation": "network-none-started-hardened", "names": names(parameters())}
+    )
+    measures = {item["id"]: item for item in scored.measures}
+    assert measures["EV-DEP-01"]["sample_size"] == 1
+    assert measures["EV-DEP-02"]["result"] == "pass"

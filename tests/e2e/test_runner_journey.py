@@ -126,8 +126,17 @@ def test_tampered_envelope_is_denied_before_any_target_access(tmp_path: Path) ->
     assert not (tmp_path / "runner" / "journals").exists()
 
 
+STAND_IN = (
+    "rancher/mirrored-pause@sha256:ee6521f290b2168b6e0935a181d4cff9be1ac3f505666ef0e3c98fae8199917a"
+)
+
+
 def _docker_answers() -> bool:
-    """The real-daemon journey needs a daemon that answers, not merely a docker binary."""
+    """A daemon that answers, holding the pinned stand-in image already.
+
+    Tests must not need the public network: the journeys run only where the image is
+    cached (`docker pull` it once; CI does so as a setup step), and are skipped otherwise.
+    """
 
     if shutil.which("docker") is None:
         return False
@@ -139,9 +148,18 @@ def _docker_answers() -> bool:
             text=True,
             timeout=15,
         )
+        if probe.returncode != 0 or not probe.stdout.strip():
+            return False
+        image = subprocess.run(
+            ["docker", "image", "inspect", "--format", "{{.Id}}", STAND_IN],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
     except (OSError, subprocess.TimeoutExpired):
         return False
-    return probe.returncode == 0 and bool(probe.stdout.strip())
+    return image.returncode == 0
 
 
 DOCKER_ANSWERS = _docker_answers()
@@ -179,7 +197,9 @@ def _owned_containers(case_id: str) -> list[str]:
     return [line for line in listed.stdout.splitlines() if line.strip()]
 
 
-@pytest.mark.skipif(not DOCKER_ANSWERS, reason="a reachable docker daemon is required")
+@pytest.mark.skipif(
+    not DOCKER_ANSWERS, reason="a reachable docker daemon with the stand-in image cached"
+)
 def test_signed_apply_and_rollback_touch_only_the_fixture_container(tmp_path: Path) -> None:
     environment = _environment(tmp_path)
     workspace = tmp_path / "workspace"
@@ -212,7 +232,9 @@ def test_signed_apply_and_rollback_touch_only_the_fixture_container(tmp_path: Pa
     assert "operation_before" in kinds and "rollback_after" in kinds
 
 
-@pytest.mark.skipif(not DOCKER_ANSWERS, reason="a reachable docker daemon is required")
+@pytest.mark.skipif(
+    not DOCKER_ANSWERS, reason="a reachable docker daemon with the stand-in image cached"
+)
 def test_the_exit_demonstration_installs_tests_observes_and_removes(tmp_path: Path) -> None:
     """OAK-S11: architecture, two approvals, install, re-apply, observe, rollback, observe."""
 
@@ -235,10 +257,10 @@ def test_the_exit_demonstration_installs_tests_observes_and_removes(tmp_path: Pa
     architecture = json.loads(oak("architecture", "--output", "json").stdout)["architecture"]
     case_id = architecture["case"]["id"]
     assert architecture["installation"]["starts_containers"] is True
-    assert architecture["installation"]["approvals"] == {
-        "architecture": "absent",
-        "apply": "absent",
-    }
+    assert {
+        action: entry["state"]
+        for action, entry in architecture["installation"]["approvals"].items()
+    } == {"architecture": "absent", "apply": "absent"}
 
     oak("keys", "init")
     oak("sign")

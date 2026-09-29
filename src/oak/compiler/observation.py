@@ -196,11 +196,26 @@ def _planned_installation(plan: dict[str, Any]) -> dict[str, Any]:
     for operation in plan["operations"]:
         if operation["kind"] == "apply":
             parameters = operation["parameters"]
-            return {
-                "isolation": parameters.get("isolation"),
-                "names": [str(entry["container_name"]) for entry in parameters["containers"]],
-            }
+            entries = parameters.get("containers")
+            if isinstance(entries, list):
+                names = [
+                    str(entry.get("container_name")) for entry in entries if isinstance(entry, dict)
+                ]
+            elif isinstance(parameters.get("container_name"), str):
+                # A single-container plan compiled before the topology installer.
+                names = [str(parameters["container_name"])]
+            else:
+                names = []
+            return {"isolation": parameters.get("isolation"), "names": names}
     return {"isolation": None, "names": []}
+
+
+def _dispatch_order(result: RunnerResult) -> tuple[int, str]:
+    """Completions are scored in the order their dispatches were issued, not ingested."""
+
+    lease = str(result.message.get("lease_id") or "")
+    sequence = lease.rsplit(".", 1)[-1]
+    return (int(sequence) if sequence.isdigit() else 1 << 30, str(result.message.get("id")))
 
 
 def _score(results: tuple[RunnerResult, ...], installation: dict[str, Any]) -> _Scored:
@@ -208,22 +223,27 @@ def _score(results: tuple[RunnerResult, ...], installation: dict[str, Any]) -> _
     present: dict[str, bool] = {}
     seen_any = False
     untyped = 0
+    unattributable = False
     unpredicted: list[dict[str, Any]] = []
     planned = installation["names"]
-    for result in results:
+    for result in sorted(results, key=_dispatch_order):
         payload = result.message.get("payload", {})
         if not isinstance(payload, dict) or payload.get("outcome") == "denied":
             continue
         requested = payload.get("requested_kinds")
         applied = list(payload.get("applied_kinds") or [])
+        outcome = payload.get("outcome")
+        failed_kind = payload.get("failed_kind")
         if not isinstance(requested, list):
             untyped += 1
-            requested = [
-                *applied,
-                *([payload["failed_kind"]] if payload.get("failed_kind") else []),
-            ]
+            if outcome != "succeeded":
+                # An older runner did not say what it attempted; its failure cannot be
+                # attributed to an install, a re-apply or a removal.
+                unattributable = True
+                continue
+            requested = applied
         evidence = [item for item in payload.get("evidence") or [] if isinstance(item, dict)]
-        succeeded = payload.get("outcome") == "succeeded"
+        succeeded = outcome == "succeeded"
         if "apply" in requested:
             rows = _rows(evidence, "status", "apply", "installation")
             was_installed = bool(planned) and all(present.get(name) for name in planned)
@@ -242,26 +262,48 @@ def _score(results: tuple[RunnerResult, ...], installation: dict[str, Any]) -> _
             for item in evidence:
                 if item.get("category") == "test_result" and item.get("operation") == "apply":
                     content = item.get("content", {})
-                    smoke.add(bool(content.get("passed")), result.reference)
-                    if succeeded:
+                    tested = [row for row in content.get("smoke_test", []) if isinstance(row, dict)]
+                    complete = content.get("complete", True) is True and (
+                        not planned or len(tested) == len(planned)
+                    )
+                    smoke.add(bool(content.get("passed")) and complete, result.reference)
+                    if succeeded and not was_installed:
+                        # Startup is measured by a fresh install; a re-apply starts nothing.
                         unpredicted = _unpredicted(evidence, result.reference)
         for item in evidence:
             if item.get("category") != "rollback_result":
                 continue
+            operation = item.get("operation")
             content = item.get("content", {})
             rows = [row for row in content.get("containers", []) if isinstance(row, dict)]
-            # A compensation that had nothing to remove is not a recovery sample.
-            if item.get("operation") in {"rollback", "compensation"} and rows:
-                removal.add(all(row.get("absent_after") is True for row in rows), result.reference)
+            if operation in {"rollback", "compensation"}:
+                failed_here = (operation == "rollback" and failed_kind == "rollback") or (
+                    operation == "compensation" and outcome == "manual_recovery_required"
+                )
+                touched = any(row.get("present_before") is not False for row in rows)
+                # A removal of nothing is not a recovery sample; a failed one always is.
+                if touched or failed_here:
+                    removal.add(
+                        not failed_here
+                        and content.get("removed_all") is True
+                        and all(row.get("absent_after") is True for row in rows),
+                        result.reference,
+                    )
             for row in rows:
                 present[str(row.get("container_name"))] = row.get("absent_after") is not True
                 seen_any = True
         if (
             "rollback" in requested
-            and payload.get("failed_kind") == "rollback"
+            and failed_kind == "rollback"
             and not any(item.get("category") == "rollback_result" for item in evidence)
         ):
             removal.add(False, result.reference)
+    unattributed = (
+        "An older completion failed without saying which operation it attempted, so the "
+        "deployment measures cannot be attributed."
+    )
+    if unattributable:
+        install, reapply, removal = _Tally(), _Tally(), _Tally()
     return _Scored(
         measures=[
             _measure(
@@ -269,21 +311,25 @@ def _score(results: tuple[RunnerResult, ...], installation: dict[str, Any]) -> _
                 "Fresh install success",
                 install,
                 0.95,
-                "No install was attempted on this case.",
+                unattributed if unattributable else "No install was attempted on this case.",
             ),
             _measure(
                 "EV-DEP-02",
                 "Idempotent re-apply success",
                 reapply,
                 1.0,
-                "No apply was repeated while the installation was present.",
+                unattributed
+                if unattributable
+                else "No apply was repeated while the installation was present.",
             ),
             _measure(
                 "EV-DEP-03",
                 "Rollback recovery",
                 removal,
                 1.0,
-                "No rollback or compensation has run on this case.",
+                unattributed
+                if unattributable
+                else "No rollback or compensation has removed anything on this case.",
             ),
             _measure(
                 "smoke-test",

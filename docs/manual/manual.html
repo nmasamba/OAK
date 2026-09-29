@@ -788,8 +788,9 @@ uv run oak-runner run-once
     installation must match what was dispatched — all before touching anything. It then
     executes the requested operations in plan order, which puts <code>verify</code>
     first: it verifies, then applies. The apply creates one container per node with
-    <code>docker create --network=none</code>, named from the case, target and node and
-    labelled <code>oak.fixture</code>, <code>oak.case</code> and <code>oak.node</code>.
+    <code>docker create --network=none</code>, named from the installation (the case version, the workspace and the target) and
+    the node, and labelled <code>oak.fixture</code>, <code>oak.case</code>,
+    <code>oak.node</code>, <code>oak.installation</code> and <code>oak.isolation</code>.
     For each it reads back the image digest the daemon actually resolved and refuses on
     any mismatch, and checks that it is only created, because this profile does not
     start it. It then rolls back, removing only containers this case owns, with their
@@ -926,7 +927,7 @@ Predictions (value [lower, upper] unit):
 Would install on target.local-started-fixture (starts containers):
   node.retrieval           rancher/mirrored-pause@sha256:ee65…917a
   node.generation          rancher/mirrored-pause@sha256:ee65…917a
-Approvals needed before any install: architecture absent, apply absent
+Approvals an install needs, both current: architecture absent, apply absent
 
 Read from the design case. Producing this compiled, signed, approved and installed nothing; a user who wants only the architecture can stop here.</span></code></pre>
   <p>

@@ -25,6 +25,7 @@ from oak.domain.runner_adapters import (
     ISOLATION_NEVER_STARTED,
     ISOLATION_STARTED_HARDENED,
     container_name_for,
+    installation_id_for,
 )
 from oak.runner.adapters import ContainerFixtureAdapter
 from oak.runner.execution import execute_dispatch
@@ -59,8 +60,10 @@ def _variant(tmp_path: Path, name: str, edit: Any) -> str:
     return str(path)
 
 
-def _install_dispatch(tmp_path: Path, target: str = STARTED_TARGET):
-    harness = build_compiled_case(tmp_path, target_name=target)
+def _install_dispatch(
+    tmp_path: Path, target: str = STARTED_TARGET, *, workspace_id: str = "workspace.fixture"
+):
+    harness = build_compiled_case(tmp_path, target_name=target, workspace_id=workspace_id)
     harness.release.sign_plan(harness.context("signplan-00000001", "0.1.7"))
     version = approve_actions(harness, ("architecture", "apply"), first_version=8)
     harness.release.dispatch(("apply",), harness.context("dispatch-apply-00001", version))
@@ -124,11 +127,15 @@ def _reauthor(harness, envelope, attachments, edit_parameters: Any):
 
 
 def _as_case(parameters: dict[str, Any], case_id: str) -> None:
+    # Another case's name on a self-consistent installation: only the binding of the
+    # parameters to the envelope's case can refuse it.
     parameters["case_id"] = case_id
+
+
+def _as_installation(parameters: dict[str, Any], installation_id: str) -> None:
+    parameters["installation_id"] = installation_id
     for entry in parameters["containers"]:
-        entry["container_name"] = container_name_for(
-            case_id, parameters["target_id"], entry["node_id"]
-        )
+        entry["container_name"] = container_name_for(installation_id, entry["node_id"])
 
 
 # -- compile ---------------------------------------------------------------------------
@@ -147,10 +154,14 @@ def test_the_plan_installs_one_container_per_node_from_acknowledged_images(
         "node.retrieval",
         "node.generation",
     ]
-    case_id = parameters["case_id"]
+    assert parameters["installation_id"] == installation_id_for(
+        attachments["plan"]["design_case_ref"],
+        "target.local-started-fixture",
+        attachments["plan"]["extensions"]["oak.community/installation_scope"],
+    )
     for entry in parameters["containers"]:
         assert entry["container_name"] == container_name_for(
-            case_id, "target.local-started-fixture", entry["node_id"]
+            parameters["installation_id"], entry["node_id"]
         )
         assert entry["image_reference"] == "rancher/mirrored-pause"
         assert entry["image_digest"] == PAUSE_DIGEST
@@ -257,6 +268,12 @@ def test_the_install_verifies_against_the_runners_own_profile(tmp_path: Path) ->
             lambda parameters: _as_case(parameters, "design-case.someone-else"),
             "OAK-RUNNER-PARAMETERS",
         ),
+        # Another installation's names, consistently derived: only the binding of the
+        # installation identity to this plan's case and target can refuse it.
+        (
+            lambda parameters: _as_installation(parameters, "installation." + "a" * 24),
+            "OAK-RUNNER-PARAMETERS",
+        ),
     ],
 )
 def test_an_authentically_signed_but_wrong_install_is_denied(
@@ -360,7 +377,10 @@ def test_a_failed_re_apply_leaves_the_existing_installation_alone(tmp_path: Path
                 "oak.fixture": "true",
                 "oak.case": apply["parameters"]["case_id"],
                 "oak.node": entry["node_id"],
+                "oak.installation": apply["parameters"]["installation_id"],
+                "oak.isolation": apply["parameters"]["isolation"],
             },
+            hardened=True,
         )
 
     outcome, _journal = _execute(harness, envelope, attachments, docker, tmp_path)
@@ -368,3 +388,25 @@ def test_a_failed_re_apply_leaves_the_existing_installation_alone(tmp_path: Path
     assert outcome.outcome == "failed"
     assert len(docker.containers) == 2, "an adopted container is not this failure's to remove"
     assert "rm" not in docker.verbs()
+
+
+def test_two_workspaces_for_the_same_brief_never_share_an_installation(tmp_path: Path) -> None:
+    """S22: the same case id in two workspaces gets two installations and two name sets."""
+
+    seen = []
+    for index in (1, 2):
+        _harness, _envelope, attachments = _install_dispatch(
+            tmp_path / f"workspace-{index}", workspace_id=f"workspace.copy-{index}"
+        )
+        apply = next(item for item in attachments["plan"]["operations"] if item["kind"] == "apply")
+        seen.append(
+            (
+                apply["parameters"]["case_id"],
+                apply["parameters"]["installation_id"],
+                {entry["container_name"] for entry in apply["parameters"]["containers"]},
+            )
+        )
+    (case_one, installation_one, names_one), (case_two, installation_two, names_two) = seen
+    assert case_one == case_two
+    assert installation_one != installation_two
+    assert not names_one & names_two

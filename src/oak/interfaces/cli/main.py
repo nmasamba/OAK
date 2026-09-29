@@ -1294,12 +1294,13 @@ def architecture(
                     for action, item in approval_refs.items()
                     if isinstance(item, dict)
                 },
+                now=_now(),
             )
         else:
             current = _workspace_service().current().case
             if design_case is not None and design_case != current["id"]:
                 raise OAKError("OAK-CASE-NOT-FOUND", "requested design case is not current")
-            document = _planning_service().architecture(candidate_id)
+            document = _planning_service().architecture(candidate_id, now=_now())
         _emit(document, output, human=architecture_human(document))
     except (OAKError, ContractValidationError, OSError, RuntimeError, ValueError) as error:
         _abort(error)
