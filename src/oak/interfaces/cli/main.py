@@ -1096,7 +1096,9 @@ def sign(
 
 @app.command()
 def approve(
-    action: Annotated[str, typer.Argument(help="dry_run, apply, rollback, or destroy.")],
+    action: Annotated[
+        str, typer.Argument(help="dry_run, architecture, apply, rollback, or destroy.")
+    ],
     expires_at: Annotated[
         str | None, typer.Option("--expires-at", help="RFC 3339 expiry; default 24 hours.")
     ] = None,
@@ -1124,18 +1126,31 @@ def approve(
         _emit(
             {"case": result.case, "approval": result.document},
             output,
-            human=(
-                f"Recorded {action} approval for {result.case['id']}"
-                + (" (idempotent retry)" if result.duplicate else "")
-            ),
+            human=_approval_human(action, result),
         )
     except (OAKError, ContractValidationError, OSError, RuntimeError, ValueError) as error:
         _abort(error)
 
 
+def _approval_human(action: str, result: Any) -> str:
+    line = f"Recorded {action} approval for {result.case['id']}" + (
+        " (idempotent retry)" if result.duplicate else ""
+    )
+    if action == "architecture" and not result.duplicate:
+        return (
+            line + ". This approves the selected architecture only; nothing is installed until "
+            "an apply approval is also recorded and a runner executes a dispatch."
+        )
+    if action == "apply" and not result.duplicate:
+        return line + ". Installation still needs `oak dispatch apply` and a runner."
+    return line
+
+
 @app.command("revoke-approval")
 def revoke_approval(
-    action: Annotated[str, typer.Argument(help="dry_run, apply, rollback, or destroy.")],
+    action: Annotated[
+        str, typer.Argument(help="dry_run, architecture, apply, rollback, or destroy.")
+    ],
     reason: Annotated[str, typer.Option("--reason", help="Recorded revocation reason.")],
     output: Annotated[
         OutputFormat, typer.Option("--output", help="Output format.")

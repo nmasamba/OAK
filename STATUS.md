@@ -130,7 +130,7 @@
 | `OAK-S11-004` | claimed | Observation-record schema and kind, the pure builder, local-only `oak observe`, `deployed → observing`, rollback and destroy approvals at `deployed`/`observing` |
 | `OAK-S11-005` | claimed | Journey reaches `deployed`; assurance `gate_3` corrected under a declared digest shift; truthful BundlePage and CasePage; `oak architecture` |
 | `OAK-S11-006` | claimed | Full gate with PostgreSQL, the real-daemon journey, the browser suite on a throwaway stack, mutation checks, adversarial audit |
-| `OAK-S11-007` | claimed | Documentation and coherence in both repositories, `RR-043`, ADR-0017 and its mirror |
+| `OAK-S11-007` | claimed | Documentation and coherence in both repositories, `RR-043`, the new governance ADR and its mirror |
 | `OAK-S11-008` | claimed | Plan to `completed/`, status and changelogs, PR with remote CI green; no release |
 
 ## Verification evidence

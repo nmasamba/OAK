@@ -22,6 +22,7 @@ from oak.domain.runner_adapters import (
     ADAPTER_IDENTITY_BY_ID,
     ALLOWED_KINDS_BY_ADAPTER,
     PARAMETER_SCHEMA_BY_ADAPTER,
+    architecture_binding_matches,
     registry_host,
 )
 
@@ -486,6 +487,28 @@ def verify_dispatch(
             _check_approval(
                 required_approval, envelope, local_fingerprint, revoked_approval_ids, now_time
             )
+            if kind == "apply":
+                # An install needs the user's separate approval of the architecture too,
+                # verified here independently of the control plane that dispatched it.
+                architecture_approval = approvals_by_action.get("architecture")
+                _check(
+                    architecture_approval is not None,
+                    "OAK-RUNNER-APPROVAL",
+                    "no architecture approval accompanies the install",
+                )
+                assert architecture_approval is not None
+                _check_approval(
+                    architecture_approval,
+                    envelope,
+                    local_fingerprint,
+                    revoked_approval_ids,
+                    now_time,
+                )
+                _check(
+                    architecture_binding_matches(architecture_approval, bundle, plan),
+                    "OAK-RUNNER-APPROVAL",
+                    "architecture approval binds a different decision or installation",
+                )
         else:
             required_approval = approvals_by_action.get("dry_run")
             _check(

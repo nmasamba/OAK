@@ -134,6 +134,7 @@ def test_signed_apply_and_rollback_touch_only_the_fixture_container(tmp_path: Pa
         ["keys", "init"],
         ["sign"],
         ["approve", "dry_run"],
+        ["approve", "architecture"],
         ["approve", "apply"],
         ["approve", "rollback"],
     ):

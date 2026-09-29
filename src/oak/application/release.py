@@ -31,6 +31,7 @@ from oak.domain import (
 )
 from oak.domain.audit import audit_event_document
 from oak.domain.design_case import DesignCase, DesignCaseStatus
+from oak.domain.runner_adapters import architecture_binding_matches, plan_installation_digest
 from oak.ports import DispatchTransport, WorkspaceRepository
 from oak.ports.signing import SigningPort
 
@@ -42,9 +43,15 @@ ENVELOPE_MEDIA_TYPE = "application/vnd.oak.runner-envelope+json"
 RUNNER_MESSAGE_MEDIA_TYPE = "application/vnd.oak.runner-message+json"
 REVOCATION_MEDIA_TYPE = "application/vnd.oak.revocation+json"
 
-APPROVAL_ACTIONS = ("dry_run", "apply", "rollback", "destroy")
+APPROVAL_ACTIONS = ("dry_run", "architecture", "apply", "rollback", "destroy")
+# Once something is installed, only its removal may still be approved: approving another
+# install, a dry run or a different architecture against a deployed case is refused.
+REMOVAL_ACTIONS = frozenset({"rollback", "destroy"})
 READ_ONLY_KINDS = frozenset({"inventory", "validate", "render", "plan", "verify"})
 MUTATING_ACTION_BY_KIND = {"apply": "apply", "rollback": "rollback", "destroy": "destroy"}
+# The install itself needs a second, separate consent: the architecture being installed.
+ADDITIONAL_ACTIONS_BY_KIND = {"apply": ("architecture",)}
+ARCHITECTURE_EXTENSION = "oak.community/architecture"
 DEFAULT_APPROVAL_SECONDS = 86_400
 LEASE_SECONDS = 300
 LEASE_HEARTBEAT_SECONDS = 30
@@ -152,7 +159,13 @@ class ReleaseService:
     ) -> ReleaseResult:
         if action not in APPROVAL_ACTIONS:
             raise OAKError("OAK-APPROVAL-ACTION", "approval action is not recognized")
-        input_digest = self._request_digest(context, {"action": "approve", "kind": action})
+        # The case version is part of the request: re-approving an action later (a
+        # rollback approval renewed a day after install, say) is a new request, while a
+        # retry at the same version stays idempotent.
+        input_digest = self._request_digest(
+            context,
+            {"action": "approve", "kind": action, "case_version": context.expected_version},
+        )
         context = self._normalized_context(context, f"approve-{action}", input_digest)
         self._check_context(context)
         self._check_tenant(context)
@@ -161,9 +174,16 @@ class ReleaseService:
             return ReleaseResult(case=duplicate, document={}, duplicate=True)
         current_document = self._require_case()
         current = DesignCase.from_document(current_document)
+        installed = {DesignCaseStatus.DEPLOYED, DesignCaseStatus.OBSERVING}
+        if current.status in installed and action not in REMOVAL_ACTIONS:
+            raise OAKError(
+                "OAK-APPROVAL-STATE",
+                "an installed case accepts only rollback and destroy approvals",
+            )
         if current.status not in {
             DesignCaseStatus.BUNDLE_COMPILED,
             DesignCaseStatus.DEPLOYMENT_APPROVED,
+            *installed,
         }:
             raise OAKError("OAK-APPROVAL-STATE", "approval requires a compiled bundle")
         self._extension_document(current_document, "oak.community/plan_signature_ref")
@@ -173,10 +193,28 @@ class ReleaseService:
         expiry = expires_at or _add_seconds(context.occurred_at, DEFAULT_APPROVAL_SECONDS)
         if _parse_time(expiry) <= _parse_time(context.occurred_at):
             raise OAKError("OAK-APPROVAL-EXPIRY", "approval expiry must be in the future")
+        existing_approvals = dict((current.extensions or {}).get("oak.community/approval_refs", {}))
+        if action == "apply":
+            # Installing needs two consents, recorded separately and in order: the
+            # architecture first, then the installation step.
+            self._require_architecture_approval(
+                existing_approvals, plan_ref, bundle_ref, context.occurred_at
+            )
+        approval_extensions: dict[str, Any] = {}
+        if action == "architecture":
+            approval_extensions[ARCHITECTURE_EXTENSION] = self._architecture_binding(
+                current_document, plan
+            )
+        # A renewed approval is a successor version, never a second document under the
+        # same immutable identity.
+        previous = existing_approvals.get(action)
+        approval_version = (
+            _next_patch(str(previous["version"])) if isinstance(previous, dict) else "0.1.0"
+        )
         document: dict[str, Any] = {
             "schema_version": "0.1.0",
             "id": f"approval.{action.replace('_', '-')}.{plan_ref.id.removeprefix('runner-plan.')}",
-            "version": "0.1.0",
+            "version": approval_version,
             "case_id": current.id,
             "tenant_id": context.tenant_id,
             "environment": str(plan["target"]["environment"]),
@@ -192,7 +230,7 @@ class ReleaseService:
             "revoked": False,
             "revoked_at": None,
             "revocation_reason": None,
-            "extensions": {},
+            "extensions": approval_extensions,
         }
         artifact = self._signed_artifact(
             document,
@@ -200,12 +238,17 @@ class ReleaseService:
             schema="approval.schema.json",
             kind="approval",
             media_type=APPROVAL_MEDIA_TYPE,
+            version=approval_version,
         )
         extensions = copy.deepcopy(current.extensions or {})
         approvals = dict(extensions.get("oak.community/approval_refs", {}))
         approvals[action] = artifact.reference.to_document()
         extensions["oak.community/approval_refs"] = approvals
-        status = DesignCaseStatus.DEPLOYMENT_APPROVED if action == "apply" else current.status
+        status = (
+            DesignCaseStatus.DEPLOYMENT_APPROVED
+            if action == "apply" and current.status is DesignCaseStatus.BUNDLE_COMPILED
+            else current.status
+        )
         successor = current.revise(
             status=status,
             updated_at=context.occurred_at,
@@ -328,7 +371,12 @@ class ReleaseService:
         kinds = tuple(dict.fromkeys(requested_kinds))
         if not kinds:
             raise OAKError("OAK-DISPATCH-KINDS", "dispatch requires at least one operation kind")
-        input_digest = self._request_digest(context, {"action": "dispatch", "kinds": list(kinds)})
+        # Scoped to the case version so a deliberate re-apply after an ingest is a new
+        # dispatch rather than a replay of the first one.
+        input_digest = self._request_digest(
+            context,
+            {"action": "dispatch", "kinds": list(kinds), "case_version": context.expected_version},
+        )
         context = self._normalized_context(context, "dispatch", input_digest)
         self._check_context(context)
         self._check_tenant(context)
@@ -341,6 +389,7 @@ class ReleaseService:
             DesignCaseStatus.BUNDLE_COMPILED,
             DesignCaseStatus.DEPLOYMENT_APPROVED,
             DesignCaseStatus.DEPLOYED,
+            DesignCaseStatus.OBSERVING,
         }:
             raise OAKError("OAK-DISPATCH-STATE", "dispatch requires a compiled bundle")
         plan_ref = self._required_reference(current_document, "runner_plan_ref")
@@ -370,6 +419,9 @@ class ReleaseService:
             # A kind in neither set must not silently inherit the dry-run approval.
             raise OAKError("OAK-DISPATCH-KINDS", "dispatch requested an unclassified kind")
         required_actions = {MUTATING_ACTION_BY_KIND.get(kind, "dry_run") for kind in kinds}
+        for kind in kinds:
+            required_actions.update(ADDITIONAL_ACTIONS_BY_KIND.get(kind, ()))
+        bundle_document = self._repository.read_json_artifact(bundle_ref)
         approval_documents: dict[str, dict[str, Any]] = {}
         approval_references: list[ArtifactReference] = []
         for required in sorted(required_actions):
@@ -381,6 +433,13 @@ class ReleaseService:
             reference = ArtifactReference.from_document(reference_document)
             approval = self._repository.read_json_artifact(reference)
             self._check_approval(approval, plan_ref, bundle_ref, context.occurred_at, required)
+            if required == "architecture" and not architecture_binding_matches(
+                approval, bundle_document, plan
+            ):
+                raise OAKError(
+                    "OAK-DISPATCH-APPROVAL",
+                    "architecture approval binds a different decision or installation",
+                )
             approval_documents[f"approval-{required.replace('_', '-')}"] = approval
             approval_references.append(reference)
         policy_ref = ArtifactReference.from_document(
@@ -425,7 +484,7 @@ class ReleaseService:
         envelope_document = self._artifact_document(artifact)
         attachments: dict[str, dict[str, Any]] = {
             "plan": plan,
-            "bundle": self._repository.read_json_artifact(bundle_ref),
+            "bundle": bundle_document,
             "verification-policy": policy_document,
             "plan-signature": signature_document,
             **approval_documents,
@@ -569,6 +628,49 @@ class ReleaseService:
             input_digest=input_digest,
             artifacts=(artifact,),
         )
+
+    def _require_architecture_approval(
+        self,
+        approvals: dict[str, Any],
+        plan_ref: ArtifactReference,
+        bundle_ref: ArtifactReference,
+        now: str,
+    ) -> None:
+        reference_document = approvals.get("architecture")
+        if not isinstance(reference_document, dict):
+            raise OAKError(
+                "OAK-APPROVAL-ARCHITECTURE",
+                "approve the architecture before approving its installation",
+            )
+        approval = self._repository.read_json_artifact(
+            ArtifactReference.from_document(reference_document)
+        )
+        try:
+            self._check_approval(approval, plan_ref, bundle_ref, now, "architecture")
+        except OAKError as error:
+            raise OAKError(
+                "OAK-APPROVAL-ARCHITECTURE",
+                "the architecture approval is not current for this plan",
+            ) from error
+
+    def _architecture_binding(
+        self, case_document: dict[str, Any], plan: dict[str, Any]
+    ) -> dict[str, Any]:
+        """What an architecture approval says it approves, beyond the plan digest.
+
+        The decision the bundle compiles, the candidate chosen, and the digest of what
+        `apply` would install. Every approval already binds the plan and bundle digests;
+        this names the architecture inside them in terms a reviewer can check, and the
+        runner re-derives the installation digest from the plan it verifies.
+        """
+
+        decision = self._extension_document(case_document, "oak.community/selection_decision_ref")
+        candidate = self._required_reference(case_document, "selected_candidate_ref")
+        return {
+            "decision_ref": dict(decision),
+            "candidate_ref": candidate.to_document(),
+            "installation_digest": plan_installation_digest(plan),
+        }
 
     def _check_approval(
         self,

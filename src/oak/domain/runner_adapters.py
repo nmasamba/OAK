@@ -114,3 +114,51 @@ def registry_host(reference: str) -> str:
     if head == "localhost" or "." in head or ":" in head:
         return head
     return "docker.io"
+
+
+ARCHITECTURE_BINDING_KEY = "oak.community/architecture"
+
+
+def plan_installation_digest(plan: dict[str, Any]) -> str | None:
+    """Digest of what a plan's ``apply`` operation would install, or None without one.
+
+    Computed identically by the control plane when an architecture approval is recorded
+    and by the runner when it verifies one, so the approval names the exact installation
+    the signed plan carries rather than a description of it.
+    """
+
+    operations = plan.get("operations")
+    if not isinstance(operations, list):
+        return None
+    for operation in operations:
+        if isinstance(operation, dict) and operation.get("kind") == "apply":
+            parameters = operation.get("parameters")
+            if not isinstance(parameters, dict):
+                return None
+            return content_digest(canonical_json_bytes(parameters))
+    return None
+
+
+def architecture_binding_matches(
+    approval: dict[str, Any], bundle: dict[str, Any], plan: dict[str, Any]
+) -> bool:
+    """Whether an architecture approval approves this bundle's decision and install.
+
+    The approval's own plan and bundle digests are checked elsewhere; this compares what
+    it says it approves — the architecture decision the bundle compiles and the digest of
+    what ``apply`` installs — with the documents actually dispatched.
+    """
+
+    extensions = approval.get("extensions")
+    binding = extensions.get(ARCHITECTURE_BINDING_KEY) if isinstance(extensions, dict) else None
+    if not isinstance(binding, dict):
+        return False
+    decision = binding.get("decision_ref")
+    expected = bundle.get("architecture_decision_ref")
+    if not isinstance(decision, dict) or not isinstance(expected, dict):
+        return False
+    return (
+        decision.get("id") == expected.get("id")
+        and decision.get("digest") == expected.get("digest")
+        and binding.get("installation_digest") == plan_installation_digest(plan)
+    )
