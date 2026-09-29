@@ -23,11 +23,35 @@ INJECTION_PARAMETER_SETS: tuple[dict[str, Any], ...] = (
 )
 
 _BASE_PARAMETERS: dict[str, Any] = {
-    "container_name": "oak-fixture-kit",
-    "image_reference": "registry.example.invalid/fixture",
-    "image_digest": "sha256:" + "a" * 64,
+    "case_id": "design-case.kit",
+    "target_id": "target.kit",
     "isolation": "network-none-never-started",
+    "containers": [
+        {
+            "node_id": "node.kit",
+            "manifest_id": "component.kit",
+            "container_name": "oak-fixture-kit-ad0da3511e32",
+            "image_reference": "registry.example.invalid/fixture",
+            "image_digest": "sha256:" + "a" * 64,
+        }
+    ],
 }
+
+
+def _poisoned_variants(base: dict[str, Any], poison: dict[str, Any]) -> list[dict[str, Any]]:
+    """The poison merged at the top level and, for list-shaped parameters, into an entry.
+
+    A closed schema rejects an unknown top-level key on its own, which would let a
+    fixture "pass" without ever reaching the fields that become argv; poisoning the
+    first entry of a list-valued parameter set exercises those fields directly.
+    """
+
+    variants = [{**base, **poison}]
+    for key, value in base.items():
+        if isinstance(value, list) and value and isinstance(value[0], dict):
+            entry = {**value[0], **poison}
+            variants.append({**base, key: [entry, *value[1:]]})
+    return variants
 
 
 def check_argv_injection_resistance(
@@ -45,9 +69,10 @@ def check_argv_injection_resistance(
 
     base = dict(base_parameters or _BASE_PARAMETERS)
     for poison in INJECTION_PARAMETER_SETS:
-        parameters = {**base, **{k: v for k, v in poison.items() if k != "note"}}
-        with pytest.raises(Exception):  # noqa: B017 - any raise is a rejection
-            invoke(parameters)
+        fields = {k: v for k, v in poison.items() if k != "note"}
+        for parameters in _poisoned_variants(base, fields):
+            with pytest.raises(Exception):  # noqa: B017 - any raise is a rejection
+                invoke(parameters)
 
 
 def check_typed_rollback(
@@ -62,7 +87,10 @@ def check_typed_rollback(
     apply_argvs, rollback_argvs = apply_then_rollback()
     assert apply_argvs, "apply must execute through the recorded executor"
     assert rollback_argvs, "rollback must execute through the recorded executor"
-    applied_name = apply_argvs[0][-2] if len(apply_argvs[0]) >= 2 else None
+    applied_name = next(
+        (argv[argv.index("--name") + 1] for argv in apply_argvs if "--name" in argv[:-1]),
+        None,
+    )
     for argv in (*apply_argvs, *rollback_argvs):
         assert argv[0] in {"docker"}, "argv must begin with an allowlisted executable"
     assert applied_name is not None

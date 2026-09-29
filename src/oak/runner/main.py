@@ -20,6 +20,7 @@ import yaml
 
 from oak.contracts import load_yaml_document
 from oak.domain import OAKError
+from oak.runner.adapters import ContainerFixtureAdapter, isolated_executor
 from oak.runner.execution import execute_dispatch
 from oak.runner.identity import RunnerIdentity
 from oak.runner.journal import RunnerJournal
@@ -47,7 +48,13 @@ def _environment_path(name: str, default: str | None = None) -> Path:
     return Path(value).absolute()
 
 
-def run_once(*, cancellation_requested: bool = False) -> int:
+def run_once(
+    *,
+    cancellation_requested: bool = False,
+    adapter: ContainerFixtureAdapter | None = None,
+) -> int:
+    """Process pending dispatches once. ``adapter`` is a test seam, never a CLI option."""
+
     mailbox_root = _environment_path("OAK_RUNNER_MAILBOX")
     home = _environment_path("OAK_RUNNER_HOME", str(Path.home() / ".oak" / "runner"))
     trust_directory = _environment_path("OAK_RUNNER_TRUST_ANCHORS")
@@ -129,6 +136,7 @@ def run_once(*, cancellation_requested: bool = False) -> int:
             registry=registry,
             now=now,
             cancellation_requested=cancellation_requested,
+            adapter=adapter or ContainerFixtureAdapter(isolated_executor(home / "docker-config")),
         )
         mailbox.publish_message(
             identity,
@@ -142,7 +150,11 @@ def run_once(*, cancellation_requested: bool = False) -> int:
             occurred_at=_now(),
             payload={
                 "outcome": outcome.outcome,
+                # What was asked for and what failed, so a completion alone says whether
+                # an install was attempted even when nothing was applied (OAK-FR-DEP-004).
+                "requested_kinds": list(verified.requested_kinds),
                 "applied_kinds": list(outcome.applied_kinds),
+                "failed_kind": outcome.failed_kind,
                 "journal_digest": outcome.journal_digest,
                 "detail": outcome.detail,
                 "evidence": list(outcome.evidence),

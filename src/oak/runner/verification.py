@@ -21,8 +21,11 @@ from oak.domain import OAKError, canonical_json_bytes, content_digest
 from oak.domain.runner_adapters import (
     ADAPTER_IDENTITY_BY_ID,
     ALLOWED_KINDS_BY_ADAPTER,
+    CONTAINER_ADAPTER_ID,
+    ISOLATION_BY_ACKNOWLEDGEMENT,
     PARAMETER_SCHEMA_BY_ADAPTER,
     architecture_binding_matches,
+    container_name_for,
     registry_host,
 )
 
@@ -446,12 +449,9 @@ def verify_dispatch(
             "OAK-RUNNER-PARAMETERS",
             "operation parameters do not satisfy the schema",
         )
-        if allowed_registries is not None and "image_reference" in operation["parameters"]:
-            _check(
-                registry_host(str(operation["parameters"]["image_reference"]))
-                in allowed_registries,
-                "OAK-RUNNER-REGISTRY",
-                "operation image registry is not in the target allowlist",
+        if str(adapter["id"]) == CONTAINER_ADAPTER_ID:
+            _check_installation(
+                operation["parameters"], envelope, target_document, allowed_registries
             )
         _check(
             operation["secret_references"] == [],
@@ -531,6 +531,71 @@ def verify_dispatch(
         requested_kinds=requested,
         operations=ordered,
     )
+
+
+def _check_installation(
+    parameters: dict[str, Any],
+    envelope: dict[str, Any],
+    target_document: dict[str, Any],
+    allowed_registries: Any,
+) -> None:
+    """What an install may touch, re-derived from this runner's own target profile.
+
+    The parameters are already schema-valid; this binds them to the dispatch and to the
+    operator's acknowledgements: the case the envelope names, this target, the container
+    names derived for them, the isolation the profile acknowledges, and for every node an
+    image the profile lists for that component and a registry it allowlists.
+    """
+
+    case_id = str(parameters["case_id"])
+    target_id = str(parameters["target_id"])
+    _check(
+        case_id == envelope["case_id"],
+        "OAK-RUNNER-PARAMETERS",
+        "installation names a different case than the dispatch",
+    )
+    _check(
+        target_id == target_document["id"],
+        "OAK-RUNNER-PARAMETERS",
+        "installation names a different target",
+    )
+    execution = target_document.get("execution")
+    execution = execution if isinstance(execution, dict) else {}
+    acknowledged = ISOLATION_BY_ACKNOWLEDGEMENT.get(str(execution.get("mutation_acknowledgement")))
+    _check(
+        parameters["isolation"] == acknowledged,
+        "OAK-RUNNER-TARGET-CAPABILITY",
+        "target profile does not acknowledge this isolation",
+    )
+    images = {
+        str(entry.get("manifest_id")): entry
+        for entry in execution.get("component_images", [])
+        if isinstance(entry, dict)
+    }
+    names: set[str] = set()
+    for container in parameters["containers"]:
+        name = str(container["container_name"])
+        _check(
+            name == container_name_for(case_id, target_id, str(container["node_id"])),
+            "OAK-RUNNER-PARAMETERS",
+            "container name is not the one derived for this case, target and node",
+        )
+        _check(name not in names, "OAK-RUNNER-PARAMETERS", "container names must be unique")
+        names.add(name)
+        image = images.get(str(container["manifest_id"]))
+        _check(
+            image is not None
+            and image.get("image_reference") == container["image_reference"]
+            and image.get("image_digest") == container["image_digest"],
+            "OAK-RUNNER-IMAGE",
+            "installation image is not the one this target acknowledges for the component",
+        )
+        if allowed_registries is not None:
+            _check(
+                registry_host(str(container["image_reference"])) in allowed_registries,
+                "OAK-RUNNER-REGISTRY",
+                "operation image registry is not in the target allowlist",
+            )
 
 
 def _check_approval(

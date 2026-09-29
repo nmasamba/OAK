@@ -6,6 +6,8 @@ recomputes them from this module and refuses any operation whose adapter or
 parameter-schema digest differs. The allowlist is code, never plan data.
 """
 
+import hashlib
+import re
 from typing import Any
 
 from oak.domain.artifacts import canonical_json_bytes, content_digest
@@ -43,34 +45,110 @@ REVIEW_PARAMETER_SCHEMA_DIGEST = content_digest(
 )
 
 CONTAINER_ADAPTER_ID = "adapter.local-container"
-CONTAINER_ADAPTER_VERSION = "0.1.0"
+CONTAINER_ADAPTER_VERSION = "0.2.0"
+# What `isolation` a plan may request, and the target-profile acknowledgement each needs.
+# A profile acknowledging only the fixture keeps the never-started behaviour; starting is
+# a separate, explicit operator acknowledgement (ADR-0017).
+ISOLATION_NEVER_STARTED = "network-none-never-started"
+ISOLATION_STARTED_HARDENED = "network-none-started-hardened"
+ACKNOWLEDGEMENT_FIXTURE_ONLY = "isolated-non-production-fixture-only"
+ACKNOWLEDGEMENT_HARDENED_START = "isolated-non-production-hardened-start"
+ISOLATION_BY_ACKNOWLEDGEMENT = {
+    ACKNOWLEDGEMENT_FIXTURE_ONLY: ISOLATION_NEVER_STARTED,
+    ACKNOWLEDGEMENT_HARDENED_START: ISOLATION_STARTED_HARDENED,
+}
+# Fixed flags on every started container. They are code, not plan data, and they are
+# part of the adapter identity below: a plan compiled against one hardening set does not
+# verify against a runner enforcing another.
+HARDENING_FLAGS = (
+    "--read-only",
+    "--cap-drop=ALL",
+    "--security-opt=no-new-privileges",
+    "--user=65534:65534",
+    "--memory=256m",
+    "--memory-swap=256m",
+    "--cpus=0.5",
+    "--pids-limit=64",
+    "--restart=no",
+    "--log-driver=none",
+)
 CONTAINER_ADAPTER_DIGEST = content_digest(
     canonical_json_bytes(
         {
             "id": CONTAINER_ADAPTER_ID,
             "version": CONTAINER_ADAPTER_VERSION,
-            "authority": "isolated-reversible-fixture-mutation",
+            "authority": "isolated-reversible-topology-installation",
+            "network": "none",
+            "hardening": list(HARDENING_FLAGS),
         }
     )
 )
 CONTAINER_NAME_PATTERN = r"^oak-fixture-[a-z0-9][a-z0-9-]{0,62}$"
+# The canonical identifier shape (common.schema.json): it cannot begin with "-" and holds
+# no whitespace, so a value can never be read as a flag or split into two arguments.
+IDENTIFIER_PATTERN = r"^[A-Za-z][A-Za-z0-9._:/-]{2,159}$"
+IMAGE_REFERENCE_PATTERN = r"^[a-z0-9][a-zA-Z0-9./_:-]*$"
+MAXIMUM_CONTAINERS = 16
 CONTAINER_PARAMETER_SCHEMA: dict[str, Any] = {
     "type": "object",
     "additionalProperties": False,
-    "required": ["container_name", "image_reference", "image_digest", "isolation"],
+    "required": ["case_id", "target_id", "isolation", "containers"],
     "properties": {
-        "container_name": {"type": "string", "pattern": CONTAINER_NAME_PATTERN},
-        "image_reference": {
-            "type": "string",
-            "minLength": 3,
-            "maxLength": 300,
-            "pattern": "^[a-z0-9][a-zA-Z0-9./_:@-]*$",
+        "case_id": {"type": "string", "pattern": IDENTIFIER_PATTERN},
+        "target_id": {"type": "string", "pattern": IDENTIFIER_PATTERN},
+        "isolation": {"enum": [ISOLATION_NEVER_STARTED, ISOLATION_STARTED_HARDENED]},
+        "containers": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": MAXIMUM_CONTAINERS,
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": [
+                    "node_id",
+                    "manifest_id",
+                    "container_name",
+                    "image_reference",
+                    "image_digest",
+                ],
+                "properties": {
+                    "node_id": {"type": "string", "pattern": IDENTIFIER_PATTERN},
+                    "manifest_id": {"type": "string", "pattern": IDENTIFIER_PATTERN},
+                    "container_name": {"type": "string", "pattern": CONTAINER_NAME_PATTERN},
+                    # A reference may not carry its own digest: the approved digest is the
+                    # only pin that reaches the runtime.
+                    "image_reference": {
+                        "type": "string",
+                        "minLength": 3,
+                        "maxLength": 300,
+                        "pattern": IMAGE_REFERENCE_PATTERN,
+                    },
+                    "image_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+                },
+            },
         },
-        "image_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
-        "isolation": {"const": "network-none-never-started"},
     },
 }
 CONTAINER_PARAMETER_SCHEMA_DIGEST = content_digest(canonical_json_bytes(CONTAINER_PARAMETER_SCHEMA))
+CONTAINER_LABEL_FIXTURE = "oak.fixture"
+CONTAINER_LABEL_CASE = "oak.case"
+CONTAINER_LABEL_NODE = "oak.node"
+
+
+def container_name_for(case_id: str, target_id: str, node_id: str) -> str:
+    """The one name a node's container may have for this case on this target.
+
+    Both the compiler and the runner derive it; the runner refuses a plan naming any
+    other container, so a plan cannot address a container outside its own case. The
+    hash carries case and target identity (a long target id never truncates it); the
+    node slug is only there so an operator can read ``docker ps``.
+    """
+
+    slug = re.sub(r"[^a-z0-9]+", "-", node_id.removeprefix("node.").casefold()).strip("-")
+    slug = (slug or "node")[:40].strip("-") or "node"
+    identity = hashlib.sha256(f"{case_id}\n{target_id}\n{node_id}".encode()).hexdigest()
+    return f"oak-fixture-{slug}-{identity[:12]}"
+
 
 PARAMETER_SCHEMA_BY_ADAPTER: dict[str, dict[str, Any]] = {
     REVIEW_ADAPTER_ID: REVIEW_PARAMETER_SCHEMA,

@@ -18,10 +18,14 @@ from oak.domain import (
 from oak.domain.runner_adapters import (
     ADAPTER_IDENTITY_BY_ID,
     CONTAINER_ADAPTER_ID,
+    ISOLATION_BY_ACKNOWLEDGEMENT,
+    ISOLATION_STARTED_HARDENED,
+    MAXIMUM_CONTAINERS,
     REVIEW_ADAPTER_DIGEST,
     REVIEW_ADAPTER_ID,
     REVIEW_ADAPTER_VERSION,
     REVIEW_PARAMETER_SCHEMA_DIGEST,
+    container_name_for,
 )
 
 BUNDLE_MEDIA_TYPE = "application/vnd.oak.deployment-bundle+json"
@@ -72,6 +76,7 @@ def compile_review_plan(
     created_at: str,
 ) -> CompiledReviewPlan:
     candidate_document = _document(candidate)
+    _reject_superseded_execution(target)
     preflight_results = _target_preflight(candidate_document, target)
     blocked = [item["id"] for item in preflight_results if item["result"] == "fail"]
     if blocked:
@@ -192,6 +197,7 @@ def compile_review_plan(
     )
     runner_document = _runner_plan_document(
         case_ref=case_ref,
+        candidate_document=candidate_document,
         bundle=bundle,
         target=target,
         target_fingerprint=target_fingerprint,
@@ -384,6 +390,7 @@ def _target_constraints(target: dict[str, Any]) -> list[str]:
 def _runner_plan_document(
     *,
     case_ref: ArtifactReference,
+    candidate_document: dict[str, Any],
     bundle: Artifact,
     target: dict[str, Any],
     target_fingerprint: str,
@@ -433,14 +440,22 @@ def _runner_plan_document(
             }
         )
         previous.append(operation_id)
-    if target["permissions"].get("mutation_allowed") is True:
+    mutation = target["permissions"].get("mutation_allowed") is True
+    if mutation:
         operations.extend(
             _mutation_operations(
+                case_id=case_ref.id,
+                candidate_document=candidate_document,
                 target=target,
                 target_fingerprint=target_fingerprint,
                 depends_on=previous[-1:],
             )
         )
+    # A read-only plan's evidence policy is pinned byte for byte; only a plan that can
+    # install admits the smoke-test metrics and the verified-removal results.
+    evidence_categories = ["inventory", "preflight", "plan_diff", "status", "test_result"]
+    if mutation:
+        evidence_categories += ["aggregate_metric", "rollback_result"]
     plan_digest = content_digest(
         canonical_json_bytes(
             {
@@ -475,7 +490,7 @@ def _runner_plan_document(
         },
         "lease_policy": {"maximum_seconds": 300, "heartbeat_seconds": 30, "require_nonce": True},
         "evidence_policy": {
-            "allowed_categories": ["inventory", "preflight", "plan_diff", "status", "test_result"],
+            "allowed_categories": evidence_categories,
             "maximum_bytes": 1_048_576,
             "redact_fields": ["credentials", "secrets", "environment"],
         },
@@ -485,6 +500,8 @@ def _runner_plan_document(
 
 def _mutation_operations(
     *,
+    case_id: str,
+    candidate_document: dict[str, Any],
     target: dict[str, Any],
     target_fingerprint: str,
     depends_on: list[str],
@@ -496,14 +513,20 @@ def _mutation_operations(
             "mutation-capable target profile is missing its execution block",
         )
     allowed = set(target["permissions"]["allowed_operations"])
-    container_name = "oak-fixture-" + str(target["id"]).removeprefix("target.")
+    isolation = ISOLATION_BY_ACKNOWLEDGEMENT[str(execution["mutation_acknowledgement"])]
+    # One operation carries the whole topology: the runner refuses two operations of the
+    # same kind, which keeps what it verified and what it executes the same list.
     parameters = {
-        "container_name": container_name,
-        "image_reference": str(execution["container_image_reference"]),
-        "image_digest": str(execution["container_image_digest"]),
-        "isolation": "network-none-never-started",
+        "case_id": case_id,
+        "target_id": str(target["id"]),
+        "isolation": isolation,
+        "containers": _installation(case_id, candidate_document, target),
     }
     identity = ADAPTER_IDENTITY_BY_ID[CONTAINER_ADAPTER_ID]
+    verbs = ["get", "list", "create", "delete"]
+    if isolation == ISOLATION_STARTED_HARDENED:
+        # Starting runs the acknowledged image's own entrypoint; the envelope says so.
+        verbs.append("execute")
     operations: list[dict[str, Any]] = []
     previous = list(depends_on)
     failure_by_kind = {
@@ -525,7 +548,7 @@ def _mutation_operations(
                 "secret_references": [],
                 "permissions": {
                     "resource_types": ["local-fixture-container"],
-                    "verbs": ["get", "list", "create", "delete"],
+                    "verbs": list(verbs),
                     "namespaces": ["fixture"],
                     "network_destinations": [],
                 },
@@ -543,6 +566,81 @@ def _mutation_operations(
         )
         previous.append(operation_id)
     return operations
+
+
+def installable_nodes(candidate_document: dict[str, Any]) -> list[tuple[str, str]]:
+    """``(node id, component manifest id)`` for every topology node that has a component.
+
+    A node without a component (a human role, say) has nothing to install. The component
+    reference is ``<manifest id>@<version>``.
+    """
+
+    nodes: list[tuple[str, str]] = []
+    for node in candidate_document["topology"]["nodes"]:
+        reference = node.get("component_ref")
+        if isinstance(reference, str) and reference:
+            nodes.append((str(node["id"]), reference.rsplit("@", 1)[0]))
+    return nodes
+
+
+def _acknowledged_images(target: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    execution = target.get("execution")
+    entries = execution.get("component_images") if isinstance(execution, dict) else None
+    if not isinstance(entries, list):
+        return {}
+    images: dict[str, dict[str, Any]] = {}
+    for entry in entries:
+        manifest_id = str(entry["manifest_id"])
+        if manifest_id in images:
+            raise OAKError(
+                "OAK-TARGET-EXECUTION",
+                f"execution.component_images lists {manifest_id} more than once",
+            )
+        images[manifest_id] = entry
+    return images
+
+
+def _installation(
+    case_id: str, candidate_document: dict[str, Any], target: dict[str, Any]
+) -> list[dict[str, Any]]:
+    images = _acknowledged_images(target)
+    containers: list[dict[str, Any]] = []
+    for node_id, manifest_id in installable_nodes(candidate_document):
+        image = images.get(manifest_id)
+        if image is None:  # pragma: no cover - preflight.installation refuses first
+            raise OAKError(
+                "OAK-TARGET-INCOMPATIBLE",
+                f"target acknowledges no image for component {manifest_id}",
+            )
+        containers.append(
+            {
+                "node_id": node_id,
+                "manifest_id": manifest_id,
+                "container_name": container_name_for(case_id, str(target["id"]), node_id),
+                "image_reference": str(image["image_reference"]),
+                "image_digest": str(image["image_digest"]),
+            }
+        )
+    return containers
+
+
+def _reject_superseded_execution(target: dict[str, Any]) -> None:
+    """Refuse the single stand-in image that `component_images` superseded.
+
+    Before this, a mutation target installed one container from its own image whatever
+    the architecture was. Ignoring the old fields would silently change what a profile
+    means, so a profile still declaring them is refused with the field to use instead.
+    """
+
+    execution = target.get("execution")
+    if not isinstance(execution, dict):
+        return
+    if "container_image_reference" in execution or "container_image_digest" in execution:
+        raise OAKError(
+            "OAK-TARGET-EXECUTION",
+            "execution.container_image_reference and container_image_digest are superseded;"
+            " declare execution.component_images, one acknowledged image per component",
+        )
 
 
 def _reject_execution_fields(document: Any) -> None:
@@ -582,7 +680,7 @@ def _target_preflight(candidate: dict[str, Any], target: dict[str, Any]) -> list
     )
     allowed = set(target["permissions"]["allowed_operations"])
     required_operations = {"inventory", "validate", "render", "plan", "verify"}
-    return [
+    results: list[dict[str, Any]] = [
         {
             "id": "preflight.capacity",
             "category": "capacity",
@@ -662,6 +760,44 @@ def _target_preflight(candidate: dict[str, Any], target: dict[str, Any]) -> list
             "evidence": {"mutation_allowed": target["permissions"]["mutation_allowed"]},
         },
     ]
+    if target["permissions"]["mutation_allowed"] is True:
+        # Only a target that can install is asked whether it can install this
+        # architecture; the read-only bundle's preflight list is pinned byte for byte.
+        results.append(_installation_preflight(candidate, target))
+    return results
+
+
+def _installation_preflight(candidate: dict[str, Any], target: dict[str, Any]) -> dict[str, Any]:
+    nodes = installable_nodes(candidate)
+    images = _acknowledged_images(target)
+    missing = sorted({manifest_id for _, manifest_id in nodes if manifest_id not in images})
+    if not nodes:
+        result, reason = "fail", "The selected candidate has no node with a component to install."
+    elif len(nodes) > MAXIMUM_CONTAINERS:
+        result, reason = "fail", "The candidate has more nodes than one install may create."
+    elif missing:
+        result = "fail"
+        reason = (
+            "The target acknowledges no image for "
+            + ", ".join(missing)
+            + "; declare each in execution.component_images."
+        )
+    else:
+        result = "pass"
+        reason = "Every installable node's component has an acknowledged, digest-pinned image."
+    return {
+        "id": "preflight.installation",
+        "category": "compatibility",
+        "result": result,
+        "reason": reason,
+        "evidence": {
+            "nodes": [
+                {"node_id": node_id, "manifest_id": manifest_id} for node_id, manifest_id in nodes
+            ],
+            "acknowledged_components": sorted(images),
+            "missing_components": missing,
+        },
+    }
 
 
 def _offset_timestamp(value: str, *, days: int) -> str:

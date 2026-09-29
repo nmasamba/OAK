@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 target_profile_version: 0.2.0
-id: target.local-mutation-fixture
+id: target.local-started-fixture
 status: non-production-local
 environment: validation
 tenant_id: local
@@ -20,7 +20,7 @@ permissions:
   mutation_allowed: true
   allowed_operations: [inventory, validate, render, plan, verify, apply, rollback, destroy]
 execution:
-  mutation_acknowledgement: isolated-non-production-fixture-only
+  mutation_acknowledgement: isolated-non-production-hardened-start
   component_images:
     - manifest_id: component.fixture-lexical-search
       image_reference: rancher/mirrored-pause
@@ -36,8 +36,11 @@ secrets:
   allowed_references: []
 notes:
   - Synthetic non-production target. Its only permitted mutation creates one labelled,
-    network-isolated container per node of the selected candidate and removes them again;
-    this profile does not acknowledge starting them, so they are never started.
+    network-isolated container per node of the selected candidate, starts each under the
+    runner's fixed hardening (no network, read-only root, no capabilities, no new
+    privileges, uid 65534, memory, CPU and process ceilings, no volumes, no environment),
+    smoke-tests it, and removes them again on rollback or destroy.
   - Every catalogue component is a synthetic fixture, so each maps to the same stand-in
-    image, docker.io/rancher/mirrored-pause:3.10 pinned by its index digest. The stand-in
-    proves the install and removal loop; it implements none of the components.
+    image, docker.io/rancher/mirrored-pause:3.10 pinned by its index digest. It runs until
+    stopped and needs no network; it proves the install, test and removal loop and
+    implements none of the components.

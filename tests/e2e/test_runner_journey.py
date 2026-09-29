@@ -156,14 +156,24 @@ def test_signed_apply_and_rollback_touch_only_the_fixture_container(tmp_path: Pa
     assert ran.returncode == 0, ran.stderr
     assert "succeeded" in ran.stdout
 
-    # The fixture container was created and then removed by the rollback operation.
+    # Each node's container was created and then removed by the rollback operation.
+    manifest = json.loads((workspace / ".oak" / "manifest.json").read_text(encoding="utf-8"))
+    case_id = manifest["current_case_ref"]["id"]
     remaining = subprocess.run(
-        ["docker", "ps", "--all", "--filter", "name=oak-fixture-", "--format", "{{.Names}}"],
+        [
+            "docker",
+            "ps",
+            "--all",
+            "--filter",
+            f"label=oak.case={case_id}",
+            "--format",
+            "{{.Names}}",
+        ],
         check=False,
         capture_output=True,
         text=True,
     )
-    assert "oak-fixture-local-mutation-fixture" not in remaining.stdout
+    assert remaining.returncode == 0 and remaining.stdout.strip() == ""
 
     journal_path = next((tmp_path / "runner" / "journals").glob("*.jsonl"))
     entries = [json.loads(line) for line in journal_path.read_text(encoding="utf-8").splitlines()]

@@ -128,41 +128,22 @@ def test_anchor_with_a_mismatched_key_id_is_not_loaded(tmp_path: Path) -> None:
 def test_image_reference_carrying_its_own_digest_is_refused() -> None:
     """The approved digest is the only pin permitted to reach the runtime."""
 
+    from tests.container_support import parameters
+
     def executor(argv: tuple[str, ...], timeout_seconds: int) -> CommandResult:
         raise AssertionError("the adapter must refuse before executing anything")
 
+    document = parameters()
+    document["containers"][0]["image_reference"] = "postgres:17.6-alpine@sha256:" + "b" * 64
     adapter = ContainerFixtureAdapter(executor)
     with pytest.raises(OAKError, match="must not carry its own digest"):
-        adapter.apply(
-            {
-                "container_name": "oak-fixture-demo",
-                "image_reference": "postgres:17.6-alpine@sha256:" + "b" * 64,
-                "image_digest": "sha256:" + "a" * 64,
-                "isolation": "network-none-never-started",
-            },
-            120,
-        )
+        adapter.apply(document, 120)
 
 
 def test_approved_digest_is_always_the_pin() -> None:
-    calls: list[tuple[str, ...]] = []
-    digest = "sha256:" + "a" * 64
+    from tests.container_support import DIGEST, IMAGE, FakeDocker, parameters
 
-    def executor(argv: tuple[str, ...], timeout_seconds: int) -> CommandResult:
-        calls.append(argv)
-        if argv[:2] == ("docker", "inspect"):
-            return CommandResult(returncode=0, stdout="sha256:imageid\n", stderr="")
-        if argv[:3] == ("docker", "image", "inspect"):
-            return CommandResult(returncode=0, stdout=f'["postgres@{digest}"]\n', stderr="")
-        return CommandResult(returncode=0, stdout="", stderr="")
-
-    ContainerFixtureAdapter(executor).apply(
-        {
-            "container_name": "oak-fixture-demo",
-            "image_reference": "postgres:17.6-alpine",
-            "image_digest": digest,
-            "isolation": "network-none-never-started",
-        },
-        120,
-    )
-    assert calls[0][-1] == "postgres:17.6-alpine@" + digest
+    docker = FakeDocker()
+    ContainerFixtureAdapter(docker).apply(parameters(), 120)
+    creates = [argv for argv in docker.calls if argv[1] == "create"]
+    assert creates and all(argv[-1] == f"{IMAGE}@{DIGEST}" for argv in creates)
