@@ -559,7 +559,8 @@ Requirements served:
   - **Stand-in image:** `docker.io/rancher/mirrored-pause:3.10`, pinned by index digest
     `sha256:ee6521f290b2168b6e0935a181d4cff9be1ac3f505666ef0e3c98fae8199917a`.
     - Read 2026-09-29 with `docker buildx imagetools inspect`: linux amd64, arm64, arm/v7,
-      ppc64le and s390x.
+      ppc64le and s390x, plus windows/amd64 (a different, eight-layer image that the
+      Linux daemon never selects).
     - Entrypoint `/pause`, user `65535:65535`, no `Volumes`, no `ExposedPorts`, no
       `Healthcheck`, one layer.
     - It runs until it is stopped and needs no network, which makes it a truthful stand-in.
@@ -630,6 +631,72 @@ Requirements served:
 - 2026-09-29 **Test database.** The gated suites run against a throwaway container
   (`oak-s11-testpg`), not the owner's `oak-community` PostgreSQL on 15432. The integration
   suites write to the database they are given.
+
+## Live run on the owner's machine
+
+2026-09-29, macOS arm64, Docker Desktop 29.3.1 (linux/arm64), at `20bc6f7` plus the manual's
+chapter 6 text. The manual's chapter 6 "Install, test and observe" commands were run
+verbatim from a scratch copy of its layout, against the shipped
+`examples/targets/local-started-fixture.yaml`. Outputs abridged only where marked.
+
+```text
+$ oak plan candidate-03 --target ../examples/targets/local-started-fixture.yaml --output ./bundle
+Compiled bundle.candidate-03.target.local-started-fixture to bundle; no target action was invoked
+$ oak architecture            # (abridged to its last lines)
+  node.retrieval           rancher/mirrored-pause@sha256:ee6521f290b2168b6e0935a181d4cff9be1ac3f505666ef0e3c98fae8199917a
+  node.generation          rancher/mirrored-pause@sha256:ee6521f290b2168b6e0935a181d4cff9be1ac3f505666ef0e3c98fae8199917a
+Approvals an install needs, both current: architecture absent, apply absent
+Read from the design case. Producing this compiled, signed, approved and installed nothing; a user who wants only the architecture can stop here.
+$ oak sign
+Signed plan for design-case.public-manual-qa@0.1.8
+$ oak approve architecture
+Recorded architecture approval for design-case.public-manual-qa. This approves the selected architecture only; nothing is installed until an apply approval is also recorded and a runner executes a dispatch.
+$ oak approve apply
+Recorded apply approval for design-case.public-manual-qa. Installation still needs `oak dispatch apply` and a runner.
+$ oak dispatch apply
+Dispatched apply as dispatch.public-manual-qa.12
+$ oak-runner run-once
+completed dispatch.public-manual-qa.12: succeeded
+$ oak ingest
+Ingested 1 message(s); rejected 0
+$ docker ps --filter label=oak.fixture=true --format '{{.Names}} {{.Status}} {{.Label "oak.installation"}}'
+oak-fixture-generation-80deb25bb6ae Up 6 seconds installation.154cb528a6e9aa4c7a2f977a
+oak-fixture-retrieval-d06ef31c1a81 Up 9 seconds installation.154cb528a6e9aa4c7a2f977a
+$ oak dispatch apply && oak-runner run-once && oak ingest
+Dispatched apply as dispatch.public-manual-qa.14
+completed dispatch.public-manual-qa.14: succeeded
+Ingested 1 message(s); rejected 0
+$ oak observe                 # (abridged: calibration rows as in the manual)
+Recorded observation.public-manual-qa.1 for design-case.public-manual-qa; the case is observing and the installation is present
+  EV-DEP-01  Fresh install success          pass (1/1)
+  EV-DEP-02  Idempotent re-apply success    pass (1/1)
+  EV-DEP-03  Rollback recovery              unknown — No rollback or compensation has removed anything on this case.
+  smoke-test Post-install smoke test        pass (2/2)
+  node.retrieval                     startup_seconds 0.18 seconds
+  node.generation                    startup_seconds 0.11 seconds
+  node.retrieval                     memory_bytes 516096 bytes
+  node.generation                    memory_bytes 516096 bytes
+evidence.observed-calibration: not satisfied; missing monthly_cost: not_observable_on_fixture, latency_p95: no_request_workload, quality: requires_workload_and_human_review, energy: no_energy_measurement
+$ oak approve rollback && oak dispatch rollback && oak-runner run-once && oak ingest
+Recorded rollback approval for design-case.public-manual-qa
+Dispatched rollback as dispatch.public-manual-qa.18
+completed dispatch.public-manual-qa.18: succeeded
+Ingested 1 message(s); rejected 0
+$ oak observe                 # (abridged)
+Recorded observation.public-manual-qa.2 for design-case.public-manual-qa; the case is observing and the installation is removed
+  EV-DEP-03  Rollback recovery              pass (1/1)
+$ docker ps -a --filter label=oak.fixture=true --format '{{.Names}}' | wc -l
+       0
+```
+
+An earlier manual run, before the audit fixes, also verified the running containers' real
+configuration with `docker inspect`: `ReadonlyRootfs=true`, `NetworkMode=none`,
+`CapDrop=[ALL]`, `User=65534:65534`, `Memory=268435456`, `PidsLimit=64`,
+`SecurityOpt=[no-new-privileges]`, `LogConfig.Type=none`, `RestartPolicy=no`, no mounts, no
+port bindings. Since the audit fixes, the adapter itself reads the same fields back
+before every start. The real-daemon e2e
+(`tests/e2e/test_runner_journey.py::test_the_exit_demonstration_installs_tests_observes_and_removes`)
+runs the same journey inside `make check` whenever the image is cached.
 
 ## Post-implementation audit
 

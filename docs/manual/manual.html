@@ -964,7 +964,33 @@ uv run oak ingest</code></pre>
     finds each container already there, carrying this case's labels, and checks its
     image digest again instead of creating another. Then record what was observed:
   </p>
-  <pre><code>uv run oak observe</code></pre>
+  <pre><code>uv run oak observe
+<span class="out">Recorded observation.public-manual-qa.1 for design-case.public-manual-qa; the case is observing and the installation is present
+
+Deployment measures (one non-production sample; none of these satisfies a gate):
+  EV-DEP-01  Fresh install success          pass (1/1)
+  EV-DEP-02  Idempotent re-apply success    pass (1/1)
+  EV-DEP-03  Rollback recovery              unknown — No rollback or compensation has removed anything on this case.
+  smoke-test Post-install smoke test        pass (2/2)
+
+Predicted beside observed:
+  monthly_cost                       36.0 USD/month [32.4, 39.6] -&gt; unknown (not_observable_on_fixture)
+  latency_p95                        1200.0 milliseconds [900.0, 1500.0] -&gt; unknown (no_request_workload)
+  quality                            0.86 normalized_fixture_score [0.81, 0.91] -&gt; unknown (requires_workload_and_human_review)
+  operability                        0.72 normalized_fixture_score [0.64, 0.8] -&gt; unknown (not_measured)
+  energy                             0.73 Wh/request [0.511, 0.949] -&gt; unknown (no_energy_measurement)
+  metric.citation-correctness        0.99 proportion -&gt; unknown (requires_workload_and_human_review)
+  metric.unsupported-assertion-rate  0.005 proportion -&gt; unknown (requires_workload_and_human_review)
+  metric.latency-p95                 1200.0 milliseconds -&gt; unknown (no_request_workload)
+
+Measured, with no prediction to compare:
+  node.retrieval                     startup_seconds 0.18 seconds
+  node.generation                    startup_seconds 0.11 seconds
+  node.retrieval                     memory_bytes 516096 bytes
+  node.generation                    memory_bytes 516096 bytes
+
+evidence.observed-calibration: not satisfied; missing monthly_cost: not_observable_on_fixture, latency_p95: no_request_workload, quality: requires_workload_and_human_review, energy: no_energy_measurement
+Nothing was proposed, promoted or fed back into a dispatch.</span></code></pre>
   <p>
     <code>oak observe</code> is local-only. It writes an observation record and moves the
     case to <code>observing</code>. The record gives install success, the repeated
