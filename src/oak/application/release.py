@@ -19,6 +19,11 @@ from typing import Any
 
 from oak.application.context import CommandContext
 from oak.application.persistence import build_workspace_mutation
+from oak.compiler.observation import (
+    OBSERVATION_MEDIA_TYPE,
+    RunnerResult,
+    build_observation_record,
+)
 from oak.contracts import SchemaRegistry
 from oak.contracts.signatures import signed_payload_bytes, verify_signed_document
 from oak.domain import (
@@ -548,6 +553,119 @@ class ReleaseService:
             accepted=tuple(accepted),
             rejected=tuple(rejected),
         )
+
+    def record_observation(self, context: CommandContext) -> ReleaseResult:
+        """Record what the installation was observed to do, beside the predictions.
+
+        Reads only runner completions that ingest already accepted and signature-checked
+        for this case, writes one immutable observation record and an audit event, and
+        moves `deployed → observing`. It proposes nothing and authorizes nothing.
+        """
+
+        input_digest = self._request_digest(
+            context, {"action": "observe", "case_version": context.expected_version}
+        )
+        context = self._normalized_context(context, "observe", input_digest)
+        self._check_context(context)
+        self._check_tenant(context)
+        duplicate = self._repository.idempotent_case(context.idempotency_key, input_digest)
+        if duplicate is not None:
+            references = duplicate.get("extensions", {}).get("oak.community/observation_refs", [])
+            document = (
+                self._repository.read_json_artifact(ArtifactReference.from_document(references[-1]))
+                if references
+                else {}
+            )
+            return ReleaseResult(case=duplicate, document=document, duplicate=True)
+        current_document = self._require_case()
+        current = DesignCase.from_document(current_document)
+        if current.status not in {DesignCaseStatus.DEPLOYED, DesignCaseStatus.OBSERVING}:
+            raise OAKError(
+                "OAK-OBSERVE-STATE",
+                "observation requires an installed case; ingest a successful install first",
+            )
+        extensions = copy.deepcopy(current.extensions or {})
+        result_refs = [
+            ArtifactReference.from_document(item)
+            for item in extensions.get("oak.community/runner_result_refs", [])
+        ]
+        if not result_refs:
+            raise OAKError("OAK-OBSERVE-EVIDENCE", "the case holds no accepted runner result")
+        observations = list(extensions.get("oak.community/observation_refs", []))
+        if observations:
+            previous = self._repository.read_json_artifact(
+                ArtifactReference.from_document(observations[-1])
+            )
+            if previous.get("source_message_refs") == [ref.to_document() for ref in result_refs]:
+                raise OAKError(
+                    "OAK-OBSERVE-DUPLICATE",
+                    "no runner result has arrived since the last observation record",
+                )
+        candidate_ref = self._required_reference(current_document, "selected_candidate_ref")
+        plan_ref = self._required_reference(current_document, "runner_plan_ref")
+        bundle_ref = self._required_reference(current_document, "deployment_bundle_ref")
+        contract_ref = self._required_reference(current_document, "evaluation_contract_ref")
+        semantic_ref = ArtifactReference.from_document(
+            self._extension_document(current_document, "oak.community/semantic_manifest_ref")
+        )
+        candidate = self._repository.read_json_artifact(candidate_ref)
+        evaluation_ref, evaluation = self._selected_evaluation(extensions, candidate_ref.id)
+        suffix = current.id.removeprefix("design-case.")
+        document = build_observation_record(
+            record_id=f"observation.{suffix}.{len(observations) + 1}",
+            case_id=current.id,
+            recorded_at=context.occurred_at,
+            recorded_by=context.actor,
+            candidate=candidate,
+            candidate_ref=candidate_ref,
+            evaluation=evaluation,
+            evaluation_ref=evaluation_ref,
+            contract=self._repository.read_json_artifact(contract_ref),
+            plan=self._repository.read_json_artifact(plan_ref),
+            plan_ref=plan_ref,
+            bundle_ref=bundle_ref,
+            target_profile=self._repository.read_json_artifact(semantic_ref)["content"][
+                "target_profile"
+            ],
+            results=tuple(
+                RunnerResult(reference=ref, message=self._repository.read_json_artifact(ref))
+                for ref in result_refs
+            ),
+        )
+        self._registry.validate("observation-record.schema.json", document)
+        artifact = json_artifact(
+            artifact_id=str(document["id"]),
+            version=str(document["version"]),
+            kind="observation_record",
+            media_type=OBSERVATION_MEDIA_TYPE,
+            document=document,
+        )
+        observations.append(artifact.reference.to_document())
+        extensions["oak.community/observation_refs"] = observations
+        successor = current.revise(
+            status=DesignCaseStatus.OBSERVING,
+            updated_at=context.occurred_at,
+            extensions=extensions,
+        )
+        published = self._publish(
+            current=current_document,
+            successor=successor,
+            event_type="observation_recorded",
+            context=context,
+            input_digest=input_digest,
+            artifacts=(artifact,),
+        )
+        return ReleaseResult(case=published, document=document, duplicate=False)
+
+    def _selected_evaluation(
+        self, extensions: dict[str, Any], candidate_id: str
+    ) -> tuple[ArtifactReference | None, dict[str, Any] | None]:
+        for item in extensions.get("oak.community/evaluation_refs", []):
+            reference = ArtifactReference.from_document(item)
+            document = self._repository.read_json_artifact(reference)
+            if document.get("candidate_ref", {}).get("id") == candidate_id:
+                return reference, document
+        return None, None
 
     def _is_dispatched_lease(self, lease_id: Any) -> bool:
         if not isinstance(lease_id, str) or not lease_id:

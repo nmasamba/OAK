@@ -1,0 +1,583 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://oak.example/schemas/observation-record.schema.json",
+  "title": "ObservationRecord",
+  "description": "What an installation on a non-production local target was observed to do, recorded beside what OAK predicted. It is built only from signed runner completions the control plane already accepted. It proposes nothing: no change, no promotion, and nothing that feeds a dispatch, an approval or the runner. An unknown value never passes and always carries its reason.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "id",
+    "version",
+    "case_id",
+    "recorded_at",
+    "recorded_by",
+    "selected_candidate_ref",
+    "evaluation_result_ref",
+    "runner_plan_ref",
+    "bundle_ref",
+    "target",
+    "source_message_refs",
+    "installation_state",
+    "deployment_measures",
+    "calibration",
+    "unpredicted_measurements",
+    "assurance",
+    "limitations",
+    "proposals",
+    "extensions"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "0.1.0"
+    },
+    "id": {
+      "$ref": "common.schema.json#/$defs/identifier"
+    },
+    "version": {
+      "$ref": "common.schema.json#/$defs/semver"
+    },
+    "case_id": {
+      "$ref": "common.schema.json#/$defs/identifier"
+    },
+    "recorded_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "recorded_by": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "selected_candidate_ref": {
+      "$ref": "common.schema.json#/$defs/artifactRef"
+    },
+    "evaluation_result_ref": {
+      "anyOf": [
+        {
+          "$ref": "common.schema.json#/$defs/artifactRef"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "runner_plan_ref": {
+      "$ref": "common.schema.json#/$defs/artifactRef"
+    },
+    "bundle_ref": {
+      "$ref": "common.schema.json#/$defs/artifactRef"
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "fingerprint",
+        "declared_platform",
+        "isolation"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "common.schema.json#/$defs/identifier"
+        },
+        "fingerprint": {
+          "$ref": "common.schema.json#/$defs/digest"
+        },
+        "declared_platform": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "isolation": {
+          "anyOf": [
+            {
+              "enum": [
+                "network-none-never-started",
+                "network-none-started-hardened"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "source_message_refs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "common.schema.json#/$defs/artifactRef"
+      }
+    },
+    "installation_state": {
+      "enum": [
+        "present",
+        "removed",
+        "partial",
+        "unknown"
+      ]
+    },
+    "deployment_measures": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {
+        "$ref": "#/$defs/measure"
+      }
+    },
+    "calibration": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/calibrationRow"
+      }
+    },
+    "unpredicted_measurements": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/unpredicted"
+      }
+    },
+    "assurance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requirement_id",
+        "status",
+        "missing"
+      ],
+      "properties": {
+        "requirement_id": {
+          "const": "evidence.observed-calibration"
+        },
+        "status": {
+          "enum": [
+            "satisfied",
+            "not_satisfied"
+          ]
+        },
+        "missing": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        }
+      }
+    },
+    "limitations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 500
+      }
+    },
+    "proposals": {
+      "description": "Always empty. An observation record never proposes a change or a promotion; a later, separately authorized step would.",
+      "type": "array",
+      "maxItems": 0
+    },
+    "extensions": {
+      "$ref": "common.schema.json#/$defs/extensions"
+    }
+  },
+  "$defs": {
+    "measure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "result",
+        "value",
+        "successes",
+        "sample_size",
+        "threshold",
+        "satisfies_gate",
+        "evidence_refs",
+        "reason",
+        "limitations"
+      ],
+      "properties": {
+        "id": {
+          "enum": [
+            "EV-DEP-01",
+            "EV-DEP-02",
+            "EV-DEP-03",
+            "smoke-test"
+          ]
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "result": {
+          "enum": [
+            "pass",
+            "fail",
+            "unknown"
+          ]
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "successes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sample_size": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "threshold": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "satisfies_gate": {
+          "description": "Always false here: a gate needs fixture counts and confidence intervals, not a sample from one non-production install.",
+          "const": false
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "common.schema.json#/$defs/artifactRef"
+          }
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "result": {
+                "const": "unknown"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "type": "null"
+              },
+              "reason": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "calibrationRow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "subject",
+        "name",
+        "unit",
+        "direction",
+        "estimator",
+        "evidence_population",
+        "conditions",
+        "predicted",
+        "observed",
+        "absolute_error",
+        "relative_error",
+        "interval_covered",
+        "drift",
+        "recalibration_decision"
+      ],
+      "properties": {
+        "subject": {
+          "enum": [
+            "objective",
+            "contract_metric"
+          ]
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "unit": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "direction": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "estimator": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "ref",
+            "version"
+          ],
+          "properties": {
+            "ref": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "version": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        "evidence_population": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "conditions": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "workload",
+            "hardware"
+          ],
+          "properties": {
+            "workload": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            },
+            "hardware": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            }
+          }
+        },
+        "predicted": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "value",
+            "lower",
+            "upper"
+          ],
+          "properties": {
+            "value": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "lower": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "upper": {
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          }
+        },
+        "observed": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "status",
+            "value",
+            "reason_code",
+            "reason"
+          ],
+          "properties": {
+            "status": {
+              "enum": [
+                "observed",
+                "unknown"
+              ]
+            },
+            "value": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "reason_code": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "no_request_workload",
+                    "requires_workload_and_human_review",
+                    "not_observable_on_fixture",
+                    "no_energy_measurement",
+                    "not_measured"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reason": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 500
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "status": {
+                    "const": "unknown"
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "value": {
+                    "type": "null"
+                  },
+                  "reason_code": {
+                    "type": "string"
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "absolute_error": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "relative_error": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "interval_covered": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "drift": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "recalibration_decision": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        }
+      }
+    },
+    "unpredicted": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "node_id",
+        "container_name",
+        "metric",
+        "value",
+        "unit",
+        "evidence_ref"
+      ],
+      "properties": {
+        "node_id": {
+          "$ref": "common.schema.json#/$defs/identifier"
+        },
+        "container_name": {
+          "type": "string",
+          "pattern": "^oak-fixture-[a-z0-9][a-z0-9-]{0,62}$"
+        },
+        "metric": {
+          "enum": [
+            "startup_seconds",
+            "memory_bytes"
+          ]
+        },
+        "value": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "unit": {
+          "enum": [
+            "seconds",
+            "bytes"
+          ]
+        },
+        "evidence_ref": {
+          "$ref": "common.schema.json#/$defs/artifactRef"
+        }
+      }
+    }
+  }
+}

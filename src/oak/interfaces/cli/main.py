@@ -1245,6 +1245,80 @@ def ingest(
 
 
 @app.command()
+def observe(
+    output: Annotated[
+        OutputFormat, typer.Option("--output", help="Output format.")
+    ] = OutputFormat.HUMAN,
+    idempotency_key: Annotated[
+        str | None,
+        typer.Option("--idempotency-key", help="Stable retry key; derived by default."),
+    ] = None,
+) -> None:
+    """Record what the installation was observed to do, beside what was predicted."""
+
+    try:
+        _require_local("observe")
+        current = _workspace_service().current().case
+        result = _release_service().record_observation(
+            _context(
+                idempotency_key=idempotency_key,
+                expected_version=str(current["version"]),
+            )
+        )
+        _emit(
+            {"case": result.case, "observation": result.document},
+            output,
+            human=_observation_human(result.case, result.document, duplicate=result.duplicate),
+        )
+    except (OAKError, ContractValidationError, OSError, RuntimeError, ValueError) as error:
+        _abort(error)
+
+
+def _observation_human(case: dict[str, Any], record: dict[str, Any], *, duplicate: bool) -> str:
+    lines = [
+        f"Recorded {record.get('id', 'the observation')} for {case['id']}"
+        + (" (idempotent retry)" if duplicate else "")
+        + f"; the case is {case['status']} and the installation is "
+        + str(record.get("installation_state", "unknown")),
+        "",
+        "Deployment measures (one non-production sample; none of these satisfies a gate):",
+    ]
+    for measure in record.get("deployment_measures", []):
+        if measure["result"] == "unknown":
+            detail = f"unknown — {measure['reason']}"
+        else:
+            detail = f"{measure['result']} ({measure['successes']}/{measure['sample_size']})"
+        lines.append(f"  {measure['id']:<10} {measure['name']:<30} {detail}")
+    lines += ["", "Predicted beside observed:"]
+    for row in record.get("calibration", []):
+        predicted = row["predicted"]
+        interval = (
+            f" [{predicted['lower']}, {predicted['upper']}]"
+            if predicted["lower"] is not None and predicted["upper"] is not None
+            else ""
+        )
+        observed = row["observed"]
+        seen = (
+            str(observed["value"])
+            if observed["status"] == "observed"
+            else f"unknown ({observed['reason_code']})"
+        )
+        lines.append(f"  {row['name']:<34} {predicted['value']} {row['unit']}{interval} -> {seen}")
+    measured = record.get("unpredicted_measurements", [])
+    if measured:
+        lines += ["", "Measured, with no prediction to compare:"]
+        for item in measured:
+            lines.append(f"  {item['node_id']:<34} {item['metric']} {item['value']} {item['unit']}")
+    assurance = record.get("assurance", {})
+    if assurance:
+        status = str(assurance.get("status", "")).replace("_", " ")
+        missing = ", ".join(assurance.get("missing", [])) or "nothing"
+        lines += ["", f"{assurance.get('requirement_id')}: {status}; missing {missing}"]
+    lines.append("Nothing was proposed, promoted or fed back into a dispatch.")
+    return "\n".join(lines)
+
+
+@app.command()
 def gitops(
     output: Annotated[
         Path | None, typer.Option("--output", help="New GitOps output directory.")
