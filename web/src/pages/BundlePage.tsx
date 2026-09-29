@@ -147,6 +147,19 @@ export function BundlePage({ caseId }: { readonly caseId: string }) {
   const version = asString(caseDocument["version"]) ?? "";
   const status = asString(caseDocument["status"]) ?? "";
   const title = asString(caseDocument["title"]) ?? caseId;
+  // What the case actually carries, never a fixed claim of absence: signing, approval,
+  // dispatch and observation happen only on the local command line, and this page
+  // reports them without offering any of them.
+  const caseExtensions = asObject(caseDocument["extensions"]) ?? {};
+  const recordedApprovals = Object.keys(
+    asObject(caseExtensions["oak.community/approval_refs"]) ?? {},
+  ).sort();
+  const runnerResults = asArray(
+    caseExtensions["oak.community/runner_result_refs"],
+  ).length;
+  const observations = asArray(
+    caseExtensions["oak.community/observation_refs"],
+  ).length;
 
   const onCompile = () => {
     let parsed: unknown;
@@ -282,20 +295,26 @@ export function BundlePage({ caseId }: { readonly caseId: string }) {
                     {asString(runnerPlan?.["status"] ?? bundle["status"]) ??
                       "draft"}
                   </span>{" "}
-                  compiled, unsigned
+                  {caseExtensions["oak.community/plan_signature_ref"] !==
+                  undefined
+                    ? "compiled, signed on the local command line"
+                    : "compiled, unsigned"}
                 </dd>
               </div>
               <div>
                 <dt>Approval</dt>
                 <dd>
-                  none recorded — requires{" "}
-                  {asArray(
-                    (asObject(bundle["approval_policy"]) ?? {})[
-                      "required_roles"
-                    ],
-                  )
-                    .map((entry) => String(entry))
-                    .join(" and ") || "configured roles"}
+                  {recordedApprovals.length > 0
+                    ? `recorded on the local command line: ${recordedApprovals.join(", ")}`
+                    : `none recorded — requires ${
+                        asArray(
+                          (asObject(bundle["approval_policy"]) ?? {})[
+                            "required_roles"
+                          ],
+                        )
+                          .map((entry) => String(entry))
+                          .join(" and ") || "configured roles"
+                      }`}
                 </dd>
               </div>
               <div>
@@ -304,6 +323,18 @@ export function BundlePage({ caseId }: { readonly caseId: string }) {
                   unavailable in Community — no runner execution authority
                 </dd>
               </div>
+              {(runnerResults > 0 || observations > 0) && (
+                <div>
+                  <dt>Runner results</dt>
+                  <dd>
+                    {runnerResults} signed runner result
+                    {runnerResults === 1 ? "" : "s"} and {observations}{" "}
+                    observation record{observations === 1 ? "" : "s"},
+                    recorded through the local command line; this page
+                    cannot install, approve or observe.
+                  </dd>
+                </div>
+              )}
             </dl>
             <p className="hint">
               {asArray(

@@ -6,6 +6,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
+from oak.application.architecture import architecture_document, select_candidate_reference
 from oak.application.context import CommandContext
 from oak.application.persistence import build_workspace_mutation
 from oak.compiler import (
@@ -396,6 +397,35 @@ class CandidatePlanningService:
             case=published,
             assurance_plan=self._artifact_document(assurance),
             duplicate=False,
+        )
+
+    def architecture(self, candidate_id: str | None = None) -> dict[str, Any]:
+        """The chosen (or named) architecture as one document; reads only, writes nothing."""
+
+        case = self._require_case()
+        reference = ArtifactReference.from_document(select_candidate_reference(case, candidate_id))
+        candidate = self._repository.read_json_artifact(reference)
+        extensions = case.get("extensions", {})
+        decision_ref = extensions.get("oak.community/selection_decision_ref")
+        decision = (
+            self._repository.read_json_artifact(ArtifactReference.from_document(decision_ref))
+            if isinstance(decision_ref, dict)
+            else None
+        )
+        plan_ref = case.get("runner_plan_ref")
+        plan = (
+            self._repository.read_json_artifact(ArtifactReference.from_document(plan_ref))
+            if isinstance(plan_ref, dict)
+            else None
+        )
+        approval_refs = extensions.get("oak.community/approval_refs", {})
+        approvals = {
+            action: self._repository.read_json_artifact(ArtifactReference.from_document(item))
+            for action, item in approval_refs.items()
+            if isinstance(item, dict)
+        }
+        return architecture_document(
+            case=case, candidate=candidate, decision=decision, plan=plan, approvals=approvals
         )
 
     def plan(self, candidate_id: str, target_path: Path, context: CommandContext) -> PlanResult:

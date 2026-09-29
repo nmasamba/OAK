@@ -1,25 +1,25 @@
 # SPDX-License-Identifier: Apache-2.0
 action: dry_run
 actor: local-user
-bundle_digest: sha256:570abb66ee53eb6433588b865fb4a77dc4d5d7133bc1275fbe433a9a37936596
+bundle_digest: sha256:9da17d021cf9f1e61bb73b568927870272d466ec8d869f2ce3201ebaa505b539
 case_id: design-case.public-manual-qa
 environment: validation
 expires_at: '2026-08-19T12:00:00Z'
 extensions: {}
 id: approval.dry-run.bundle.candidate-03.target.local-fixture
 issued_at: '2026-08-18T12:00:00Z'
-nonce: 1b21427e724c2ac586a61f8c9e1f269c9408b31b9dcc5577a9a381d0a8670d5a
-plan_digest: sha256:fad309590f1d09da0019f52dce9bd3d31da5b6285f5246d899657a8f161e18c4
+nonce: abe1d401a5145a07689afc22d57e0814b899ddfd3b79e14c2425fb3af57c2064
+plan_digest: sha256:03c4541ade1943cd9e824eabb0a00290190fc2b30a08c737d237052e12dd6de0
 revocation_reason: null
 revoked: false
 revoked_at: null
 schema_version: 0.1.0
 signature:
   algorithm: ed25519
-  key_id: sha256:aeb84137b88f8adf1b221229c9de60aef4adf71837c00358b590d07b6b6ac918
-  public_key_base64: jJVEwwQEJFuw/fRFwVNphOo7/f4I0HuyBqn4dHRaZe0=
+  key_id: sha256:c1822da16c3c37856a1fba1b9f6403763c1a294eef3b583810c1808d4a8b5dba
+  public_key_base64: R1Fh63+L0PRlfIf5unjoTlwnQolP01IRVKwluqntQ44=
   role: approver
-  signature_base64: CWboryFlYo3iWHWnsiRVN3IyvL8ilP3S2N2A5HPipbs9biXjfNyrWZeW2+mUHBARsjVa6N3U4+uhvVYfmPPPCg==
+  signature_base64: tYOJ/48MqEAQ9PwrNzzCA/Gft84pyWuu6+ACQjnNdxLfvAuZKMgBj7IJIJ0DED+xdXDmNX35cAL96S5d3FVkCA==
   trust_level: development
 target_fingerprint: sha256:7cd2b29057fc061f1c82bd627b305176fa347e73feaed0fc8d6838fd7d8ddcfb
 target_id: target.local-fixture

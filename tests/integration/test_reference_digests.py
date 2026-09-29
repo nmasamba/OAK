@@ -34,12 +34,15 @@ pytestmark = pytest.mark.integration
 FIXED_CLOCK = "2026-08-18T12:00:00Z"
 
 # Recorded at 0.7.1 (`CHANGELOG.md`, "Versioning"; case `design-case.public-manual-qa@0.1.7`).
+# The bundle, runner-plan and case values moved once, in Sprint 11, when the assurance
+# plan's stale gate_3 reason and read-only control text were corrected (compatibility
+# rule 4; before and after in CHANGELOG.md). The candidate and semantic values did not.
 REFERENCE_DIGESTS = {
     ("deployment_bundle", "bundle.candidate-03.target.local-fixture"): (
-        "sha256:570abb66ee53eb6433588b865fb4a77dc4d5d7133bc1275fbe433a9a37936596"
+        "sha256:9da17d021cf9f1e61bb73b568927870272d466ec8d869f2ce3201ebaa505b539"
     ),
     ("runner_plan", "runner-plan.bundle.candidate-03.target.local-fixture"): (
-        "sha256:fad309590f1d09da0019f52dce9bd3d31da5b6285f5246d899657a8f161e18c4"
+        "sha256:03c4541ade1943cd9e824eabb0a00290190fc2b30a08c737d237052e12dd6de0"
     ),
     ("architecture_candidate", "candidate-03"): (
         "sha256:576b0ca62835a521439e44b280ffdfca79438323d45ae79e70521a27d14118b3"
@@ -52,7 +55,7 @@ REFERENCE_INTENT_ARTIFACTS = {
     "0.1.0": "sha256:54ff2c625088bd0686df568aeb71f5f3dfbb83085cd3526781b63659ab822d2c",
     "0.1.1": "sha256:d296166aef0f7df81a2e7b65fc99f8bd33a3582c948f0bc692566e65b0480f9f",
 }
-REFERENCE_CASE_DIGEST = "sha256:f54f34195899bee3d891ea791fb9825fa67eebae5e8748a0a3eb07b298d73fb7"
+REFERENCE_CASE_DIGEST = "sha256:61cee33984c8140f428ef3710056d9a5f546f302346392133173c2848fb41990"
 
 # sha256 of `canonical_json_bytes(intent_document)` from
 # `DeterministicBriefInterpreter.interpret(brief, created_at=FIXED_CLOCK)` with no proposal.

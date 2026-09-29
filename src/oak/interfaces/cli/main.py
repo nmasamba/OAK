@@ -1245,6 +1245,67 @@ def ingest(
 
 
 @app.command()
+def architecture(
+    candidate_id: Annotated[
+        str | None,
+        typer.Argument(help="Candidate identifier; the selected candidate by default."),
+    ] = None,
+    design_case: Annotated[
+        str | None,
+        typer.Option("--case", help="Design-case identifier; required in remote mode."),
+    ] = None,
+    output: Annotated[
+        OutputFormat, typer.Option("--output", help="Output format.")
+    ] = OutputFormat.HUMAN,
+) -> None:
+    """Print the chosen architecture; nothing is compiled, signed, approved or installed."""
+
+    from oak.application.architecture import (
+        architecture_document,
+        architecture_human,
+        select_candidate_reference,
+    )
+
+    try:
+        remote = _remote()
+        if remote is not None:
+            from oak.interfaces.cli import remote as remote_mode
+
+            case_id = _remote_case_id(design_case)
+            case = remote_mode.require_field(remote.get_case(case_id), "case")
+            if not isinstance(case, dict):
+                raise OAKError("OAK-REMOTE-PROTOCOL", "remote case is invalid")
+            extensions = case.get("extensions", {})
+            reference = select_candidate_reference(case, candidate_id)
+            decision_ref = extensions.get("oak.community/selection_decision_ref")
+            plan_ref = case.get("runner_plan_ref")
+            approval_refs = extensions.get("oak.community/approval_refs", {})
+            document = architecture_document(
+                case=case,
+                candidate=remote.get_artifact(case_id, reference),
+                decision=(
+                    remote.get_artifact(case_id, decision_ref)
+                    if isinstance(decision_ref, dict)
+                    else None
+                ),
+                plan=remote.get_artifact(case_id, plan_ref) if isinstance(plan_ref, dict) else None,
+                approvals={
+                    action: remote.get_artifact(case_id, item)
+                    for action, item in approval_refs.items()
+                    if isinstance(item, dict)
+                },
+            )
+        else:
+            current = _workspace_service().current().case
+            if design_case is not None and design_case != current["id"]:
+                raise OAKError("OAK-CASE-NOT-FOUND", "requested design case is not current")
+            document = _planning_service().architecture(candidate_id)
+        _emit(document, output, human=architecture_human(document))
+    except (OAKError, ContractValidationError, OSError, RuntimeError, ValueError) as error:
+        _abort(error)
+
+
+@app.command()
 def observe(
     output: Annotated[
         OutputFormat, typer.Option("--output", help="Output format.")

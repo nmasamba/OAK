@@ -6,6 +6,114 @@ All notable changes to OAK Community are recorded here.
 
 ## Unreleased
 
+### Added — Sprint 11: install the chosen architecture, test it, record what was observed
+
+- **Two approvals before any install** (`OAK-FR-DEP-005`). `oak approve architecture`
+  signs an approval of the selected architecture as compiled: it binds the plan, bundle
+  and target, and names the decision, the candidate and the digest of what `apply` would
+  install. `oak approve apply` is refused without a current one
+  (`OAK-APPROVAL-ARCHITECTURE`). Dispatch attaches both to an install. The runner
+  verifies both independently and checks that the architecture approval names the decision
+  and the installation it is being asked to run. Rollback and destroy never need it.
+- **Install the topology** (`OAK-FR-DEP-003`, `OAK-FR-DEP-004`). The signed, approved
+  `apply` installs one labelled, network-isolated container per node of the selected
+  candidate. Each container's image is the one the target profile acknowledges for that
+  component, in the new `execution.component_images`. A component with no acknowledged
+  image fails `preflight.installation`, and nothing falls back to another image. Container
+  names derive from the case, target and node. Apply adopts only a container that carries
+  this case's labels and the approved digest, and denies a foreign one
+  (`OAK-RUNNER-FOREIGN`). A failed apply removes exactly what it created. Rollback and
+  destroy remove only containers they own, with their volumes, and inspect afterwards to
+  prove each is gone.
+- **Start and smoke-test, where the profile says so.** The new acknowledgement
+  `isolated-non-production-hardened-start` opts a profile in. Each node is then started
+  under fixed flags: no network, read-only root, no capabilities, no new privileges,
+  uid 65534, memory, CPU and process limits, no restart, no log driver, and no volumes,
+  environment or ports. Each must reach running (or healthy) within a bounded wait and
+  still be running after a settle. The results arrive as `test_result` and
+  `aggregate_metric` evidence. A failed smoke test fails the install
+  (`OAK-RUNNER-SMOKE-TEST`), and the install is compensated.
+- **`oak observe`** (`OAK-FR-ARC-006`), local-only. It writes an `observation_record`:
+  - install success, idempotent re-apply, rollback recovery (`EV-DEP-01/02/03`) and the
+    smoke test, each with its sample size and evidence references, none of which
+    satisfies a gate;
+  - a calibration row for every candidate objective and contract metric, with the
+    prediction and its interval beside an observed value, or `unknown` with a reason
+    code;
+  - startup time and memory, as measurements with no prediction to compare;
+  - whether `evidence.observed-calibration` is satisfied, naming what is missing.
+
+  Recording moves the case from `deployed` to `observing`, and the record proposes
+  nothing.
+- **`oak architecture`**, for a user who wants only the design. It prints the chosen
+  architecture (nodes, edges, components, predictions, the decision and, once compiled,
+  the node-to-image map) as text, JSON or YAML, locally or over the existing REST reads.
+  It writes nothing.
+- New schema `observation-record` (`0.1.0`) and example. New artifact kind
+  `observation_record`, and new audit event `observation_recorded`. New error codes:
+  `OAK-APPROVAL-ARCHITECTURE`, `OAK-RUNNER-FOREIGN`, `OAK-RUNNER-SMOKE-TEST`,
+  `OAK-OBSERVE-STATE`, `OAK-OBSERVE-DUPLICATE`, `OAK-OBSERVE-EVIDENCE` and
+  `OAK-ARCHITECTURE-UNSELECTED`.
+- Example target profile `examples/targets/local-started-fixture.yaml`.
+
+### Changed — Sprint 11
+
+- **Digest shift (compatibility rule 4).** The assurance plan's `gate_3` reason said
+  "Observed calibration, signing, approvals and runner verification are not implemented",
+  three of which Sprint 5 implemented. It now names only what is still missing: observed
+  cost, latency, quality and energy under a representative workload. Two other stale
+  assurance lines changed with it: `control.read-only-plan` and the description of
+  `evidence.observed-calibration`. The assurance digest reaches the bundle through the
+  provenance review artifact. This moves exactly three of the pinned reference values,
+  for `design-case.public-manual-qa@0.1.7` against `target.local-fixture` at the fixed
+  clock:
+  - `deployment_bundle`: from
+    `sha256:570abb66ee53eb6433588b865fb4a77dc4d5d7133bc1275fbe433a9a37936596` to
+    `sha256:9da17d021cf9f1e61bb73b568927870272d466ec8d869f2ce3201ebaa505b539`
+  - `runner_plan`: from
+    `sha256:fad309590f1d09da0019f52dce9bd3d31da5b6285f5246d899657a8f161e18c4` to
+    `sha256:03c4541ade1943cd9e824eabb0a00290190fc2b30a08c737d237052e12dd6de0`
+  - the case: from
+    `sha256:f54f34195899bee3d891ea791fb9825fa67eebae5e8748a0a3eb07b298d73fb7` to
+    `sha256:61cee33984c8140f428ef3710056d9a5f546f302346392133173c2848fb41990`
+
+  `candidate-03` (`576b0ca6…`), the semantic manifest (`2ef34758…`), the intent artifacts
+  and the golden intent bytes are unchanged. The signed protocol examples were
+  regenerated from the new compile.
+- **Breaking for install scripts:** `oak approve apply` now needs `oak approve
+  architecture` first.
+- **Breaking for plans compiled before this change:** the container adapter is `0.2.0`,
+  with a node-list parameter schema, so the runner denies those plans with
+  `OAK-RUNNER-ADAPTER`. Plans expire after a day, and none is pinned.
+- **Conditionally compatible schema changes.** A published reader cannot validate:
+  - an approval or revocation with `action: architecture`;
+  - a target profile carrying `component_images` or the new acknowledgement;
+  - an audit event `observation_recorded`;
+  - a manifest listing an `observation_record`.
+- **Target profiles.** A mutation-capable profile that still declares
+  `container_image_reference`/`container_image_digest` is refused at compile
+  (`OAK-TARGET-EXECUTION`), with the field to use instead. It is never silently read as
+  something else.
+- **Idempotency and renewal.** `oak approve` and `oak dispatch` derive their default
+  idempotency keys from the case version, so a deliberate re-apply or a renewed approval
+  is a new request. A renewed approval is a successor version. `rollback` and `destroy`
+  approvals can be recorded at `deployed` and `observing`; other actions are refused there
+  (`OAK-APPROVAL-STATE`).
+- **Runner completions.** A completion now carries `requested_kinds` and `failed_kind`,
+  and keeps the evidence of a failed or compensated operation. Evidence is redacted by
+  key as well as by value, including credentials inside URLs (`RR-023`). The runner
+  refuses to start another side effect once its lease has lapsed.
+
+### Fixed — Sprint 11
+
+- The runner could not pull any image on Docker Desktop. Its Docker child ran with only
+  `PATH=/bin:/usr/bin`, but the Docker CLI still read the operator's
+  `~/.docker/config.json`, whose `credsStore: desktop` names a helper not on that `PATH`.
+  So every pull failed, even of a public image. The old stand-in image never showed this
+  because it was already cached. The child now gets an empty `DOCKER_CONFIG` owned by the
+  runner: the operator's registry credentials, helpers and CLI contexts are never used,
+  public images are pulled anonymously, and only the default socket is reached.
+
 ### Fixed
 
 - The candidate comparison page now shows each candidate's explanation as readable
