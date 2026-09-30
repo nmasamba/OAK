@@ -9,9 +9,10 @@ Then you'll take
 **one** server-side case through the other four ways in, one step at a time, and finish
 by checking that both runs compiled exactly the same design.
 
-It takes about twenty minutes. Every command and every output below comes from a real run
-against OAK Community `0.8.0`. On `0.9.0` they print the same except the version. The tour
-stops at a compiled bundle, and none of the commands it uses changed. The design fingerprint
+It takes about twenty minutes. Every command and every output in the code blocks below
+comes from a real run against OAK Community `0.8.0`. On `0.9.0` they print the same except
+the version. The tour stops at a compiled bundle, and none of the commands it runs changed;
+`oak architecture`, mentioned at the end of Part 1, is new in `0.9.0`. The design fingerprint
 it compares is a pinned reference value that `0.9.0` did not move.
 
 | Part | Where it happens | What it shows |

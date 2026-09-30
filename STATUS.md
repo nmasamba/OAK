@@ -337,7 +337,8 @@
   jsonschema as "MIT". Nothing constructs a `FormatChecker`, so no behaviour changed. The
   generated inventory now shows LGPL-3.0 Psycopg as the only copyleft entry.
 - Security review produced `docs/security/threat-coverage.md`,
-  `docs/security/residual-risk.md` (43 stable-id entries) and `SECURITY.md`. At Sprint 8 the
+  `docs/security/residual-risk.md` (38 entries at the `0.7.0` release, each with a stable id;
+  now 43 stable-id entries) and `SECURITY.md`. At Sprint 8 the
   coverage index mapped all nineteen threat ids then defined to tests (8 direct, 9 partial,
   2 structural, 0 uncovered, every cited test verified to exist); it now maps twenty
   (10 direct, 9 partial, 1 structural). **No

@@ -4,10 +4,16 @@
 
 The `0.9.0` scan, run on 2026-09-30 from a clean tree at `c067aad` (the version commit,
 after Sprint 11 merged). Since `v0.8.0`, no Dockerfile, no base pin and no dependency has
-changed: the diff to the image inputs is the version string in `pyproject.toml`, `uv.lock`
-and `web/package.json`, plus OAK's own source. The package set is therefore the `0.8.0`
-one rebuilt today. What differs below is what the scanner's database now says about that
-set, not what the image contains. The `0.8.0` record is at
+changed. The image inputs that did change are the version string in `VERSION`,
+`pyproject.toml`, `uv.lock`, `package.json` and `web/package.json`, the rewritten
+`README.md`, and OAK's own source. The package *names* are the `0.8.0` set, but the
+build-time distribution upgrade moved some versions:
+- in the API image, four Debian packages went from `deb13u2` to `deb13u3`: `openssl`,
+  `libssl3t64`, `openssl-provider-legacy` and `libpcre2-8-0`;
+- in the web image, `libexpat` went from `2.8.4-r0` to `2.8.5-r0`.
+
+What differs below reflects both those updates and advisories published since the `0.8.0`
+scan. The `0.8.0` record is at
 [../0.8.0/container-scan.md](../0.8.0/container-scan.md).
 
 Reproduce with:
@@ -50,10 +56,10 @@ any of the API image's 44 HIGH findings.
   - one `systemd` advisory (`CVE-2026-16742`), against `libsystemd0` and `libudev1`;
   - one `ncurses` advisory (`CVE-2025-69720`), against the four `ncurses` packages;
   - one each for `libacl1` (`CVE-2026-54369`) and `perl-base` (`CVE-2026-9538`).
-- **MEDIUM rose from 53 to 59 and LOW from 58 to 60.** These are advisories published
-  since the `0.8.0` scan, against a package set that has not changed. The gate does not
-  judge these severities, and none of them has a fix the image could have installed and
-  did not.
+- **MEDIUM rose from 53 to 59 and LOW from 58 to 60.** The gate does not judge these
+  severities. The report records neither which advisories they are nor whether any has a
+  fix. The movement may come from advisories published since the `0.8.0` scan, from the
+  package updates this rebuild picked up, or both.
 
 The 44 HIGH findings are counted per *package instance*, not per defect. This residue is
 the set `RR-036` records. The API image is Debian-based and inherits its distribution's

@@ -1162,18 +1162,20 @@ OAK_MANUAL_SCREENS=1 pnpm --dir web exec playwright test e2e/manual-screens.spec
 # the PDF, using the same pinned Chromium the e2e suite uses
 pnpm --dir web exec node ../docs/manual/build_manual.mjs</code></pre>
   <p>
-    Every command in chapters 3, 5 and 6 was verified by running the full journeys against
-    this exact tree, and the expected-output excerpts are what those runs printed. The
+    Every command in chapters 3, 5 and 6 was verified by running the full journeys, and the
+    expected-output excerpts are what those runs printed. Chapter 6 was run against the
+    Sprint 11 code that <code>0.9.0</code> ships unchanged, and chapter 5 against
+    <code>0.8.0</code>; on <code>0.9.0</code> they print the same except the version. The
     repository's end-to-end suites (<code>tests/e2e/test_cli.py</code>,
     <code>tests/e2e/test_runner_journey.py</code>) exercise the same invocations
     continuously — except <code>oak revoke-approval</code>, which is covered by the
     revocation integration suite (<code>tests/integration/test_runner_revocation.py</code>)
-    instead. Chapter 5's shell commands were run against the Compose stack for this
-    edition. The operations behind them are exercised by the interface conformance and MCP
+    instead. Chapter 5's shell commands were run against the <code>0.8.0</code> Compose stack,
+    as the tour records. The operations behind them are exercised by the interface conformance and MCP
     suites (<code>tests/integration/test_interface_conformance.py</code>,
     <code>tests/e2e/test_mcp_interface.py</code>), which need a PostgreSQL database and so
     run locally rather than in CI (<code>RR-019</code>). The screenshots were re-captured from
-    the <code>0.8.0</code> stack. The diagrams are inline SVG in the source. This manual
+    the <code>0.9.0</code> stack. The diagrams are inline SVG in the source. This manual
     describes OAK Community 0.9.0 — a local-first developer release with no production
     or customer readiness claim; where this document and
     <code>docs/security/residual-risk.md</code> could ever disagree, the register wins.

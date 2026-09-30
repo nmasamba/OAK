@@ -245,7 +245,7 @@ so loudly. Pass `--allow-empty` only when you genuinely expect nothing — a fre
 >
 > ```bash
 > # Was the shortfall already there? Count objects in the archive you restored from.
-> tar tzf oak-artifacts.tar.gz | grep -c sha256/
+> tar tzf oak-artifacts.tar.gz | grep -c 'sha256/.'
 > # ...against the distinct digests the database references.
 > docker compose exec -T postgres psql -U oak -d oak -tAc \
 >   "select count(distinct digest) from artifact_versions"
