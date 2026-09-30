@@ -1,6 +1,6 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-# Residual risk register — OAK Community 0.8.0
+# Residual risk register — OAK Community 0.9.0
 
 What this release does **not** defend against, in one place, with stable identifiers.
 
@@ -20,7 +20,7 @@ reporting something not on this list, see [SECURITY.md](../../SECURITY.md).
   deployment Community does not support, and say so.
 - **Owner** is unassigned for every entry. Assigning owners is part of the release
   decision and requires accountable humans; see
-  [release/0.8.0/release-decision.md](../release/0.8.0/release-decision.md).
+  [release/0.9.0/release-decision.md](../release/0.9.0/release-decision.md).
 - **Blocks release** records whether the entry is proposed as a P0 blocker. That
   proposal is a recommendation to the maintainers, not a decision taken here.
 

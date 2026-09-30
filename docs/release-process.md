@@ -34,16 +34,19 @@ paired with a different build.
 
 ## Versioning
 
-`0.7.1` is the published release, published on 2026-09-03. `0.8.0` is the version this tree builds, is tagged `v0.8.0`, and was approved by
-`nmasamba` on 2026-09-23 in all three roles
-([release/0.8.0/release-decision.md](release/0.8.0/release-decision.md)). The tag was cut
+`0.7.1` is the published release, published on 2026-09-03. `0.9.0` is the version this
+tree builds and is tagged `v0.9.0`. Its approval rows are unsigned
+([release/0.9.0/release-decision.md](release/0.9.0/release-decision.md)): the tag was cut
+at the owner's instruction, as `v0.8.0` was, and approval is a separate human act. `0.8.0`
+is tagged `v0.8.0` and was approved by `nmasamba` on 2026-09-23 in all three roles
+([release/0.8.0/release-decision.md](release/0.8.0/release-decision.md)). That tag was cut
 the day before, at the owner's instruction and ahead of those signatures, and has not been
-moved onto the commit that carries them. Publishing `0.8.0` is a separate decision that has
-not been taken, so it is **published nowhere**. `0.7.0` was approved on 2026-08-22 but never
-published anywhere, and was re-cut as `0.7.1` when the pre-launch hardening work made a
-deliberate digest-shifting change (see `CHANGELOG.md`); the `0.7.0` record stays as
-history. The `0.7.x` numbering is not `0.1.0`, and the reason is recorded in
-[ADR-0002](adr/0002-release-versioning.md): `0.1.0` sorts *below* the `0.6.0.dev6`
+moved onto the commit that carries them. Neither `0.9.0` nor `0.8.0` is **published
+anywhere**: publishing either is a separate decision that has not been taken. `0.7.0` was
+approved on 2026-08-22 but never published anywhere, and was re-cut as `0.7.1` when the
+pre-launch hardening work made a deliberate digest-shifting change (see `CHANGELOG.md`);
+the `0.7.0` record stays as history. The `0.7.x` numbering is not `0.1.0`, and the reason
+is recorded in [ADR-0002](adr/0002-release-versioning.md): `0.1.0` sorts *below* the `0.6.0.dev6`
 development builds that already existed, so releasing it would have been an ordering
 regression.
 
@@ -89,8 +92,8 @@ is the point rather than a loophole.
 Then tag, which triggers `.github/workflows/release.yml`:
 
 ```bash
-git tag v0.8.0
-git push origin v0.8.0
+git tag -a v0.9.0 -m "OAK Community 0.9.0"
+git push origin v0.9.0
 ```
 
 That workflow runs `make check` before `make release`, so a release cannot be cut from a
@@ -170,7 +173,7 @@ running Python or the pnpm-provisioned Node differs from the pins.
 To build the images locally, matching what the workflow does:
 
 ```bash
-docker buildx build --platform linux/amd64 --file deploy/images/api.Dockerfile --tag oak-community/api:0.8.0 --load .
+docker buildx build --platform linux/amd64 --file deploy/images/api.Dockerfile --tag oak-community/api:0.9.0 --load .
 ```
 
 ## Publication
@@ -199,9 +202,9 @@ checksums prove the bytes match the manifest, not who produced them (`RR-005`).
 - [ ] `make verify-release` green
 - [ ] Known limitations published and current
       ([security/residual-risk.md](security/residual-risk.md))
-- [x] Named maintainer, security and licence approvals recorded — see
-      [release/0.8.0/release-decision.md](release/0.8.0/release-decision.md). This is a
+- [ ] Named maintainer, security and licence approvals recorded — see
+      [release/0.9.0/release-decision.md](release/0.9.0/release-decision.md). This is a
       human decision and cannot be self-approved by the person or agent doing the build.
-      `nmasamba` signed all three rows on 2026-09-23. The `v0.8.0` tag had been cut the
-      previous day at the owner's instruction, so for one day the tag existed ahead of the
-      signatures; the record says so. Publication remains a separate decision
+      For `0.9.0` the three rows are unsigned: the owner asked for the release to be cut,
+      and `v0.9.0` was tagged ahead of the signatures, as `v0.8.0` was. The record says
+      so. Publication remains a separate decision

@@ -209,7 +209,7 @@ machine we measured, and later starts take seconds. Check it's up:
 curl http://127.0.0.1:8080/version
 ```
 
-You should see `{"name":"OAK Community","version":"0.8.0",...}`. Now open
+You should see `{"name":"OAK Community","version":"0.9.0",...}`. Now open
 **<http://127.0.0.1:5173>**, paste a brief under "Describe what you want to build", and
 follow the buttons. The [user manual](docs/manual/OAK-Community-Manual.pdf) walks through
 every screen.
@@ -226,7 +226,7 @@ connection after this step.
 git clone https://github.com/nmasamba/OAK.git
 cd OAK
 uv sync --frozen        # builds .venv with the exact, locked dependencies (a minute or two)
-uv run oak --version    # prints 0.8.0
+uv run oak --version    # prints 0.9.0
 ```
 
 `uv run` runs a command inside OAK's own environment, and it works from any folder inside
@@ -388,7 +388,7 @@ printf '%s\n' \
 ```
 
 ```text
-{"id": 1, "jsonrpc": "2.0", "result": {"capabilities": {"tools": {}}, "protocolVersion": "2025-06-18", "serverInfo": {"name": "oak-mcp", "version": "0.8.0"}}}
+{"id": 1, "jsonrpc": "2.0", "result": {"capabilities": {"tools": {}}, "protocolVersion": "2025-06-18", "serverInfo": {"name": "oak-mcp", "version": "0.9.0"}}}
 {"id": 2, "jsonrpc": "2.0", "result": {"tools": [{"name": "oak_design_case_create", ...
 ```
 
@@ -465,7 +465,7 @@ under Docker. The decision record
 
 ## What OAK doesn't do (yet)
 
-OAK Community `0.8.0` is a **local-first developer release**. Be clear about what that
+OAK Community `0.9.0` is a **local-first developer release**. Be clear about what that
 means:
 
 - **It isn't built for live or customer systems.** It makes no production-readiness claim,
@@ -565,9 +565,10 @@ enforces.
 ## Verifying a release
 
 The newest **published** release is `0.7.1`, on the
-[Releases page](https://github.com/nmasamba/OAK/releases). This repository is at `0.8.0`,
-which is tagged and approved but not published anywhere yet. To run `0.8.0`, build it
-from source as described above.
+[Releases page](https://github.com/nmasamba/OAK/releases). This repository is at `0.9.0`,
+which is tagged but not yet approved, and is not published anywhere. `0.8.0` is tagged and
+approved, and is not published either. To run `0.9.0`, build it from source as described
+above.
 
 Each release comes with a `SHA256SUMS` file. It lists a fingerprint (a SHA-256 hash) for
 the wheel, the sdist, the SBOM and the licence list. A fifth file, `build-provenance.json`,

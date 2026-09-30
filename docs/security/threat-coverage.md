@@ -1,6 +1,6 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-# Threat-model coverage index — OAK Community 0.8.0
+# Threat-model coverage index — OAK Community 0.9.0
 
 Which tests exercise which threat, and — more usefully — which threats nothing exercises.
 

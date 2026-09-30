@@ -66,7 +66,7 @@ limitation. If you need a response by a deadline, say so in the report.
 
 ## What this release does and does not assure
 
-OAK Community `0.8.0` is a **local-first developer release**. It carries no production or
+OAK Community `0.9.0` is a **local-first developer release**. It carries no production or
 customer readiness claim, and a release approval is not a deployment approval.
 
 **No external security review was commissioned for this release.** All security work —
@@ -93,22 +93,25 @@ What does exist, and is checkable:
 ## Scanning
 
 `make audit` runs `pip-audit` over the Python dependency closure and `pnpm audit` over the
-web one. Both were re-run clean at `0.8.0`.
+web one. Both were re-run clean at `0.9.0`.
 
 `make scan-images` scans the API and web images with a pinned scanner and **fails on any
-fixable CRITICAL or HIGH finding**. For `0.8.0` the web image reports no findings at any
+fixable CRITICAL or HIGH finding**. For `0.9.0` the web image reports no findings at any
 severity and the API image carries no CRITICAL findings and 44 HIGH with **no vendor fix
-available**. Those 44 are eight distinct advisories: four against `util-linux`, counted
-once for each of the nine packages Debian builds from it. Full record in
-[docs/release/0.8.0/container-scan.md](docs/release/0.8.0/container-scan.md); residue
+available**, the same set as at `0.8.0`. Those 44 are eight distinct advisories: four
+against `util-linux`, counted once for each of the nine packages Debian builds from it.
+Full record in
+[docs/release/0.9.0/container-scan.md](docs/release/0.9.0/container-scan.md); residue
 tracked as `RR-036`.
 
 ## Supported versions
 
 `0.7.1` is the published release, released as a GitHub Release on 2026-09-03 (`v0.7.1`).
-`0.8.0` is tagged `v0.8.0`, is the version this tree builds, and was approved by
-`nmasamba` on 2026-09-23 in all three roles. It is **not published anywhere**: approval
-and publication are separate decisions, and only the first has been taken. `0.7.0` was approved but never published and was re-cut. Only the latest release is
+`0.9.0` is tagged `v0.9.0` and is the version this tree builds. Its approval rows are
+unsigned ([docs/release/0.9.0/release-decision.md](docs/release/0.9.0/release-decision.md)).
+`0.8.0` is tagged `v0.8.0` and was approved by `nmasamba` on 2026-09-23 in all three roles.
+Neither is **published anywhere**: approval and publication are separate decisions.
+`0.7.0` was approved but never published and was re-cut. Only the latest release is
 supported; there is no backport policy yet.
 
 ## Dependencies
