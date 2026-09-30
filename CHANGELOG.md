@@ -4,7 +4,18 @@
 
 All notable changes to OAK Community are recorded here.
 
-## Unreleased
+## 0.9.0 — prepared 2026-09-30, unsigned
+
+Sprint 11 and the fixes merged since `v0.8.0` ship as `0.9.0`. It is a minor release
+because Sprint 11 carries changes that are breaking for install scripts and for plans
+compiled before it, and in the `0.x` series a break lands only in a minor release
+([compatibility.md](docs/compatibility.md)). It also carries one **declared digest
+shift**, listed under "Changed — Sprint 11" with both values, and no other reference digest
+moves. `0.7.1` remains the only **published** release, and `0.8.0` stays approved and
+unpublished. The decision record is
+[`docs/release/0.9.0/release-decision.md`](docs/release/0.9.0/release-decision.md). It is
+unsigned, because approval is a separate human act that the work preparing a release
+cannot self-assign.
 
 ### Added — Sprint 11: install the chosen architecture, test it, record what was observed
 
