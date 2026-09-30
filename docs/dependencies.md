@@ -173,6 +173,28 @@ extra from `pyproject.toml`, `uv lock`, and `KeychainCredentialStore` becomes pe
 Reviews outside a sprint boundary are recorded here, newest first, under the same standard
 as a sprint dependency review.
 
+### 2026-09-30 urllib3 2.7.0 to 2.8.0 (development only)
+
+On 2026-09-30, after the `0.9.0` release build had passed `make audit`, `pip-audit` began
+reporting three advisories against the locked `urllib3` 2.7.0: `CVE-2026-97687`,
+`CVE-2026-97688` and `CVE-2026-97689`, all fixed in 2.8.0. CI's `make audit` step failed
+on the next pushes.
+
+`urllib3` is **not** in the runtime closure. `uv tree --no-dev --invert --package urllib3`
+finds no path to it, and the `0.9.0` release SBOM does not list it. It reaches the
+development environment only through `requests`, which `pip-audit` and its `cachecontrol`
+cache depend on. So neither the wheel nor the API image carries it, and nothing OAK runs
+imports it.
+
+The upgrade was taken anyway, because the audit gate audits the development environment
+and an advisory there is still an advisory. `uv lock --upgrade-package urllib3` moved
+nothing else. Checked for 2.8.0:
+- **Licence:** still MIT.
+- **Supported Python:** 3.10 and later, covering the pinned 3.13.12.
+- **Compatibility:** `requests` 2.34.2 accepts `urllib3>=1.26,<3`.
+
+No advisory was suppressed and no `pip-audit` ignore list was introduced.
+
 ### 2026-08-25 unprivileged nginx base image and the pnpm-managed Node runtime
 
 Two supply-chain changes from the pre-launch hardening, neither a Python or web package.

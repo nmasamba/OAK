@@ -49,6 +49,11 @@ self-assign. Beside it in `docs/release/0.9.0/`:
 - a re-measured benchmark;
 - the clean-room rehearsal.
 
+`urllib3`, a development-only dependency that `pip-audit` pulls in through `requests`,
+moved from 2.7.0 to 2.8.0 after three advisories against 2.7.0 were published on the
+day of the cut (`docs/dependencies.md`). The runtime closure, and so the wheel, its SBOM
+and the images, do not contain it.
+
 ### Added — Sprint 11: install the chosen architecture, test it, record what was observed
 
 - **Two approvals before any install** (`OAK-FR-DEP-005`). `oak approve architecture`
