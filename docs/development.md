@@ -22,7 +22,7 @@ CI and container builds are the reproducible builder boundary. They pin `uv` 0.1
 | `make typecheck` | Run strict Python and TypeScript checking |
 | `make test` | Run unit and contract tests |
 | `make test-integration` | Run local API integration tests |
-| `make test-e2e` | Run CLI/API user-visible smoke tests |
+| `make test-e2e` | Run CLI/API user-visible smoke tests. When a Docker daemon answers, two runner journeys also install and remove the reference case's containers on it; otherwise they skip (see below) |
 | `make openapi-compatibility` | Reproduce OpenAPI/client output and reject local breaking changes |
 | `make web-build` | Build the production web bundle |
 | `make web-e2e` | Run the Playwright browser journey and accessibility suite against the Compose stack |
@@ -30,13 +30,13 @@ CI and container builds are the reproducible builder boundary. They pin `uv` 0.1
 | `make sbom` | Generate a development dependency SBOM under ignored `sbom/`. The *release* SBOM is different and comes from `make release` |
 | `make audit` | Audit the Python and web dependency closures for known advisories. Needs network |
 | `make scan-images` | Build and scan both container images, failing on any **fixable** CRITICAL or HIGH. Needs Docker and network; see [release-process.md](release-process.md) |
-| `make check` | Run the non-destructive repository gate |
+| `make check` | Run the repository gate. It changes nothing in the tree; when a Docker daemon answers, `make test-e2e` also creates and removes containers on it (see below) |
 | `make release` | Build the release artifacts, SBOM, licence inventory and checksums; see [release-process.md](release-process.md) |
 | `make verify-release` | Verify a release directory against its `SHA256SUMS` |
 | `make clean` | Empty the `uv` cache |
 | `make clean-all` | Remove every build artifact, virtual environment and cache in the tree. It does **not** touch a `.oak` workspace — that is your data; see [operations.md](operations.md#uninstall) |
 
-The bootstrap step may use the public package registries, and downloads the pinned Node.js runtime for pnpm on first use. After dependencies are installed, `make check` requires no hosted service, credentials, model provider, database, or public network. It does require `git`: `tools/check_repository.py` shells out to `git check-ignore`.
+The bootstrap step may use the public package registries, and downloads the pinned Node.js runtime for pnpm on first use. After dependencies are installed, `make check` requires no hosted service, credentials, model provider, database, or public network: the runner journeys that drive a real Docker daemon use the pinned stand-in image `docker.io/rancher/mirrored-pause:3.10` only if it is already cached, and are skipped otherwise (`docker pull docker.io/rancher/mirrored-pause@sha256:ee6521f290b2168b6e0935a181d4cff9be1ac3f505666ef0e3c98fae8199917a` once to run them; CI does this as a setup step). It does require `git`: `tools/check_repository.py` shells out to `git check-ignore`.
 
 **`make check` reports success wrongly when backgrounded.** Verify it by counting `make: ***` lines in its output rather than by its exit code.
 
@@ -55,6 +55,13 @@ make test-integration
 ```
 
 CI never sets it, so a green CI run is not evidence those suites ran. Recorded as `RR-019` in [security/residual-risk.md](security/residual-risk.md).
+
+**The Docker-gated runner journeys skip silently too.** Two tests in `tests/e2e/test_runner_journey.py` install the reference case on a real Docker daemon:
+
+- one creates and removes never-started containers against `examples/targets/local-mutation-fixture.yaml`;
+- the other runs the whole install, smoke test, re-apply, observe and rollback journey against `examples/targets/local-started-fixture.yaml`.
+
+They run only when `docker info` answers and the pinned stand-in image is already cached. A `docker` binary with no reachable daemon (Docker Desktop not running, say), or a daemon without the image, is a skip, and the summary line does not distinguish a skip from a pass. Each journey compiles in its own temporary workspace, and an installation's identity includes the workspace that compiled it, so the journeys never adopt or remove the containers of your own install of the reference case.
 
 ## Local DesignCase workflow
 
@@ -139,7 +146,7 @@ oak validate webhook examples/example-webhook-envelope.yaml \
 The MCP surface is design/read only: it cannot approve, sign, dispatch, resolve a secret,
 override policy, select a candidate, run a command, or read a file. Remote mode maps only
 commands that have a REST surface. The local-only commands are
-`init`, `serve`, `mcp serve`, `keys`, `models`, `sign`, `approve`, `revoke-approval`, `dispatch`, `ingest`, `gitops`, `policy`, `render`, `extensions` and `validate`;
+`init`, `serve`, `mcp serve`, `keys`, `models`, `sign`, `approve`, `revoke-approval`, `dispatch`, `ingest`, `observe`, `gitops`, `policy`, `render`, `extensions` and `validate` (`architecture` is not: it works over REST);
 with a server set they refuse with `OAK-REMOTE-UNSUPPORTED` rather than acting on local state.
 
 ## Signed runner

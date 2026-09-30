@@ -21,7 +21,13 @@ from oak.domain import OAKError, canonical_json_bytes, content_digest
 from oak.domain.runner_adapters import (
     ADAPTER_IDENTITY_BY_ID,
     ALLOWED_KINDS_BY_ADAPTER,
+    CONTAINER_ADAPTER_ID,
+    INSTALLATION_SCOPE_EXTENSION,
+    ISOLATION_BY_ACKNOWLEDGEMENT,
     PARAMETER_SCHEMA_BY_ADAPTER,
+    architecture_binding_matches,
+    container_name_for,
+    installation_id_for,
     registry_host,
 )
 
@@ -445,12 +451,9 @@ def verify_dispatch(
             "OAK-RUNNER-PARAMETERS",
             "operation parameters do not satisfy the schema",
         )
-        if allowed_registries is not None and "image_reference" in operation["parameters"]:
-            _check(
-                registry_host(str(operation["parameters"]["image_reference"]))
-                in allowed_registries,
-                "OAK-RUNNER-REGISTRY",
-                "operation image registry is not in the target allowlist",
+        if str(adapter["id"]) == CONTAINER_ADAPTER_ID:
+            _check_installation(
+                operation["parameters"], envelope, plan, target_document, allowed_registries
             )
         _check(
             operation["secret_references"] == [],
@@ -486,6 +489,28 @@ def verify_dispatch(
             _check_approval(
                 required_approval, envelope, local_fingerprint, revoked_approval_ids, now_time
             )
+            if kind == "apply":
+                # An install needs the user's separate approval of the architecture too,
+                # verified here independently of the control plane that dispatched it.
+                architecture_approval = approvals_by_action.get("architecture")
+                _check(
+                    architecture_approval is not None,
+                    "OAK-RUNNER-APPROVAL",
+                    "no architecture approval accompanies the install",
+                )
+                assert architecture_approval is not None
+                _check_approval(
+                    architecture_approval,
+                    envelope,
+                    local_fingerprint,
+                    revoked_approval_ids,
+                    now_time,
+                )
+                _check(
+                    architecture_binding_matches(architecture_approval, bundle, plan),
+                    "OAK-RUNNER-APPROVAL",
+                    "architecture approval binds a different decision or installation",
+                )
         else:
             required_approval = approvals_by_action.get("dry_run")
             _check(
@@ -508,6 +533,83 @@ def verify_dispatch(
         requested_kinds=requested,
         operations=ordered,
     )
+
+
+def _check_installation(
+    parameters: dict[str, Any],
+    envelope: dict[str, Any],
+    plan: dict[str, Any],
+    target_document: dict[str, Any],
+    allowed_registries: Any,
+) -> None:
+    """What an install may touch, re-derived from this runner's own target profile.
+
+    The parameters are already schema-valid; this binds them to the dispatch and to the
+    operator's acknowledgements: the case the envelope names, this target, the container
+    names derived for them, the isolation the profile acknowledges, and for every node an
+    image the profile lists for that component and a registry it allowlists.
+    """
+
+    case_id = str(parameters["case_id"])
+    target_id = str(parameters["target_id"])
+    _check(
+        case_id == envelope["case_id"],
+        "OAK-RUNNER-PARAMETERS",
+        "installation names a different case than the dispatch",
+    )
+    _check(
+        target_id == target_document["id"],
+        "OAK-RUNNER-PARAMETERS",
+        "installation names a different target",
+    )
+    installation_id = str(parameters["installation_id"])
+    _check(
+        installation_id
+        == installation_id_for(
+            plan["design_case_ref"],
+            target_id,
+            str(plan.get("extensions", {}).get(INSTALLATION_SCOPE_EXTENSION, "")),
+        ),
+        "OAK-RUNNER-PARAMETERS",
+        "installation identity is not the one derived from this plan's case and target",
+    )
+    execution = target_document.get("execution")
+    execution = execution if isinstance(execution, dict) else {}
+    acknowledged = ISOLATION_BY_ACKNOWLEDGEMENT.get(str(execution.get("mutation_acknowledgement")))
+    _check(
+        parameters["isolation"] == acknowledged,
+        "OAK-RUNNER-TARGET-CAPABILITY",
+        "target profile does not acknowledge this isolation",
+    )
+    images = {
+        str(entry.get("manifest_id")): entry
+        for entry in execution.get("component_images", [])
+        if isinstance(entry, dict)
+    }
+    names: set[str] = set()
+    for container in parameters["containers"]:
+        name = str(container["container_name"])
+        _check(
+            name == container_name_for(installation_id, str(container["node_id"])),
+            "OAK-RUNNER-PARAMETERS",
+            "container name is not the one derived for this installation and node",
+        )
+        _check(name not in names, "OAK-RUNNER-PARAMETERS", "container names must be unique")
+        names.add(name)
+        image = images.get(str(container["manifest_id"]))
+        _check(
+            image is not None
+            and image.get("image_reference") == container["image_reference"]
+            and image.get("image_digest") == container["image_digest"],
+            "OAK-RUNNER-IMAGE",
+            "installation image is not the one this target acknowledges for the component",
+        )
+        if allowed_registries is not None:
+            _check(
+                registry_host(str(container["image_reference"])) in allowed_registries,
+                "OAK-RUNNER-REGISTRY",
+                "operation image registry is not in the target allowlist",
+            )
 
 
 def _check_approval(

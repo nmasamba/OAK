@@ -5,7 +5,10 @@
 OAK Community is a modular monolith with a separate runner trust domain. The same application
 services now support the offline file workspace and the persistent PostgreSQL/REST control
 plane through deterministic candidate comparison, fixture evaluation, assurance, and
-non-executing plan compilation.
+non-executing plan compilation. On the local file workspace they go further: they sign the
+plan, record the separate architecture and install approvals, dispatch to the separate
+runner, ingest its signed results (`deployed`), and record what the installation was
+observed to do (`observing`).
 
 ```text
 CLI / HTTP / web -> application services -> domain values
@@ -54,7 +57,7 @@ authority.
 
 The local CLI calls shared `DesignCaseService` and `CandidatePlanningService` application operations. The interface maps arguments and output only; application services own orchestration through intake, catalogue, target-profile, and workspace ports. The deterministic compiler maps explicit facts, records inferences and unknowns with scalar provenance, validates catalogue eligibility, expands provider-neutral patterns, rejects hard-constraint failures and unknowns, estimates visible objective ranges, computes the Pareto frontier, evaluates the public fixture, and compiles a draft typed plan.
 
-The bounded MCP server (`oak.interfaces.mcp`) and the CLI's remote (`--server`) mode are additional transports onto the same `CommunityControlPlane`. MCP speaks newline-delimited JSON-RPC 2.0 over stdio with a size-bounded frame reader, exposes exactly the ten interface-contract tools plus a read-only `oak_operation_get` progress query with closed typed schemas that mirror the REST request bounds, and binds actor/tenant with the same denial semantics as REST. It has no generic command, file, secret, policy-override, approval, signing, revocation, or runner-dispatch tool, and a contract test pins the registry to the documented capability matrix. Remote CLI mode maps only commands that have a REST surface, digest-verifies every document it writes locally against the case's canonical references, and refuses every local-only command (init, serve, mcp serve, keys, models, sign, approve, revoke-approval, dispatch, ingest, gitops, policy, render, extensions and validate) with `OAK-REMOTE-UNSUPPORTED`. `interface_origin` (`cli`, `api`, `mcp`, `web`, `portal`, `import`) is audit metadata and never authority; interface conformance is verified by running one fixture across file CLI, remote CLI, REST, and MCP and comparing canonical digests, denial codes, and audit lineage. See [interfaces.md](interfaces.md) and [compatibility.md](compatibility.md).
+The bounded MCP server (`oak.interfaces.mcp`) and the CLI's remote (`--server`) mode are additional transports onto the same `CommunityControlPlane`. MCP speaks newline-delimited JSON-RPC 2.0 over stdio with a size-bounded frame reader, exposes exactly the ten interface-contract tools plus a read-only `oak_operation_get` progress query with closed typed schemas that mirror the REST request bounds, and binds actor/tenant with the same denial semantics as REST. It has no generic command, file, secret, policy-override, approval, signing, revocation, or runner-dispatch tool, and a contract test pins the registry to the documented capability matrix. Remote CLI mode maps only commands that have a REST surface, digest-verifies every document it writes locally against the case's canonical references, and refuses every local-only command (init, serve, mcp serve, keys, models, sign, approve, revoke-approval, dispatch, ingest, observe, gitops, policy, render, extensions and validate) with `OAK-REMOTE-UNSUPPORTED`. `oak architecture` is not local-only: in remote mode it reads the case and its artifacts through the existing REST reads. `interface_origin` (`cli`, `api`, `mcp`, `web`, `portal`, `import`) is audit metadata and never authority; interface conformance is verified by running one fixture across file CLI, remote CLI, REST, and MCP and comparing canonical digests, denial codes, and audit lineage. See [interfaces.md](interfaces.md) and [compatibility.md](compatibility.md).
 
 ## Local persistence and lineage
 
@@ -86,14 +89,17 @@ JSON Schema Draft 2020-12 files in `schemas/` are the external contract authorit
 
 ## Compiler and runner boundary
 
-The compiler bundles synthetic catalogue data and works offline. It emits a byte-stable semantic manifest plus a schema-valid deployment bundle and `draft` runner plan. Explicit target-profile invocation data is tenant-bound and checked against the selected candidate's platform, resource, and read-only operation requirements; the control-plane host is never inferred as the target. For a read-only target profile the plan contains only inventory, validation, rendering, planning, and verification operation kinds; an acknowledged non-production mutation profile additionally receives typed apply, rollback, and destroy operations. Recursive parameter validation rejects command/shell/executable fields in every case. Dispatch and target access require the signing, approval, and runner verification described below.
+The compiler bundles synthetic catalogue data and works offline. It emits a byte-stable semantic manifest plus a schema-valid deployment bundle and `draft` runner plan. Explicit target-profile invocation data is tenant-bound and checked against the selected candidate's platform, resource, and read-only operation requirements; a mutation-capable profile must also acknowledge a digest-pinned image for every component the candidate's nodes use (`preflight.installation`). The control-plane host is never inferred as the target. For a read-only target profile the plan contains only inventory, validation, rendering, planning, and verification operation kinds; an acknowledged non-production mutation profile additionally receives typed apply, rollback, and destroy operations, whose parameters list one container per candidate node that has a component, each with the image the profile acknowledges for it. Recursive parameter validation rejects command/shell/executable fields in every case. Dispatch and target access require the signing, approval, and runner verification described below.
 
 ## Signing, approval, and the runner trust domain
 
 Signing never edits a compiled artifact. The control plane signs an immutable
 `plan-signature` document that binds the plan digest, bundle digest, target identity, and
 locally recomputed target fingerprint; approvals are separate signed documents bound to one
-action, digest pair, target, actor, nonce, and expiry, and revocation publishes a **signed**
+action (`dry_run`, `architecture`, `apply`, `rollback` or `destroy`), digest pair, target,
+actor, nonce, and expiry. An `architecture` approval also names the architecture decision,
+the selected candidate and the digest of what `apply` installs, and an install needs it as
+well as the `apply` approval. Revocation publishes a **signed**
 notice plus a **signed manifest** inventorying the whole notice set by canonical digest
 with a monotonic sequence the runner records in its own home — so an unreadable or
 unsigned notice, a deleted or planted notice, or a set rolled back to an older signed
@@ -112,19 +118,30 @@ replay (the replay ledger failing closed when unreadable), separation of duties,
 compiled verification policy's clauses
 (`allowed_operation_kinds` and `mutation_allowed`, derived from the target and enforced per
 requested kind), adapter identity and parameter-schema digests against a code-level
-allowlist, the target's registry allowlist when it declares one, permission envelopes and
-secret-reference bounds, and a current unrevoked approval for the action class. After a
-container is created, the adapter additionally verifies that the digest the runtime
-actually resolved is the approved one, removing the container on any mismatch. Every check
-fails closed, and unknown kinds, adapters, or schemas are refused rather than skipped.
+allowlist, the installation checked against the runner's own copy of the target profile
+(the dispatch's case and this target, the derived container names, the isolation the
+profile acknowledges, and for every node the image the profile acknowledges for its
+component, from a registry it allowlists when it declares one), permission envelopes and
+secret-reference bounds, and a current unrevoked approval for the action class, which for
+`apply` includes a current architecture approval naming the dispatched decision and
+installation. After each container is created or adopted, the adapter additionally
+verifies that the digest the runtime actually resolved is the approved one. On any failure
+of `apply`, including a failed smoke test of a started container, compensation removes
+exactly the containers that `apply` created; one it adopted is left in place, and one
+carrying another case's labels is never adopted or removed (`OAK-RUNNER-FOREIGN`). Every
+check fails closed, and unknown kinds, adapters, or schemas are refused rather than
+skipped.
 
 Execution brackets each side effect with hash-chained journal entries, so an interrupted
 run resumes into `manual_recovery_required` rather than guessing. Adapters map validated
 typed fields to a fixed allowlisted executable and argument vector with no shell, a
 sanitized environment, and bounded output; the executable allowlist is code, never plan
-data. Evidence is category-filtered, size-capped, and redacted before it leaves the runner.
-Delivery of a dispatch is never success: only a signed, verified runner completion advances
-the case.
+data. Evidence is category-filtered, size-capped, and redacted by key and by value before
+it leaves the runner. Delivery of a dispatch is never success: only a signed, verified
+runner completion advances the case, and ingesting a successful `apply` moves it to
+`deployed`. `oak observe` then records an `observation_record` from those accepted
+completions and moves the case to `observing`; it proposes, promotes and dispatches
+nothing.
 
 ## Governed extensions, policy, and rendering
 

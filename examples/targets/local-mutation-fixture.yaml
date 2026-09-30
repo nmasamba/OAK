@@ -21,11 +21,23 @@ permissions:
   allowed_operations: [inventory, validate, render, plan, verify, apply, rollback, destroy]
 execution:
   mutation_acknowledgement: isolated-non-production-fixture-only
-  container_image_reference: postgres:17.6-alpine
-  container_image_digest: sha256:ef257d85f76e48da1c64832459b59fcaba1a4dac97bf5d7450c77753542eee94
+  component_images:
+    - manifest_id: component.fixture-lexical-search
+      image_reference: rancher/mirrored-pause
+      image_digest: sha256:ee6521f290b2168b6e0935a181d4cff9be1ac3f505666ef0e3c98fae8199917a
+    - manifest_id: component.fixture-local-model
+      image_reference: rancher/mirrored-pause
+      image_digest: sha256:ee6521f290b2168b6e0935a181d4cff9be1ac3f505666ef0e3c98fae8199917a
+    - manifest_id: component.fixture-high-assurance-model
+      image_reference: rancher/mirrored-pause
+      image_digest: sha256:ee6521f290b2168b6e0935a181d4cff9be1ac3f505666ef0e3c98fae8199917a
   allowed_registries: [docker.io]
 secrets:
   allowed_references: []
 notes:
-  - Synthetic non-production target whose only permitted mutation is creating and
-    removing one labelled, network-isolated, never-started fixture container.
+  - Synthetic non-production target. Its only permitted mutation creates one labelled,
+    network-isolated container per node of the selected candidate and removes them again;
+    this profile does not acknowledge starting them, so they are never started.
+  - Every catalogue component is a synthetic fixture, so each maps to the same stand-in
+    image, docker.io/rancher/mirrored-pause:3.10 pinned by its index digest. The stand-in
+    proves the install and removal loop; it implements none of the components.

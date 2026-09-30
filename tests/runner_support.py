@@ -59,6 +59,7 @@ def build_compiled_case(
     *,
     target_name: str = "local-fixture.yaml",
     now: str | None = None,
+    workspace_id: str = "workspace.fixture",
 ) -> ReleaseHarness:
     """Drive a fresh workspace to bundle_compiled against the named target.
 
@@ -74,7 +75,7 @@ def build_compiled_case(
     registry = SchemaRegistry.from_directory(ROOT / "schemas")
 
     design = create_design_case_service(workspace)
-    design.initialize(workspace_id="workspace.fixture", tenant_id="local", created_at=stamp)
+    design.initialize(workspace_id=workspace_id, tenant_id="local", created_at=stamp)
     design.design(
         ROOT / "examples/briefs/public-manual-qa.yaml",
         _context(stamp, "harness-design-000001", None),
@@ -170,3 +171,49 @@ __all__ = [
     "tamper",
     "with_time",
 ]
+
+
+def approve_actions(
+    harness: ReleaseHarness,
+    actions: tuple[str, ...],
+    *,
+    first_version: int,
+) -> str:
+    """Record approvals in order from case version ``0.1.<first_version>``.
+
+    Returns the case version after the last one, so a test can go on to dispatch
+    without counting successors by hand. An install needs both the ``architecture``
+    and the ``apply`` approval, in that order.
+    """
+
+    patch = first_version
+    for action in actions:
+        harness.release.approve(
+            action,
+            harness.context(f"approve-{action.replace('_', '-')}-000001", f"0.1.{patch}"),
+        )
+        patch += 1
+    return f"0.1.{patch}"
+
+
+def resign(document: dict[str, Any], trust_directory: Path, role: str) -> dict[str, Any]:
+    """Re-sign an edited document with the harness's own key for ``role``.
+
+    For cases that must stay authentic after an edit: the runner then refuses on the
+    rule under test, not on a broken signature.
+    """
+
+    from oak.contracts.signatures import signed_payload_bytes
+
+    signer = LocalEd25519Signer.load(trust_directory, role)
+    identity = signer.identity()
+    unsigned = {key: value for key, value in document.items() if key != "signature"}
+    unsigned["signature"] = {
+        "role": identity.role,
+        "key_id": identity.key_id,
+        "algorithm": identity.algorithm,
+        "public_key_base64": identity.public_key_base64,
+        "trust_level": identity.trust_level,
+        "signature_base64": signer.sign(signed_payload_bytes(unsigned)),
+    }
+    return unsigned

@@ -1096,7 +1096,9 @@ def sign(
 
 @app.command()
 def approve(
-    action: Annotated[str, typer.Argument(help="dry_run, apply, rollback, or destroy.")],
+    action: Annotated[
+        str, typer.Argument(help="dry_run, architecture, apply, rollback, or destroy.")
+    ],
     expires_at: Annotated[
         str | None, typer.Option("--expires-at", help="RFC 3339 expiry; default 24 hours.")
     ] = None,
@@ -1124,18 +1126,31 @@ def approve(
         _emit(
             {"case": result.case, "approval": result.document},
             output,
-            human=(
-                f"Recorded {action} approval for {result.case['id']}"
-                + (" (idempotent retry)" if result.duplicate else "")
-            ),
+            human=_approval_human(action, result),
         )
     except (OAKError, ContractValidationError, OSError, RuntimeError, ValueError) as error:
         _abort(error)
 
 
+def _approval_human(action: str, result: Any) -> str:
+    line = f"Recorded {action} approval for {result.case['id']}" + (
+        " (idempotent retry)" if result.duplicate else ""
+    )
+    if action == "architecture" and not result.duplicate:
+        return (
+            line + ". This approves the selected architecture only; nothing is installed until "
+            "an apply approval is also recorded and a runner executes a dispatch."
+        )
+    if action == "apply" and not result.duplicate:
+        return line + ". Installation still needs `oak dispatch apply` and a runner."
+    return line
+
+
 @app.command("revoke-approval")
 def revoke_approval(
-    action: Annotated[str, typer.Argument(help="dry_run, apply, rollback, or destroy.")],
+    action: Annotated[
+        str, typer.Argument(help="dry_run, architecture, apply, rollback, or destroy.")
+    ],
     reason: Annotated[str, typer.Option("--reason", help="Recorded revocation reason.")],
     output: Annotated[
         OutputFormat, typer.Option("--output", help="Output format.")
@@ -1227,6 +1242,142 @@ def ingest(
         )
     except (OAKError, ContractValidationError, OSError, RuntimeError, ValueError) as error:
         _abort(error)
+
+
+@app.command()
+def architecture(
+    candidate_id: Annotated[
+        str | None,
+        typer.Argument(help="Candidate identifier; the selected candidate by default."),
+    ] = None,
+    design_case: Annotated[
+        str | None,
+        typer.Option("--case", help="Design-case identifier; required in remote mode."),
+    ] = None,
+    output: Annotated[
+        OutputFormat, typer.Option("--output", help="Output format.")
+    ] = OutputFormat.HUMAN,
+) -> None:
+    """Print the chosen architecture; nothing is compiled, signed, approved or installed."""
+
+    from oak.application.architecture import (
+        architecture_document,
+        architecture_human,
+        select_candidate_reference,
+    )
+
+    try:
+        remote = _remote()
+        if remote is not None:
+            from oak.interfaces.cli import remote as remote_mode
+
+            case_id = _remote_case_id(design_case)
+            case = remote_mode.require_field(remote.get_case(case_id), "case")
+            if not isinstance(case, dict):
+                raise OAKError("OAK-REMOTE-PROTOCOL", "remote case is invalid")
+            extensions = case.get("extensions", {})
+            reference = select_candidate_reference(case, candidate_id)
+            decision_ref = extensions.get("oak.community/selection_decision_ref")
+            plan_ref = case.get("runner_plan_ref")
+            approval_refs = extensions.get("oak.community/approval_refs", {})
+            document = architecture_document(
+                case=case,
+                candidate=remote.get_artifact(case_id, reference),
+                decision=(
+                    remote.get_artifact(case_id, decision_ref)
+                    if isinstance(decision_ref, dict)
+                    else None
+                ),
+                plan=remote.get_artifact(case_id, plan_ref) if isinstance(plan_ref, dict) else None,
+                approvals={
+                    action: remote.get_artifact(case_id, item)
+                    for action, item in approval_refs.items()
+                    if isinstance(item, dict)
+                },
+                now=_now(),
+            )
+        else:
+            current = _workspace_service().current().case
+            if design_case is not None and design_case != current["id"]:
+                raise OAKError("OAK-CASE-NOT-FOUND", "requested design case is not current")
+            document = _planning_service().architecture(candidate_id, now=_now())
+        _emit(document, output, human=architecture_human(document))
+    except (OAKError, ContractValidationError, OSError, RuntimeError, ValueError) as error:
+        _abort(error)
+
+
+@app.command()
+def observe(
+    output: Annotated[
+        OutputFormat, typer.Option("--output", help="Output format.")
+    ] = OutputFormat.HUMAN,
+    idempotency_key: Annotated[
+        str | None,
+        typer.Option("--idempotency-key", help="Stable retry key; derived by default."),
+    ] = None,
+) -> None:
+    """Record what the installation was observed to do, beside what was predicted."""
+
+    try:
+        _require_local("observe")
+        current = _workspace_service().current().case
+        result = _release_service().record_observation(
+            _context(
+                idempotency_key=idempotency_key,
+                expected_version=str(current["version"]),
+            )
+        )
+        _emit(
+            {"case": result.case, "observation": result.document},
+            output,
+            human=_observation_human(result.case, result.document, duplicate=result.duplicate),
+        )
+    except (OAKError, ContractValidationError, OSError, RuntimeError, ValueError) as error:
+        _abort(error)
+
+
+def _observation_human(case: dict[str, Any], record: dict[str, Any], *, duplicate: bool) -> str:
+    lines = [
+        f"Recorded {record.get('id', 'the observation')} for {case['id']}"
+        + (" (idempotent retry)" if duplicate else "")
+        + f"; the case is {case['status']} and the installation is "
+        + str(record.get("installation_state", "unknown")),
+        "",
+        "Deployment measures (one non-production sample; none of these satisfies a gate):",
+    ]
+    for measure in record.get("deployment_measures", []):
+        if measure["result"] == "unknown":
+            detail = f"unknown — {measure['reason']}"
+        else:
+            detail = f"{measure['result']} ({measure['successes']}/{measure['sample_size']})"
+        lines.append(f"  {measure['id']:<10} {measure['name']:<30} {detail}")
+    lines += ["", "Predicted beside observed:"]
+    for row in record.get("calibration", []):
+        predicted = row["predicted"]
+        interval = (
+            f" [{predicted['lower']}, {predicted['upper']}]"
+            if predicted["lower"] is not None and predicted["upper"] is not None
+            else ""
+        )
+        observed = row["observed"]
+        seen = (
+            str(observed["value"])
+            if observed["status"] == "observed"
+            else f"unknown ({observed['reason_code']})"
+        )
+        lines.append(f"  {row['name']:<34} {predicted['value']} {row['unit']}{interval} -> {seen}")
+    measured = record.get("unpredicted_measurements", [])
+    if measured:
+        lines += ["", "Measured, with no prediction to compare:"]
+        for item in measured:
+            lines.append(f"  {item['node_id']:<34} {item['metric']} {item['value']} {item['unit']}")
+    assurance = record.get("assurance", {})
+    if assurance:
+        status = str(assurance.get("status", "")).replace("_", " ")
+        missing = ", ".join(assurance.get("missing", [])) or "nothing"
+        lines += ["", f"{assurance.get('requirement_id')}: {status}; missing {missing}"]
+    lines.append("Nothing was proposed, promoted or fed back into a dispatch.")
+    return "\n".join(lines)
 
 
 @app.command()

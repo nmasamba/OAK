@@ -1,0 +1,381 @@
+# SPDX-License-Identifier: Apache-2.0
+# Recorded by `oak observe` on 2026-09-29 against examples/targets/local-started-fixture.yaml
+# after one install and one rollback on a local Docker daemon. Non-production fixture evidence.
+assurance:
+  missing:
+  - 'monthly_cost: not_observable_on_fixture'
+  - 'latency_p95: no_request_workload'
+  - 'quality: requires_workload_and_human_review'
+  - 'energy: no_energy_measurement'
+  requirement_id: evidence.observed-calibration
+  status: not_satisfied
+bundle_ref:
+  digest: sha256:cf185173cc8f2a058d8a11e500ab56baf1a170025e54a813e3b48c54a885fd1f
+  id: bundle.candidate-03.target.local-started-fixture
+  media_type: application/vnd.oak.deployment-bundle+json
+  uri: null
+  version: 0.1.0
+calibration:
+- absolute_error: null
+  conditions:
+    hardware: declared linux/x86_64 on target.local-started-fixture; the host itself was not measured
+    workload: none — only install, readiness and resource readings; no request was sent
+  direction: minimize
+  drift: not assessed — a single non-production sample has no baseline to drift from
+  estimator:
+    ref: fixture-cost-1.0.0
+    version: community-fixture-estimators-1.0.0
+  evidence_population: Public manual QA fixture on a declared x86_64 target. (checked 2026-08-16T12:00:00Z)
+  interval_covered: null
+  name: monthly_cost
+  observed:
+    reason: A local fixture install incurs no billed cost; a monthly cost needs a priced deployment observed
+      over a billing period.
+    reason_code: not_observable_on_fixture
+    status: unknown
+    value: null
+  predicted:
+    lower: 32.4
+    upper: 39.6
+    value: 36.0
+  recalibration_decision: none — single non-production sample
+  relative_error: null
+  subject: objective
+  unit: USD/month
+- absolute_error: null
+  conditions:
+    hardware: declared linux/x86_64 on target.local-started-fixture; the host itself was not measured
+    workload: none — only install, readiness and resource readings; no request was sent
+  direction: minimize
+  drift: not assessed — a single non-production sample has no baseline to drift from
+  estimator:
+    ref: fixture-latency-1.0.0
+    version: community-fixture-estimators-1.0.0
+  evidence_population: Public manual QA fixture on a declared x86_64 target. (checked 2026-08-16T12:00:00Z)
+  interval_covered: null
+  name: latency_p95
+  observed:
+    reason: No request workload ran against the installation; container startup time is not request latency.
+    reason_code: no_request_workload
+    status: unknown
+    value: null
+  predicted:
+    lower: 900.0
+    upper: 1500.0
+    value: 1200.0
+  recalibration_decision: none — single non-production sample
+  relative_error: null
+  subject: objective
+  unit: milliseconds
+- absolute_error: null
+  conditions:
+    hardware: declared linux/x86_64 on target.local-started-fixture; the host itself was not measured
+    workload: none — only install, readiness and resource readings; no request was sent
+  direction: maximize
+  drift: not assessed — a single non-production sample has no baseline to drift from
+  estimator:
+    ref: fixture-quality-1.0.0
+    version: community-fixture-estimators-1.0.0
+  evidence_population: Public manual QA fixture on a declared x86_64 target. (checked 2026-08-16T12:00:00Z)
+  interval_covered: null
+  name: quality
+  observed:
+    reason: Answer quality needs a representative workload and human review of the answers.
+    reason_code: requires_workload_and_human_review
+    status: unknown
+    value: null
+  predicted:
+    lower: 0.81
+    upper: 0.91
+    value: 0.86
+  recalibration_decision: none — single non-production sample
+  relative_error: null
+  subject: objective
+  unit: normalized_fixture_score
+- absolute_error: null
+  conditions:
+    hardware: declared linux/x86_64 on target.local-started-fixture; the host itself was not measured
+    workload: none — only install, readiness and resource readings; no request was sent
+  direction: maximize
+  drift: not assessed — a single non-production sample has no baseline to drift from
+  estimator:
+    ref: fixture-operability-1.0.0
+    version: community-fixture-estimators-1.0.0
+  evidence_population: Public manual QA fixture on a declared x86_64 target. (checked 2026-08-16T12:00:00Z)
+  interval_covered: null
+  name: operability
+  observed:
+    reason: Operability is a fixture score with no counterpart a single install can measure.
+    reason_code: not_measured
+    status: unknown
+    value: null
+  predicted:
+    lower: 0.64
+    upper: 0.8
+    value: 0.72
+  recalibration_decision: none — single non-production sample
+  relative_error: null
+  subject: objective
+  unit: normalized_fixture_score
+- absolute_error: null
+  conditions:
+    hardware: declared linux/x86_64 on target.local-started-fixture; the host itself was not measured
+    workload: none — only install, readiness and resource readings; no request was sent
+  direction: minimize
+  drift: not assessed — a single non-production sample has no baseline to drift from
+  estimator:
+    ref: fixture-energy-1.0.0
+    version: community-fixture-estimators-1.0.0
+  evidence_population: Public manual QA fixture on a declared x86_64 target. (checked 2026-08-16T12:00:00Z)
+  interval_covered: null
+  name: energy
+  observed:
+    reason: The runner reads no power or energy counter.
+    reason_code: no_energy_measurement
+    status: unknown
+    value: null
+  predicted:
+    lower: 0.511
+    upper: 0.949
+    value: 0.73
+  recalibration_decision: none — single non-production sample
+  relative_error: null
+  subject: objective
+  unit: Wh/request
+- absolute_error: null
+  conditions:
+    hardware: declared linux/x86_64 on target.local-started-fixture; the host itself was not measured
+    workload: none — only install, readiness and resource readings; no request was sent
+  direction: at_least
+  drift: not assessed — a single non-production sample has no baseline to drift from
+  estimator:
+    ref: public-manual-qa-evaluation-1.0.0
+    version: public-manual-qa-evaluation-1.0.0
+  evidence_population: Deterministic synthetic fixture; no population claim.
+  interval_covered: null
+  name: metric.citation-correctness
+  observed:
+    reason: This metric is adjudicated over answers to a representative workload by a person.
+    reason_code: requires_workload_and_human_review
+    status: unknown
+    value: null
+  predicted:
+    lower: null
+    upper: null
+    value: 0.99
+  recalibration_decision: none — single non-production sample
+  relative_error: null
+  subject: contract_metric
+  unit: proportion
+- absolute_error: null
+  conditions:
+    hardware: declared linux/x86_64 on target.local-started-fixture; the host itself was not measured
+    workload: none — only install, readiness and resource readings; no request was sent
+  direction: at_most
+  drift: not assessed — a single non-production sample has no baseline to drift from
+  estimator:
+    ref: public-manual-qa-evaluation-1.0.0
+    version: public-manual-qa-evaluation-1.0.0
+  evidence_population: Deterministic synthetic fixture; no population claim.
+  interval_covered: null
+  name: metric.unsupported-assertion-rate
+  observed:
+    reason: This metric is adjudicated over answers to a representative workload by a person.
+    reason_code: requires_workload_and_human_review
+    status: unknown
+    value: null
+  predicted:
+    lower: null
+    upper: null
+    value: 0.005
+  recalibration_decision: none — single non-production sample
+  relative_error: null
+  subject: contract_metric
+  unit: proportion
+- absolute_error: null
+  conditions:
+    hardware: declared linux/x86_64 on target.local-started-fixture; the host itself was not measured
+    workload: none — only install, readiness and resource readings; no request was sent
+  direction: at_most
+  drift: not assessed — a single non-production sample has no baseline to drift from
+  estimator:
+    ref: public-manual-qa-evaluation-1.0.0
+    version: public-manual-qa-evaluation-1.0.0
+  evidence_population: Deterministic synthetic fixture; no population claim.
+  interval_covered: null
+  name: metric.latency-p95
+  observed:
+    reason: No request workload ran against the installation; container startup time is not request latency.
+    reason_code: no_request_workload
+    status: unknown
+    value: null
+  predicted:
+    lower: null
+    upper: null
+    value: 1200.0
+  recalibration_decision: none — single non-production sample
+  relative_error: null
+  subject: contract_metric
+  unit: milliseconds
+case_id: design-case.public-manual-qa
+deployment_measures:
+- evidence_refs:
+  - digest: sha256:357fec4cd5455d55e44c54a34c0687c5ba6305757c55f80cbd3bd725d942dca4
+    id: runner-message.completion.lease.public-manual-qa.12.1
+    media_type: application/vnd.oak.runner-message+json
+    uri: null
+    version: 0.1.0
+  id: EV-DEP-01
+  limitations:
+  - 'A single sample cannot satisfy an EV-DEP gate: gates need fixture counts and confidence intervals,
+    and this is one non-production install.'
+  name: Fresh install success
+  reason: null
+  result: pass
+  sample_size: 1
+  satisfies_gate: false
+  successes: 1
+  threshold: 0.95
+  value: 1.0
+- evidence_refs: []
+  id: EV-DEP-02
+  limitations:
+  - 'A single sample cannot satisfy an EV-DEP gate: gates need fixture counts and confidence intervals,
+    and this is one non-production install.'
+  name: Idempotent re-apply success
+  reason: No apply was repeated while the installation was present.
+  result: unknown
+  sample_size: 0
+  satisfies_gate: false
+  successes: 0
+  threshold: 1.0
+  value: null
+- evidence_refs:
+  - digest: sha256:14c71b9dc118692bffa9d7ffbee45ca7883a83e33e562960c8779f6686b89390
+    id: runner-message.completion.lease.public-manual-qa.15.1
+    media_type: application/vnd.oak.runner-message+json
+    uri: null
+    version: 0.1.0
+  id: EV-DEP-03
+  limitations:
+  - 'A single sample cannot satisfy an EV-DEP gate: gates need fixture counts and confidence intervals,
+    and this is one non-production install.'
+  name: Rollback recovery
+  reason: null
+  result: pass
+  sample_size: 1
+  satisfies_gate: false
+  successes: 1
+  threshold: 1.0
+  value: 1.0
+- evidence_refs:
+  - digest: sha256:357fec4cd5455d55e44c54a34c0687c5ba6305757c55f80cbd3bd725d942dca4
+    id: runner-message.completion.lease.public-manual-qa.12.1
+    media_type: application/vnd.oak.runner-message+json
+    uri: null
+    version: 0.1.0
+  id: smoke-test
+  limitations:
+  - 'A single sample cannot satisfy an EV-DEP gate: gates need fixture counts and confidence intervals,
+    and this is one non-production install.'
+  name: Post-install smoke test
+  reason: null
+  result: pass
+  sample_size: 1
+  satisfies_gate: false
+  successes: 1
+  threshold: 1.0
+  value: 1.0
+evaluation_result_ref:
+  digest: sha256:cd2da5aaee7e4b37c1da9b67ef252d57ec5bf2dcb8b5312ed08403b0d0060401
+  id: evaluation-result.candidate-03
+  media_type: application/vnd.oak.evaluation-result+json
+  uri: null
+  version: 0.1.0
+extensions: {}
+id: observation.public-manual-qa.1
+installation_state: removed
+limitations:
+- One install on a non-production local target; nothing here is production evidence.
+- Only installation, readiness and resource readings were observed; the installed images are whatever
+  the operator acknowledged in the target profile, and no request was sent to them.
+- 'A single sample cannot satisfy an EV-DEP gate: gates need fixture counts and confidence intervals,
+  and this is one non-production install.'
+proposals: []
+recorded_at: '2026-09-29T16:54:09Z'
+recorded_by: local-user
+runner_plan_ref:
+  digest: sha256:72df5bf28876591981d80e2c64c4247a77ff5bcce0db4541664c1e7d38accc6e
+  id: runner-plan.bundle.candidate-03.target.local-started-fixture
+  media_type: application/vnd.oak.runner-plan+json
+  uri: null
+  version: 0.1.0
+schema_version: 0.1.0
+selected_candidate_ref:
+  digest: sha256:d63b48d26d386e1cd397febf320f0704110955b6dc72f5fe72db5fe9c0e462d2
+  id: candidate-03
+  media_type: application/vnd.oak.architecture-candidate+json
+  uri: null
+  version: 0.1.0
+source_message_refs:
+- digest: sha256:357fec4cd5455d55e44c54a34c0687c5ba6305757c55f80cbd3bd725d942dca4
+  id: runner-message.completion.lease.public-manual-qa.12.1
+  media_type: application/vnd.oak.runner-message+json
+  uri: null
+  version: 0.1.0
+- digest: sha256:14c71b9dc118692bffa9d7ffbee45ca7883a83e33e562960c8779f6686b89390
+  id: runner-message.completion.lease.public-manual-qa.15.1
+  media_type: application/vnd.oak.runner-message+json
+  uri: null
+  version: 0.1.0
+target:
+  declared_platform: linux/x86_64
+  fingerprint: sha256:9d534283f3a2d661a1ea8040bc8e425270d0137e17580a5de46c6d0ae42c0062
+  id: target.local-started-fixture
+  isolation: network-none-started-hardened
+unpredicted_measurements:
+- container_name: oak-fixture-retrieval-c53414363f52
+  evidence_ref:
+    digest: sha256:357fec4cd5455d55e44c54a34c0687c5ba6305757c55f80cbd3bd725d942dca4
+    id: runner-message.completion.lease.public-manual-qa.12.1
+    media_type: application/vnd.oak.runner-message+json
+    uri: null
+    version: 0.1.0
+  metric: startup_seconds
+  node_id: node.retrieval
+  unit: seconds
+  value: 0.13
+- container_name: oak-fixture-generation-6f5c4ca20441
+  evidence_ref:
+    digest: sha256:357fec4cd5455d55e44c54a34c0687c5ba6305757c55f80cbd3bd725d942dca4
+    id: runner-message.completion.lease.public-manual-qa.12.1
+    media_type: application/vnd.oak.runner-message+json
+    uri: null
+    version: 0.1.0
+  metric: startup_seconds
+  node_id: node.generation
+  unit: seconds
+  value: 0.11
+- container_name: oak-fixture-retrieval-c53414363f52
+  evidence_ref:
+    digest: sha256:357fec4cd5455d55e44c54a34c0687c5ba6305757c55f80cbd3bd725d942dca4
+    id: runner-message.completion.lease.public-manual-qa.12.1
+    media_type: application/vnd.oak.runner-message+json
+    uri: null
+    version: 0.1.0
+  metric: memory_bytes
+  node_id: node.retrieval
+  unit: bytes
+  value: 512000
+- container_name: oak-fixture-generation-6f5c4ca20441
+  evidence_ref:
+    digest: sha256:357fec4cd5455d55e44c54a34c0687c5ba6305757c55f80cbd3bd725d942dca4
+    id: runner-message.completion.lease.public-manual-qa.12.1
+    media_type: application/vnd.oak.runner-message+json
+    uri: null
+    version: 0.1.0
+  metric: memory_bytes
+  node_id: node.generation
+  unit: bytes
+  value: 516096
+version: 0.1.0

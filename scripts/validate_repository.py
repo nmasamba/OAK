@@ -40,6 +40,7 @@ EXAMPLE_BY_SCHEMA = {
     "revocation.schema.json": "example-revocation.yaml",
     "runner-envelope.schema.json": "example-runner-envelope.yaml",
     "runner-message.schema.json": "example-runner-message.yaml",
+    "observation-record.schema.json": "example-observation-record.yaml",
     "runner-plan.schema.json": "example-runner-plan.yaml",
     "review-artifact.schema.json": "example-review-artifact.yaml",
     "source-record.schema.json": "example-source-record.yaml",

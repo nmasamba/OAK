@@ -72,7 +72,7 @@ oak --server http://127.0.0.1:8080 evaluate candidate-03 --case design-case.publ
 `OAK_SERVER` sets the server for a session. `OAK_REMOTE_TIMEOUT` bounds how long
 an asynchronous command polls a durable operation (default 120 s). Remote mode
 requires an explicit design-case identifier (positional, or `--case` on
-`evaluate`/`select`/`assure`/`plan`).
+`evaluate`/`select`/`assure`/`plan`/`architecture`).
 
 ### MCP server
 
@@ -143,6 +143,7 @@ prohibition).
 | Select candidate | ● | ● | ● | — | ● |
 | Create assurance plan | ● | ● | ● | ● | ● |
 | Compile bundle | ● | ● | ● | ● | ● |
+| Read the chosen architecture (`oak architecture`) | ○ | ○ | — | — | — |
 | Read operation progress | — | — | ○ | ○ | ○ |
 | Cancel operation | — | — | ● | — | ● |
 | Export / import case | ● | ● | ● | — | ○ |
@@ -152,8 +153,8 @@ prohibition).
 | Render GitOps files | ● | ✕ | — | ✕ | — |
 | Validate export/bundle/webhook | ● | ✕ | — | — | — |
 | Sign plan | ● | ✕ | — | ✕ | — |
-| Approve / revoke approval | ● | ✕ | — | ✕ | — |
-| Dispatch runner / ingest | ● | ✕ | — | ✕ | — |
+| Approve (`dry_run`, `architecture`, `apply`, `rollback`, `destroy`) / revoke approval | ● | ✕ | — | ✕ | — |
+| Dispatch runner / ingest / record an observation (`oak observe`) | ● | ✕ | — | ✕ | — |
 | Manage keys / extensions / policy | ● | ✕ | — | ✕ | — |
 | Store, verify or remove the Hugging Face token | ● | ✕ | ● | ✕ | ● |
 | Read the catalogue and see the pairs a token can call | ● | ✕ | ● | ✕ | ● |
@@ -164,9 +165,14 @@ prohibition).
 
 Notes:
 
-- The **local-only** commands are `init`, `serve`, `mcp serve`, `keys`, `models`, `sign`, `approve`, `revoke-approval`, `dispatch`, `ingest`, `gitops`, `policy`, `render`, `extensions` and `validate`.
+- The **local-only** commands are `init`, `serve`, `mcp serve`, `keys`, `models`, `sign`, `approve` (every action, including `approve architecture`), `revoke-approval`, `dispatch`, `ingest`, `observe`, `gitops`, `policy`, `render`, `extensions` and `validate`.
   With `--server` set they fail closed with `OAK-REMOTE-UNSUPPORTED` rather than
-  acting on local state, and none of them is reachable over REST or MCP.
+  acting on local state. None of them is reachable over MCP, and none but `models` over
+  REST: the model configuration also has loopback `/v1/models` routes guarded by the
+  per-process capability token (ADR-0016).
+- `oak architecture` is not local-only. In remote mode it is composed from the
+  existing case and artifact reads; REST has no route of its own for it, and it
+  writes nothing.
 - The MCP tool set is exactly the ten interface-contract tools plus the
   read-only `oak_operation_get` progress query. A contract test pins this set;
   a new tool cannot appear without failing it.

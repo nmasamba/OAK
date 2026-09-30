@@ -1,14 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0
 approvals: []
 bundle_ref:
-  digest: sha256:570abb66ee53eb6433588b865fb4a77dc4d5d7133bc1275fbe433a9a37936596
+  digest: sha256:9da17d021cf9f1e61bb73b568927870272d466ec8d869f2ce3201ebaa505b539
   id: bundle.candidate-03.target.local-fixture
   media_type: application/vnd.oak.deployment-bundle+json
   uri: null
   version: 0.1.0
 created_at: '2026-08-18T12:00:00Z'
 design_case_ref:
-  digest: sha256:d092a51a3e3cd601c56391d05eef12ded93539e82082b5099d0841b2b4a93f36
+  digest: sha256:ce08eb939082c9848d0abdc373869a4ca6f2b5c78401380bab4083335d965111
   id: design-case.public-manual-qa
   media_type: application/vnd.oak.design-case+json
   uri: null

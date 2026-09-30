@@ -11,7 +11,14 @@ from oak.domain import OAKError, canonical_json_bytes, content_digest
 from oak.runner.execution import execute_dispatch
 from oak.runner.journal import RunnerJournal
 from oak.runner.verification import RunnerDenialError, TrustAnchors, verify_dispatch
-from tests.runner_support import ROOT, build_compiled_case, read_dispatch, tamper, with_time
+from tests.runner_support import (
+    ROOT,
+    approve_actions,
+    build_compiled_case,
+    read_dispatch,
+    tamper,
+    with_time,
+)
 
 pytestmark = pytest.mark.integration
 
@@ -159,12 +166,12 @@ def test_dispatch_without_approval_is_refused(tmp_path: Path) -> None:
 def test_mutating_dispatch_applies_and_rolls_back(tmp_path: Path) -> None:
     harness = build_compiled_case(tmp_path, target_name=MUTATION_TARGET)
     harness.release.sign_plan(harness.context("signplan-00000001", "0.1.7"))
-    harness.release.approve("dry_run", harness.context("approve-dryrun-0001", "0.1.8"))
-    harness.release.approve("apply", harness.context("approve-apply-00001", "0.1.9"))
-    harness.release.approve("rollback", harness.context("approve-rollbk-0001", "0.1.10"))
+    version = approve_actions(
+        harness, ("dry_run", "architecture", "apply", "rollback"), first_version=8
+    )
     harness.release.dispatch(
         ("apply", "verify", "rollback"),
-        harness.context("dispatch-mutating-1", "0.1.11"),
+        harness.context("dispatch-mutating-1", version),
     )
     envelope, attachments = read_dispatch(harness.mailbox_root)
     verified = verify_dispatch(
@@ -211,12 +218,12 @@ def test_a_disallowed_registry_is_denied_before_any_adapter_exists(tmp_path: Pat
 
     harness = build_compiled_case(tmp_path, target_name=str(variant))
     harness.release.sign_plan(harness.context("signplan-00000001", "0.1.7"))
-    harness.release.approve("dry_run", harness.context("approve-dryrun-0001", "0.1.8"))
-    harness.release.approve("apply", harness.context("approve-apply-00001", "0.1.9"))
-    harness.release.approve("rollback", harness.context("approve-rollbk-0001", "0.1.10"))
+    version = approve_actions(
+        harness, ("dry_run", "architecture", "apply", "rollback"), first_version=8
+    )
     harness.release.dispatch(
         ("apply", "verify", "rollback"),
-        harness.context("dispatch-mutating-1", "0.1.11"),
+        harness.context("dispatch-mutating-1", version),
     )
     envelope, attachments = read_dispatch(harness.mailbox_root)
     with pytest.raises(RunnerDenialError) as caught:
@@ -238,12 +245,12 @@ def test_an_allowlisted_registry_still_verifies(tmp_path: Path) -> None:
 
     harness = build_compiled_case(tmp_path, target_name=MUTATION_TARGET)
     harness.release.sign_plan(harness.context("signplan-00000001", "0.1.7"))
-    harness.release.approve("dry_run", harness.context("approve-dryrun-0001", "0.1.8"))
-    harness.release.approve("apply", harness.context("approve-apply-00001", "0.1.9"))
-    harness.release.approve("rollback", harness.context("approve-rollbk-0001", "0.1.10"))
+    version = approve_actions(
+        harness, ("dry_run", "architecture", "apply", "rollback"), first_version=8
+    )
     harness.release.dispatch(
         ("apply", "verify", "rollback"),
-        harness.context("dispatch-mutating-1", "0.1.11"),
+        harness.context("dispatch-mutating-1", version),
     )
     envelope, attachments = read_dispatch(harness.mailbox_root)
     verified = verify_dispatch(
@@ -386,12 +393,12 @@ def _mutation_dispatch_with_policy(tmp_path: Path, policy: dict, *, now: str | N
 
     harness = build_compiled_case(tmp_path, target_name=MUTATION_TARGET, now=now)
     harness.release.sign_plan(harness.context("signplan-00000001", "0.1.7"))
-    harness.release.approve("dry_run", harness.context("approve-dryrun-0001", "0.1.8"))
-    harness.release.approve("apply", harness.context("approve-apply-00001", "0.1.9"))
-    harness.release.approve("rollback", harness.context("approve-rollbk-0001", "0.1.10"))
+    version = approve_actions(
+        harness, ("dry_run", "architecture", "apply", "rollback"), first_version=8
+    )
     harness.release.dispatch(
         ("apply", "verify", "rollback"),
-        harness.context("dispatch-mutating-1", "0.1.11"),
+        harness.context("dispatch-mutating-1", version),
     )
     envelope, attachments = read_dispatch(harness.mailbox_root)
     reference = dict(envelope["verification_policy_ref"])

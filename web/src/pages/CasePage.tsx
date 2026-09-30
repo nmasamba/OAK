@@ -354,14 +354,20 @@ export function CasePage({ caseId }: { readonly caseId: string }) {
         </section>
       )}
 
-      {(status === "assurance_planned" || status === "bundle_compiled") && (
+      {[
+        "assurance_planned",
+        "bundle_compiled",
+        "deployment_approved",
+        "deployed",
+        "observing",
+      ].includes(status) && (
         <section aria-labelledby="bundle-link-heading" className="panel">
           <h2 id="bundle-link-heading">Compiled bundle</h2>
           <p>
             <Link to={`/cases/${encodeURIComponent(caseId)}/bundle`}>
-              {status === "bundle_compiled"
-                ? "Review the compiled bundle"
-                : "Compile the review bundle"}
+              {status === "assurance_planned"
+                ? "Compile the review bundle"
+                : "Review the compiled bundle"}
             </Link>{" "}
             — normalized review files, component lock, and the explicit
             plan/approval/apply separation.

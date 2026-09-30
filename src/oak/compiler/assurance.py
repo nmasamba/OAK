@@ -57,7 +57,8 @@ def create_assurance_plan(
             {
                 "id": "evidence.observed-calibration",
                 "description": (
-                    "Collect observed target cost, latency, quality and energy before deployment."
+                    "Observe target cost, latency, quality and energy under a representative "
+                    "workload before any production deployment decision."
                 ),
                 "owner": "evaluation-owner",
                 "status": "required",
@@ -75,7 +76,9 @@ def create_assurance_plan(
             {
                 "id": "control.read-only-plan",
                 "description": (
-                    "Limit Sprint 2 runner operations to typed non-mutating planning phases."
+                    "Run only typed runner operations; an install needs a signed plan, a "
+                    "separate architecture approval and an apply approval, each verified "
+                    "again by the runner."
                 ),
                 "owner": "security-reviewer",
                 "status": "satisfied",
@@ -95,8 +98,8 @@ def create_assurance_plan(
                 "gate": "gate_3",
                 "status": "blocked",
                 "reason": (
-                    "Observed calibration, signing, approvals and runner verification are not "
-                    "implemented."
+                    "Observed cost, latency, quality and energy under a representative "
+                    "workload are still missing."
                 ),
                 "owner": "environment-owner",
             },

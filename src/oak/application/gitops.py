@@ -95,7 +95,7 @@ def _patch_description(
         "",
         f"- Plan signature: {'recorded' if isinstance(signature, dict) else 'not recorded'}",
     ]
-    for action in ("dry_run", "apply", "rollback", "destroy"):
+    for action in ("dry_run", "architecture", "apply", "rollback", "destroy"):
         if isinstance(approvals, dict) and action in approvals:
             lines.append(f"- Approval on file for `{action}`")
     lines += [

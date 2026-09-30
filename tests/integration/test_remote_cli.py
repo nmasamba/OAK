@@ -251,6 +251,28 @@ def test_remote_journey_matches_local_semantics(
     assert final_case["version"] == "0.1.7"
 
 
+def test_the_architecture_can_be_read_remotely_as_yaml_without_any_write(
+    live_server: _LiveServer, compiled_remote_case: dict[str, Any]
+) -> None:
+    """A user who wants only the architecture can stop at it, over REST reads alone."""
+
+    import yaml
+
+    before = compiled_remote_case["final_case"]["version"]
+    result = _invoke(live_server.url, "architecture", "--case", CASE_ID, "--output", "yaml")
+
+    assert result.exit_code == 0, result.output
+    document = yaml.safe_load(result.output)["architecture"]
+    assert document["selected"] is True
+    assert document["candidate"]["id"] == "candidate-03"
+    assert document["decision"]["selected_candidate_ref"]["id"] == "candidate-03"
+    # The shipped read-only target cannot install, so there is no installation map.
+    assert document["installation"] is None
+    assert "installed nothing" in document["notice"]
+    after = _invoke(live_server.url, "architecture", "--case", CASE_ID, "--output", "json")
+    assert _stdout_json(after)["architecture"]["case"]["version"] == before
+
+
 def test_remote_state_denials_surface_the_stable_codes(
     live_server: _LiveServer, compiled_remote_case: dict[str, Any]
 ) -> None:
@@ -298,9 +320,11 @@ def test_local_only_commands_fail_closed_in_remote_mode(live_server: _LiveServer
         ["keys", "show"],
         ["sign"],
         ["approve", "dry_run"],
+        ["approve", "architecture"],
         ["revoke-approval", "dry_run", "--reason", "because"],
         ["dispatch", "inventory"],
         ["ingest"],
+        ["observe"],
         ["gitops", "--output", "unused"],
         ["policy", "packs"],
         ["render", "--adapter", "renderer.local-manifests", "--output", "unused"],

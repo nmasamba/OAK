@@ -18,9 +18,9 @@ before reading the platform table.
 
 | Path | What it gives you | Needs |
 |---|---|---|
-| **CLI only** | The whole `init → design → questions → confirm → candidates → evaluate → select → assure → plan → export` journey, plus `models`, `render`, `policy`, `extensions` and `validate`, against a file workspace | Python 3.13 and `uv`. No database, no Docker, and no network after install — unless you configure a model provider with `oak models`, which is optional and off by default |
+| **CLI only** | The whole `init → design → questions → confirm → candidates → evaluate → select → assure → plan → export` journey, plus `architecture`, `models`, `render`, `policy`, `extensions` and `validate`, against a file workspace | Python 3.13 and `uv`. No database, no Docker, and no network after install — unless you configure a model provider with `oak models`, which is optional and off by default |
 | **Control plane** | `oak-api`, `oak-worker`, `oak-db-migrate`, `oak mcp serve`, the REST surface and the web workspace | The CLI row, plus PostgreSQL 17. There is no SQLite fallback. `oak-worker`, `oak-db-migrate` and `oak-mcp` refuse to start without `OAK_DATABASE_URL`; `oak-api` starts but reports `/readyz` as not ready and fails every `/v1` request |
-| **Signed runner** | `oak dispatch`/`oak-runner` against the local fixture profile, including the container apply/rollback cycle | The CLI row, plus a Docker daemon reachable on its default socket |
+| **Signed runner** | `oak dispatch`, `oak-runner`, `oak ingest` and `oak observe` against the shipped fixture profiles, including installing one container per node of the selected candidate, starting and smoke-testing them where the profile allows it, and removing them | The CLI row, plus a Docker daemon reachable on its default socket that can pull the pinned placeholder image anonymously from Docker Hub on the first install |
 
 The Compose profile is the packaged form of the control-plane row: it supplies PostgreSQL,
 the API, the worker and the web bundle, and it pins Python, `uv`, Node.js and `pnpm` inside
@@ -93,12 +93,19 @@ It must print `macosx-11.0-arm64`. If it does not, recreate the environment with
 ### Signed runner
 
 - Everything from the CLI row.
-- **A Docker daemon on its default socket.** The runner's subprocess executor deliberately
-  strips `HOME`, `DOCKER_HOST`, `XDG_RUNTIME_DIR` and `TMPDIR` from the child environment as a
-  hardening measure, which means a daemon that is only reachable through those variables —
-  rootless Docker, Colima, and Podman socket shims are the common cases — is **not** reachable.
-  This is a known limitation, not an oversight; it is recorded as `RR-013` in
+- **A Docker daemon on its default socket.** As a hardening measure, the runner's subprocess
+  executor gives its Docker child only `PATH` and an empty Docker configuration directory
+  that the runner owns under its home. `HOME`, `DOCKER_HOST`, `XDG_RUNTIME_DIR` and `TMPDIR`
+  are never passed, and your `~/.docker/config.json` (registry credentials, credential
+  helpers and CLI contexts) is never read. A daemon that is only reachable through those
+  variables or a CLI context — rootless Docker, Colima, and Podman socket shims are the
+  common cases — is therefore **not** reachable. This is a known limitation, not an
+  oversight; it is recorded as `RR-013` in
   [security/residual-risk.md](security/residual-risk.md).
+- **Anonymous access to Docker Hub for the first install.** The shipped mutation profiles
+  pin `docker.io/rancher/mirrored-pause` by digest, and Docker pulls it, without your
+  registry credentials, the first time `apply` creates a container, unless the daemon
+  already has it.
 
 ### Browser end-to-end (`make web-e2e`)
 

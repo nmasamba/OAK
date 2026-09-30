@@ -20,6 +20,7 @@ import os
 import re
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 from typing import Any
@@ -156,6 +157,24 @@ class RemoteClient:
 
     def current_case_version(self, case_id: str) -> str:
         return str(require_field(self.get_case(case_id), "case", "version"))
+
+    def get_artifact(self, case_id: str, reference: dict[str, Any]) -> dict[str, Any]:
+        """One canonical artifact of the case, refused unless it matches its digest."""
+
+        identifier = urllib.parse.quote(str(reference.get("id", "")), safe="")
+        query = urllib.parse.urlencode(
+            {
+                "version": str(reference.get("version", "")),
+                "digest": str(reference.get("digest", "")),
+            }
+        )
+        document = self._request(
+            "GET",
+            f"/v1/design-cases/{urllib.parse.quote(case_id, safe='')}/artifacts/{identifier}"
+            f"?{query}",
+        )
+        verify_document_digest(document, reference, name=str(reference.get("id")))
+        return document
 
     def create_design_case(
         self, *, original_name: str, content: str, idempotency_key: str

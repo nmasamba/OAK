@@ -165,10 +165,11 @@ function AppShell() {
       </main>
       <footer className="boundary-footer">
         <p>
-          This workspace has no target mutation and no secret resolution, and
-          compiled plans stay draft review artifacts. It contacts a model only
-          for a brief you choose to read with Online AI or Local AI; the default
-          contacts nothing.
+          This web workspace cannot sign, approve, install or observe — those
+          steps run only on the local command line — and it resolves no secret;
+          compiled plans stay draft review artifacts here. It contacts a model
+          only for a brief you choose to read with Online AI or Local AI; the
+          default contacts nothing.
         </p>
       </footer>
     </>

@@ -23,6 +23,9 @@ jobs:
           node-version-file: .node-version
           cache: pnpm
       - run: make bootstrap
+      # The real-daemon runner journeys use a pinned stand-in image and never pull it
+      # themselves (tests need no network); setup fetches it, as bootstrap does packages.
+      - run: docker pull docker.io/rancher/mirrored-pause@sha256:ee6521f290b2168b6e0935a181d4cff9be1ac3f505666ef0e3c98fae8199917a
       - run: make check
       - run: make build
       - run: make audit

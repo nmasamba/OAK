@@ -153,23 +153,59 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "mutation_acknowledgement",
-        "container_image_reference",
-        "container_image_digest"
+        "mutation_acknowledgement"
       ],
       "properties": {
         "mutation_acknowledgement": {
-          "const": "isolated-non-production-fixture-only"
+          "description": "The operator's acknowledgement of what a mutation may do on this target. `isolated-non-production-fixture-only` creates network-isolated containers and never starts them; `isolated-non-production-hardened-start` also starts them under the runner's fixed hardening flags (ADR-0017).",
+          "enum": [
+            "isolated-non-production-fixture-only",
+            "isolated-non-production-hardened-start"
+          ]
         },
         "container_image_reference": {
+          "description": "Deprecated: superseded by component_images. A compile refuses a profile that still declares it rather than silently installing a stand-in for the whole architecture.",
+          "deprecated": true,
           "type": "string",
           "minLength": 3,
           "maxLength": 300,
           "pattern": "^[a-z0-9][a-zA-Z0-9./_:@-]*$"
         },
         "container_image_digest": {
+          "description": "Deprecated: superseded by component_images.",
+          "deprecated": true,
           "type": "string",
           "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "component_images": {
+          "description": "The digest-pinned image the operator acknowledges for each catalogue component this target may install. A locked component with no entry fails compile-time preflight; nothing falls back to another image.",
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "manifest_id",
+              "image_reference",
+              "image_digest"
+            ],
+            "properties": {
+              "manifest_id": {
+                "$ref": "common.schema.json#/$defs/identifier"
+              },
+              "image_reference": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 300,
+                "pattern": "^[a-z0-9][a-zA-Z0-9./_:-]*$"
+              },
+              "image_digest": {
+                "type": "string",
+                "pattern": "^sha256:[a-f0-9]{64}$"
+              }
+            }
+          }
         },
         "allowed_registries": {
           "type": "array",

@@ -69,6 +69,7 @@ The ones that change a trust boundary rather than a path:
 | `OAK_ALLOWED_HOSTS` | Widens the `Host` names the API will answer to, past the loopback names it accepts by default |
 | `OAK_CREDENTIALS_DIRECTORY` | Holds user-supplied model-provider keys and the capability token. Never back it up |
 | `OAK_MODEL_ENDPOINT_LOCAL` | Where the `local` model family sends briefs. Refused unless it is a loopback address, because plain `http` is permitted there |
+| `OAK_RUNNER_TARGET_PROFILE` | Its `execution.mutation_acknowledgement` decides whether the runner only creates containers or also starts them, and its `execution.component_images` decides which images they run. On `isolated-non-production-hardened-start`, those are running processes on this machine (`RR-043`) |
 
 One setting deserves attention before you have any data: **`OAK_ARTIFACT_ROOT` defaults
 to the relative path `.oak/server-artifacts`**, resolved against whatever directory the
@@ -83,6 +84,11 @@ Be realistic about what is available: OAK Community emits **no application logs 
 metrics**. `oak-api` runs uvicorn with `access_log=False`
 (`src/oak/interfaces/api/server.py:36`), and nothing in `src/` configures a logger. What
 you have is a handful of endpoints and the database.
+
+This section is about observing the OAK services themselves. `oak observe` is a different
+thing: it records what an installed architecture did, from signed runner evidence, in an
+`observation_record` (see [Installed architectures](#installed-architectures)). It adds no
+log or metric for OAK.
 
 | Signal | Where | What it tells you |
 |---|---|---|
@@ -120,7 +126,7 @@ directory that is not in either.
 | Signing keys and trust anchors | `$OAK_TRUST_DIRECTORY` (default `~/.oak/trust`) | A **separate**, protected copy |
 | Outbound dispatch mailbox | `$OAK_DISPATCH_MAILBOX` (default `~/.oak/mailbox`) | A filesystem copy, if leases are in flight |
 | Extension quarantine and activations | `$OAK_EXTENSIONS_DIRECTORY` (default `~/.oak/extensions`) | A filesystem copy |
-| Runner identity, journal, consumed nonces and the revocation-sequence mark | `$OAK_RUNNER_HOME` (default `~/.oak/runner`) | A **separate**, protected copy — it holds the runner's own Ed25519 private key |
+| Runner identity, journal, consumed nonces, the revocation-sequence mark, and `docker-config/`, the empty Docker client configuration the runner's `docker` commands use | `$OAK_RUNNER_HOME` (default `~/.oak/runner`) | A **separate**, protected copy — it holds the runner's own Ed25519 private key |
 
 > **A `pg_dump` alone is not a backup.** Artifact bytes are read *only* from the artifact
 > root; the JSONB copy in `artifact_versions.canonical_document` is never read back at
@@ -316,12 +322,15 @@ success, `2` refusal or invalid input, `4` version or idempotency conflict.
 | `OAK-RUNNER-REVOCATION` on every dispatch | The mailbox's `revocations/manifest.json` is missing, the notice set does not match it, or the runner's recorded sequence is ahead of it | Re-publish the revocation state from the control plane (`oak revoke-approval`, or a fresh dispatch establishes an empty manifest). Do not hand-delete notices — the mismatch is the protection working |
 | `OAK-EXPECTED-VERSION` | Someone else advanced the case | Re-read the case and retry with the current version. This is a normal concurrency refusal, not a fault |
 | `OAK-IDEMPOTENCY-CONFLICT` | An idempotency key was reused with different input | Use a new key, or send the original input |
-| `OAK-REMOTE-UNSUPPORTED` | A local-only command was run with `--server` | Signing, approval, dispatch, keys, model-provider configuration, extensions and policy are local-only by design |
+| `OAK-REMOTE-UNSUPPORTED` | A local-only command was run with `--server` | Signing, approval (including `approve architecture`), dispatch, ingest, observation (`oak observe`), keys, model-provider configuration, extensions, policy, rendering and validation are local-only by design; the full list is in [interfaces.md](interfaces.md). `oak architecture` works in remote mode |
 | `OAK-REMOTE-UNAVAILABLE` | The control plane is unreachable | Check the URL and that `oak-api` is up |
 | Server refuses to start | `OAK_DATABASE_URL` unset (`oak-worker`, `oak-db-migrate`, `oak-mcp`), or a non-loopback bind without `OAK_ALLOW_NON_LOOPBACK` | See [configuration.md](configuration.md) |
 | `oak-api` runs but every `/v1` call returns 500 | `OAK_DATABASE_URL` unset — `oak-api` starts regardless | `curl /readyz`: it returns 503 in exactly this case |
 | Artifact reads fail after a restore | The artifact root was not restored with the database | See [Restore](#restore) |
 | Dependency install fails on macOS | An Intel or Rosetta interpreter | See [platforms.md](platforms.md#prerequisites) |
+| `OAK-APPROVAL-ARCHITECTURE` from `oak approve apply` | No current architecture approval for this plan: never recorded, expired, revoked, or the plan was recompiled | Run `oak approve architecture` first, then `oak approve apply` |
+| `OAK-RUNNER-FOREIGN` on apply, rollback or destroy | A container this case does not own already has the derived name | Inspect it with `docker inspect <name>`. The runner never adopts or removes it; remove or rename it yourself if it is yours to remove, then re-dispatch |
+| `OAK-RUNNER-SMOKE-TEST` | A started container exited, became unhealthy, or was not running within 15 s; on a fixture-only profile, a container was not `created` | Read the completion's `test_result` evidence. The containers that apply created have been removed, unless the completion says `manual_recovery_required` |
 
 ---
 
@@ -415,6 +424,42 @@ server, and the default — no flag, any brief — contacts nothing. A stored to
 shown with its age by `oak models status` and is stale after a day (`RR-042`); `oak models
 verify` re-checks it.
 
+## Installed architectures
+
+A selected architecture can be installed on the runner's local Docker daemon, from a
+target profile that acknowledges it. [signed-runner.md](signed-runner.md#installing-testing-and-observing)
+has the whole journey. The commands an operator meets:
+
+| Command | What it does | Where it runs |
+|---|---|---|
+| `oak architecture` | Prints the selected architecture and, once it is compiled for a mutation profile, the image each node would run and which of the two approvals exist. Writes nothing | Local and remote |
+| `oak approve architecture` | Records the approval of the architecture as compiled. Installs nothing, and `oak approve apply` is refused without it (`OAK-APPROVAL-ARCHITECTURE`) | Local only |
+| `oak observe` | Records an `observation_record` from the runner completions that ingest accepted, and moves the case to `observing`. Proposes and dispatches nothing | Local only |
+
+An installation is one container per node of the selected candidate, labelled
+`oak.fixture=true`, `oak.case=<case id>` and `oak.node=<node id>`. On a profile that
+acknowledges `isolated-non-production-hardened-start`, those containers keep running until
+they are removed (`RR-043`). Remove them the signed way, running the runner with its
+environment as in [signed-runner.md](signed-runner.md):
+
+```bash
+oak approve rollback
+oak dispatch rollback
+oak-runner run-once
+oak ingest
+```
+
+The runner removes only containers that carry the case's labels, and proves each is gone.
+If it cannot — no current plan or approval, a lost trust directory, a journal that needs
+manual recovery — remove them by hand:
+
+```bash
+docker ps --all --filter label=oak.fixture=true     # or label=oak.case=<case id>
+docker rm --force --volumes <name>
+```
+
+A removal by hand produces no runner completion, so `oak observe` cannot see it.
+
 ## Uninstall
 
 Removing OAK means four separate things. Doing only the first leaves your design cases,
@@ -430,7 +475,7 @@ docker volume rm -f oak-community_oak-model-state 2>/dev/null || true
 # image uses `<org>/<name>`. Both exist in practice, so remove both.
 docker image rm -f $(docker image ls -q 'oak-community-*') 2>/dev/null || true
 docker image rm -f $(docker image ls -q 'oak-community/*') 2>/dev/null || true
-docker rm -f $(docker ps -aq --filter "label=oak.fixture=true") 2>/dev/null || true
+docker rm --force --volumes $(docker ps -aq --filter "label=oak.fixture=true") 2>/dev/null || true
 
 # 2. Home-directory state: PRIVATE KEYS, provider keys, mailbox, extensions, runner journals
 #    (~/.oak/credentials holds any provider key the CLI stored in the file backend)
@@ -455,8 +500,10 @@ them yourself.
 
 The same applies to the third-party images OAK causes Docker to pull: `postgres:17.6-alpine`,
 `python:3.13.12-slim`, `node:24.18.0-alpine`, `nginxinc/nginx-unprivileged:1.29.1-alpine`,
-`ghcr.io/astral-sh/uv:0.10.8` (a build stage of the API image), and `aquasec/trivy` if you
-ran `make scan-images`. Neither the commands above nor
+`ghcr.io/astral-sh/uv:0.10.8` (a build stage of the API image),
+`docker.io/rancher/mirrored-pause:3.10` (pinned by digest; pulled when `oak-runner` installs
+from a shipped mutation profile, and by the Docker-gated end-to-end tests), and
+`aquasec/trivy` if you ran `make scan-images`. Neither the commands above nor
 `scripts/check_clean_machine.py` touches or reports them, because they are shared Docker
 state rather than OAK's. Remove them with `docker image rm` if you want the disk back.
 

@@ -13,7 +13,7 @@ from oak.domain.runner_adapters import (
     ADAPTER_IDENTITY_BY_ID,
     CONTAINER_PARAMETER_SCHEMA,
 )
-from oak.runner.adapters import CommandResult, ContainerFixtureAdapter
+from oak.runner.adapters import ContainerFixtureAdapter
 from tests.extension_kit import (
     check_argv_injection_resistance,
     check_engine_determinism,
@@ -94,42 +94,25 @@ def test_adapter_binding_templates_reference_registered_identities() -> None:
 
 
 def test_container_adapter_passes_argv_and_rollback_kit_checks() -> None:
-    calls: list[tuple[str, ...]] = []
-    digest = "sha256:" + "a" * 64
+    from tests.container_support import FakeDocker, parameters
 
-    def recording_executor(argv: tuple[str, ...], timeout_seconds: int) -> CommandResult:
-        calls.append(argv)
-        if argv[:2] == ("docker", "inspect"):
-            return CommandResult(returncode=0, stdout="sha256:imageid\n", stderr="")
-        if argv[:3] == ("docker", "image", "inspect"):
-            return CommandResult(
-                returncode=0,
-                stdout=f'["registry.example.invalid/fixture@{digest}"]\n',
-                stderr="",
-            )
-        return CommandResult(returncode=0, stdout="", stderr="")
-
-    adapter = ContainerFixtureAdapter(recording_executor)
+    docker = FakeDocker()
+    adapter = ContainerFixtureAdapter(docker)
 
     def invoke(parameters: dict[str, Any]) -> Any:
         jsonschema.validate(parameters, CONTAINER_PARAMETER_SCHEMA)
         return adapter.apply(parameters, 60)
 
     check_argv_injection_resistance(invoke)
-    assert calls == [], "an injection fixture reached the executor"
+    assert docker.calls == [], "an injection fixture reached the executor"
 
     def apply_then_rollback() -> tuple[list[tuple[str, ...]], list[tuple[str, ...]]]:
-        parameters = {
-            "container_name": "oak-fixture-kit",
-            "image_reference": "registry.example.invalid/fixture",
-            "image_digest": "sha256:" + "a" * 64,
-            "isolation": "network-none-never-started",
-        }
-        calls.clear()
-        adapter.apply(parameters, 60)
-        apply_calls = list(calls)
-        calls.clear()
-        adapter.rollback(parameters, 60)
-        return apply_calls, list(calls)
+        document = parameters()
+        docker.calls.clear()
+        adapter.apply(document, 60)
+        apply_calls = list(docker.calls)
+        docker.calls.clear()
+        adapter.rollback(document, 60)
+        return apply_calls, list(docker.calls)
 
     check_typed_rollback(apply_then_rollback)

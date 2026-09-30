@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
 approval_refs:
-- digest: sha256:c77db9de8d343588b5020e6197ed83eaed0607c5ad1418087de53508e4bf2c1e
+- digest: sha256:feb0e7aa963d0f575735a16fad6b03efdc846bb3e3df623b9774982f4fc6fa59
   id: approval.dry-run.bundle.candidate-03.target.local-fixture
   media_type: application/vnd.oak.approval+json
   uri: null
   version: 0.1.0
 bundle_ref:
-  digest: sha256:570abb66ee53eb6433588b865fb4a77dc4d5d7133bc1275fbe433a9a37936596
+  digest: sha256:9da17d021cf9f1e61bb73b568927870272d466ec8d869f2ce3201ebaa505b539
   id: bundle.candidate-03.target.local-fixture
   media_type: application/vnd.oak.deployment-bundle+json
   uri: null
@@ -22,15 +22,15 @@ lease:
   heartbeat_seconds: 30
   issued_at: '2026-08-18T12:00:00Z'
   lease_id: lease.public-manual-qa.11
-  nonce: 69c165e37949eada47cda5dce361ff036bca6604dec4eed155ecd741c846ead7
+  nonce: 222351cfe6dc7d01d5239afe120fe2ec3c8ba13dd275b437bbb7db8ff3b7d3f6
 plan_ref:
-  digest: sha256:fad309590f1d09da0019f52dce9bd3d31da5b6285f5246d899657a8f161e18c4
+  digest: sha256:03c4541ade1943cd9e824eabb0a00290190fc2b30a08c737d237052e12dd6de0
   id: runner-plan.bundle.candidate-03.target.local-fixture
   media_type: application/vnd.oak.runner-plan+json
   uri: null
   version: 0.1.0
 plan_signature_ref:
-  digest: sha256:9299a6c531c2579f94246d7d876cbdd02741ec35ec5bc41f4ec4a9929675eedc
+  digest: sha256:5d013609b7bc1c54efadd3ad391e5d973a5da0dc7b265aaf5171462dd94fe88a
   id: plan-signature.bundle.candidate-03.target.local-fixture
   media_type: application/vnd.oak.plan-signature+json
   uri: null
@@ -45,10 +45,10 @@ requested_kinds:
 schema_version: 0.1.0
 signature:
   algorithm: ed25519
-  key_id: sha256:6cb6e116fd981a4394a96c0cec5396adcba892389fc8378a720404c09e9a5077
-  public_key_base64: ZETFag/nkn2Q+VEueCUzWYA7H9st8K++kUDtqhb6KEM=
+  key_id: sha256:6392bf3108b051d41abed2e980c9bdd65efd5cadc93b254094000577283f2d13
+  public_key_base64: It5hCq3pe4kHhd/81ZqR9ESdflDHYMFWvqELpikAUF8=
   role: plan-signer
-  signature_base64: vZagbgIPcxJRQVLeGVKx769Xl4+MNtCOfuOJGa7G7VilRrC9A5cEe/FyDxfmEPAXEIzjlnJ5hsujIdQmRju+Bw==
+  signature_base64: aeMbuXAh15xKS2Ru2DLNJovMnoLE5ENkvlo0V4SMGKIGU1ml0IL0g1Qme/mc46kcImlmb0m8Zfcwozo5s6b4Bg==
   trust_level: development
 target_fingerprint: sha256:7cd2b29057fc061f1c82bd627b305176fa347e73feaed0fc8d6838fd7d8ddcfb
 target_id: target.local-fixture
