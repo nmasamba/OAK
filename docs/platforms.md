@@ -2,7 +2,7 @@
 
 # Supported platforms
 
-This is the authoritative statement of where OAK Community `0.8.0` is supported, what
+This is the authoritative statement of where OAK Community `0.9.0` is supported, what
 "supported" means for each row, and what is deliberately out of scope. Prerequisites that
 used to be scattered across [README.md](../README.md), [development.md](development.md) and
 [dependencies.md](dependencies.md) are consolidated here.
@@ -29,11 +29,12 @@ the build images so the host needs none of them.
 ## Platform matrix
 
 "Verified" means the path was actually exercised on that platform during a release
-rehearsal. The current evidence is the `0.8.0` rehearsal
-([release/0.8.0/clean-room.md](release/0.8.0/clean-room.md)), which re-ran both verified
+rehearsal. The current evidence is the `0.9.0` rehearsal
+([release/0.9.0/clean-room.md](release/0.9.0/clean-room.md)), which re-ran both verified
 paths: the CLI journey inside a linux/amd64 image, and the Compose control plane on macOS
-arm64 through a full backup-and-restore. The `0.7.0` rehearsal
-([release/0.7.0/clean-room.md](release/0.7.0/clean-room.md)) is kept as the earlier record.
+arm64 through a full backup-and-restore. The `0.8.0` and `0.7.0` rehearsals
+([release/0.8.0/clean-room.md](release/0.8.0/clean-room.md),
+[release/0.7.0/clean-room.md](release/0.7.0/clean-room.md)) are kept as earlier records.
 "Expected" means every dependency publishes a wheel or image for the platform but nobody ran
 it end to end; treat it as unsupported until someone does and records it. A row is downgraded
 to "Expected" rather than argued up — the Linux x86_64 control-plane row is Expected because
@@ -120,13 +121,13 @@ pnpm --dir web exec playwright install --with-deps chromium
 
 ## Kubernetes
 
-**OAK Community `0.8.0` ships no Kubernetes profile, and this is a decision rather than an
+**OAK Community `0.9.0` ships no Kubernetes profile, and this is a decision rather than an
 omission.** `OAK-S8-001` asks for "a documented lightweight Kubernetes profile where
 feasible"; it is not feasible for this release, for four specific reasons:
 
 1. **There are no images to pull.** Every Compose service builds from a local context. A
    cluster cannot build from a local context, so a Kubernetes profile presupposes published
-   images — which no Community release publishes, `0.8.0` included (see
+   images — which no Community release publishes, `0.9.0` included (see
    [release-process.md](release-process.md)).
 2. **The API and worker share a filesystem artifact store.** Artifact bytes are
    content-addressed files under `OAK_ARTIFACT_ROOT`; the PostgreSQL JSONB copy is never read

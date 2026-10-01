@@ -262,7 +262,8 @@ def measure_api_reads(requests: int) -> dict[str, Any]:
     return {
         "description": (
             "Sequential single-client reads over loopback HTTP against a file-backed "
-            "control plane holding one interpreted reference case."
+            "control plane holding one reference case, created through the API and not "
+            "interpreted."
         ),
         "requirement": "OAK-NFR-PERF-002 (p95 interactive read within 500 ms)",
         "caveat": (

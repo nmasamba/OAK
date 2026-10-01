@@ -9,8 +9,11 @@ Then you'll take
 **one** server-side case through the other four ways in, one step at a time, and finish
 by checking that both runs compiled exactly the same design.
 
-It takes about twenty minutes. Every command and every output below comes from a real run
-against OAK Community `0.8.0`.
+It takes about twenty minutes. Every command and every output in the code blocks below
+comes from a real run against OAK Community `0.8.0`. On `0.9.0` they print the same except
+the version. The tour stops at a compiled bundle, and none of the commands it runs changed;
+`oak architecture`, mentioned at the end of Part 1, is new in `0.9.0`. The design fingerprint
+it compares is a pinned reference value that `0.9.0` did not move.
 
 | Part | Where it happens | What it shows |
 |---|---|---|
@@ -22,7 +25,8 @@ against OAK Community `0.8.0`.
 ## Before you start
 
 - **The Docker stack is running** (see the [README](../README.md#the-docker-way-the-browser-workspace)),
-  and `curl http://127.0.0.1:8080/version` reports `0.8.0`.
+  and `curl http://127.0.0.1:8080/version` reports the version you built (`0.9.0` for
+  this tree).
 - **The command line is set up** with `uv sync --frozen` (see the
   [README](../README.md#the-source-way-the-command-line)).
 - **Run everything from the root of your checkout**, the `OAK` folder that holds

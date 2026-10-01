@@ -173,6 +173,28 @@ extra from `pyproject.toml`, `uv lock`, and `KeychainCredentialStore` becomes pe
 Reviews outside a sprint boundary are recorded here, newest first, under the same standard
 as a sprint dependency review.
 
+### 2026-09-30 urllib3 2.7.0 to 2.8.0 (development only)
+
+On 2026-09-30, after the `0.9.0` release build had passed `make audit`, `pip-audit` began
+reporting three advisories against the locked `urllib3` 2.7.0: `CVE-2026-97687`,
+`CVE-2026-97688` and `CVE-2026-97689`, all fixed in 2.8.0. CI's `make audit` step failed
+on the next pushes.
+
+`urllib3` is **not** in the runtime closure. `uv tree --no-dev --invert --package urllib3`
+finds no path to it, and the `0.9.0` release SBOM does not list it. It reaches the
+development environment only through `requests`, which `pip-audit` and its `cachecontrol`
+cache depend on. So neither the wheel nor the API image carries it, and nothing OAK runs
+imports it.
+
+The upgrade was taken anyway, because the audit gate audits the development environment
+and an advisory there is still an advisory. `uv lock --upgrade-package urllib3` moved
+nothing else. Checked for 2.8.0:
+- **Licence:** still MIT.
+- **Supported Python:** 3.10 and later, covering the pinned 3.13.12.
+- **Compatibility:** `requests` 2.34.2 accepts `urllib3>=1.26,<3`.
+
+No advisory was suppressed and no `pip-audit` ignore list was introduced.
+
 ### 2026-08-25 unprivileged nginx base image and the pnpm-managed Node runtime
 
 Two supply-chain changes from the pre-launch hardening, neither a Python or web package.
@@ -188,8 +210,8 @@ runtime paths — and pinned by tag plus immutable digest, with the pin guarded 
 publisher already maintains. The publisher changes from the Docker Official Images
 programme to the `nginxinc` organisation — the upstream NGINX maintainers themselves —
 and the image lags Alpine's patch stream exactly as the official one did, so the
-`apk upgrade` layer and the scan gate carry over unchanged. The `0.8.0` scan reports no
-findings at any severity for the rebuilt image, as `0.7.1` did. Rollback is restoring the previous `FROM`
+`apk upgrade` layer and the scan gate carry over unchanged. The `0.9.0` scan reports no
+findings at any severity for the rebuilt image, as the `0.8.0` and `0.7.1` scans did. Rollback is restoring the previous `FROM`
 line and its pin.
 
 **pnpm-managed Node.js runtime.** The capability gap was `RR-034`: nothing made the Node
@@ -228,9 +250,10 @@ would make the gate's verdict depend on when it ran.
 
 The scanner's own vulnerability database is fetched at run time and is not pinned; that is
 inherent to vulnerability scanning and is why the scan is a release step rather than part
-of `make check`, which must work offline. Results for `0.8.0` are recorded in
-`docs/release/0.8.0/container-scan.md`; the superseded `0.7.1` and `0.7.0` records remain at
-`docs/release/0.7.1/container-scan.md` and `docs/release/0.7.0/container-scan.md`.
+of `make check`, which must work offline. Results for `0.9.0` are recorded in
+`docs/release/0.9.0/container-scan.md`; the earlier `0.8.0`, `0.7.1` and `0.7.0` records
+remain at `docs/release/0.8.0/container-scan.md`, `docs/release/0.7.1/container-scan.md`
+and `docs/release/0.7.0/container-scan.md`.
 
 ### 2026-08-21 jsonschema `format` extra removed
 

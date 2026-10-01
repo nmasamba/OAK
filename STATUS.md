@@ -2,12 +2,12 @@
 
 # Build status
 
-- **Updated:** 2026-09-29
-- **Repository version:** `0.8.0`
-- **Phase:** Sprint 11 complete on branch `sprint-11-install-observe`, pull request open; the merge is the owner's. After a user has approved the architecture and the installation step separately, OAK installs the chosen candidate's topology on the acknowledged non-production local target as network-isolated containers (started and smoke-tested only where the profile acknowledges it), and `oak observe` records what was observed beside what was predicted; `oak architecture` lets a user stop at the design (`OAK-S11-001`–`008`, authorized 2026-09-29). Sprint 10 (`OAK-S10-001`–`008`) is merged as PR #22 (`052211e`). Sprint 9 (`OAK-S9-001`–`009`) is merged as PR #21 (`88fa876`). `0.8.0` is **tagged `v0.8.0` and approved**: the touch-list, changelog section, decision record and evidence are in the tree, the tag was cut on 2026-09-22 on the owner's instruction, and `nmasamba` signed all three rows of `docs/release/0.8.0/release-decision.md` on 2026-09-23. Nothing is published. `0.7.1` was approved by `nmasamba` on 2026-08-27 and **published as a GitHub Release on 2026-09-03**; nothing about it changes here
+- **Updated:** 2026-09-30
+- **Repository version:** `0.9.0`
+- **Phase:** `0.9.0` cut, tagged `v0.9.0`, approval rows unsigned (`OAK-S11-009`, at the owner's instruction on 2026-09-30): the version touch-list, the changelog section, a fresh image scan, the release build, a clean-room rehearsal and `docs/release/0.9.0/release-decision.md`, whose three rows are the owner's to sign. Nothing is published. Sprint 11 (`OAK-S11-001`–`008`, authorized 2026-09-29) is merged as PR #30 (`cb28160`): after a user has approved the architecture and the installation step separately, OAK installs the chosen candidate's topology on the acknowledged non-production local target as network-isolated containers (started and smoke-tested only where the profile acknowledges it), and `oak observe` records what was observed beside what was predicted; `oak architecture` lets a user stop at the design. Sprint 10 (`OAK-S10-001`–`008`) is merged as PR #22 (`052211e`). Sprint 9 (`OAK-S9-001`–`009`) is merged as PR #21 (`88fa876`). `0.8.0` is **tagged `v0.8.0` and approved**: the tag was cut on 2026-09-22 on the owner's instruction, and `nmasamba` signed all three rows of `docs/release/0.8.0/release-decision.md` on 2026-09-23. It is published nowhere. `0.7.1` was approved by `nmasamba` on 2026-08-27 and **published as a GitHub Release on 2026-09-03**; nothing about it changes here
 - **Completed plans:** `docs/exec-plans/completed/OAK-S0-001-009-walking-skeleton.md`, `docs/exec-plans/completed/OAK-S1-001-010-local-design-case.md`, `docs/exec-plans/completed/OAK-S2-001-011-candidate-planning.md`, `docs/exec-plans/completed/OAK-S3-001-009-persistent-rest-jobs.md`, `docs/exec-plans/completed/OAK-S4-001-009-web-workspace.md`, `docs/exec-plans/completed/OAK-S5-001-011-signed-runner.md`, `docs/exec-plans/completed/OAK-S6-001-008-policy-adapter-sdk.md`, `docs/exec-plans/completed/OAK-S7-001-008-mcp-portal-interface-parity.md`, `docs/exec-plans/completed/OAK-S8-001-009-community-release-hardening.md`, `docs/exec-plans/completed/OAK-PL-001-007-pre-launch-hardening.md`, `docs/exec-plans/completed/OAK-FS-001-003-final-sweep.md`, `docs/exec-plans/completed/OAK-S9-001-009-model-provider-intake.md`, `docs/exec-plans/completed/OAK-S10-001-008-huggingface-only-modes.md`, and `docs/exec-plans/completed/OAK-S11-001-008-install-test-observe.md`
 - **Active plan:** none — Sprint 11 is complete; its plan is `docs/exec-plans/completed/OAK-S11-001-008-install-test-observe.md`
-- **Next task:** none authorized beyond the owner's review and merge of the Sprint 11 pull request. What remains after it, each needing an owner decision: observing cost, latency, quality and energy under a representative workload (every calibration row is `unknown` today), a web observation view, and evidence-backed change proposals. `0.8.0` is tagged `v0.8.0`, approved and published nowhere; publishing it, PyPI and a container registry remain separate owner decisions.
+- **Next task:** none authorized. The three approval rows of `docs/release/0.9.0/release-decision.md` are the owner's to sign or decline. Publishing `0.9.0` or `0.8.0`, PyPI and a container registry remain separate owner decisions. What remains after the release, each needing an owner decision: observing cost, latency, quality and energy under a representative workload (every calibration row is `unknown` today), a web observation view, and evidence-backed change proposals.
 
 ## Claimed work
 
@@ -132,6 +132,7 @@
 | `OAK-S11-006` | complete | Full gate with PostgreSQL, the real-daemon journey, the browser suite on a throwaway stack, mutation checks on every new guard and fix, six-lens adversarial audit (28 of 29 findings survived; all fixed) |
 | `OAK-S11-007` | complete | Documentation and coherence in both repositories, `RR-043` (count 43), `RR-023` re-scored, threat-coverage verdicts, ADR-0017 and its mirror, the manual's chapter 6 run against Docker, screenshots and PDF regenerated |
 | `OAK-S11-008` | complete | Plan in `completed/`, status and changelogs in both repositories, PR opened for the owner's merge; no tag, no release |
+| `OAK-S11-009` | complete | `0.9.0` cut after the Sprint 11 merge, at the owner's instruction: version touch-list, `0.9.0` changelog section, image scan from a clean tree, release build and verification, clean-room rehearsal, `docs/release/0.9.0/release-decision.md` with its evidence filled and its three approval rows unsigned, and the `v0.9.0` tag on the merge commit of the release pull request. Nothing published |
 
 ## Verification evidence
 
@@ -336,7 +337,8 @@
   jsonschema as "MIT". Nothing constructs a `FormatChecker`, so no behaviour changed. The
   generated inventory now shows LGPL-3.0 Psycopg as the only copyleft entry.
 - Security review produced `docs/security/threat-coverage.md`,
-  `docs/security/residual-risk.md` (43 stable-id entries) and `SECURITY.md`. At Sprint 8 the
+  `docs/security/residual-risk.md` (38 entries at the `0.7.0` release, each with a stable id;
+  now 43 stable-id entries) and `SECURITY.md`. At Sprint 8 the
   coverage index mapped all nineteen threat ids then defined to tests (8 direct, 9 partial,
   2 structural, 0 uncovered, every cited test verified to exist); it now maps twenty
   (10 direct, 9 partial, 1 structural). **No
@@ -413,8 +415,9 @@
   over a fail-closed channel — each denial path
   adversarially tested, including a full `run_once` denial that leaves no journal.
   That release was approved on 2026-08-27 and published on 2026-09-03
-  (`docs/release/0.7.1/release-decision.md`); the record awaiting a human approval now is
-  `docs/release/0.8.0/release-decision.md`.
+  (`docs/release/0.7.1/release-decision.md`); `0.8.0` was approved on 2026-09-23
+  (`docs/release/0.8.0/release-decision.md`), and the record awaiting a human approval now
+  is `docs/release/0.9.0/release-decision.md`.
 - The final documentation sweep (`OAK-FS-001`–`003`, 2026-08-25) was verified rather
   than assumed: a six-dimension multi-agent review of the sweep branch (vendor-reference
   completeness including PDF/PNG binary content, manual coverage and truthfulness

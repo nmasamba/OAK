@@ -4,7 +4,30 @@
 
 All notable changes to OAK Community are recorded here.
 
-## Unreleased
+## 0.9.0 — tagged 2026-09-30, approvals unsigned
+
+Sprint 11 and the fixes merged since `v0.8.0` ship as `0.9.0`. It is a minor release
+because Sprint 11 carries changes that are breaking for install scripts, for plans
+compiled before it, and for mutation target profiles that still declare the single image
+pair, and in the `0.x` series a break lands only in a minor release
+([compatibility.md](docs/compatibility.md)). It also carries one **declared digest
+shift**, listed under "Changed — Sprint 11" with both values, and no other reference digest
+moves. `0.7.1` remains the only **published** release, and `0.8.0` stays approved and
+unpublished. The decision record is
+[`docs/release/0.9.0/release-decision.md`](docs/release/0.9.0/release-decision.md). Its
+approval rows are unsigned: the tag was cut on the owner's instruction, as `v0.8.0`'s was,
+and approval is a separate human act that the work preparing a release cannot
+self-assign. Beside it in `docs/release/0.9.0/`:
+- the image scan, with per-image SBOMs and unsigned provenance;
+- a comparison of the reference case with `v0.8.0`, showing that nothing moved except the
+  declared shift;
+- a re-measured benchmark;
+- the clean-room rehearsal.
+
+`urllib3`, a development-only dependency that `pip-audit` pulls in through `requests`,
+moved from 2.7.0 to 2.8.0 after three advisories against 2.7.0 were published on the
+day of the cut (`docs/dependencies.md`). The runtime closure, and so the wheel, its SBOM
+and the images, do not contain it.
 
 ### Added — Sprint 11: install the chosen architecture, test it, record what was observed
 
@@ -90,7 +113,7 @@ All notable changes to OAK Community are recorded here.
   - a target profile carrying `component_images` or the new acknowledgement;
   - an audit event `observation_recorded`;
   - a manifest listing an `observation_record`.
-- **Target profiles.** A mutation-capable profile that still declares
+- **Breaking for mutation target profiles:** a mutation-capable profile that still declares
   `container_image_reference`/`container_image_digest` is refused at compile
   (`OAK-TARGET-EXECUTION`), with the field to use instead. It is never silently read as
   something else.
@@ -676,7 +699,7 @@ customer readiness claim, and no external security review was commissioned for i
 - **Security record**: [SECURITY.md](SECURITY.md),
   [threat-coverage.md](docs/security/threat-coverage.md) mapping all nineteen threat ids to
   the tests that exercise them, and [residual-risk.md](docs/security/residual-risk.md) with
-  43 stable-id entries. A build gate now rejects unqualified assurance vocabulary.
+  38 entries at release, each with a stable id. A build gate now rejects unqualified assurance vocabulary.
 - **Measurements**: [performance.md](docs/performance.md) and a provenance-stamped
   `scripts/benchmark.py`. Reference compiler 8.66 s median against a 120 s requirement;
   interactive read p95 30 ms against 500 ms; workspace manifest reads grow from 3.8 ms at

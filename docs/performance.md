@@ -5,20 +5,45 @@
 What OAK Community was observed to do at `0.7.0`, on one machine, under a stated
 workload. Neither the `0.7.1` re-cut nor `0.8.0` changed the compile path — `0.7.1`
 changed compiled content, and `0.8.0` adds an opt-in model seat that the deterministic
-journey never loads — so these figures are inherited rather than re-measured, and both
-release decisions record that inheritance explicitly.
+journey never loads — so both inherited these figures, and both release decisions record
+that inheritance explicitly.
+
+`0.9.0` did change code on the compile path that every target runs (plan compilation reads
+the workspace manifest once more, and three assurance strings changed), so it was
+**re-measured** on the same machine with the same workload
+([release/0.9.0/performance.json](release/0.9.0/performance.json), from a clean tree at
+`d5717de`). Every figure is a little higher than at `0.7.0` and none comes near its
+requirement:
+
+| | `0.7.0` | `0.9.0` | Requirement |
+|---|---|---|---|
+| Reference compiler, median | 8.66 s | 8.92 s (+3%) | 120 s |
+| Case read, p95 | 30.5 ms | 36.8 ms | 500 ms |
+| Audit read, p95 | 56.9 ms | 59.9 ms | 500 ms |
+| Manifest read after the full journey, median | 283 ms | 292 ms | — |
+
+One run on each side cannot separate a small regression from the machine's own variation,
+so this is not evidence of either. The sections below keep the `0.7.0` figures and their
+full description.
 
 **These are observations, not a service level objective.** They were taken on a single
 developer laptop with no controlled environment, no warm-up isolation from operating-system
 caching or CPU scaling, and no concurrency. They tell you the shape of the cost and roughly
 where the floor is. They do not tell you what your machine will do.
 
-The machine-readable report, including full provenance, is
-[release/0.7.0/performance.json](release/0.7.0/performance.json). Regenerate it with:
+The machine-readable reports, including full provenance, are
+[release/0.7.0/performance.json](release/0.7.0/performance.json), which the sections below
+describe, and [release/0.9.0/performance.json](release/0.9.0/performance.json). Measure the
+current tree into its own release directory, never over an earlier report:
 
 ```bash
-python scripts/benchmark.py --output docs/release/0.7.0/performance.json
+python scripts/benchmark.py --output docs/release/$(cat VERSION)/performance.json
 ```
+
+Both reports describe the API read workload as "one interpreted reference case". It is
+not interpreted: the benchmark creates the case through the API and reads it back, as the
+section on interactive reads says. The description in `scripts/benchmark.py` is corrected;
+the recorded reports keep what the tool printed.
 
 ## Provenance
 

@@ -16,9 +16,9 @@ Execution is on branch `sprint-11-install-observe`, branched from `origin/main` 
 
 - Owner/agent: owner-directed coding agent
 - Started: 2026-09-29
-- Last updated: 2026-09-29 (complete: all milestones, audit fixes, documentation; PR opened for the owner's merge)
+- Last updated: 2026-09-30 (merged as PR #30; `0.9.0` cut and tagged at the owner's instruction, approval rows unsigned)
 - State: complete
-- Claimed tasks: `OAK-S11-001`–`OAK-S11-008`
+- Claimed tasks: `OAK-S11-001`–`OAK-S11-009` (the last added after the merge, when the owner asked for the release)
 
 ## Owner's answers, and what they settle
 
@@ -439,6 +439,28 @@ Requirements served:
 - **Work:** plan to `completed/`; both `STATUS.md` files and both `CHANGELOG.md` files
   updated; a PR with remote CI green. No tag, no release.
 
+### Milestone 10 — Release `0.9.0` (`OAK-S11-009`, post-merge, owner-instructed)
+
+The owner merged PR #30 on 2026-09-30 and asked for the release to be cut. The shape is
+the one `0.8.0` set (PR #23, `OAK-S10-008`).
+
+- **Work:**
+  - branch `release-0.9.0` from `origin/main` (`cb28160`);
+  - the version touch-list that `make toolchain-check` enforces, and the `0.9.0`
+    changelog section;
+  - `make scan-images` from a clean tree;
+  - the full gate with PostgreSQL, the release build and its verification, and
+    `make audit`;
+  - the reference case compiled at `v0.8.0` and at the release tree and compared
+    artifact by artifact;
+  - a benchmark re-run, because Sprint 11 changed code on the compile path;
+  - a clean-room rehearsal repeating the six steps of the `0.8.0` one, with the manual's
+    screenshots re-captured from a `0.9.0` stack;
+  - `docs/release/0.9.0/release-decision.md` with its evidence filled and its three
+    approval rows empty;
+  - the `v0.9.0` annotated tag on the merge commit of the release pull request.
+- **Not done:** signing the approval rows, which no agent may do, and publishing anywhere.
+
 ## Verification
 
 - **Unit and contract:**
@@ -543,6 +565,22 @@ Requirements served:
 - [x] 2026-09-29 Milestone 7 (test sweep and audit): full `make check` with PostgreSQL green at `57342ea` (752 unit+contract earlier 727, 305 integration + 4 skipped, 43 e2e including the real-daemon exit demonstration, OpenAPI compatibility, web build); six-lens adversarial audit (29 raised, 28 survived refutation, all fixed in `20bc6f7` with regression tests; mutation checks on the fixes: 24/24 killed after two tests were sharpened); full `make check` green again after the fixes (752 unit+contract, 313 integration + 4 skipped, 43 e2e, zero `make: ***`); `make web-e2e` against the throwaway Compose project `oak-s11-web` (23 passed, the manual-capture spec skipped as designed); the web e2e specs typechecked with a scratch tsconfig; governance validator green.
 - [x] 2026-09-29 Milestone 8 (documentation and coherence, both repositories): a four-reader corpus sweep (145 proposals, verified against the code before each edit) applied by three editors plus the security/status slice by hand (`2b194bb`); `RR-043` added and the count moved to 43 in its two pinned places; `RR-013`, `RR-023` (re-scored: reachable now, key-based redaction), `RR-003`, `RR-031` rewritten; threat coverage `TM-02`, `TM-05`, `TM-08`, `TM-11`, `TM-18`, `TM-19` updated; governance ADR-0017 and its mirror; the manual's chapter 6 gains an install-test-observe section run verbatim against Docker, its screenshots recaptured from the throwaway stack and the PDF rebuilt (`03f413d`); governance `0.4.0-draft.8`.
 - [x] 2026-09-29 Milestone 9 (close): plan moved to `completed/`, both `STATUS.md` files and changelogs updated, branch pushed and PR opened; the merge is the owner's. No tag, no release.
+- [x] 2026-09-30 PR #30 merged by the owner (`cb28160`, CI green on both checks, the real-daemon journey included), who then asked for the release to be cut.
+- [x] 2026-09-30 Milestone 10 (`OAK-S11-009`), branch `release-0.9.0`:
+  - **`c067aad`:** the version touch-list.
+  - **Image scan at `c067aad`**, from a clean tree with `--no-cache --pull`: zero fixable findings, the same eight unfixable advisories as `0.8.0`.
+  - **Gate at `d5717de`** with PostgreSQL, zero `make: ***` lines: 751 unit and contract, 313 integration (4 skipped), 43 e2e. The first run failed only because Docker Desktop updated itself and stopped the test database.
+  - **Release build** reproducible and verified.
+  - **Both refusal paths of the artifact verifier:** exit 2 and exit 3.
+  - **`make audit`** clean.
+  - **Reference case** compiled at `v0.8.0` and at `d5717de`: 35 of 43 artifacts byte-identical, and the other 8 differ only by the declared assurance text.
+  - **Benchmark re-run:** reference compiler 8.92 s against 8.66 s.
+  - **Clean-room rehearsal:**
+    - the image journey on linux/amd64;
+    - the browser suite twice on a throwaway stack;
+    - the screenshots re-captured and the PDF rebuilt;
+    - backup and restore with `verify_deployment.py` returning 0.
+  - **`docs/release/0.9.0/release-decision.md`** written with its three rows unsigned.
 
 ## Decisions
 
