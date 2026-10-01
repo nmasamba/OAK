@@ -225,7 +225,8 @@ def test_a_signed_release_record_keeps_the_count_it_was_signed_with() -> None:
 
     Not merely "not the live count": the number the approvers signed, marked as such, so a
     reader comparing a published record with this tree finds them identical. The published
-    `v0.7.1` artefacts say 38, and `0.8.0` was signed on 2026-09-23 against 42. Both had
+    `v0.7.1` artefacts say 38, `0.8.0` was signed on 2026-09-23 against 42, and `0.9.0` on
+    2026-10-01 against 43. The first two had
     silently tracked the live count until a sweep was caught doing it; a signed record that
     restates today's number describes a release nobody approved.
     """
@@ -234,6 +235,7 @@ def test_a_signed_release_record_keeps_the_count_it_was_signed_with() -> None:
         "docs/release/0.7.0/release-decision.md": "38",
         "docs/release/0.7.1/release-decision.md": "38",
         "docs/release/0.8.0/release-decision.md": "42",
+        "docs/release/0.9.0/release-decision.md": "43",
     }
     for relative, count in signed_at.items():
         text = (ROOT / relative).read_text(encoding="utf-8")

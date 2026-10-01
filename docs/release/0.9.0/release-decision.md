@@ -2,13 +2,18 @@
 
 # Release decision record — OAK Community 0.9.0
 
-**Status: unsigned.** The owner asked for `0.9.0` to be cut on 2026-09-30, after merging
-Sprint 11. The tag `v0.9.0` is cut on the merge commit of the pull request that carries this
-record, **ahead of any signature**, as `v0.8.0` was. The three approval rows below are
-empty. Approval is not publication, and `0.9.0` is published nowhere.
+**Status: approved by `nmasamba` on 2026-10-01, all three roles.**
+- **Preparation:** the owner asked for `0.9.0` to be cut on 2026-09-30, after merging
+  Sprint 11, and this record was prepared that day.
+- **Tag:** cut on 2026-10-01 on `ff7d4df`, the merge commit of #31, at the owner's
+  instruction and ahead of the signatures, as `v0.8.0`'s was. Its copy of this record says
+  the rows are empty.
+- **Signatures:** the owner signed the same day, minutes later.
+
+That sequence is recorded rather than tidied away. Approval is not publication.
 
 This document assembles the evidence a maintainer needs to decide whether to declare
-`0.9.0` released, and it will record who signed. It was prepared by the release work
+`0.9.0` released, and records who signed. It was prepared by the release work
 `OAK-S11-009`, recorded in the Sprint 11 plan
 (`docs/exec-plans/completed/OAK-S11-001-008-install-test-observe.md`). Whoever prepared it
 is not in a position to approve it, and has not. It inherits no signature from `0.8.0`:
@@ -102,13 +107,13 @@ reader cannot validate a document that uses them.
 | Does install, test and observe work on a real Docker daemon? | **Yes**, three ways. The gate's `tests/e2e/test_runner_journey.py` ran the whole exit demonstration against the daemon on this machine: `approve apply` refused without an architecture approval, then both approvals, install, re-apply, observe, rollback, observe. The same journey ran on CI's Linux runner for the Sprint 11 merge, and the Sprint 11 plan transcribes a manual run on Docker Desktop (arm64): install, re-install, observe, roll back, observe, with no OAK container left afterwards |
 | How fast is it? | **Re-measured**, because Sprint 11 changed code on the compile path that every target runs (plan compilation reads the workspace manifest once more, and three assurance strings changed): the reference compiler median was 8.92 s against 8.66 s at `0.7.0`, and the p95 interactive read was 36.8 ms against 30.5 ms. Both are far inside their requirements (120 s and 500 ms). [performance.json](performance.json), summarised in [performance.md](../../performance.md) |
 | Was a clean-room rehearsal run? | **Yes, before signature**, repeating the six steps of the `0.8.0` rehearsal: [clean-room.md](clean-room.md). The gate and release build ran offline, and both refusal paths of the artifact verifier were exercised (exit 2 and exit 3). The CLI journey, ending with `oak architecture`, ran inside the linux/amd64 image. The browser suite ran twice against one throwaway stack, with zero axe violations. The backup-and-restore procedure ran with all three volumes destroyed, and `verify_deployment.py` returned 0 on the restored root, as it did at `0.7.0` and could not at `0.8.0`. No product defect was found |
-| What does it *not* defend against? | [security/residual-risk.md](../../security/residual-risk.md): 43 entries with stable ids on 2026-09-30, when this record was prepared, of which eight rows are closed. `RR-043` is new since the `0.8.0` signatures. Sprint 11 rewrote `RR-003`, `RR-013`, `RR-023` and `RR-031` |
+| What does it *not* defend against? | [security/residual-risk.md](../../security/residual-risk.md): 43 entries with stable ids at signature, of which eight rows are closed. `RR-043` is new since the `0.8.0` signatures. Sprint 11 rewrote `RR-003`, `RR-013`, `RR-023` and `RR-031` |
 | Was it externally reviewed? | **No.** No external security review was commissioned. Sprint 11's internal adversarial audit is recorded in its ExecPlan: six lenses, 29 findings raised, 28 surviving a refute-by-default check, all fixed with regression tests. The wording restrictions recorded in the [`0.7.0` decision](../0.7.0/release-decision.md#external-review) apply unchanged |
 
 ## The register count, made legible
 
-The `0.8.0` signatures covered 42 entries. This record was prepared against 43, the
-register as it stood on 2026-09-30, and the one addition is `RR-043`:
+The `0.8.0` signatures covered 42 entries. This approval covers all 43, as the register
+stood on 2026-10-01, and the one addition is `RR-043`:
 - **What it records:** a profile that acknowledges starting runs processes from pinned
   images on the operator's machine.
 - **The bound:** those processes run under a fixed hardening set, with no network, no
@@ -123,8 +128,9 @@ It is not proposed as a release blocker. Starting is opt-in per target profile:
 `examples/targets/local-started-fixture.yaml` does, to show what opting in looks like. Both
 map every component to a pause image whose process only waits.
 
-**When this record is signed, the count it covers is the count at signature.** If entries
-are added before then, this section must be updated before anyone signs it.
+**That 43 is the count at signature and does not move.** Entries added after 2026-10-01
+are not covered by these signatures. The live count is in
+[security/residual-risk.md](../../security/residual-risk.md) and in `STATUS.md`.
 
 ## What this release does not defend against
 
@@ -142,13 +148,17 @@ signature.
 
 | Role | Approving that | Name | Date |
 |---|---|---|---|
-| Maintainer | The release is functionally what it claims to be, and the evidence above is sufficient | | |
-| Security | The residual-risk register is complete and correctly scoped, including `RR-043` and the four entries Sprint 11 rewrote | | |
-| Licence | The Apache-2.0 declaration and the generated third-party inventory are correct. Sprint 11 added no runtime dependency, and the stand-in image is referenced by digest, never redistributed | | |
+| Maintainer | The release is functionally what it claims to be, and the evidence above is sufficient | `nmasamba` | 2026-10-01 |
+| Security | The residual-risk register is complete and correctly scoped, including `RR-043` and the four entries Sprint 11 rewrote | `nmasamba` | 2026-10-01 |
+| Licence | The Apache-2.0 declaration and the generated third-party inventory are correct. Sprint 11 added no runtime dependency, and the stand-in image is referenced by digest, never redistributed | `nmasamba` | 2026-10-01 |
 
-> If one person signs all three rows, as happened for `0.7.1` and `0.8.0`, the record
-> should say so. The security and licence judgements are then **not independent** of the
-> maintainer judgement.
+> **All three roles are held by one person**, as they were for `0.7.1` and `0.8.0`. That is
+> normal for a project this size, and it is recorded rather than hidden: the security and
+> licence judgements are **not independent** of the maintainer judgement. A reader weighing
+> this release should read the three approvals as one person's, not three.
+>
+> The maintainer signature also accepts the exception stated under "What is being
+> decided": Sprint 11's three breaking changes shipped without a deprecation window.
 
 ## What this build produced
 
@@ -169,13 +179,18 @@ its digest. The wheel carries neither.
 
 ## The tag, and when it was cut
 
-`v0.9.0` points at the merge commit of the pull request that cut this release: the one
-carrying the version touch-list, the evidence and this record. It does not point at the
-Sprint 11 merge (`cb28160`), which predates all three. It is cut on 2026-09-30 because the
-owner asked for the release to be cut, and the approval rows above are empty at that
-commit. If they are signed later, the tag will not be moved onto the commit that carries
-the signatures, for the reason the `0.8.0` record gives: moving a published tag rewrites
-what a reader already fetched.
+`v0.9.0` points at `ff7d4df`, the merge commit of #31, the pull request that cut this
+release: the one carrying the version touch-list, the evidence and this record. It does
+not point at the Sprint 11 merge (`cb28160`), which predates all three.
+
+It was cut on 2026-10-01 because the owner asked for the release to be cut. That is a day
+later than the tree it points at says ("tagged 2026-09-30" in `CHANGELOG.md`), because
+that text was written the day before, while the pull request waited to be merged. The
+approval rows are empty at that commit, and the signatures came the same day, minutes
+after the tag. The tag has deliberately **not** been moved onto the commit that carries
+them, for the reason the `0.8.0` record gives: moving a published tag rewrites what a
+reader already fetched. Whoever checks out `v0.9.0` finds a record that says, accurately,
+that it was unsigned at that moment.
 
 ## Publication
 

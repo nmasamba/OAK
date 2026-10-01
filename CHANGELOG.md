@@ -29,7 +29,7 @@ All notable changes to OAK Community are recorded here.
   gate, and a test proves each case. This changes test tooling and documentation only. The
   REST contract, the wheel, the images and the reference digests are unchanged.
 
-## 0.9.0 — tagged 2026-09-30, approvals unsigned
+## 0.9.0 — tagged and approved 2026-10-01
 
 Sprint 11 and the fixes merged since `v0.8.0` ship as `0.9.0`. It is a minor release
 because Sprint 11 carries changes that are breaking for install scripts, for plans
@@ -39,10 +39,12 @@ pair, and in the `0.x` series a break lands only in a minor release
 shift**, listed under "Changed — Sprint 11" with both values, and no other reference digest
 moves. `0.7.1` remains the only **published** release, and `0.8.0` stays approved and
 unpublished. The decision record is
-[`docs/release/0.9.0/release-decision.md`](docs/release/0.9.0/release-decision.md). Its
-approval rows are unsigned: the tag was cut on the owner's instruction, as `v0.8.0`'s was,
-and approval is a separate human act that the work preparing a release cannot
-self-assign. Beside it in `docs/release/0.9.0/`:
+[`docs/release/0.9.0/release-decision.md`](docs/release/0.9.0/release-decision.md),
+approved by `nmasamba` on 2026-10-01 in all three roles. The release was prepared on
+2026-09-30. The tag was cut on 2026-10-01 on the merge commit of #31, at the owner's
+instruction and minutes ahead of the signatures, as `v0.8.0`'s was. So the tree it points
+at still calls itself "tagged 2026-09-30, approvals unsigned". Beside the record in
+`docs/release/0.9.0/`:
 - the image scan, with per-image SBOMs and unsigned provenance;
 - a comparison of the reference case with `v0.8.0`, showing that nothing moved except the
   declared shift;
