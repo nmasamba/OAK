@@ -198,6 +198,10 @@ checksums prove the bytes match the manifest, not who produced them (`RR-005`).
 - [ ] `make check` green — verified by reading the output, not the exit code
 - [ ] `make scan-images` green — no *fixable* CRITICAL or HIGH in either image
 - [ ] Reference-case byte-stability verified directly against the previous mainline
+- [ ] `openapi/oak.compatibility-baseline.json` rewritten from the release's contract
+      (`python scripts/check_openapi_compatibility.py --write-baseline`), with the
+      unreleased lists in `tests/unit/test_openapi_compatibility.py` emptied. Otherwise
+      the gate goes on guarding an older release's contract
 - [ ] `make release` green, including its reproducibility and clean-install gates
 - [ ] `make verify-release` green
 - [ ] Known limitations published and current

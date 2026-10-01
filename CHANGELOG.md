@@ -4,6 +4,31 @@
 
 All notable changes to OAK Community are recorded here.
 
+## Unreleased
+
+### Fixed
+
+- **The REST compatibility gate now guards what has shipped.**
+  `openapi/oak.compatibility-baseline.json` had held its Sprint 3 contents ever since.
+  `make openapi-compatibility` therefore could not catch the removal of:
+  - two operations published in `0.7.1`, with their schemas:
+    - the case list (`GET /v1/design-cases`, `DesignCaseListResponse`);
+    - the audit trail (`GET /v1/design-cases/{case_id}/audit`, `AuditTrailResponse`);
+  - the eight `/v1/models` operations and nine schemas that first shipped in `0.8.0`.
+
+  The baseline is now rewritten from the latest release's contract. That is `0.8.0`'s,
+  whose signature `0.9.0` repeats exactly. No break had slipped through: the current
+  contract checks clean against both the `0.7.1` and `0.8.0` contracts.
+
+  Two things keep the baseline from falling behind again:
+  - a contract test fails when an operation or schema is neither in the baseline nor
+    listed as unreleased;
+  - the release checklist now includes rewriting the baseline.
+
+  Removing any of those ten operations, or a field of `ModelStatusResponse`, now fails the
+  gate, and a test proves each case. This changes test tooling and documentation only. The
+  REST contract, the wheel, the images and the reference digests are unchanged.
+
 ## 0.9.0 — tagged 2026-09-30, approvals unsigned
 
 Sprint 11 and the fixes merged since `v0.8.0` ship as `0.9.0`. It is a minor release
