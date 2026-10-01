@@ -206,6 +206,10 @@ This is recorded as `RR-019`.
   once left the API image unbuildable for a whole sprint with no gate noticing.
 - A REST change requires regenerating `openapi/oak.openapi.json`; the compatibility gate
   runs inside `make check`.
+- A new REST operation or schema is also listed as unreleased in
+  `tests/unit/test_openapi_compatibility.py`, until the release that ships it rewrites
+  `openapi/oak.compatibility-baseline.json`
+  ([compatibility.md](docs/compatibility.md#rest-and-openapi)).
 - A new `OAK-*` code requires regenerating `docs/error-codes.md`.
 
 ## The module boundary
