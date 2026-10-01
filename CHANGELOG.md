@@ -29,7 +29,7 @@ All notable changes to OAK Community are recorded here.
   gate, and a test proves each case. This changes test tooling and documentation only. The
   REST contract, the wheel, the images and the reference digests are unchanged.
 
-## 0.9.0 — tagged and approved 2026-10-01
+## 0.9.0 — approved and published 2026-10-01
 
 Sprint 11 and the fixes merged since `v0.8.0` ship as `0.9.0`. It is a minor release
 because Sprint 11 carries changes that are breaking for install scripts, for plans
@@ -37,8 +37,8 @@ compiled before it, and for mutation target profiles that still declare the sing
 pair, and in the `0.x` series a break lands only in a minor release
 ([compatibility.md](docs/compatibility.md)). It also carries one **declared digest
 shift**, listed under "Changed — Sprint 11" with both values, and no other reference digest
-moves. `0.7.1` remains the only **published** release, and `0.8.0` stays approved and
-unpublished. The decision record is
+moves. It is **published** as a GitHub Release, superseding `0.7.1`. `0.8.0` was
+approved and never published. The decision record is
 [`docs/release/0.9.0/release-decision.md`](docs/release/0.9.0/release-decision.md),
 approved by `nmasamba` on 2026-10-01 in all three roles. The release was prepared on
 2026-09-30. The tag was cut on 2026-10-01 on the merge commit of #31, at the owner's
@@ -50,6 +50,23 @@ at still calls itself "tagged 2026-09-30, approvals unsigned". Beside the record
   declared shift;
 - a re-measured benchmark;
 - the clean-room rehearsal.
+
+### Published
+
+- **GitHub Release `v0.9.0`** (<https://github.com/nmasamba/OAK/releases/tag/v0.9.0>),
+  2026-10-01, the latest release. It carries the wheel, sdist, CycloneDX SBOM, licence
+  inventory, `SHA256SUMS` and build provenance from the `v0.9.0` run of `release.yml`.
+  The files were verified against `SHA256SUMS` before they were attached, and again after
+  being downloaded from the published release.
+  - **Wheel:** `sha256:ba26e638…`, byte-identical to the build the decision record cites.
+    That build ran at `d5717de` on macOS arm64; this one at `ff7d4df` on Linux x86_64.
+  - **Sdist:** `sha256:a3760791…`. It differs from the approved build because it carries
+    later documentation and `uv.lock`.
+  - **SBOM and licence inventory:** these differ too. Three platform-marked runtime
+    dependencies resolve on Linux only: `greenlet`, `SecretStorage` and `jeepney`.
+
+  Not on PyPI and not in a container registry, each a separate decision. `0.8.0` was never
+  published.
 
 `urllib3`, a development-only dependency that `pip-audit` pulls in through `requests`,
 moved from 2.7.0 to 2.8.0 after three advisories against 2.7.0 were published on the

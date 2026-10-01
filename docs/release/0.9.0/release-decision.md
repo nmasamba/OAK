@@ -10,7 +10,9 @@
   the rows are empty.
 - **Signatures:** the owner signed the same day, minutes later.
 
-That sequence is recorded rather than tidied away. Approval is not publication.
+- **Publication:** published as a GitHub Release the same day (see "Publication" below).
+
+That sequence is recorded rather than tidied away.
 
 This document assembles the evidence a maintainer needs to decide whether to declare
 `0.9.0` released, and records who signed. It was prepared by the release work
@@ -194,7 +196,35 @@ that it was unsigned at that moment.
 
 ## Publication
 
-Approval is not publication, and neither is a tag. Pushing the tag runs `release.yml`,
-which builds and verifies under read-only permissions and publishes nothing. A GitHub
-Release, PyPI and a container registry are each a separate, later decision, and none has
-been taken.
+Approval is not publication, and neither is a tag. Pushing the tag ran `release.yml`,
+which builds and verifies under read-only permissions and publishes nothing. Both of its
+jobs passed: the full gate, the release build with its reproducibility and clean-install
+checks, and the image build and scan. On 2026-10-01, after the signatures and at the
+owner's instruction, its six files were attached to the GitHub Release
+<https://github.com/nmasamba/OAK/releases/tag/v0.9.0>:
+
+```
+c1172d24b8bb585766e3b1b04828a6e74bab3107e35b4eda2c3675b14852da98  THIRD-PARTY-LICENCES.md
+94680994db11a9b28189e647a186bb89d924b548eabe7f407927ac463f0868ab  oak-community-0.9.0.cdx.json
+ba26e6385dca6f74d6fcf46478fb02b0ef17ae2867b808ec6321c912c08a11e9  oak_community-0.9.0-py3-none-any.whl
+a3760791fd7da1009acef3851c1ef76ec5c3dc02cf5f585570c41cf37cc4fa4c  oak_community-0.9.0.tar.gz
+```
+
+They were verified against `SHA256SUMS` before they were attached. They were then
+downloaded again from the published release and verified a second time: 4 of 4 `OK`.
+Against the build this record cites, under "What this build produced":
+- **The wheel is byte-identical.** The approved build ran at `d5717de` on macOS arm64,
+  and the published one at `ff7d4df` on Linux x86_64.
+- **The sdist differs.** It carries the documentation committed after `d5717de` and the
+  development-only `urllib3` bump in `uv.lock`.
+- **The SBOM and licence inventory differ.** They describe the runtime closure on the
+  platform that built them, and three platform-marked runtime dependencies resolve on
+  Linux and not on macOS:
+  - `greenlet` (MIT AND PSF-2.0), also in the published `0.7.1` inventory;
+  - `SecretStorage` (BSD-3-Clause) and `jeepney` (MIT), the Linux backend of the optional
+    `keychain` extra, whose licences the `0.8.0` approval covered.
+
+  Nothing in the lockfile's runtime closure is new.
+
+`0.9.0` is not on PyPI and not in a container registry, and each remains a separate
+decision. `0.8.0` was never published.

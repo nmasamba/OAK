@@ -64,8 +64,8 @@
 
 [release/0.9.0/](release/0.9.0/) holds the artefacts for the release this tree builds:
 the image scan with its per-image SBOMs and provenance, the clean-room rehearsal, and a
-decision record whose approval rows are unsigned. `v0.9.0` is tagged and published
-nowhere. [release/0.8.0/](release/0.8.0/) holds the `0.8.0` set, approved by `nmasamba` on
+decision record approved by `nmasamba` on 2026-10-01 in all three roles. `0.9.0` is
+published as a GitHub Release. [release/0.8.0/](release/0.8.0/) holds the `0.8.0` set, approved by `nmasamba` on
 2026-09-23 in all three roles and published nowhere. [release/0.7.1/](release/0.7.1/) holds the approved and published
 `0.7.1` evidence set, and [release/0.7.0/](release/0.7.0/) the superseded `0.7.0` one —
 approved 2026-08-22, never published, kept as history.

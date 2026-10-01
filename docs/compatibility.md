@@ -15,8 +15,13 @@ artifact**. That artifact exists: `0.7.1` was published as a GitHub Release on
 binds as written. Before that, no `0.7.x` artifact had been published anywhere, and the
 `0.7.1` re-cut deliberately used that window for one digest-shifting change (the
 `RR-032` verification-policy migration), recorded in the changelog exactly as rule 4
-below requires rather than made silently. No such window remains. Publication is to
-GitHub Releases only: nothing is on a package index or in an image registry.
+below requires rather than made silently. No such window remains.
+
+`0.9.0`, published on 2026-10-01, is the second published release. It carries one
+declared digest shift (rule 4) and three breaking changes that shipped without the
+deprecation window below. Its decision record states that exception, and its approval
+accepts it. Publication is to GitHub Releases only: nothing is on a package index or in
+an image registry.
 
 ## Versioning model
 

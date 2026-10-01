@@ -34,15 +34,16 @@ paired with a different build.
 
 ## Versioning
 
-`0.7.1` is the published release, published on 2026-09-03. `0.9.0` is the version this
-tree builds and is tagged `v0.9.0`. Its approval rows are unsigned
-([release/0.9.0/release-decision.md](release/0.9.0/release-decision.md)): the tag was cut
-at the owner's instruction, as `v0.8.0` was, and approval is a separate human act. `0.8.0`
-is tagged `v0.8.0` and was approved by `nmasamba` on 2026-09-23 in all three roles
-([release/0.8.0/release-decision.md](release/0.8.0/release-decision.md)). That tag was cut
-the day before, at the owner's instruction and ahead of those signatures, and has not been
-moved onto the commit that carries them. Neither `0.9.0` nor `0.8.0` is **published
-anywhere**: publishing either is a separate decision that has not been taken. `0.7.0` was
+`0.9.0` is the version this tree builds. It was tagged `v0.9.0` on 2026-10-01, approved by
+`nmasamba` the same day in all three roles
+([release/0.9.0/release-decision.md](release/0.9.0/release-decision.md)), and **published as a
+GitHub Release** that day. The tag was cut at the owner's instruction minutes before the
+signatures, as `v0.8.0`'s was, and has not been moved. `0.7.1` was published on 2026-09-03
+and is the release before it. `0.8.0` is tagged `v0.8.0` and was approved by `nmasamba` on
+2026-09-23 in all three roles
+([release/0.8.0/release-decision.md](release/0.8.0/release-decision.md)), but was **never
+published**: `0.9.0` superseded it first. That tag was cut the day before its signatures,
+at the owner's instruction, and has not been moved either. `0.7.0` was
 approved on 2026-08-22 but never published anywhere, and was re-cut as `0.7.1` when the
 pre-launch hardening work made a deliberate digest-shifting change (see `CHANGELOG.md`);
 the `0.7.0` record stays as history. The `0.7.x` numbering is not `0.1.0`, and the reason
@@ -178,14 +179,25 @@ docker buildx build --platform linux/amd64 --file deploy/images/api.Dockerfile -
 
 ## Publication
 
-**OAK Community `0.7.1` is published as a GitHub Release and nowhere else.** The wheel,
-sdist, SBOM, licence inventory, `SHA256SUMS` and build provenance produced by the
-`v0.7.1` run of `release.yml` were verified against `SHA256SUMS` and attached to
-<https://github.com/nmasamba/OAK/releases/tag/v0.7.1> on 2026-09-03 by a named
-maintainer — not by the build, which still publishes nothing by itself. It is not on
-PyPI and not in a container registry; each of those remains a separate decision.
+**OAK Community `0.9.0` is published as a GitHub Release and nowhere else**, at
+<https://github.com/nmasamba/OAK/releases/tag/v0.9.0>, on 2026-10-01. The six files are the ones the `v0.9.0` run of
+`release.yml` produced: the wheel, sdist, SBOM, licence inventory, `SHA256SUMS` and build
+provenance.
+- **Before attaching:** they were verified against `SHA256SUMS`.
+- **After publication:** they were downloaded again from the release and verified a second
+  time.
+- **Against the approved build:** the wheel is byte-identical to the one the decision
+  record cites, even though that one was built on macOS and this one on Linux.
 
-Consequently there is now a published artifact to substitute and a release page to
+The build itself still publishes nothing; a named maintainer attached them. `0.9.0` is not
+on PyPI and not in a container registry. `0.8.0` was never published.
+
+**`0.7.1`, the release before it, was published the same way**: the six files from the
+`v0.7.1` run of `release.yml` were verified against `SHA256SUMS` and attached to
+<https://github.com/nmasamba/OAK/releases/tag/v0.7.1> on 2026-09-03. PyPI and a container
+registry each remain a separate decision.
+
+Consequently there are published artifacts to substitute and a release page to
 poison, which is exactly why the verification instructions above matter: obtain
 `SHA256SUMS` over a channel you trust independently of the artifacts, and remember that
 checksums prove the bytes match the manifest, not who produced them (`RR-005`).
@@ -206,9 +218,9 @@ checksums prove the bytes match the manifest, not who produced them (`RR-005`).
 - [ ] `make verify-release` green
 - [ ] Known limitations published and current
       ([security/residual-risk.md](security/residual-risk.md))
-- [ ] Named maintainer, security and licence approvals recorded — see
+- [x] Named maintainer, security and licence approvals recorded — see
       [release/0.9.0/release-decision.md](release/0.9.0/release-decision.md). This is a
       human decision and cannot be self-approved by the person or agent doing the build.
-      For `0.9.0` the three rows are unsigned: the owner asked for the release to be cut,
-      and `v0.9.0` was tagged ahead of the signatures, as `v0.8.0` was. The record says
-      so. Publication remains a separate decision
+      `nmasamba` signed all three rows for `0.9.0` on 2026-10-01, minutes after the tag was
+      cut at the owner's instruction. The record says so. Publication is a separate
+      decision, and for `0.9.0` it was taken the same day
