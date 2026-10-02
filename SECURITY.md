@@ -106,13 +106,12 @@ tracked as `RR-036`.
 
 ## Supported versions
 
-`0.7.1` is the published release, released as a GitHub Release on 2026-09-03 (`v0.7.1`).
-`0.9.0` is tagged `v0.9.0` and is the version this tree builds. Its approval rows are
-unsigned ([docs/release/0.9.0/release-decision.md](docs/release/0.9.0/release-decision.md)).
-`0.8.0` is tagged `v0.8.0` and was approved by `nmasamba` on 2026-09-23 in all three roles.
-Neither is **published anywhere**: approval and publication are separate decisions.
-`0.7.0` was approved but never published and was re-cut. Only the latest release is
-supported; there is no backport policy yet.
+`0.9.0` is the latest release, published as a GitHub Release on 2026-10-01 (`v0.9.0`). It
+is the version this tree builds, and it was approved by `nmasamba` on 2026-10-01 in all
+three roles ([docs/release/0.9.0/release-decision.md](docs/release/0.9.0/release-decision.md)).
+`0.7.1`, published on 2026-09-03, is the release before it. `0.8.0` was approved on
+2026-09-23 and never published. `0.7.0` was approved but never published and was re-cut.
+Only the latest release is supported; there is no backport policy yet.
 
 ## Dependencies
 

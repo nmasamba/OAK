@@ -16,7 +16,7 @@ Execution is on branch `sprint-11-install-observe`, branched from `origin/main` 
 
 - Owner/agent: owner-directed coding agent
 - Started: 2026-09-29
-- Last updated: 2026-09-30 (merged as PR #30; `0.9.0` cut and tagged at the owner's instruction, approval rows unsigned)
+- Last updated: 2026-10-01 (merged as PR #30; `0.9.0` cut, tagged, approved by the owner and published as a GitHub Release)
 - State: complete
 - Claimed tasks: `OAK-S11-001`–`OAK-S11-009` (the last added after the merge, when the owner asked for the release)
 
@@ -459,7 +459,7 @@ the one `0.8.0` set (PR #23, `OAK-S10-008`).
   - `docs/release/0.9.0/release-decision.md` with its evidence filled and its three
     approval rows empty;
   - the `v0.9.0` annotated tag on the merge commit of the release pull request.
-- **Not done:** signing the approval rows, which no agent may do, and publishing anywhere.
+- **Then, at the owner's instruction on 2026-10-01:** the tag, the owner's own signatures (no agent signs), and publication as a GitHub Release.
 
 ## Verification
 
@@ -581,6 +581,13 @@ the one `0.8.0` set (PR #23, `OAK-S10-008`).
     - the screenshots re-captured and the PDF rebuilt;
     - backup and restore with `verify_deployment.py` returning 0.
   - **`docs/release/0.9.0/release-decision.md`** written with its three rows unsigned.
+- [x] 2026-10-01 The owner merged #31 (`ff7d4df`) and #32. #32 had been stacked on #31 and was merged into `release-0.9.0` 32 seconds later, so it is brought to `main` in #33.
+  - **Tag:** `v0.9.0` cut on `ff7d4df` at the owner's instruction.
+  - **Signatures:** `nmasamba` signed all three rows minutes later.
+  - **`release.yml`:** green on both jobs.
+  - **Publication:** the six artifacts were verified and published as the GitHub Release `v0.9.0`, then re-verified from the live release.
+  - **The wheel** is byte-identical to the approved build (macOS arm64 at `d5717de` against Linux x86_64 at `ff7d4df`).
+  - **Also found:** three `urllib3` advisories (development-only) were published the day of the cut and failed CI's `make audit`. They were fixed in `49e3ad1`.
 
 ## Decisions
 

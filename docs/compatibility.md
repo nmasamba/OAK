@@ -15,8 +15,13 @@ artifact**. That artifact exists: `0.7.1` was published as a GitHub Release on
 binds as written. Before that, no `0.7.x` artifact had been published anywhere, and the
 `0.7.1` re-cut deliberately used that window for one digest-shifting change (the
 `RR-032` verification-policy migration), recorded in the changelog exactly as rule 4
-below requires rather than made silently. No such window remains. Publication is to
-GitHub Releases only: nothing is on a package index or in an image registry.
+below requires rather than made silently. No such window remains.
+
+`0.9.0`, published on 2026-10-01, is the second published release. It carries one
+declared digest shift (rule 4) and three breaking changes that shipped without the
+deprecation window below. Its decision record states that exception, and its approval
+accepts it. Publication is to GitHub Releases only: nothing is on a package index or in
+an image registry.
 
 ## Versioning model
 
@@ -92,16 +97,31 @@ mechanical migration; **breaking** otherwise.
   removed paths or operations, removed response codes, changed required parameters,
   request bodies becoming required, removed schemas or properties, and property type
   changes. Additive paths, operations, optional properties, and schemas pass.
+- The baseline is the signature of the **latest release's contract**. Today that is
+  `0.8.0`'s, and `0.9.0`'s is identical. Guarding it also guards the published `0.7.1`
+  contract, because today's contract preserves every shape `0.7.1` shipped. Each release
+  rewrites the baseline from its own contract (a step in
+  [release-process.md](release-process.md)), so the gate protects what has shipped and
+  nothing more.
+- An operation or schema added between releases is not in the baseline, and so is not
+  protected yet. A contract test (`tests/unit/test_openapi_compatibility.py`) fails
+  unless each such addition is listed there as unreleased. This makes leaving it
+  unguarded a decision. The release that ships it rewrites the baseline and empties the
+  list.
 - A breaking REST change therefore requires a deliberate baseline reset
   (`--write-baseline`) in the same change, a changelog entry, and — from `0.7.0` — a
-  deprecation period of at least one minor release
+  deprecation period of at least one minor release.
 - Sprint 10 reshaped the Sprint 9 `/v1/models` routes freely before they first shipped:
   `DELETE /v1/models/selection` became `DELETE /v1/models/selection/{family}`, and
   `GET /v1/models` returns `modes` and `selections` in place of `configured` and
   `selection`. They first shipped in `0.8.0` and carry compatibility debt from that release
-  on, exactly as `oak models` does below. They are still absent from
-  `openapi/oak.compatibility-baseline.json`, so `make openapi-compatibility` does not yet
-  catch their removal.
+  on, exactly as `oak models` does below.
+- Until the baseline was refreshed after `0.9.0` was cut, it still held its Sprint 3
+  contents. It did not guard the eight `/v1/models` operations. Nor did it guard two
+  operations `0.7.1` published: the case list (`GET /v1/design-cases`) and the audit
+  trail (`GET /v1/design-cases/{case_id}/audit`). No break slipped
+  through: today's contract checks clean against both the `0.7.1` and the `0.8.0`
+  contracts.
 - Error contracts are part of the surface: problem-details field names, stable
   `OAK-*` error codes, and status-code mappings may gain new codes freely, but an
   existing code may not change meaning or disappear while any documented flow uses it.

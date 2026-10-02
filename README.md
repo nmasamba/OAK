@@ -564,11 +564,10 @@ enforces.
 
 ## Verifying a release
 
-The newest **published** release is `0.7.1`, on the
-[Releases page](https://github.com/nmasamba/OAK/releases). This repository is at `0.9.0`,
-which is tagged but not yet approved, and is not published anywhere. `0.8.0` is tagged and
-approved, and is not published either. To run `0.9.0`, build it from source as described
-above.
+The newest **published** release is `0.9.0`, on the
+[Releases page](https://github.com/nmasamba/OAK/releases), published on 2026-10-01. It is
+the version this repository builds. `0.8.0` was approved but never published, so `0.7.1`
+is the published release before it.
 
 Each release comes with a `SHA256SUMS` file. It lists a fingerprint (a SHA-256 hash) for
 the wheel, the sdist, the SBOM and the licence list. A fifth file, `build-provenance.json`,

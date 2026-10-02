@@ -4,7 +4,32 @@
 
 All notable changes to OAK Community are recorded here.
 
-## 0.9.0 — tagged 2026-09-30, approvals unsigned
+## Unreleased
+
+### Fixed
+
+- **The REST compatibility gate now guards what has shipped.**
+  `openapi/oak.compatibility-baseline.json` had held its Sprint 3 contents ever since.
+  `make openapi-compatibility` therefore could not catch the removal of:
+  - two operations published in `0.7.1`, with their schemas:
+    - the case list (`GET /v1/design-cases`, `DesignCaseListResponse`);
+    - the audit trail (`GET /v1/design-cases/{case_id}/audit`, `AuditTrailResponse`);
+  - the eight `/v1/models` operations and nine schemas that first shipped in `0.8.0`.
+
+  The baseline is now rewritten from the latest release's contract. That is `0.8.0`'s,
+  whose signature `0.9.0` repeats exactly. No break had slipped through: the current
+  contract checks clean against both the `0.7.1` and `0.8.0` contracts.
+
+  Two things keep the baseline from falling behind again:
+  - a contract test fails when an operation or schema is neither in the baseline nor
+    listed as unreleased;
+  - the release checklist now includes rewriting the baseline.
+
+  Removing any of those ten operations, or a field of `ModelStatusResponse`, now fails the
+  gate, and a test proves each case. This changes test tooling and documentation only. The
+  REST contract, the wheel, the images and the reference digests are unchanged.
+
+## 0.9.0 — approved and published 2026-10-01
 
 Sprint 11 and the fixes merged since `v0.8.0` ship as `0.9.0`. It is a minor release
 because Sprint 11 carries changes that are breaking for install scripts, for plans
@@ -12,17 +37,36 @@ compiled before it, and for mutation target profiles that still declare the sing
 pair, and in the `0.x` series a break lands only in a minor release
 ([compatibility.md](docs/compatibility.md)). It also carries one **declared digest
 shift**, listed under "Changed — Sprint 11" with both values, and no other reference digest
-moves. `0.7.1` remains the only **published** release, and `0.8.0` stays approved and
-unpublished. The decision record is
-[`docs/release/0.9.0/release-decision.md`](docs/release/0.9.0/release-decision.md). Its
-approval rows are unsigned: the tag was cut on the owner's instruction, as `v0.8.0`'s was,
-and approval is a separate human act that the work preparing a release cannot
-self-assign. Beside it in `docs/release/0.9.0/`:
+moves. It is **published** as a GitHub Release, superseding `0.7.1`. `0.8.0` was
+approved and never published. The decision record is
+[`docs/release/0.9.0/release-decision.md`](docs/release/0.9.0/release-decision.md),
+approved by `nmasamba` on 2026-10-01 in all three roles. The release was prepared on
+2026-09-30. The tag was cut on 2026-10-01 on the merge commit of #31, at the owner's
+instruction and minutes ahead of the signatures, as `v0.8.0`'s was. So the tree it points
+at still calls itself "tagged 2026-09-30, approvals unsigned". Beside the record in
+`docs/release/0.9.0/`:
 - the image scan, with per-image SBOMs and unsigned provenance;
 - a comparison of the reference case with `v0.8.0`, showing that nothing moved except the
   declared shift;
 - a re-measured benchmark;
 - the clean-room rehearsal.
+
+### Published
+
+- **GitHub Release `v0.9.0`** (<https://github.com/nmasamba/OAK/releases/tag/v0.9.0>),
+  2026-10-01, the latest release. It carries the wheel, sdist, CycloneDX SBOM, licence
+  inventory, `SHA256SUMS` and build provenance from the `v0.9.0` run of `release.yml`.
+  The files were verified against `SHA256SUMS` before they were attached, and again after
+  being downloaded from the published release.
+  - **Wheel:** `sha256:ba26e638…`, byte-identical to the build the decision record cites.
+    That build ran at `d5717de` on macOS arm64; this one at `ff7d4df` on Linux x86_64.
+  - **Sdist:** `sha256:a3760791…`. It differs from the approved build because it carries
+    later documentation and `uv.lock`.
+  - **SBOM and licence inventory:** these differ too. Three platform-marked runtime
+    dependencies resolve on Linux only: `greenlet`, `SecretStorage` and `jeepney`.
+
+  Not on PyPI and not in a container registry, each a separate decision. `0.8.0` was never
+  published.
 
 `urllib3`, a development-only dependency that `pip-audit` pulls in through `requests`,
 moved from 2.7.0 to 2.8.0 after three advisories against 2.7.0 were published on the

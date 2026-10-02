@@ -42,6 +42,14 @@
       }
     },
     "/v1/design-cases": {
+      "get": {
+        "request_body_required": false,
+        "required_parameters": [],
+        "responses": [
+          "200",
+          "422"
+        ]
+      },
       "post": {
         "request_body_required": true,
         "required_parameters": [
@@ -105,6 +113,21 @@
           {
             "in": "query",
             "name": "version"
+          }
+        ],
+        "responses": [
+          "200",
+          "422"
+        ]
+      }
+    },
+    "/v1/design-cases/{case_id}/audit": {
+      "get": {
+        "request_body_required": false,
+        "required_parameters": [
+          {
+            "in": "path",
+            "name": "case_id"
           }
         ],
         "responses": [
@@ -296,6 +319,148 @@
         ]
       }
     },
+    "/v1/models": {
+      "get": {
+        "request_body_required": false,
+        "required_parameters": [
+          {
+            "in": "header",
+            "name": "X-OAK-Model-Token"
+          }
+        ],
+        "responses": [
+          "200",
+          "422"
+        ]
+      }
+    },
+    "/v1/models/credentials/{family}": {
+      "delete": {
+        "request_body_required": false,
+        "required_parameters": [
+          {
+            "in": "header",
+            "name": "X-OAK-Model-Token"
+          },
+          {
+            "in": "path",
+            "name": "family"
+          }
+        ],
+        "responses": [
+          "204",
+          "422"
+        ]
+      },
+      "put": {
+        "request_body_required": true,
+        "required_parameters": [
+          {
+            "in": "header",
+            "name": "X-OAK-Model-Token"
+          },
+          {
+            "in": "path",
+            "name": "family"
+          }
+        ],
+        "responses": [
+          "204",
+          "422"
+        ]
+      }
+    },
+    "/v1/models/selection": {
+      "put": {
+        "request_body_required": true,
+        "required_parameters": [
+          {
+            "in": "header",
+            "name": "X-OAK-Model-Token"
+          }
+        ],
+        "responses": [
+          "200",
+          "422"
+        ]
+      }
+    },
+    "/v1/models/selection/{family}": {
+      "delete": {
+        "request_body_required": false,
+        "required_parameters": [
+          {
+            "in": "header",
+            "name": "X-OAK-Model-Token"
+          },
+          {
+            "in": "path",
+            "name": "family"
+          }
+        ],
+        "responses": [
+          "200",
+          "422"
+        ]
+      }
+    },
+    "/v1/models/{family}/catalogue": {
+      "get": {
+        "request_body_required": false,
+        "required_parameters": [
+          {
+            "in": "header",
+            "name": "X-OAK-Model-Token"
+          },
+          {
+            "in": "path",
+            "name": "family"
+          }
+        ],
+        "responses": [
+          "200",
+          "422"
+        ]
+      }
+    },
+    "/v1/models/{family}:discover": {
+      "post": {
+        "request_body_required": false,
+        "required_parameters": [
+          {
+            "in": "header",
+            "name": "X-OAK-Model-Token"
+          },
+          {
+            "in": "path",
+            "name": "family"
+          }
+        ],
+        "responses": [
+          "200",
+          "422"
+        ]
+      }
+    },
+    "/v1/models/{family}:verify": {
+      "post": {
+        "request_body_required": false,
+        "required_parameters": [
+          {
+            "in": "header",
+            "name": "X-OAK-Model-Token"
+          },
+          {
+            "in": "path",
+            "name": "family"
+          }
+        ],
+        "responses": [
+          "200",
+          "422"
+        ]
+      }
+    },
     "/v1/operations/{operation_id}": {
       "get": {
         "request_body_required": false,
@@ -380,6 +545,15 @@
         "duplicate"
       ]
     },
+    "AuditTrailResponse": {
+      "properties": {
+        "items": "\"array\"",
+        "next_cursor": "anyOf:\"null\",\"string\""
+      },
+      "required": [
+        "items"
+      ]
+    },
     "CandidateListResponse": {
       "properties": {
         "items": "\"array\"",
@@ -429,6 +603,15 @@
         "original_name"
       ]
     },
+    "DesignCaseListResponse": {
+      "properties": {
+        "items": "\"array\"",
+        "next_cursor": "anyOf:\"null\",\"string\""
+      },
+      "required": [
+        "items"
+      ]
+    },
     "DesignCaseResponse": {
       "properties": {
         "case": "\"object\"",
@@ -469,6 +652,124 @@
         "status": "\"string\""
       },
       "required": []
+    },
+    "InterpreterMode": {
+      "properties": {},
+      "required": []
+    },
+    "ModelCatalogueResponse": {
+      "properties": {
+        "discovery": "anyOf:\"null\",\"object\"",
+        "family": "\"string\""
+      },
+      "required": [
+        "discovery",
+        "family"
+      ]
+    },
+    "ModelCredentialRequest": {
+      "properties": {
+        "api_key": "\"string\""
+      },
+      "required": [
+        "api_key"
+      ]
+    },
+    "ModelCredentialStatus": {
+      "properties": {
+        "configured": "\"boolean\"",
+        "family": "\"string\"",
+        "fingerprint": "anyOf:\"null\",\"string\"",
+        "length": "anyOf:\"integer\",\"null\"",
+        "source": "\"string\"",
+        "verification": "anyOf:\"null\",\"object\""
+      },
+      "required": [
+        "configured",
+        "family",
+        "source"
+      ]
+    },
+    "ModelDiscoveryResponse": {
+      "properties": {
+        "discovery": "\"object\"",
+        "family": "\"string\""
+      },
+      "required": [
+        "discovery",
+        "family"
+      ]
+    },
+    "ModelDiscoverySummary": {
+      "properties": {
+        "fetched_at": "\"string\"",
+        "model_count": "\"integer\"",
+        "recommended": "anyOf:\"null\",\"string\"",
+        "source": "\"string\"",
+        "stale": "\"boolean\""
+      },
+      "required": [
+        "fetched_at",
+        "model_count",
+        "recommended",
+        "source",
+        "stale"
+      ]
+    },
+    "ModelFamily": {
+      "properties": {
+        "credential_required": "\"boolean\"",
+        "data_use_note": "\"string\"",
+        "default": "\"boolean\"",
+        "display_name": "\"string\"",
+        "environment_variable": "anyOf:\"null\",\"string\"",
+        "family": "\"string\"",
+        "key_hint": "\"string\"",
+        "licence_class": "\"string\"",
+        "token_help_url": "anyOf:\"null\",\"string\""
+      },
+      "required": [
+        "credential_required",
+        "data_use_note",
+        "default",
+        "display_name",
+        "environment_variable",
+        "family",
+        "key_hint",
+        "licence_class",
+        "token_help_url"
+      ]
+    },
+    "ModelSelectionRequest": {
+      "properties": {
+        "family": "\"string\"",
+        "model_id": "\"string\"",
+        "provider_route": "anyOf:\"null\",\"string\""
+      },
+      "required": [
+        "family",
+        "model_id"
+      ]
+    },
+    "ModelStatusResponse": {
+      "properties": {
+        "credentials": "\"array\"",
+        "discovery": "\"object\"",
+        "families": "\"array\"",
+        "modes": "\"object\"",
+        "provider_policy": "\"string\"",
+        "selections": "\"object\"",
+        "stores": "\"object\""
+      },
+      "required": [
+        "credentials",
+        "discovery",
+        "families",
+        "modes",
+        "provider_policy",
+        "selections",
+        "stores"
+      ]
     },
     "OperationResponse": {
       "properties": {
