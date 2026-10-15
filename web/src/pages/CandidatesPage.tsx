@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-import { useEffect, useState } from "react";
+import { useEffect, useState, type DragEvent, type KeyboardEvent } from "react";
 
+import { CaseRail, Moment } from "../CaseRail";
 import {
   evaluateCandidate,
   getDesignCase,
@@ -14,10 +15,20 @@ import {
   asArray,
   asNumber,
   asObject,
+  asReference,
   asString,
   etagFor,
   newIdempotencyKey,
 } from "../support";
+import {
+  Chip,
+  Icon,
+  Keycap,
+  RangeBar,
+  candidateLabel,
+  formatQuantity,
+  type IconName,
+} from "../ui";
 
 type PageState =
   | { readonly kind: "loading" }
@@ -28,13 +39,38 @@ type PageState =
     }
   | { readonly kind: "failed"; readonly failure: ActionFailure };
 
-function variantOf(candidate: JsonObject): string {
-  const extensions = asObject(candidate["extensions"]) ?? {};
-  return (
-    asString(extensions["oak.community/pattern_variant"]) ??
-    asString(candidate["variant"]) ??
-    "unknown"
-  );
+type View = "cards" | "table";
+
+/** The objectives the cards draw as bars, with the word and glyph for each. */
+const BAR_OBJECTIVES: readonly {
+  readonly name: string;
+  readonly word: string;
+  readonly icon: IconName;
+}[] = [
+  { name: "quality", word: "Quality", icon: "star" },
+  { name: "latency_p95", word: "Latency", icon: "clock" },
+  { name: "energy", word: "Energy", icon: "bolt" },
+];
+
+const BENCH_OBJECTIVES: readonly {
+  readonly name: string;
+  readonly word: string;
+  readonly icon: IconName;
+}[] = [
+  ...BAR_OBJECTIVES,
+  { name: "monthly_cost", word: "Monthly cost", icon: "coin" },
+];
+
+const UNITS: Readonly<Record<string, string>> = {
+  milliseconds: "ms",
+  "Wh/request": "Wh",
+  "USD/month": "USD/mo",
+  normalized_fixture_score: "",
+  components: "",
+};
+
+function unitWord(unit: string | null): string {
+  return unit === null ? "" : (UNITS[unit] ?? unit);
 }
 
 function objectiveNames(candidates: readonly JsonObject[]): readonly string[] {
@@ -60,6 +96,34 @@ function objectiveFor(candidate: JsonObject, name: string): JsonObject | null {
   return null;
 }
 
+/** One scale per objective across every candidate, so the bars compare. */
+function scales(
+  candidates: readonly JsonObject[],
+): Readonly<Record<string, { readonly min: number; readonly max: number }>> {
+  const result: Record<string, { min: number; max: number }> = {};
+  for (const candidate of candidates) {
+    for (const objective of asArray(candidate["objectives"])) {
+      const entry = asObject(objective);
+      const name = entry === null ? null : asString(entry["name"]);
+      if (entry === null || name === null) {
+        continue;
+      }
+      for (const key of ["lower", "upper", "value"]) {
+        const value = asNumber(entry[key]);
+        if (value === null) {
+          continue;
+        }
+        const current = result[name] ?? { min: value, max: value };
+        result[name] = {
+          min: Math.min(current.min, value),
+          max: Math.max(current.max, value),
+        };
+      }
+    }
+  }
+  return result;
+}
+
 function ObjectiveCell({
   objective,
 }: {
@@ -71,19 +135,17 @@ function ObjectiveCell({
   const value = asNumber(objective["value"]);
   const lower = asNumber(objective["lower"]);
   const upper = asNumber(objective["upper"]);
-  const unit = asString(objective["unit"]) ?? "";
+  const unit = unitWord(asString(objective["unit"]));
   return (
     <td>
-      <span className="objective-value">
-        {value !== null ? value.toLocaleString() : "—"}
-      </span>
+      <span className="objective-value">{formatQuantity(value)}</span>
       <span className="timeline-meta">
         {" "}
         {unit}
         {lower !== null && upper !== null && (
           <>
             {" "}
-            ({lower.toLocaleString()}–{upper.toLocaleString()})
+            ({formatQuantity(lower)}–{formatQuantity(upper)})
           </>
         )}
       </span>
@@ -118,11 +180,13 @@ function ConstraintTable({ candidate }: { readonly candidate: JsonObject }) {
                 <code className="pointer">{id}</code>
               </th>
               <td>
-                <span
-                  className={`badge ${result === "pass" ? "claim-fact" : "claim-unknown"}`}
+                <Chip
+                  small
+                  tone={result === "pass" ? "ok" : "bad"}
+                  icon={result === "pass" ? "check" : "cross"}
                 >
                   {result}
-                </span>
+                </Chip>
               </td>
               <td>{asString(constraint["reason"])}</td>
               <td>
@@ -162,7 +226,7 @@ function ExplanationList({
       <p className="timeline-meta explanation-label" id={labelId}>
         {label}
       </p>
-      <ul aria-labelledby={labelId}>
+      <ul aria-labelledby={labelId} className="explanation">
         {items.map((item, index) => {
           const reason = asString(item["reason"]);
           const requirementIds = asArray(item["requirement_ids"])
@@ -187,52 +251,32 @@ function ExplanationList({
   );
 }
 
-function CandidateDetail({ candidate }: { readonly candidate: JsonObject }) {
-  const candidateId = asString(candidate["id"]) ?? "";
-  const topology = asObject(candidate["topology"]) ?? {};
-  const nodes = asArray(topology["nodes"])
-    .map(asObject)
-    .filter((entry): entry is JsonObject => entry !== null);
-  const extensions = asObject(candidate["extensions"]) ?? {};
-  const explanation = asObject(extensions["oak.community/explanation"]) ?? {};
-  const pareto = asObject(candidate["pareto"]) ?? {};
+/** The topology as a glyph: one box per node, joined in a row. Decoration only. */
+function TopologyGlyph({
+  candidate,
+  infeasible,
+}: {
+  readonly candidate: JsonObject;
+  readonly infeasible: boolean;
+}) {
+  const nodes = asArray((asObject(candidate["topology"]) ?? {})["nodes"]);
+  const count = Math.max(1, Math.min(nodes.length, 5));
   return (
-    <div className="candidate-detail">
-      <h3>Hard constraints</h3>
-      <ConstraintTable candidate={candidate} />
-      <h3>Topology</h3>
-      <ul>
-        {nodes.map((node) => {
-          const id = asString(node["id"]) ?? "";
-          return (
-            <li key={id}>
-              <code className="pointer">{id}</code> — {asString(node["role"])} (
-              {asString(node["component_ref"])})
-            </li>
-          );
-        })}
-      </ul>
-      <h3>Pareto and sensitivity</h3>
-      <p>
-        {asString(pareto["sensitivity_summary"]) ?? "No sensitivity summary."}
-      </p>
-      <h3>Explanation</h3>
-      <ExplanationList
-        labelId={`candidate-${candidateId}-satisfied`}
-        label="Satisfied requirements"
-        entries={explanation["satisfied_requirements"]}
-      />
-      <ExplanationList
-        labelId={`candidate-${candidateId}-uncertainties`}
-        label="Uncertainties"
-        entries={explanation["uncertainties"]}
-      />
-      <details>
-        <summary>Raw candidate document</summary>
-        <pre className="value">{JSON.stringify(candidate, null, 1)}</pre>
-      </details>
+    <div
+      className={`glyph${infeasible ? " glyph-infeasible" : ""}`}
+      aria-hidden="true"
+    >
+      {Array.from({ length: count }, (_, index) => (
+        <span key={index} className="glyph-node">
+          {index < count - 1 ? <span className="glyph-edge" /> : null}
+        </span>
+      ))}
     </div>
   );
+}
+
+function sign(value: number): string {
+  return value > 0 ? `+${formatQuantity(value)}` : formatQuantity(value);
 }
 
 export function CandidatesPage({ caseId }: { readonly caseId: string }) {
@@ -242,6 +286,10 @@ export function CandidatesPage({ caseId }: { readonly caseId: string }) {
   const [pending, setPending] = useState<string | null>(null);
   const [rationales, setRationales] = useState<Record<string, string>>({});
   const [validation, setValidation] = useState<string | null>(null);
+  const [view, setView] = useState<View>("cards");
+  const [bench, setBench] = useState<readonly string[]>([]);
+  const [dragging, setDragging] = useState<string | null>(null);
+  const [overBench, setOverBench] = useState(false);
 
   const load = () => {
     setState({ kind: "loading" });
@@ -279,7 +327,15 @@ export function CandidatesPage({ caseId }: { readonly caseId: string }) {
   const status = asString(caseDocument["status"]) ?? "";
   const title = asString(caseDocument["title"]) ?? caseId;
   const names = objectiveNames(candidates);
+  const scale = scales(candidates);
   const selectable = status === "candidates_ready";
+  const chosenId =
+    asReference(caseDocument["selected_candidate_ref"])?.id ?? null;
+  const feasible = candidates.filter(
+    (candidate) => asString(candidate["status"]) !== "infeasible",
+  ).length;
+  const href = (suffix: string) =>
+    `/cases/${encodeURIComponent(caseId)}${suffix}`;
 
   const onEvaluate = (candidateId: string) => {
     setPending(`evaluate-${candidateId}`);
@@ -298,9 +354,7 @@ export function CandidatesPage({ caseId }: { readonly caseId: string }) {
   const onSelect = (candidateId: string) => {
     const rationale = (rationales[candidateId] ?? "").trim();
     if (rationale === "") {
-      setValidation(
-        `Provide a selection rationale for ${candidateId} before selecting it.`,
-      );
+      setValidation(`${candidateId} needs a selection rationale.`);
       return;
     }
     setPending(`select-${candidateId}`);
@@ -314,164 +368,461 @@ export function CandidatesPage({ caseId }: { readonly caseId: string }) {
         etag: etagFor(version),
       },
     )
-      .then(() => navigate(`/cases/${encodeURIComponent(caseId)}/decision`))
+      .then(() => navigate(href("/decision")))
       .catch((error: unknown) => setFailure(toActionFailure(error)))
       .finally(() => setPending(null));
   };
 
-  return (
-    <>
-      <p className="eyebrow">Candidate comparison</p>
-      <h1 id="page-heading">{title}</h1>
-      <p className="case-id">
-        {caseId} · case version {version} · {status}
-      </p>
+  // The bench holds two designs side by side. A grip toggles a design on or off it;
+  // with the grip focused, the arrow keys move a benched design left or right.
+  const toggleBench = (id: string) => {
+    setBench((current) =>
+      current.includes(id)
+        ? current.filter((entry) => entry !== id)
+        : [...current.slice(-1), id],
+    );
+  };
+  const moveOnBench = (id: string, direction: -1 | 1) => {
+    setBench((current) => {
+      const index = current.indexOf(id);
+      const target = index + direction;
+      if (index < 0 || target < 0 || target >= current.length) {
+        return current;
+      }
+      const next = [...current];
+      const other = next[target];
+      if (other === undefined) {
+        return current;
+      }
+      next[target] = id;
+      next[index] = other;
+      return next;
+    });
+  };
+  const onGripKey = (id: string, event: KeyboardEvent<HTMLButtonElement>) => {
+    if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+      event.preventDefault();
+      moveOnBench(id, -1);
+    } else if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+      event.preventDefault();
+      moveOnBench(id, 1);
+    }
+  };
+  const onDrop = (event: DragEvent<HTMLElement>) => {
+    event.preventDefault();
+    setOverBench(false);
+    const id = event.dataTransfer.getData("text/plain");
+    if (id !== "" && !bench.includes(id)) {
+      toggleBench(id);
+    }
+    setDragging(null);
+  };
+  const benched = bench
+    .map((id) =>
+      candidates.find((candidate) => asString(candidate["id"]) === id),
+    )
+    .filter((candidate): candidate is JsonObject => candidate !== undefined);
+  const [left, right] = benched;
 
-      <section aria-labelledby="comparison-heading" className="panel">
-        <h2 id="comparison-heading">
+  return (
+    <div className="convo">
+      <div className="thread">
+        <h1 id="page-heading">{title}</h1>
+        <Moment fresh>
+          <div className="moment-row">
+            <p>
+              {candidates.length} design{candidates.length === 1 ? "" : "s"}.{" "}
+              {feasible} fit.
+            </p>
+            <span className="spacer" />
+            <div role="group" aria-label="View" className="view-group">
+              <button
+                type="button"
+                className="ico"
+                aria-label="Cards"
+                aria-pressed={view === "cards"}
+                onClick={() => setView("cards")}
+              >
+                <Icon name="cards" size={18} />
+              </button>
+              <button
+                type="button"
+                className="ico"
+                aria-label="Table"
+                aria-pressed={view === "table"}
+                onClick={() => setView("table")}
+              >
+                <Icon name="table" size={18} />
+              </button>
+            </div>
+          </div>
+        </Moment>
+
+        <h2 id="comparison-heading" className="designs-heading">
           {candidates.length} candidate architecture
           {candidates.length === 1 ? "" : "s"}
         </h2>
-        <p className="hint">
-          The simpler baseline appears first. Objective values are transparent
-          estimator outputs with ranges; every raw document is inspectable
-          below. Infeasible variants stay visible with their rejection reasons.
-        </p>
-        <div
-          className="table-scroll"
-          tabIndex={0}
-          role="region"
-          aria-label="Candidate comparison table"
-        >
-          <table>
-            <caption className="visually-hidden">
-              Candidate architectures with feasibility, Pareto status, and
-              objective ranges
-            </caption>
-            <thead>
-              <tr>
-                <th scope="col">Candidate</th>
-                <th scope="col">Variant</th>
-                <th scope="col">Status</th>
-                <th scope="col">Frontier</th>
-                {names.map((name) => (
-                  <th scope="col" key={name}>
-                    {name.replaceAll("_", " ")}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {candidates.map((candidate) => {
-                const id = asString(candidate["id"]) ?? "";
-                const candidateStatus = asString(candidate["status"]) ?? "";
-                const pareto = asObject(candidate["pareto"]) ?? {};
-                const rejections = asArray(candidate["rejection_reasons"]).map(
-                  (entry) => String(entry),
-                );
-                return (
-                  <tr key={id}>
-                    <th scope="row">{id}</th>
-                    <td>{variantOf(candidate)}</td>
-                    <td>
-                      <span
-                        className={`badge ${
-                          candidateStatus === "feasible"
-                            ? "claim-fact"
-                            : "claim-unknown"
-                        }`}
-                      >
-                        {candidateStatus}
-                      </span>
-                      {rejections.length > 0 && (
-                        <p className="timeline-meta">{rejections.join("; ")}</p>
-                      )}
-                    </td>
-                    <td>
-                      {pareto["frontier_member"] === true ? "member" : "—"}
-                    </td>
-                    {names.map((name) => (
-                      <ObjectiveCell
-                        key={name}
-                        objective={objectiveFor(candidate, name)}
-                      />
-                    ))}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </section>
 
-      {candidates.map((candidate) => {
-        const id = asString(candidate["id"]) ?? "";
-        return (
-          <section
-            key={id}
-            aria-labelledby={`candidate-${id}-heading`}
-            className="panel"
+        {view === "table" ? (
+          <div
+            className="table-scroll card"
+            tabIndex={0}
+            role="region"
+            aria-label="Candidate comparison table"
           >
-            <h2 id={`candidate-${id}-heading`}>
-              {id} · {variantOf(candidate)}
-            </h2>
-            <CandidateDetail candidate={candidate} />
-            <div className="actions">
-              <button
-                type="button"
-                onClick={() => onEvaluate(id)}
-                disabled={pending !== null || !selectable}
+            <table>
+              <caption className="visually-hidden">
+                Candidate architectures with feasibility, Pareto status, and
+                objective ranges
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">Candidate</th>
+                  <th scope="col">Variant</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Frontier</th>
+                  {names.map((name) => (
+                    <th scope="col" key={name}>
+                      {name.replaceAll("_", " ")}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {candidates.map((candidate) => {
+                  const id = asString(candidate["id"]) ?? "";
+                  const candidateStatus = asString(candidate["status"]) ?? "";
+                  const pareto = asObject(candidate["pareto"]) ?? {};
+                  const rejections = asArray(
+                    candidate["rejection_reasons"],
+                  ).map((entry) => String(entry));
+                  return (
+                    <tr key={id}>
+                      <th scope="row">
+                        <code className="mono">{id}</code>
+                      </th>
+                      <td>{candidateLabel(candidate)}</td>
+                      <td>
+                        <Chip
+                          small
+                          tone={candidateStatus === "infeasible" ? "bad" : "ok"}
+                          icon={
+                            candidateStatus === "infeasible" ? "cross" : "check"
+                          }
+                        >
+                          {candidateStatus}
+                        </Chip>
+                        {rejections.length > 0 && (
+                          <p className="timeline-meta">
+                            {rejections.join("; ")}
+                          </p>
+                        )}
+                      </td>
+                      <td>
+                        {pareto["frontier_member"] === true ? "member" : "—"}
+                      </td>
+                      {names.map((name) => (
+                        <ObjectiveCell
+                          key={name}
+                          objective={objectiveFor(candidate, name)}
+                        />
+                      ))}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
+
+        <div className={`designs${view === "table" ? " designs-details" : ""}`}>
+          {candidates.map((candidate) => {
+            const id = asString(candidate["id"]) ?? "";
+            const candidateStatus = asString(candidate["status"]) ?? "";
+            const infeasible = candidateStatus === "infeasible";
+            const onBench = bench.includes(id);
+            const chosen = chosenId === id;
+            const rejections = asArray(candidate["rejection_reasons"]).map(
+              (entry) => String(entry),
+            );
+            const topology = asObject(candidate["topology"]) ?? {};
+            const nodes = asArray(topology["nodes"])
+              .map(asObject)
+              .filter((entry): entry is JsonObject => entry !== null);
+            const extensions = asObject(candidate["extensions"]) ?? {};
+            const explanation =
+              asObject(extensions["oak.community/explanation"]) ?? {};
+            const pareto = asObject(candidate["pareto"]) ?? {};
+            const tone = infeasible
+              ? "design-infeasible"
+              : chosen
+                ? "design-chosen"
+                : onBench
+                  ? "design-benched"
+                  : "";
+            return (
+              <section
+                key={id}
+                aria-labelledby={`candidate-${id}-heading`}
+                className={`design card card-lift ${tone}${dragging === id ? " card-dragging" : ""}`}
+                draggable={!infeasible}
+                onDragStart={(event) => {
+                  event.dataTransfer.setData("text/plain", id);
+                  event.dataTransfer.effectAllowed = "move";
+                  setDragging(id);
+                }}
+                onDragEnd={() => setDragging(null)}
               >
-                {pending === `evaluate-${id}`
-                  ? "Requesting evaluation…"
-                  : "Evaluate against the contract"}
-              </button>
-            </div>
-            {selectable && (
-              <div className="field">
-                <label htmlFor={`rationale-${id}`}>
-                  Selection rationale for {id}
-                </label>
-                <textarea
-                  id={`rationale-${id}`}
-                  rows={2}
-                  value={rationales[id] ?? ""}
-                  onChange={(event) =>
-                    setRationales((current) => ({
-                      ...current,
-                      [id]: event.target.value,
-                    }))
-                  }
-                />
-                <button
-                  type="button"
-                  onClick={() => onSelect(id)}
-                  disabled={pending !== null}
-                >
-                  {pending === `select-${id}`
-                    ? "Recording selection…"
-                    : `Select ${id}`}
-                </button>
-              </div>
-            )}
-          </section>
-        );
-      })}
+                <div className="design-head">
+                  <h2 id={`candidate-${id}-heading`} className="design-title">
+                    <span className="mono design-id">{id}</span>
+                    <span className="design-name">
+                      {candidateLabel(candidate)}
+                    </span>
+                  </h2>
+                  {infeasible ? (
+                    <Chip small tone="bad" icon="cross">
+                      {candidateStatus}
+                    </Chip>
+                  ) : (
+                    <button
+                      type="button"
+                      className="grip"
+                      aria-label={`Drag ${id} to the bench`}
+                      aria-pressed={onBench}
+                      title="Space picks up or drops; arrows move it on the bench"
+                      onClick={() => toggleBench(id)}
+                      onKeyDown={(event) => onGripKey(id, event)}
+                    >
+                      <Icon name="grip" size={18} />
+                    </button>
+                  )}
+                </div>
+                <TopologyGlyph candidate={candidate} infeasible={infeasible} />
+                {infeasible ? (
+                  <p className="design-reason">
+                    {rejections.length > 0
+                      ? rejections.join(" ")
+                      : "Infeasible."}
+                  </p>
+                ) : (
+                  <div className="design-bars">
+                    {BAR_OBJECTIVES.map(({ name, word }) => {
+                      const objective = objectiveFor(candidate, name);
+                      const range = scale[name] ?? { min: 0, max: 1 };
+                      return (
+                        <RangeBar
+                          key={name}
+                          label={word}
+                          low={
+                            objective === null
+                              ? null
+                              : asNumber(objective["lower"])
+                          }
+                          high={
+                            objective === null
+                              ? null
+                              : asNumber(objective["upper"])
+                          }
+                          point={
+                            objective === null
+                              ? null
+                              : asNumber(objective["value"])
+                          }
+                          min={range.min}
+                          max={range.max}
+                          unit={unitWord(
+                            objective === null
+                              ? null
+                              : asString(objective["unit"]),
+                          )}
+                          tone={chosen ? "brass" : "ok"}
+                        />
+                      );
+                    })}
+                  </div>
+                )}
+                {chosen ? (
+                  <Chip small tone="brass" icon="check">
+                    Selected
+                  </Chip>
+                ) : null}
+                <div className="design-explanation">
+                  <ExplanationList
+                    labelId={`candidate-${id}-satisfied`}
+                    label="Satisfied requirements"
+                    entries={explanation["satisfied_requirements"]}
+                  />
+                  <ExplanationList
+                    labelId={`candidate-${id}-uncertainties`}
+                    label="Uncertainties"
+                    entries={explanation["uncertainties"]}
+                  />
+                </div>
+                <details>
+                  <summary>Nodes, constraints and sensitivity</summary>
+                  <ul className="explanation">
+                    {nodes.map((node) => {
+                      const nodeId = asString(node["id"]) ?? "";
+                      return (
+                        <li key={nodeId}>
+                          <code className="pointer">{nodeId}</code> —{" "}
+                          {asString(node["role"])} (
+                          {asString(node["component_ref"]) ?? "no component"})
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  <ConstraintTable candidate={candidate} />
+                  <p className="timeline-meta">
+                    {asString(pareto["sensitivity_summary"]) ??
+                      "No sensitivity summary."}
+                  </p>
+                </details>
+                <details>
+                  <summary>Raw candidate document</summary>
+                  <pre className="value">
+                    {JSON.stringify(candidate, null, 1)}
+                  </pre>
+                </details>
+                <div className="actions">
+                  <Keycap
+                    tone="quiet"
+                    onClick={() => onEvaluate(id)}
+                    busy={pending === `evaluate-${id}`}
+                    busyLabel="Requesting…"
+                    disabled={pending !== null || !selectable}
+                  >
+                    Evaluate against the contract
+                  </Keycap>
+                </div>
+                {selectable && !infeasible && (
+                  <div className="field">
+                    <label htmlFor={`rationale-${id}`}>
+                      Selection rationale for {id}
+                    </label>
+                    <textarea
+                      id={`rationale-${id}`}
+                      rows={2}
+                      value={rationales[id] ?? ""}
+                      onChange={(event) =>
+                        setRationales((current) => ({
+                          ...current,
+                          [id]: event.target.value,
+                        }))
+                      }
+                    />
+                    <Keycap
+                      tone="quiet"
+                      icon="check"
+                      onClick={() => onSelect(id)}
+                      busy={pending === `select-${id}`}
+                      busyLabel="Recording…"
+                      disabled={pending !== null}
+                    >
+                      Select {id}
+                    </Keycap>
+                  </div>
+                )}
+              </section>
+            );
+          })}
+        </div>
 
-      <div aria-live="polite">
-        {validation !== null && (
-          <p className="problem" role="alert">
-            {validation}
-          </p>
-        )}
-        {failure !== null && <ProblemAlert failure={failure} onReload={load} />}
+        <section
+          aria-label="The bench"
+          className={`bench${overBench ? " bench-over" : ""}`}
+          onDragOver={(event) => {
+            event.preventDefault();
+            setOverBench(true);
+          }}
+          onDragLeave={() => setOverBench(false)}
+          onDrop={onDrop}
+        >
+          {benched.length === 0 ? (
+            <p className="bench-empty">Drop two designs here to compare.</p>
+          ) : (
+            <>
+              <ul className="chip-row" aria-label="On the bench">
+                {benched.map((candidate, index) => {
+                  const id = asString(candidate["id"]) ?? "";
+                  return (
+                    <li key={id} className="bench-item">
+                      <Chip
+                        tone={index === 0 ? "info" : "brass"}
+                        onRemove={() => toggleBench(id)}
+                        removeLabel={`Take ${id} off the bench`}
+                      >
+                        {candidateLabel(candidate)}
+                      </Chip>
+                      {index === 0 && benched.length > 1 ? (
+                        <Icon name="send" label="compared with" />
+                      ) : null}
+                    </li>
+                  );
+                })}
+              </ul>
+              {left !== undefined && right !== undefined ? (
+                <dl className="bench-deltas">
+                  {BENCH_OBJECTIVES.map(({ name, word, icon }) => {
+                    const a = asNumber(objectiveFor(left, name)?.["value"]);
+                    const b = asNumber(objectiveFor(right, name)?.["value"]);
+                    const unit = unitWord(
+                      asString(objectiveFor(right, name)?.["unit"] ?? null),
+                    );
+                    return (
+                      <div key={name} title={word}>
+                        <dt>
+                          <Icon name={icon} label={word} />
+                        </dt>
+                        <dd className="mono">
+                          {a === null || b === null
+                            ? "unknown"
+                            : `${sign(b - a)}${unit === "" ? "" : ` ${unit}`}`}
+                        </dd>
+                      </div>
+                    );
+                  })}
+                </dl>
+              ) : (
+                <p className="bench-empty">One more to compare.</p>
+              )}
+            </>
+          )}
+        </section>
+
+        {chosenId !== null ? (
+          <Moment>
+            <p>
+              {candidateLabel(
+                candidates.find(
+                  (candidate) => asString(candidate["id"]) === chosenId,
+                ) ?? {},
+              )}{" "}
+              is chosen.{" "}
+              <Link to={href("/decision")}>
+                See the decision and assurance plan
+              </Link>
+            </p>
+          </Moment>
+        ) : null}
+
+        <div aria-live="polite">
+          {validation !== null && (
+            <p className="problem" role="alert">
+              {validation}
+            </p>
+          )}
+          {failure !== null && (
+            <ProblemAlert failure={failure} onReload={load} />
+          )}
+        </div>
+
+        <p className="thread-aside">
+          <Link to={href("")}>Back to the case</Link>
+        </p>
       </div>
-
-      <p>
-        <Link to={`/cases/${encodeURIComponent(caseId)}`}>
-          Back to the case
-        </Link>
-      </p>
-    </>
+      <CaseRail caseId={caseId} caseDocument={caseDocument} />
+    </div>
   );
 }

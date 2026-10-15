@@ -13,7 +13,7 @@ Execution is on branch `sprint-12-instrument-ui`, branched from `origin/main` at
 
 - Owner/agent: owner-directed coding agent
 - Started: 2026-10-15
-- Last updated: 2026-10-15 (M3: Conversation)
+- Last updated: 2026-10-15 (M4: Designs)
 - State: in-progress
 - Claimed tasks: `OAK-S12-001`–`OAK-S12-007`
 
@@ -303,6 +303,17 @@ Rollback is a revert of the branch. The throwaway stack is removed at the end wi
   collapses an answered question to a reply bubble with "Edit", progress pips named
   "Question k of n". No pin changed. `journey.spec.ts`, `models.spec.ts` and
   `failures.spec.ts` green; zero axe violations on the three screens.
+- [x] 2026-10-15 M4 Designs: `CandidatesPage` draws each candidate as a card (mono id,
+  the variant through the label map, a topology glyph, three range bars on one shared
+  scale per objective, the satisfied-requirements and uncertainties lists, nodes,
+  constraints and the raw document in disclosures), the infeasible one dashed with its
+  rejection reason, the chosen one in brass; a cards/table toggle (`aria-pressed`); a
+  bench that takes two designs by pointer drag or by a grip button (Space toggles,
+  arrows reorder) and shows the four deltas with labelled glyphs. The label map now keys
+  on the compiler's `oak.community/pattern_variant` extension, falling back to the
+  canonical `variant` (which is `other` for the baseline). One pin changed with its spec:
+  `getByText("simpler_baseline")` → `getByText("Baseline")`. `journey.spec.ts` green,
+  including `.nth(2)`, the regions and the list names; zero axe violations.
 
 ## Decisions
 
@@ -337,6 +348,15 @@ Rollback is a revert of the branch. The throwaway stack is removed at the end wi
   ran inside the same backgrounded command as the verification, so the failure did not
   stop the run (environment, not product) → edits now anchor on single-line tokens or
   section comments and run in their own foreground command before any verification.
+- 2026-10-15 M4: `journey.spec.ts` failed axe `color-contrast` on the case-detail screen,
+  on the brass "Interpret brief" keycap, with a measured background of `#876c34` that no
+  token has → the keycap sits in a `.rise` moment whose keyframes faded opacity from 0
+  over 320ms, and axe sampled it mid-fade, so the colours it measured were blends; the
+  same markup had passed in M3 by timing alone (product defect: a design choice that
+  makes the suite flaky) → the rise animation moves position only, the three partial
+  opacities (upcoming question, infeasible card, unavailable mode) are expressed as
+  border and colour instead, and guard G5 now fails on any `opacity` between 0 and 1 in
+  `styles.css`, mutation-checked both ways. Not a flake to retry: a class to prevent.
 
 ## Self-review
 
@@ -344,6 +364,10 @@ Answered at the end of each milestone: (1) did any pinned name change without it
 (2) did any new text exceed the word budget? (3) did anything touch a boundary in §7?
 
 - M0: (1) no; (2) no new UI text; (3) no.
+- M4: (1) one pin, with its spec (see Decisions and Progress); (2) new text: "N designs.
+  M fit.", "Drop two designs here to compare." (6 words), "One more to compare.",
+  "Nodes, constraints and sensitivity", "Selected", "X is chosen."; (3) no: selection
+  is the same call with the same rationale; the bench is browser state only.
 - M3: (1) no; (2) new text: "Ready when you are.", "N checks before I design.", "Ready
   to design.", "N designs.", "What I read, and where each value came from." (9 words),
   "Nothing read yet. Interpret the brief first.", "No open questions.", "Why it

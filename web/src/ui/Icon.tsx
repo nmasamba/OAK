@@ -31,7 +31,17 @@ export type IconName =
   | "up"
   | "cases"
   | "models"
-  | "bulb";
+  | "bulb"
+  | "star"
+  | "bolt"
+  | "diagram"
+  | "search"
+  | "shield"
+  | "database"
+  | "pen"
+  | "image"
+  | "box"
+  | "coin";
 
 const PATHS: Readonly<Record<IconName, readonly string[]>> = {
   send: ["M4 12h14", "M12 6l6 6-6 6"],
@@ -76,6 +86,25 @@ const PATHS: Readonly<Record<IconName, readonly string[]>> = {
     "M4 17h4",
     "M12 17h8",
     "M10 17m-2 0a2 2 0 1 0 4 0a2 2 0 1 0-4 0",
+  ],
+  star: [
+    "M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z",
+  ],
+  bolt: ["M13 2L4 14h7l-1 8 9-12h-7z"],
+  diagram: ["M2 8h7v8H2z", "M15 8h7v8h-7z", "M9 12h6"],
+  search: ["M11 11m-6 0a6 6 0 1 0 12 0a6 6 0 1 0-12 0", "M20 20l-4.5-4.5"],
+  shield: ["M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"],
+  database: [
+    "M12 6m-7 0a7 3 0 1 0 14 0a7 3 0 1 0-14 0",
+    "M5 6v12c0 1.7 3 3 7 3s7-1.3 7-3V6",
+  ],
+  pen: ["M4 20l4-1L19 8l-3-3L5 16z"],
+  image: ["M3 4h18v16H3z", "M7 15l3-4 3 3 4-5"],
+  box: ["M21 8l-9-5-9 5v8l9 5 9-5z", "M3 8l9 5 9-5", "M12 13v8"],
+  coin: [
+    "M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0-18 0",
+    "M14.5 9.5a3 3 0 0 0-5 0c0 3 5 2 5 5a3 3 0 0 1-5 0",
+    "M12 6v2M12 16v2",
   ],
   bulb: [
     "M9 18h6",

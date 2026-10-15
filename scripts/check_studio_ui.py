@@ -11,7 +11,9 @@ G3  Every `<svg>` is decorative (`aria-hidden`) or an image (`role="img"` with a
     `aria-label`); every icon-only button has an `aria-label`.
 G4  The bundle page still says that the web workspace holds no runner execution
     authority.
-G5  `styles.css` paints no literal colour: every colour is a token in `tokens.css`.
+G5  `styles.css` paints no literal colour: every colour is a token in `tokens.css`; and it
+    sets no partial opacity (only 0 or 1), because an element fading in lets an
+    accessibility scan sample a blended colour and fail contrast at random.
 
 The checks are textual and deliberately simple. They are regression guards for
 properties that review established, not a substitute for the browser suite.
@@ -84,6 +86,7 @@ PINNED_SENTENCE = re.compile(
 HEX_COLOUR = re.compile(r"#(?:[0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})\b", re.IGNORECASE)
 COLOUR_FUNCTION = re.compile(r"\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color)\(", re.IGNORECASE)
 REQUEST = re.compile(r"\bfetch\(|XMLHttpRequest|sendBeacon|generated/api")
+PARTIAL_OPACITY = re.compile(r"\bopacity:\s*(?:0?\.\d+|1\.\d*[1-9]\d*|[2-9]\d*)\b")
 
 
 def _source_files(suffixes: Iterable[str]) -> list[Path]:
@@ -222,11 +225,16 @@ def guard_4_sentence() -> list[str]:
 def guard_5_tokens() -> list[str]:
     failures: list[str] = []
     text = STYLES.read_text(encoding="utf-8")
-    for pattern, what in ((HEX_COLOUR, "hex colour"), (COLOUR_FUNCTION, "colour function")):
+    for pattern, what in (
+        (HEX_COLOUR, "hex colour"),
+        (COLOUR_FUNCTION, "colour function"),
+        (PARTIAL_OPACITY, "partial opacity"),
+    ):
         for match in pattern.finditer(text):
             failures.append(
                 f"G5 {_relative(STYLES)}:{_line_of(text, match.start())}: literal {what} "
-                f"{match.group(0)!r}; use a token from web/src/tokens.css"
+                f"{match.group(0)!r}; use a token from web/src/tokens.css and an opacity "
+                "of 0 or 1"
             )
     return failures
 

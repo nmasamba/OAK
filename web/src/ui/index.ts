@@ -8,4 +8,8 @@ export { Led, type LedState } from "./Led";
 export { ProvenanceMark } from "./ProvenanceMark";
 export { RangeBar, formatQuantity } from "./RangeBar";
 export { Tile } from "./Tile";
-export { variantLabel } from "./variantLabel";
+export {
+  candidateLabel,
+  candidateVariantId,
+  variantLabel,
+} from "./variantLabel";

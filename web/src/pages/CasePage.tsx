@@ -31,7 +31,7 @@ import {
   formatBytes,
   newIdempotencyKey,
 } from "../support";
-import { Chip, Icon, Keycap, variantLabel } from "../ui";
+import { Chip, Icon, Keycap, candidateLabel } from "../ui";
 
 type CaseState =
   | { readonly kind: "loading" }
@@ -378,7 +378,7 @@ export function CasePage({ caseId }: { readonly caseId: string }) {
                       title={feasibility}
                     >
                       <span className="mono">{id}</span> ·{" "}
-                      {variantLabel(asString(candidate["variant"]))}
+                      {candidateLabel(candidate)}
                     </Chip>
                   </li>
                 );

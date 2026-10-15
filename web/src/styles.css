@@ -1204,7 +1204,6 @@ summary {
 .mode-off {
   color: var(--text-faint);
   cursor: not-allowed;
-  opacity: 0.6;
 }
 
 .mode:focus-within {
@@ -1549,7 +1548,8 @@ summary {
 }
 
 .question[data-state="upcoming"] {
-  opacity: 0.8;
+  border-color: var(--hairline);
+  box-shadow: none;
 }
 
 .question[data-state="answered"] {
@@ -1670,19 +1670,308 @@ summary {
   }
 }
 
+/* Designs: cards, a table, and the bench */
+.view-group {
+  display: flex;
+  gap: 2px;
+  padding: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-inset);
+}
+
+.view-group .ico {
+  width: 38px;
+  height: 38px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--text-faint);
+  padding: 0;
+  min-height: 0;
+}
+
+.view-group .ico[aria-pressed="true"] {
+  background: var(--surface-mode-on);
+  color: var(--text-1);
+}
+
+.designs-heading {
+  margin: 0 0 0 48px;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: var(--size-mono);
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.designs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr));
+  gap: 16px;
+  padding-left: 48px;
+}
+
+.designs-details {
+  grid-template-columns: 1fr;
+}
+
+.design {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 0;
+  padding: 18px;
+  background: var(--surface-raised);
+  border: 1px solid var(--hairline-2);
+}
+
+.design[draggable="true"] {
+  cursor: grab;
+}
+
+.design-benched {
+  background: var(--focus-surface);
+  border: 2px solid var(--focus);
+}
+
+.design-chosen {
+  background: var(--brass-surface);
+  border: 2px solid var(--brass);
+  box-shadow: 0 0 0 5px var(--brass-ring);
+}
+
+.design-infeasible {
+  border: 2px dashed var(--bad-border);
+  background: transparent;
+  box-shadow: none;
+  cursor: default;
+}
+
+.design-infeasible:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+.design-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.design-title {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+}
+
+.design-id {
+  font-size: 11.5px;
+  font-weight: 400;
+  color: var(--text-faint);
+}
+
+.design-benched .design-id {
+  color: var(--focus-text);
+}
+
+.design-chosen .design-id {
+  color: var(--brass-text);
+}
+
+.design-name {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.design-infeasible .design-name {
+  color: var(--text-2);
+}
+
+.grip {
+  width: 40px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--hairline-control);
+  background: var(--surface-chip);
+  color: var(--text-2);
+  cursor: grab;
+}
+
+.grip:active {
+  cursor: grabbing;
+}
+
+.grip[aria-pressed="true"] {
+  border-color: var(--focus);
+  background: var(--focus-surface);
+  color: var(--focus-text);
+}
+
+.glyph {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 56px;
+  border-radius: 12px;
+  background: var(--surface-inset);
+}
+
+.glyph-node {
+  display: flex;
+  align-items: center;
+  width: 34px;
+  height: 22px;
+  border: 2.5px solid var(--ok);
+  border-radius: 6px;
+  position: relative;
+}
+
+.glyph-node + .glyph-node {
+  margin-left: 18px;
+}
+
+.glyph-edge {
+  position: absolute;
+  left: 100%;
+  top: 50%;
+  width: 18px;
+  height: 2.5px;
+  margin-top: -1px;
+  background: var(--ok);
+}
+
+.glyph-infeasible .glyph-node {
+  border-style: dashed;
+  border-color: var(--bad);
+}
+
+.glyph-infeasible .glyph-edge {
+  background: var(--bad);
+}
+
+.design-reason {
+  margin: 0;
+  font-size: 14px;
+  color: var(--bad-text);
+}
+
+.design-bars {
+  display: grid;
+  gap: 10px;
+}
+
+.design-explanation {
+  display: grid;
+  gap: 4px;
+  font-size: var(--size-mono);
+}
+
+.design-explanation .explanation-label {
+  margin: 0;
+}
+
+.explanation {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: var(--size-mono);
+  color: var(--text-3);
+}
+
+.explanation li {
+  margin: 0.25rem 0;
+}
+
+.design .actions {
+  margin: 0;
+}
+
+.design .field {
+  margin: 0;
+}
+
+.bench {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 18px;
+  margin-left: 48px;
+  padding: 16px 20px;
+  border-radius: 22px;
+  background: var(--surface-bench);
+  border: 1px solid var(--hairline-bench);
+  box-shadow: var(--shadow-bench);
+  transition: border-color var(--press);
+}
+
+.bench-over {
+  border: 2px dashed var(--focus);
+  background: var(--focus-wash);
+}
+
+.bench-empty {
+  margin: 0;
+  color: var(--focus-text);
+  font-size: var(--size-small);
+}
+
+.bench-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.bench-item .icon {
+  color: var(--text-faint);
+}
+
+.bench-deltas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  margin: 0 0 0 auto;
+}
+
+.bench-deltas div {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.bench-deltas dt {
+  display: inline-flex;
+  color: var(--brass);
+}
+
+.bench-deltas dd {
+  font-weight: 400;
+  font-size: var(--size-base);
+}
+
+@media (max-width: 40rem) {
+  .designs,
+  .designs-heading,
+  .bench {
+    margin-left: 0;
+    padding-left: 0;
+  }
+}
+
 /* Rising messages */
 .rise {
   animation: rise var(--rise) var(--ease-lift);
 }
 
+/* Position only: a fade would let an accessibility scan sample a blended colour. */
 @keyframes rise {
   from {
-    opacity: 0;
     transform: translateY(8px);
   }
 
   to {
-    opacity: 1;
     transform: none;
   }
 }
