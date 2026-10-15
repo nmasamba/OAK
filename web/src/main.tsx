@@ -17,6 +17,15 @@ import { OperationPage } from "./pages/OperationPage";
 import { ReviewPage } from "./pages/ReviewPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { Link, RouterProvider, matchPath, useRouter } from "./router";
+// Self-hosted fonts (OFL-1.1), bundled by Vite and served same-origin: no CDN.
+import "@fontsource/instrument-serif/400.css";
+import "@fontsource/instrument-serif/400-italic.css";
+import "@fontsource/ibm-plex-sans/400.css";
+import "@fontsource/ibm-plex-sans/500.css";
+import "@fontsource/ibm-plex-sans/600.css";
+import "@fontsource/ibm-plex-mono/400.css";
+import "@fontsource/ibm-plex-mono/500.css";
+import "./tokens.css";
 import "./styles.css";
 
 function Routes() {

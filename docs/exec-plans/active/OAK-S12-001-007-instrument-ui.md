@@ -13,7 +13,7 @@ Execution is on branch `sprint-12-instrument-ui`, branched from `origin/main` at
 
 - Owner/agent: owner-directed coding agent
 - Started: 2026-10-15
-- Last updated: 2026-10-15 (M0: kickoff, branch, plan, throwaway stack, baseline)
+- Last updated: 2026-10-15 (M1: tokens, fonts, primitives, guards)
 - State: in-progress
 - Claimed tasks: `OAK-S12-001`–`OAK-S12-007`
 
@@ -272,12 +272,27 @@ Rollback is a revert of the branch. The throwaway stack is removed at the end wi
 - [x] 2026-10-15 M0 baseline: `pnpm --dir web build` green (tsc + vite, 47 modules);
   `journey.spec.ts` green on the throwaway stack (`oak-s12`, api 18080, web 15174): 1
   passed in 15.6s, before any UI change. `OAK-S12-001` complete.
+- [x] 2026-10-15 M1: `web/src/tokens.css` (every colour, radius, shadow, duration;
+  reduced-motion zeroes the durations), `styles.css` rewritten on the tokens with no
+  literal colour, the three `@fontsource` packages at 5.3.0 (no install scripts; OFL-1.1
+  review in `docs/dependencies.md`), primitives in `web/src/ui/` (`Keycap`, `Chip`,
+  `Tile`, `Card`, `Led`, `RangeBar`, `ProvenanceMark`, `CopyPlate`, `Icon`), the
+  variant-label map, `ClaimBadge` now renders a `ProvenanceMark` with the same words.
+  `scripts/check_studio_ui.py` (G1–G4 plus G5, the no-literal-colour check) wired into
+  `make validate`; each guard mutation-checked (a planted violation per guard fails it).
+  Build green (fonts bundled as woff2 in `dist/assets`); `journey.spec.ts` green with
+  zero axe violations on its eight screens. `OAK-S12-002` complete.
 
 ## Decisions
 
 - 2026-10-15 Keep one plan for seven task IDs (one source tree, one suite).
 - 2026-10-15 The K1 document shows its parts' digests, not a digest of itself, because it
   is composed at request time (prompt §3).
+- 2026-10-15 The keycap travels 3px when pressed and has a 12px radius, as the Tactile
+  artboard draws it; the prompt's token list says 2px and 10px for controls. The canvas is
+  declared the source of truth, so the canvas wins; the tokens carry the artboard values.
+- 2026-10-15 A fifth guard, G5, checks that `styles.css` paints only tokens. It is the
+  M1 exit check made permanent, at the cost of one regex.
 
 ## Discoveries and follow-ups
 
@@ -289,3 +304,7 @@ Answered at the end of each milestone: (1) did any pinned name change without it
 (2) did any new text exceed the word budget? (3) did anything touch a boundary in §7?
 
 - M0: (1) no; (2) no new UI text; (3) no.
+- M1: (1) no, every pinned name is untouched (the journey spec passed unchanged); (2) the
+  only new visible words are the copy control's "Copy", "Copied" and "Copy failed. Select
+  the text." (5 words); (3) no: no call added, no button named for an authority, the copy
+  control imports no client (G2 proves both).

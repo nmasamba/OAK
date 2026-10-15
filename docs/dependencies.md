@@ -23,6 +23,8 @@ substitute for those locks.
 | TypeScript | Strict web type checking | web development | Apache-2.0 |
 | Playwright | Browser end-to-end harness | web development only | Apache-2.0 |
 | axe-core (via @axe-core/playwright) | Automated accessibility checks | web development only | MPL-2.0 |
+| Instrument Serif (via @fontsource/instrument-serif) | Display typeface, bundled and served same-origin | web only | OFL-1.1 |
+| IBM Plex Sans and IBM Plex Mono (via @fontsource/ibm-plex-sans, @fontsource/ibm-plex-mono) | Interface and monospace typefaces, bundled and served same-origin | web only | OFL-1.1 |
 | keyring (optional extra `keychain`) | OS credential store for user-supplied model-provider keys | credentials adapter only; lazily imported; file store is the fallback | MIT (Linux pulls SecretStorage BSD-3-Clause and jeepney MIT; Windows pywin32-ctypes BSD-3-Clause) |
 
 The core domain and compiler packages do not import interface or persistence frameworks.
@@ -84,6 +86,23 @@ built-in engine, engine selection is explicit, and a missing binary is a stable
 JSON-encoded literals, and the engine-equivalence suite proves byte-identical canonical
 evaluations against the built-in engine whenever `opa` is present. The `PolicyEnginePort`
 is the replacement seam; removing the adapter removes the integration completely.
+
+## Sprint 12 web font review
+
+The capability gap is the workspace's own typography: before Sprint 12 the web shipped no
+font and relied on whatever the browser had. Three Fontsource packages, each pinned to the
+exact version `5.3.0` in `web/package.json` and `pnpm-lock.yaml`, carry Instrument Serif,
+IBM Plex Sans and IBM Plex Mono as static `woff2` files that Vite bundles into the web
+image and nginx serves same-origin. No stylesheet, font or script is fetched from a CDN or
+from Google Fonts at runtime; guard G1 in `scripts/check_studio_ui.py` fails on any such
+URL in the web source. All three typefaces are under the SIL Open Font License 1.1, which
+permits bundling and redistribution and requires no attribution in the interface; the
+packages declare no install-time build hook, so the pnpm build allowlist is unchanged
+(`esbuild` only). Each package is replaceable by editing the seven `@fontsource/...`
+imports at the top of `web/src/main.tsx` and the three `--font-*` tokens in
+`web/src/tokens.css`. Only the weights the design uses are imported (serif 400 and 400
+italic; sans 400, 500 and 600; mono 400 and 500), so the bundle carries the subsets Vite
+references rather than every file the packages ship.
 
 ## Sprint 4 web test tooling review
 

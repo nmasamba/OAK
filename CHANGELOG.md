@@ -6,6 +6,27 @@ All notable changes to OAK Community are recorded here.
 
 ## Unreleased
 
+### Added
+
+- **OAK Studio, direction A ("Instrument"): the web workspace rebuilt** (Sprint 12,
+  `OAK-S12-001`–`007`, authorized 2026-10-15). Conversation first, symbols over text,
+  tactile, with one-tap downloads; no boundary moved.
+  - **Tokens and primitives** (`OAK-S12-002`): every colour, radius, shadow and duration
+    is a custom property in `web/src/tokens.css`, and `web/src/styles.css` paints no
+    literal colour. Dark theme only, with the tokens arranged so a light theme is a
+    second block. Self-hosted Instrument Serif, IBM Plex Sans and IBM Plex Mono
+    (`@fontsource/*` 5.3.0, OFL-1.1, no CDN). Primitives in `web/src/ui/`: `Keycap`,
+    `Chip`, `Tile`, `Card`, `Led`, `RangeBar`, `ProvenanceMark`, `CopyPlate` and
+    `Icon`. Candidate variant ids reach the page through one label map
+    (`web/src/ui/variantLabel.ts`): Baseline, Minimal, Balanced, High assurance. Motion
+    stops under `prefers-reduced-motion`.
+  - **Guards** (`scripts/check_studio_ui.py`, run by `make validate`): the web source
+    renders no raw variant id and loads no Google Fonts URL (G1); the generated client
+    gains no non-GET call and no button claims an authority the web does not hold (G2);
+    every `<svg>` is hidden or a labelled image and every icon-only button has a name
+    (G3); the bundle page keeps saying the web workspace holds no runner execution
+    authority (G4); the stylesheet paints only tokens (G5).
+
 ### Fixed
 
 - **The REST compatibility gate now guards what has shipped.**
