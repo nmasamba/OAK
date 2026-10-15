@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
+import { DownloadsSheet } from "./DownloadsSheet";
 import type { JsonObject } from "./generated/api";
 import { JOURNEY_STEPS, journeyDone, journeyLabel } from "./journey";
 import { Link } from "./router";
 import { ageOf, asString } from "./support";
+import { Keycap } from "./ui";
 
 /**
  * The case at a glance, beside the conversation: a ring for how far it has come, the raw
@@ -25,6 +27,7 @@ export function CaseRail({
   const radius = 23;
   const circumference = 2 * Math.PI * radius;
   const updated = asString(caseDocument["updated_at"]);
+  const [sheetOpen, setSheetOpen] = useState(false);
   return (
     <aside aria-label="Case at a glance" className="rail">
       <div className="rail-head">
@@ -71,10 +74,27 @@ export function CaseRail({
         <span className="mono">{asString(caseDocument["version"])}</span>
         {updated === null ? "" : ` · ${ageOf(updated)}`}
       </p>
+      <div className="rail-actions">
+        <Keycap
+          tone="quiet"
+          icon="download"
+          onClick={() => setSheetOpen(true)}
+          title="Every file, with digests"
+        >
+          Take it
+        </Keycap>
+      </div>
       {children}
       <p className="rail-links">
         <Link to="/">Back to all cases</Link>
       </p>
+      {sheetOpen ? (
+        <DownloadsSheet
+          caseId={caseId}
+          caseDocument={caseDocument}
+          onClose={() => setSheetOpen(false)}
+        />
+      ) : null}
     </aside>
   );
 }

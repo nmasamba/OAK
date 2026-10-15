@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import json
 import os
 import secrets
 import urllib.parse
@@ -14,6 +15,7 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Annotated, Any
 
+import yaml
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -110,6 +112,13 @@ def _local_authority(
 
 
 AuthorityDependency = Annotated[_Authority, Depends(_local_authority)]
+
+
+class ArchitectureFormat(StrEnum):
+    """The two layouts the architecture document downloads in."""
+
+    JSON = "json"
+    YAML = "yaml"
 
 
 def _require_model_token(
@@ -1236,6 +1245,50 @@ def create_app(
                 "ETag": f'"{artifact.reference.digest}"',
                 "X-OAK-Artifact-Digest": artifact.reference.digest,
                 "X-Content-Type-Options": "nosniff",
+            },
+        )
+
+    @api.get(
+        "/v1/design-cases/{case_id}/architecture",
+        tags=["artifacts"],
+        responses={200: {"content": {"application/json": {}, "application/yaml": {}}}},
+    )
+    def get_architecture(
+        case_id: str,
+        auth: AuthorityDependency,
+        candidate_id: Annotated[str | None, Query(min_length=1, max_length=120)] = None,
+        document_format: Annotated[
+            ArchitectureFormat, Query(alias="format")
+        ] = ArchitectureFormat.JSON,
+    ) -> Response:
+        """The chosen architecture as one file to keep.
+
+        Composed at request time from the documents the case already holds (the named or
+        selected candidate, the decision, and the installation state once compiled), so it
+        has no stable digest of its own; its parts carry theirs. Reading it compiles, signs,
+        approves and installs nothing and writes no successor and no audit event.
+        """
+
+        document = plane().architecture(
+            case_id,
+            tenant_id=auth.tenant_id,
+            candidate_id=candidate_id,
+            now=clock(),
+        )
+        if document_format is ArchitectureFormat.YAML:
+            content = yaml.safe_dump(document, allow_unicode=True, sort_keys=False).encode("utf-8")
+            media_type = "application/yaml"
+        else:
+            content = (json.dumps(document, indent=2) + "\n").encode("utf-8")
+            media_type = "application/json"
+        filename = f"{case_id}-architecture.{document_format.value}"
+        return Response(
+            content=content,
+            media_type=media_type,
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "X-Content-Type-Options": "nosniff",
+                "Cache-Control": "no-store",
             },
         )
 

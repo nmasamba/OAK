@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 
 import { CaseRail, Moment } from "../CaseRail";
 import { semanticDiff, type DiffRow } from "../diff";
+import { DownloadTile, useDownloads } from "../DownloadsSheet";
+import type { DownloadState } from "../downloads";
 import {
   compileBundle,
   exportDesignCase,
@@ -91,6 +93,11 @@ function formatPrediction(name: string, value: number | null): string {
     default:
       return formatQuantity(value);
   }
+}
+
+/** Text cut to fit a node box, with an ellipsis; the full words are in the title and the table. */
+function fit(text: string, max: number): string {
+  return text.length <= max ? text : `${text.slice(0, max - 1)}…`;
 }
 
 function approvalCondition(
@@ -211,12 +218,16 @@ export function TopologyDiagram({
           transform={`translate(${node.x} ${node.y})`}
           className={`topology-node${node.component === null ? " topology-node-external" : ""}`}
         >
+          <title>
+            {node.role}
+            {node.component === null ? "" : ` · ${node.component}`}
+          </title>
           <rect width={NODE_WIDTH} height={NODE_HEIGHT} rx="12" />
           <text x="14" y="30" className="topology-role">
-            {node.role}
+            {fit(node.role, 22)}
           </text>
           <text x="14" y="52" className="topology-component">
-            {node.component ?? "outside the design"}
+            {fit(node.component ?? "outside the design", 30)}
           </text>
         </g>
       ))}
@@ -292,6 +303,14 @@ export function BundlePage({ caseId }: { readonly caseId: string }) {
   const [diffLabel, setDiffLabel] = useState<string | null>(null);
   const [view, setView] = useState<"diagram" | "table">("diagram");
   const [zoom, setZoom] = useState(1);
+  const [tileStates, setTileStates] = useState<Record<string, DownloadState>>(
+    {},
+  );
+
+  const downloads = useDownloads(
+    caseId,
+    state.kind === "ready" ? state.caseDocument : {},
+  );
 
   const load = () => {
     setState({ kind: "loading" });
@@ -416,6 +435,20 @@ export function BundlePage({ caseId }: { readonly caseId: string }) {
   ];
   const layout =
     candidate === null ? null : layoutTopology(candidate["topology"]);
+  const dockItems = downloads.filter((item) =>
+    ["brief", "architecture-yaml", "decision", "assurance"].includes(item.key),
+  );
+  const runTile = (item: (typeof downloads)[number]) => {
+    setTileStates((current) => ({ ...current, [item.key]: "fetching" }));
+    item
+      .run()
+      .then((next) =>
+        setTileStates((current) => ({ ...current, [item.key]: next })),
+      )
+      .catch(() =>
+        setTileStates((current) => ({ ...current, [item.key]: "failed" })),
+      );
+  };
 
   const onCompile = () => {
     let parsed: unknown;
@@ -880,6 +913,16 @@ export function BundlePage({ caseId }: { readonly caseId: string }) {
         {bundle !== null && (
           <aside aria-label="Take it and install" className="dock">
             <h2 className="dock-heading">Take it</h2>
+            <div className="dock-tiles">
+              {dockItems.map((item) => (
+                <DownloadTile
+                  key={item.key}
+                  item={item}
+                  state={tileStates[item.key] ?? "idle"}
+                  onRun={() => runTile(item)}
+                />
+              ))}
+            </div>
             <Keycap icon="download" onClick={onExport} className="dock-all">
               Everything
             </Keycap>

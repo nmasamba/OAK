@@ -550,6 +550,70 @@ export async function getJsonArtifact(
   );
 }
 
+export interface ArtifactBytes {
+  readonly bytes: ArrayBuffer;
+  readonly mediaType: string;
+  /** The digest the server named in X-OAK-Artifact-Digest, when it did. */
+  readonly digest: string | null;
+}
+
+/** The stored bytes of one artifact, to verify and save; never parsed here. */
+export async function getArtifactBytes(
+  caseId: string,
+  reference: ArtifactReference,
+  baseUrl = "",
+): Promise<ArtifactBytes> {
+  const version = encodeURIComponent(reference.version);
+  const digest = encodeURIComponent(reference.digest);
+  const query = `?version=${version}&digest=${digest}`;
+  const response = await fetch(
+    `${baseUrl}/v1/design-cases/${encodeURIComponent(caseId)}/artifacts/${encodeURIComponent(reference.id)}${query}`,
+  );
+  if (!response.ok) {
+    throw new OakApiError((await response.json()) as Problem);
+  }
+  return {
+    bytes: await response.arrayBuffer(),
+    mediaType:
+      response.headers.get("Content-Type") ?? "application/octet-stream",
+    digest: response.headers.get("X-OAK-Artifact-Digest"),
+  };
+}
+
+export interface ArchitectureDocumentBytes {
+  readonly bytes: ArrayBuffer;
+  readonly mediaType: string;
+  readonly filename: string | null;
+}
+
+/** The chosen (or named) architecture as one file, composed by the server on request. */
+export async function getArchitectureDocument(
+  caseId: string,
+  format: "json" | "yaml",
+  candidateId: string | null = null,
+  baseUrl = "",
+): Promise<ArchitectureDocumentBytes> {
+  const query =
+    `?format=${format}` +
+    (candidateId === null
+      ? ""
+      : `&candidate_id=${encodeURIComponent(candidateId)}`);
+  const response = await fetch(
+    `${baseUrl}/v1/design-cases/${encodeURIComponent(caseId)}/architecture${query}`,
+  );
+  if (!response.ok) {
+    throw new OakApiError((await response.json()) as Problem);
+  }
+  const disposition = response.headers.get("Content-Disposition") ?? "";
+  const match = /filename="([^"]+)"/.exec(disposition);
+  return {
+    bytes: await response.arrayBuffer(),
+    mediaType:
+      response.headers.get("Content-Type") ?? "application/octet-stream",
+    filename: match === null ? null : (match[1] ?? null),
+  };
+}
+
 export async function getOperation(
   operationId: string,
   baseUrl = "",

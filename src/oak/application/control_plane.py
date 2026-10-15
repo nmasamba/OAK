@@ -177,6 +177,20 @@ class CommunityControlPlane:
         self._verify_case(case_id, self.get_design_case(case_id, tenant_id=tenant_id).case)
         return planning.list_candidates()
 
+    def architecture(
+        self,
+        case_id: str,
+        *,
+        tenant_id: str,
+        candidate_id: str | None,
+        now: str,
+    ) -> dict[str, Any]:
+        """The chosen (or named) architecture as one document; reads only, writes nothing."""
+
+        planning = self._planning_for_case(case_id, tenant_id)
+        self._verify_case(case_id, self.get_design_case(case_id, tenant_id=tenant_id).case)
+        return planning.architecture(candidate_id, now=now)
+
     def select_candidate(
         self,
         case_id: str,

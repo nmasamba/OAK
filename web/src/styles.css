@@ -2134,6 +2134,166 @@ summary {
   text-align: center;
 }
 
+/* Downloads: the sheet and its file tiles */
+.sheet-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--scrim);
+}
+
+.sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: min(100%, 1040px);
+  max-height: 100%;
+  overflow: auto;
+  padding: 30px;
+  border-radius: var(--radius-composer);
+  background: var(--surface-sheet);
+  border: 1px solid var(--hairline-2);
+  box-shadow: var(--shadow-sheet);
+}
+
+.sheet-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.sheet-head h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 40px;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.sheet-close {
+  width: 48px;
+  height: 48px;
+  min-height: 48px;
+  padding: 0;
+  border-radius: 12px;
+}
+
+.files {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr));
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tile-file {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  height: 128px;
+  border-radius: 18px;
+  border: 1px solid var(--hairline-strong);
+  background: var(--surface-tile-file);
+  color: var(--text-1);
+  transition:
+    border-color var(--press),
+    background-color var(--press),
+    transform var(--press);
+}
+
+.tile-file:hover {
+  border-color: var(--brass);
+  background: var(--surface-mode-on);
+}
+
+.tile-file:active {
+  transform: translateY(1px);
+}
+
+.tile-file .icon {
+  color: var(--brass);
+}
+
+.tile-word {
+  font-weight: 600;
+}
+
+.tile-state {
+  color: var(--text-faint);
+}
+
+.tile-file-ok {
+  border-color: var(--ok-border);
+  background: var(--ok-surface);
+}
+
+.tile-file-ok .icon,
+.tile-file-ok .tile-state {
+  color: var(--ok-text);
+}
+
+.tile-file-bad {
+  border-color: var(--bad-border);
+  background: var(--bad-surface);
+}
+
+.tile-file-bad .icon,
+.tile-file-bad .tile-state {
+  color: var(--bad-text);
+}
+
+.tile-file-busy {
+  border-color: var(--brass-border-busy);
+  background: var(--brass-surface-busy);
+}
+
+.tile-file-busy .tile-state {
+  color: var(--brass-text);
+}
+
+.sheet-note {
+  margin: 0;
+  color: var(--text-faint);
+  font-size: var(--size-mono);
+  text-align: center;
+}
+
+.dock-tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.dock-tiles .tile-file {
+  height: 84px;
+  border-radius: var(--radius-tile);
+  background: var(--surface-control);
+  font-size: 13.5px;
+}
+
+.dock-tiles .tile-file .icon {
+  width: 24px;
+  height: 24px;
+}
+
+.dock-tiles .tile-state {
+  display: none;
+}
+
+.dock-tiles .tile-file-ok .tile-state,
+.dock-tiles .tile-file-bad .tile-state,
+.dock-tiles .tile-file-busy .tile-state {
+  display: inline;
+}
+
 /* Rising messages */
 .rise {
   animation: rise var(--rise) var(--ease-lift);

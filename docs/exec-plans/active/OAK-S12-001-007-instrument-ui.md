@@ -13,7 +13,7 @@ Execution is on branch `sprint-12-instrument-ui`, branched from `origin/main` at
 
 - Owner/agent: owner-directed coding agent
 - Started: 2026-10-15
-- Last updated: 2026-10-15 (M5: Architecture)
+- Last updated: 2026-10-15 (M6: Downloads and the K1 route)
 - State: in-progress
 - Claimed tasks: `OAK-S12-001`–`OAK-S12-007`
 
@@ -324,6 +324,27 @@ Rollback is a revert of the branch. The throwaway stack is removed at the end wi
   runs nothing, and "Signed in your terminal. The web never installs."; the pinned
   "Plan, approval, and apply" card keeps its sentence (G4). The rail stacks under the
   dock. No pin changed. `journey.spec.ts` green; zero axe violations.
+- [x] 2026-10-15 M6 Downloads: `CommunityControlPlane.architecture()` delegates to the
+  planning service's existing composition (nothing rebuilt); `GET
+  /v1/design-cases/{case_id}/architecture?candidate_id=&format=json|yaml` in `app.py`
+  returns the document with `Content-Disposition: attachment`, `nosniff` and
+  `Cache-Control: no-store`; listed as unreleased (operation and its `ArchitectureFormat`
+  schema) in `tests/unit/test_openapi_compatibility.py`; rows in `docs/interfaces.md` and
+  the governance `docs/build/interface-contract.md`; the changelog entry. The generator
+  gained `getArtifactBytes` (raw bytes plus the digest header) and
+  `getArchitectureDocument`, both GET; the OpenAPI document and client regenerated with
+  no Prettier drift. In the web: `downloads.ts` hashes the fetched bytes with
+  SubtleCrypto and saves only on a match; `svgExport.ts` copies computed paint onto a
+  clone of the drawn diagram; `DownloadsSheet` (dialog named "Take it", Escape and Close
+  return focus) opens from the rail on every case page and feeds the dock's tiles on the
+  Architecture page. Node text now fits its box, with the full words in a `<title>` and
+  the table. Proof: `tests/integration/test_architecture_api.py` (3 passed: yaml and json
+  with headers and identical content, the default layout, a named candidate, an
+  unchanged artifact index; 404 for an unknown case or candidate, 422 for a bad format;
+  422 `OAK-ARCHITECTURE-UNSELECTED` without a selection), `make openapi-compatibility`
+  green, `web/e2e/downloads.spec.ts` (the saved candidate-03 hashes to
+  `X-OAK-Artifact-Digest`; the tile says "digest matches"; zero axe violations with the
+  sheet open), `journey.spec.ts` green, the route curled live on the throwaway stack.
 
 ## Decisions
 
@@ -374,6 +395,12 @@ Answered at the end of each milestone: (1) did any pinned name change without it
 (2) did any new text exceed the word budget? (3) did anything touch a boundary in §7?
 
 - M0: (1) no; (2) no new UI text; (3) no.
+- M6: (1) no; (2) new text: "Take it", "Everything", "Files", "Checked in your browser.
+  A download authorises nothing." (4 and 4 words), the tile words and states ("digest
+  matches", "digest differs", "fetching", "failed"), "X could not be fetched."; (3)
+  the one declared addition, K1: a read-only GET in the shared service, additive and
+  unreleased; the client gained two GET reads and no mutation (G2 proves it); downloads
+  verify before saving and authorise nothing.
 - M5: (1) no; (2) new text: "Compile it for a target.", "Select a design and plan
   assurance first." (7 words), "Compiled. Here is X.", "Take it", "Install",
   "Everything", "Copy install steps", "Signed in your terminal. The web never

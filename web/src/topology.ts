@@ -33,7 +33,7 @@ export interface TopologyLayout {
   readonly description: string;
 }
 
-export const NODE_WIDTH = 180;
+export const NODE_WIDTH = 200;
 export const NODE_HEIGHT = 72;
 const COLUMN_GAP = 96;
 const ROW_GAP = 28;

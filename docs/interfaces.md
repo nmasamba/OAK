@@ -143,7 +143,7 @@ prohibition).
 | Select candidate | ● | ● | ● | — | ● |
 | Create assurance plan | ● | ● | ● | ● | ● |
 | Compile bundle | ● | ● | ● | ● | ● |
-| Read the chosen architecture (`oak architecture`) | ○ | ○ | — | — | — |
+| Read the chosen architecture (`oak architecture`; `GET …/architecture`) | ○ | ○ | ○ | — | ○ |
 | Read operation progress | — | — | ○ | ○ | ○ |
 | Cancel operation | — | — | ● | — | ● |
 | Export / import case | ● | ● | ● | — | ○ |
@@ -171,8 +171,12 @@ Notes:
   REST: the model configuration also has loopback `/v1/models` routes guarded by the
   per-process capability token (ADR-0016).
 - `oak architecture` is not local-only. In remote mode it is composed from the
-  existing case and artifact reads; REST has no route of its own for it, and it
-  writes nothing.
+  existing case and artifact reads, and it writes nothing. Since Sprint 12 REST
+  also serves the same document read-only at
+  `GET /v1/design-cases/{case_id}/architecture?candidate_id=&format=json|yaml`,
+  composed at request time with `Content-Disposition: attachment`, so the web
+  workspace can hand it over as one file; it has no stable digest of its own and
+  its parts carry theirs.
 - The MCP tool set is exactly the ten interface-contract tools plus the
   read-only `oak_operation_get` progress query. A contract test pins this set;
   a new tool cannot appear without failing it.

@@ -19,6 +19,8 @@
   --surface-chip: #1e231c;
   --surface-mode-on: #2a2f26;
   --surface-rail: #151914;
+  --surface-sheet: #161a15;
+  --surface-tile-file: #1f241c;
   --surface-diagram-card: #141813;
   --surface-diagram: #0e110d;
   --surface-dock: #1b1a12;
@@ -109,6 +111,9 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 16px 36px rgba(0, 0, 0, 0.35);
 
   --shadow-bench: 0 -10px 36px rgba(0, 0, 0, 0.35);
+
+  --shadow-sheet:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 40px 90px rgba(0, 0, 0, 0.6);
 
   /* Type */
   --font-display: "Instrument Serif", Georgia, "Times New Roman", serif;
