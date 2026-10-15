@@ -189,6 +189,17 @@ extra from `pyproject.toml`, `uv lock`, and `KeychainCredentialStore` becomes pe
 
 ## Maintenance reviews
 
+### 2026-10-15 source-map-js 1.2.1 to 1.2.2 (web build tooling only)
+
+`pnpm audit --audit-level=high` began failing on GHSA-68fv-2mgg-jv7q, an event-loop
+denial of service through indexed source-map section offsets in `source-map-js` below
+1.2.2. The package reaches the workspace only through `vite` → `postcss`, at build time;
+it ships in no runtime artifact or image. Vite 7.3.6 and PostCSS 8.5.26 still pin the
+vulnerable range, so `pnpm-workspace.yaml` carries an `overrides` entry forcing
+`source-map-js` to 1.2.2 (BSD-3-Clause, unchanged) until an upstream PostCSS release
+lifts it, at which point the override can go. The web build and the browser suite were
+rerun on the override; nothing else changed.
+
 Reviews outside a sprint boundary are recorded here, newest first, under the same standard
 as a sprint dependency review.
 

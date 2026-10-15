@@ -14,7 +14,7 @@ Execution is on branch `sprint-12-instrument-ui`, branched from `origin/main` at
 - Owner/agent: owner-directed coding agent
 - Started: 2026-10-15
 - Last updated: 2026-10-15 (M8: docs sweep, closing review, gate, PR)
-- State: complete (PR #34 open for the owner's merge; one check pending, see Progress)
+- State: complete (PR #34 open for the owner's merge)
 - Claimed tasks: `OAK-S12-001`–`OAK-S12-007`
 
 One plan covers seven task IDs because every task changes the same web source tree and is
@@ -358,12 +358,14 @@ Rollback is a revert of the branch. The throwaway stack is removed at the end wi
   check` green once (zero `make: ***` lines: 764 unit and contract, 296 integration, 42
   e2e, the compatibility gate, the web build); both `STATUS.md` files, `sprints.md` and
   the root changelog closed; PR #34 opened as a draft and bound.
-- [ ] 2026-10-15 **Pending, not verified:** the review fixes pass `tsc` and guards
-  G1–G5, and `make check` built the fixed tree, but the browser specs (journey,
-  downloads, models) have not been rerun on them. Run `verify.sh journey.spec.ts
-  downloads.spec.ts models.spec.ts` on the `oak-s12` stack, then mark PR #34 ready and
-  remove the stack (`docker compose down -v --rmi local`). The session's usage limit
-  was reached before that run.
+- [x] 2026-10-15 The review fixes verified: `journey.spec.ts`, `downloads.spec.ts` and
+  `models.spec.ts` green on the rebuilt `oak-s12` stack (1, 1 and 5 passed; zero axe
+  violations), after `tsc` and guards G1–G5.
+- [x] 2026-10-15 CI's `make audit` failed on PR #34 for GHSA-68fv-2mgg-jv7q, a new high
+  advisory on `source-map-js` 1.2.1 (a build-time transitive of Vite's PostCSS; `main`
+  carries the same lock entry) → `pnpm-workspace.yaml` overrides it to 1.2.2; `pnpm
+  audit`, the web build and `make audit` green locally; reviewed in
+  `docs/dependencies.md`. The `oak-s12` stack was then removed.
 
 ## Decisions
 

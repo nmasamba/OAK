@@ -8,3 +8,7 @@ engineStrict: true
 
 allowBuilds:
   esbuild: true
+
+# GHSA-68fv-2mgg-jv7q: a build-time transitive of vite > postcss; lift when PostCSS moves on.
+overrides:
+  source-map-js: 1.2.2

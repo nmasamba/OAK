@@ -49,6 +49,9 @@ All notable changes to OAK Community are recorded here.
     `Content-Disposition: attachment`, `nosniff` and `Cache-Control: no-store`. It is
     listed as unreleased in the compatibility gate until the next release rewrites the
     baseline. The whole-case export is unchanged.
+  - **Build tooling:** `source-map-js` is overridden to 1.2.2 (GHSA-68fv-2mgg-jv7q, a
+    build-time transitive of Vite's PostCSS; nothing shipped changes), so `make audit`
+    is green again.
 
 ### Fixed
 
