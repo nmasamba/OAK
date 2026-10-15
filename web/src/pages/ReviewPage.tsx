@@ -96,7 +96,12 @@ export function ReviewPage({ caseId }: { readonly caseId: string }) {
 
         <section aria-labelledby="claims-heading" className="card">
           <h2 id="claims-heading">Interpreted claims and their origin</h2>
-          <div className="table-scroll">
+          <div
+            className="table-scroll"
+            tabIndex={0}
+            role="region"
+            aria-label="Interpreted claims table"
+          >
             <table>
               <caption className="visually-hidden">
                 Interpreted intent values with provenance classification,

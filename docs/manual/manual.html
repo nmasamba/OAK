@@ -437,7 +437,7 @@ uv run oak import ../case-export --directory ../restored
     Each brief offers three ways to be read: <strong>Deterministic</strong> (the default;
     nothing leaves the machine), <strong>Online AI</strong> (one open model on Hugging Face
     Inference Providers, called with your own token) and <strong>Local AI</strong> (an
-    OpenAI-compatible server on this machine, such as Ollama). <strong>Settings → Models</strong> is where the last two are set up; the choice itself is made per brief, from one dropdown on the "Describe what you want to build" form and again on the case page before Interpret runs, and the masthead names the Online AI pair and how long ago the token was verified. Nothing is set up by default, and nothing here is required by any other part of the manual.
+    OpenAI-compatible server on this machine, such as Ollama). <strong>Models</strong> (the sliders glyph in the masthead) is where the last two are set up; the choice itself is made per brief, from the three mode chips under the "Brief prompt" composer and again on the case page before Interpret runs, and the masthead names the Online AI pair and how long ago the token was verified. Nothing is set up by default, and nothing here is required by any other part of the manual.
   </p>
   <div class="note">
     <strong>Local AI and this stack.</strong> Local AI's server must sit at a loopback
@@ -552,10 +552,10 @@ uv run oak import ../case-export --directory ../restored
   </div>
   <p>
     <strong>1 · The browser creates and interprets the case.</strong> Under
-    <em>Describe what you want to build</em>, tick <em>I have a structured YAML or JSON
-    brief instead</em>, name it <code>public-manual-qa.yaml</code>, paste the contents of
-    <code>examples/briefs/public-manual-qa.yaml</code>, click <em>Create case</em>, then
-    <em>Interpret brief</em>. The case reaches <code>needs_confirmation</code> at version
+    <em>What do you want to build?</em>, name it <code>public-manual-qa.yaml</code> in the
+    file-name pill, paste the contents of <code>examples/briefs/public-manual-qa.yaml</code>
+    into <em>Brief prompt</em> (or attach the file), press the <em>Create case</em> keycap,
+    then <em>Interpret brief</em>. The case reaches <code>needs_confirmation</code> at version
     0.1.1.
   </p>
   <p><strong>2 · <code>curl</code> reads the questions</strong>, straight from the REST API:</p>

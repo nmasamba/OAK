@@ -507,7 +507,12 @@ export function SettingsPage() {
                     million tokens; throughput is Hugging Face's last
                     measurement.
                   </p>
-                  <div className="table-scroll">
+                  <div
+                    className="table-scroll"
+                    tabIndex={0}
+                    role="region"
+                    aria-label="Model and provider pairs table"
+                  >
                     <table>
                       <caption className="visually-hidden">
                         Model and provider pairs the stored token can call

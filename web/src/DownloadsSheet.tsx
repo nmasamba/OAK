@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 
 import {
   downloadArchitecture,
@@ -33,6 +33,7 @@ const STATE_WORDS: Readonly<Record<DownloadState, string>> = {
   idle: "",
   fetching: "fetching",
   verified: "digest matches",
+  saved: "saved",
   mismatch: "digest differs",
   failed: "failed",
 };
@@ -71,15 +72,21 @@ export function useDownloads(
   caseDocument: JsonObject,
 ): readonly DownloadItem[] {
   const briefReference = asReference(asArray(caseDocument["brief_refs"])[0]);
+  // The original name lives on the source record, not on the brief bytes.
+  const sourceRecord = asReference(
+    (asObject(caseDocument["extensions"]) ?? {})[
+      "oak.community/source_record_ref"
+    ],
+  );
   const [briefName, setBriefName] = useState<string | null>(null);
   useEffect(() => {
-    if (briefReference === null) {
+    if (sourceRecord === null) {
       return;
     }
-    getJsonArtifact(caseId, briefReference)
+    getJsonArtifact(caseId, sourceRecord)
       .then((record) => setBriefName(asString(record["original_name"])))
       .catch(() => setBriefName(null));
-  }, [caseId, briefReference?.id, briefReference?.digest]);
+  }, [caseId, sourceRecord?.id, sourceRecord?.digest]);
 
   const items: DownloadItem[] = [];
   if (briefReference !== null) {
@@ -151,7 +158,7 @@ export function useDownloads(
         suffix: `.${format}`,
         run: async () => {
           await downloadArchitecture(caseId, format, selected.id);
-          return "verified";
+          return "saved";
         },
       });
     }
@@ -175,7 +182,7 @@ export function DownloadTile({
   readonly onRun: () => void;
 }) {
   const tone =
-    state === "verified"
+    state === "verified" || state === "saved"
       ? "tile-file-ok"
       : state === "mismatch" || state === "failed"
         ? "tile-file-bad"
@@ -187,8 +194,12 @@ export function DownloadTile({
       type="button"
       className={`tile-file ${tone}`}
       title={item.title}
-      onClick={onRun}
-      disabled={state === "fetching"}
+      onClick={() => {
+        if (state !== "fetching") {
+          onRun();
+        }
+      }}
+      aria-disabled={state === "fetching" ? true : undefined}
       aria-busy={state === "fetching" ? true : undefined}
     >
       <Icon
@@ -222,24 +233,72 @@ export function DownloadsSheet({
   const [states, setStates] = useState<Record<string, DownloadState>>({});
   const [failure, setFailure] = useState<string | null>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
+  const sheet = useRef<HTMLDivElement>(null);
   const diagram = diagramOnPage();
 
+  // Focus is captured and restored once per mount, whatever the caller re-renders.
   useEffect(() => {
     const opener = document.activeElement;
     closeButton.current?.focus();
-    const onKey = (event: KeyboardEvent) => {
+    return () => {
+      if (opener instanceof HTMLElement) {
+        opener.focus();
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    const onKey = (event: globalThis.KeyboardEvent) => {
       if (event.key === "Escape") {
         onClose();
       }
     };
     document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      if (opener instanceof HTMLElement) {
-        opener.focus();
-      }
-    };
+    return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
+
+  // Tab wraps inside the dialog: the page behind the scrim is not reachable.
+  const onTab = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "Tab" || sheet.current === null) {
+      return;
+    }
+    const focusable = [
+      ...sheet.current.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), a[href], input, [tabindex="0"]',
+      ),
+    ];
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (first === undefined || last === undefined) {
+      return;
+    }
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
+
+  const diagramItem: DownloadItem | null =
+    diagram === null
+      ? null
+      : {
+          key: "diagram",
+          word: "Diagram",
+          icon: "image",
+          title: `${caseId}-topology.svg · drawn from the design, at its own size`,
+          suffix: ".svg",
+          run: () => {
+            saveText(
+              serialiseDiagram(diagram),
+              "image/svg+xml",
+              `${caseId}-topology.svg`,
+            );
+            return Promise.resolve("saved");
+          },
+        };
 
   const run = (item: DownloadItem) => {
     setFailure(null);
@@ -274,7 +333,9 @@ export function DownloadsSheet({
         aria-modal="true"
         aria-labelledby="sheet-title"
         className="sheet"
+        ref={sheet}
         onClick={(event) => event.stopPropagation()}
+        onKeyDown={onTab}
       >
         <div className="sheet-head">
           <h2 id="sheet-title">Take it</h2>
@@ -306,42 +367,12 @@ export function DownloadsSheet({
               />
             </li>
           ))}
-          {diagram !== null ? (
+          {diagramItem !== null ? (
             <li>
               <DownloadTile
-                item={{
-                  key: "diagram",
-                  word: "Diagram",
-                  icon: "image",
-                  title: "topology.svg · the same drawing for the same design",
-                  suffix: ".svg",
-                  run: () => {
-                    saveText(
-                      serialiseDiagram(diagram),
-                      "image/svg+xml",
-                      `${caseId}-topology.svg`,
-                    );
-                    return Promise.resolve("verified");
-                  },
-                }}
-                state={states["diagram"] ?? "idle"}
-                onRun={() =>
-                  run({
-                    key: "diagram",
-                    word: "Diagram",
-                    icon: "image",
-                    title: "",
-                    suffix: ".svg",
-                    run: () => {
-                      saveText(
-                        serialiseDiagram(diagram),
-                        "image/svg+xml",
-                        `${caseId}-topology.svg`,
-                      );
-                      return Promise.resolve("verified");
-                    },
-                  })
-                }
+                item={diagramItem}
+                state={states[diagramItem.key] ?? "idle"}
+                onRun={() => run(diagramItem)}
               />
             </li>
           ) : null}
@@ -354,7 +385,8 @@ export function DownloadsSheet({
           )}
         </div>
         <p className="sheet-note">
-          Checked in your browser. A download authorises nothing.
+          Stored files are checked in your browser. A download authorises
+          nothing.
         </p>
       </div>
     </div>

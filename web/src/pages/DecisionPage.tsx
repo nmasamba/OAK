@@ -239,7 +239,12 @@ export function DecisionPage({ caseId }: { readonly caseId: string }) {
                 fixture {asString(evaluation["fixture_version"])}
               </span>
             </p>
-            <div className="table-scroll">
+            <div
+              className="table-scroll"
+              tabIndex={0}
+              role="region"
+              aria-label="Evaluation metrics table"
+            >
               <table>
                 <caption className="visually-hidden">
                   Evaluation metrics with thresholds and results

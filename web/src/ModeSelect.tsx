@@ -182,6 +182,7 @@ export function ModeChooser({
               value={mode}
               checked={on}
               disabled={!summary.available}
+              title={summary.detail}
               onChange={() => onChange(mode)}
             />
             <Icon name={mode} size={18} />

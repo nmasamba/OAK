@@ -131,6 +131,12 @@ export function CasePage({ caseId }: { readonly caseId: string }) {
         const briefReference = asReference(
           asArray(response.case["brief_refs"])[0],
         );
+        // The original name and size live on the source record, not on the brief bytes.
+        const sourceRecord = asReference(
+          (asObject(response.case["extensions"]) ?? {})[
+            "oak.community/source_record_ref"
+          ],
+        );
         return Promise.all([
           listAuditEvents(caseId).then((trail) => setAuditEvents(trail.items)),
           listCandidates(caseId)
@@ -138,15 +144,21 @@ export function CasePage({ caseId }: { readonly caseId: string }) {
             .catch(() => setCandidates(null)),
           briefReference === null
             ? Promise.resolve()
-            : getJsonArtifact(caseId, briefReference)
-                .then((record) =>
-                  setBrief({
-                    name:
-                      asString(record["original_name"]) ?? briefReference.id,
-                    size: asNumber(record["size_bytes"]),
-                  }),
+            : sourceRecord === null
+              ? Promise.resolve(
+                  setBrief({ name: briefReference.id, size: null }),
                 )
-                .catch(() => setBrief({ name: briefReference.id, size: null })),
+              : getJsonArtifact(caseId, sourceRecord)
+                  .then((record) =>
+                    setBrief({
+                      name:
+                        asString(record["original_name"]) ?? briefReference.id,
+                      size: asNumber(record["size_bytes"]),
+                    }),
+                  )
+                  .catch(() =>
+                    setBrief({ name: briefReference.id, size: null }),
+                  ),
         ]);
       })
       .catch((error: unknown) =>
@@ -375,10 +387,10 @@ export function CasePage({ caseId }: { readonly caseId: string }) {
                       small
                       tone={feasibility === "feasible" ? "ok" : "bad"}
                       icon={feasibility === "feasible" ? "check" : "cross"}
-                      title={feasibility}
                     >
                       <span className="mono">{id}</span> ·{" "}
-                      {candidateLabel(candidate)}
+                      {candidateLabel(candidate)} ·{" "}
+                      <span className="mono">{feasibility}</span>
                     </Chip>
                   </li>
                 );

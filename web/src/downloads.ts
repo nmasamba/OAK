@@ -12,10 +12,13 @@ import {
   type ArtifactReference,
 } from "./generated/api";
 
+/** `verified` means the bytes hashed to the server's digest; `saved` means a file with no
+ * digest of its own (the composed document, the drawn diagram) was written, unchecked. */
 export type DownloadState =
   | "idle"
   | "fetching"
   | "verified"
+  | "saved"
   | "mismatch"
   | "failed";
 

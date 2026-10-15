@@ -35,6 +35,9 @@ export function serialiseDiagram(svg: SVGSVGElement): string {
   });
   copy.setAttribute("xmlns", "http://www.w3.org/2000/svg");
   copy.removeAttribute("id");
+  // The page may be zoomed; the file is the drawing at its own size.
+  copy.setAttribute("width", String(svg.viewBox.baseVal.width));
+  copy.setAttribute("height", String(svg.viewBox.baseVal.height));
   const background = getComputedStyle(svg.parentElement ?? svg).backgroundColor;
   if (background !== "" && background !== "rgba(0, 0, 0, 0)") {
     copy.style.setProperty("background-color", background);

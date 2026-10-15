@@ -13,8 +13,8 @@ Execution is on branch `sprint-12-instrument-ui`, branched from `origin/main` at
 
 - Owner/agent: owner-directed coding agent
 - Started: 2026-10-15
-- Last updated: 2026-10-15 (M7: remaining pages, full suite, screenshots, PDF)
-- State: in-progress
+- Last updated: 2026-10-15 (M8: docs sweep, closing review, gate, PR)
+- State: complete (PR #34 open for the owner's merge; one check pending, see Progress)
 - Claimed tasks: `OAK-S12-001`–`OAK-S12-007`
 
 One plan covers seven task IDs because every task changes the same web source tree and is
@@ -353,6 +353,17 @@ Rollback is a revert of the branch. The throwaway stack is removed at the end wi
   (`down -v --rmi local`, `up -d --build`); `make web-e2e` ran once: 24 passed, 1 skipped
   (the gated capture), no `make: ***` line; then the 11 screenshots were captured from
   that stack, the captions rewritten for the new screens, and the PDF rebuilt.
+- [x] 2026-10-15 M8: docs sweep in both repositories (README, tour, manual, development,
+  operations; the interface contract row); the closing review and its twelve fixes; `make
+  check` green once (zero `make: ***` lines: 764 unit and contract, 296 integration, 42
+  e2e, the compatibility gate, the web build); both `STATUS.md` files, `sprints.md` and
+  the root changelog closed; PR #34 opened as a draft and bound.
+- [ ] 2026-10-15 **Pending, not verified:** the review fixes pass `tsc` and guards
+  G1–G5, and `make check` built the fixed tree, but the browser specs (journey,
+  downloads, models) have not been rerun on them. Run `verify.sh journey.spec.ts
+  downloads.spec.ts models.spec.ts` on the `oak-s12` stack, then mark PR #34 ready and
+  remove the stack (`docker compose down -v --rmi local`). The session's usage limit
+  was reached before that run.
 
 ## Decisions
 
@@ -377,6 +388,35 @@ Rollback is a revert of the branch. The throwaway stack is removed at the end wi
 - 2026-10-15 A fifth guard, G5, checks that `styles.css` paints only tokens. It is the
   M1 exit check made permanent, at the cost of one regex.
 
+## Closing review
+
+One workflow over `origin/main...HEAD`: three finders (boundaries and honesty;
+accessibility and keyboard; e2e coverage and pin fidelity), each feeding one
+refute-by-default skeptic. Six agents ran, one more than the prompt's cap of five: the
+script gave each finder its own skeptic where the prompt asked for one skeptic in all.
+Eighteen findings; six refuted; twelve survived (one of them raised by two finders), all
+in the web, none in the route. Every survivor is fixed in the same commit:
+
+| # | Finding | Fix |
+|---|---|---|
+| B1 | The composed architecture document and the drawn diagram showed "digest matches" after a download that hashes nothing | a `saved` download state and word; only a stored artifact says "digest matches"; the sheet note says stored files are checked |
+| B2 | The brief's name and size were read from the brief bytes (`brief_refs[0]`), which are not JSON; the source record at `extensions["oak.community/source_record_ref"]` carries them | both the case bubble and the sheet read the source record; the brief bytes stay the download |
+| B3 | The exported SVG took the page's zoom and the tile promised "the same drawing" under a different file name | the file is written at the drawing's own size; the tile names the file it saves |
+| A1 | An unavailable mode looked like an available one and its reason was hover-only | the reason is the radio's `title` (its accessible description); unavailable chips have a dashed border |
+| A2 | Candidate feasibility on the case page was tone and a hidden glyph, the word in a title | the status word is in the chip, in mono |
+| A3 | The downloads dialog did not contain Tab, and a fetching tile became `disabled` and dropped focus | Tab wraps inside the sheet; a fetching tile is `aria-disabled` and keeps focus |
+| A4 | New scrollable regions (the zoomable diagram, four table wrappers) were not keyboard focusable | each is `tabIndex=0`, `role="region"` with a name |
+| A5 | Ten controls sat below the 44px target the prompt sets | every interactive control uses `--target`; the glyphs keep their drawn size |
+| A6 | Journey and question pips differed by hue alone; "next" pips were near-invisible | the current pip carries an outline, next pips are dashed outlines, done pips are filled |
+| A7 = P2 | The sheet's focus effect depended on an unstable `onClose`, so a parent re-render pulled focus to Close | focus is captured and restored once per mount; Escape listens separately |
+| P1 | `getByText("Baseline")` also matched `simpler_baseline`, weaker than the pin it replaced | `getByText("Baseline", { exact: true })` |
+
+Refuted (six): the dock landmark name; the composer's focus ring; the grip's keyboard
+instructions; tile metadata in titles; the Local AI endpoint note; the hidden questions
+heading (Playwright treats the 1×1 box as visible, as it treats the fixtures' hidden
+inputs). No guard was added for these classes; the touch-target rule is one a guard could
+carry later (`scripts/check_studio_ui.py` would need to resolve CSS, which it does not).
+
 ## Discoveries and follow-ups
 
 (symptom → cause → fix; written before each fix)
@@ -399,6 +439,12 @@ Rollback is a revert of the branch. The throwaway stack is removed at the end wi
 - 2026-10-15 M7: a `grep -c 'make: ***'` over the full-run log reported 1 → the script's
   own progress line echoed the pattern it counts (environment) → count only after
   excluding the script's own lines; the suite itself had no failure.
+- 2026-10-15 M8: `make check` stopped in `validate` with "docs/error-codes.md is stale" →
+  the generated error reference records the first raise site of every code by file and
+  line, and the K1 route and service method shifted lines in `app.py` and
+  `control_plane.py` (product: a generated file not regenerated) → ran
+  `scripts/generate_error_reference.py`, committed the regenerated reference, and reran
+  the gate.
 
 ## Self-review
 
@@ -443,3 +489,13 @@ Answered at the end of each milestone: (1) did any pinned name change without it
   only new visible words are the copy control's "Copy", "Copied" and "Copy failed. Select
   the text." (5 words); (3) no: no call added, no button named for an authority, the copy
   control imports no client (G2 proves both).
+
+## Retro
+
+- Guards written before screens paid for themselves: every pin and copy rule the owner set
+  became a cheap mechanical check, and the mutation checks caught a false-positive harness.
+- The two real defects the review found (a "digest matches" on unhashed files, the brief's
+  metadata read from the wrong artifact) were honesty errors, not layout ones; a finder with
+  the boundary lens is worth more than a screenshot.
+- Three of four discoveries were the harness, not the product: shared cwd, zsh splitting,
+  Prettier reflow. Edit in the foreground, verify in the background, never both in one.

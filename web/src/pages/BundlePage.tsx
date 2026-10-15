@@ -652,7 +652,12 @@ export function BundlePage({ caseId }: { readonly caseId: string }) {
                   ) : null}
                 </div>
                 {view === "diagram" ? (
-                  <div className="topology-scroll">
+                  <div
+                    className="topology-scroll"
+                    tabIndex={0}
+                    role="region"
+                    aria-label="Topology diagram"
+                  >
                     <TopologyDiagram layout={layout} zoom={zoom} />
                   </div>
                 ) : (
@@ -764,7 +769,12 @@ export function BundlePage({ caseId }: { readonly caseId: string }) {
 
             <section aria-labelledby="lock-heading" className="card">
               <h2 id="lock-heading">Component lock</h2>
-              <div className="table-scroll">
+              <div
+                className="table-scroll"
+                tabIndex={0}
+                role="region"
+                aria-label="Component lock table"
+              >
                 <table>
                   <caption className="visually-hidden">
                     Locked components with versions, digests, and licence

@@ -189,7 +189,7 @@ interrupted operation that is cancelled cooperatively; that last scenario stops 
 restarts the Compose `worker` service, so it requires Docker control and is skipped unless
 `OAK_E2E_DOCKER=1` (which `make web-e2e` sets). A fourth spec,
 `e2e/models.spec.ts`, covers the model settings page and the Deterministic / Online AI /
-Local AI dropdown end to end, and `e2e/hardening.spec.ts` checks the containers run
+Local AI chip end to end, and `e2e/hardening.spec.ts` checks the containers run
 unprivileged with an owner-only model-state volume. A fifth,
 `e2e/manual-screens.spec.ts`, re-captures the user manual's screenshots; it is collected
 by every run but skips unless `OAK_MANUAL_SCREENS=1` (see `docs/manual/README.md`).

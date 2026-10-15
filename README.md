@@ -210,8 +210,8 @@ curl http://127.0.0.1:8080/version
 ```
 
 You should see `{"name":"OAK Community","version":"0.9.0",...}`. Now open
-**<http://127.0.0.1:5173>**, paste a brief under "Describe what you want to build", and
-follow the buttons. The [user manual](docs/manual/OAK-Community-Manual.pdf) walks through
+**<http://127.0.0.1:5173>**, type a brief under "What do you want to build?" (or attach
+one), and follow the keycaps. The [user manual](docs/manual/OAK-Community-Manual.pdf) walks through
 every screen.
 
 > **If the build fails with "operation timed out"**, your connection dropped while it was
@@ -438,8 +438,9 @@ uv run oak models discover                                  # see which model wo
 uv run oak design my-brief.md --interpreter online          # this brief only
 ```
 
-In the browser, the choice is the "How should this brief be read?" dropdown, and
-**Settings → Models** is where you set up Online AI. Some things worth knowing:
+In the browser, the choice is the three "How should this brief be read?" chips under the
+composer (Deterministic, Online AI, Local AI), and **Models** (the sliders glyph in the
+masthead) is where you set up Online AI. Some things worth knowing:
 
 - **Your token stays on your machine.** It's kept in a file only your user account can
   read (under Docker, in the `oak-model-state` volume). With the source way you can opt

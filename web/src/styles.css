@@ -350,9 +350,9 @@ tbody th .case-id {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
-  margin-right: -0.5rem;
+  width: var(--target);
+  height: var(--target);
+  margin: -8px -0.85rem -8px -0.5rem;
   padding: 0;
   border: 0;
   border-radius: var(--radius-pill);
@@ -814,7 +814,7 @@ textarea::placeholder {
 }
 
 .plate-copy {
-  min-height: 32px;
+  min-height: var(--target);
   padding: 0 0.7rem;
   border-radius: 7px;
   font-size: var(--size-small);
@@ -1116,7 +1116,7 @@ summary {
 }
 
 .composer-chips .chip {
-  min-height: 38px;
+  min-height: var(--target);
 }
 
 .composer-name-chip {
@@ -1168,8 +1168,8 @@ summary {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  min-width: 40px;
-  height: 40px;
+  min-width: var(--target);
+  height: var(--target);
   padding: 0 12px;
   border-radius: var(--radius-pill);
   color: var(--text-faint);
@@ -1203,6 +1203,7 @@ summary {
 
 .mode-off {
   color: var(--text-faint);
+  border: 1px dashed var(--hairline-strong);
   cursor: not-allowed;
 }
 
@@ -1372,6 +1373,12 @@ summary {
 
 .journey li.journey-current {
   background: var(--brass);
+  box-shadow: 0 0 0 1.5px var(--text-1);
+}
+
+.journey li.journey-next {
+  background: transparent;
+  border: 1px dashed var(--text-faint);
 }
 
 .journey li.journey-install.journey-next {
@@ -1464,8 +1471,8 @@ summary {
 
 .moment-body > p a.keycap {
   display: inline-flex;
-  height: 40px;
-  min-height: 40px;
+  height: var(--target);
+  min-height: var(--target);
   padding: 0 18px;
   border-radius: var(--radius-pill);
   color: var(--brass-ink);
@@ -1513,6 +1520,12 @@ summary {
 
 .pip-current {
   background: var(--brass);
+  box-shadow: 0 0 0 1.5px var(--text-1);
+}
+
+.pip:not(.pip-done):not(.pip-current) {
+  background: transparent;
+  border: 1px dashed var(--text-faint);
 }
 
 .questions {
@@ -1659,7 +1672,7 @@ summary {
 }
 
 .bubble-reply .chipb {
-  min-height: 32px;
+  min-height: var(--target);
   padding: 0 12px;
   font-size: var(--size-small);
 }
@@ -1680,8 +1693,8 @@ summary {
 }
 
 .view-group .ico {
-  width: 38px;
-  height: 38px;
+  width: var(--target);
+  height: var(--target);
   border: 0;
   border-radius: var(--radius-pill);
   background: transparent;
@@ -1790,9 +1803,9 @@ summary {
 }
 
 .grip {
-  width: 40px;
-  height: 40px;
-  min-height: 40px;
+  width: var(--target);
+  height: var(--target);
+  min-height: var(--target);
   padding: 0;
   border-radius: var(--radius-control);
   border: 1px solid var(--hairline-control);
@@ -1980,9 +1993,9 @@ summary {
 }
 
 .zoom {
-  width: 40px;
-  height: 40px;
-  min-height: 40px;
+  width: var(--target);
+  height: var(--target);
+  min-height: var(--target);
   padding: 0;
   border-radius: var(--radius-control);
   border: 1px solid var(--hairline-control);
@@ -2305,8 +2318,8 @@ summary {
 }
 
 .keycap-small {
-  height: 36px;
-  min-height: 36px;
+  height: var(--target);
+  min-height: var(--target);
   padding: 0 12px;
   font-size: var(--size-small);
 }
