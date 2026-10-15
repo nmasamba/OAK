@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 
+import { Moment } from "../CaseRail";
 import {
   clearModelSelection,
   deleteModelCredential,
@@ -22,6 +23,7 @@ import {
 import { ProblemAlert, toActionFailure, type ActionFailure } from "../problems";
 import { Link } from "../router";
 import { ageOf, asArray, asObject, asString } from "../support";
+import { Chip, CopyPlate, Keycap } from "../ui";
 
 type LoadState =
   | { readonly kind: "no-token" }
@@ -88,7 +90,11 @@ function VerdictBadge({
   readonly verification: JsonObject | null;
 }) {
   if (verification === null) {
-    return <span className="badge badge-muted">not yet verified</span>;
+    return (
+      <Chip small icon="clock">
+        not yet verified
+      </Chip>
+    );
   }
   const verdict = asString(verification["verdict"]) ?? "unknown";
   const checkedAt = asString(verification["checked_at"]);
@@ -116,11 +122,15 @@ function VerdictBadge({
   }
   return (
     <span data-verdict={verdict}>
-      <span
-        className={`badge ${verdict === "accepted" ? "" : definitive ? "badge-warn" : "badge-muted"}`}
+      <Chip
+        small
+        tone={verdict === "accepted" ? "ok" : definitive ? "brass" : "neutral"}
+        icon={
+          verdict === "accepted" ? "check" : definitive ? "warning" : "clock"
+        }
       >
         {definitive ? verdict.replace("_", " ") : "not verified"}
-      </span>{" "}
+      </Chip>{" "}
       {checkedAt === null
         ? ""
         : definitive
@@ -223,41 +233,53 @@ export function SettingsPage() {
 
   if (state.kind === "no-token" || token === null) {
     return (
-      <>
-        <h1 id="page-heading">Models</h1>
-        <p className="summary">
-          Configuring a model needs the capability token the API minted when it
-          started. It is not a password: it authorises this browser to change
-          model settings on this machine, and it changes every time the API
-          restarts.
-        </p>
-        <section aria-labelledby="token-heading" className="panel">
-          <h2 id="token-heading">Paste the model-configuration token</h2>
-          <p>
-            Print it on the machine running the API with{" "}
-            <code>oak models token</code>, or under Compose with{" "}
-            <code>docker compose exec -T api oak models token</code>.{" "}
-            <code>oak serve</code> also prints a link that carries it.
-          </p>
-          <form onSubmit={onAdoptToken}>
-            <div className="field">
-              <label htmlFor="model-token">Model-configuration token</label>
-              <input
-                id="model-token"
-                name="model-token"
-                type="password"
-                autoComplete="off"
-                spellCheck={false}
-                value={tokenDraft}
-                onChange={(event) => setTokenDraft(event.target.value)}
-              />
-            </div>
-            <button type="submit" disabled={tokenDraft.trim().length < 16}>
-              Use this token
-            </button>
-          </form>
-        </section>
-      </>
+      <div className="convo">
+        <div className="thread">
+          <h1 id="page-heading">Models</h1>
+          <Moment fresh>
+            <p>This page needs the token the API printed.</p>
+          </Moment>
+          <section aria-labelledby="token-heading" className="card">
+            <h2 id="token-heading">Paste the model-configuration token</h2>
+            <p className="thread-aside">
+              Not a password. It lets this browser change model settings here.
+              It changes when the API restarts.
+            </p>
+            <CopyPlate
+              command="docker compose exec -T api oak models token"
+              label="Copy the command that prints the token"
+            />
+            <details>
+              <summary>Without Compose</summary>
+              <p className="thread-aside">
+                Run <code>oak models token</code> where the API runs.{" "}
+                <code>oak serve</code> also prints a link that carries it.
+              </p>
+            </details>
+            <form onSubmit={onAdoptToken}>
+              <div className="field">
+                <label htmlFor="model-token">Model-configuration token</label>
+                <input
+                  id="model-token"
+                  name="model-token"
+                  type="password"
+                  autoComplete="off"
+                  spellCheck={false}
+                  value={tokenDraft}
+                  onChange={(event) => setTokenDraft(event.target.value)}
+                />
+              </div>
+              <Keycap
+                type="submit"
+                icon="key"
+                disabled={tokenDraft.trim().length < 16}
+              >
+                Use this token
+              </Keycap>
+            </form>
+          </section>
+        </div>
+      </div>
     );
   }
 
@@ -277,377 +299,407 @@ export function SettingsPage() {
   const pairsWithoutStructured = pairsOf(catalogue).length - pairs.length;
 
   return (
-    <>
-      <h1 id="page-heading">Models</h1>
-      <p className="summary">
-        Every brief is read deterministically unless you choose otherwise when
-        you interpret it. This page sets up the two other choices:{" "}
-        <strong>Online AI</strong>, one open model on Hugging Face Inference
-        Providers called with your own token, and <strong>Local AI</strong>, a
-        model served on this machine.
-      </p>
+    <div className="convo">
+      <div className="thread">
+        <h1 id="page-heading">Models</h1>
+        <Moment fresh>
+          <p>
+            Every brief is read deterministically unless you choose otherwise.
+          </p>
+          <p className="thread-aside">
+            Online AI and Local AI are set up here.
+          </p>
+        </Moment>
 
-      <div aria-live="polite">
-        {state.kind === "loading" && <p>Loading model settings…</p>}
-        {state.kind === "failed" && (
-          <ProblemAlert failure={state.failure} onReload={load} />
-        )}
-        {failure !== null && <ProblemAlert failure={failure} onReload={load} />}
-        {notice !== null && <p className="notice">{notice}</p>}
-      </div>
+        <div aria-live="polite">
+          {state.kind === "loading" && <p>Loading model settings…</p>}
+          {state.kind === "failed" && (
+            <ProblemAlert failure={state.failure} onReload={load} />
+          )}
+          {failure !== null && (
+            <ProblemAlert failure={failure} onReload={load} />
+          )}
+          {notice !== null && <p className="notice">{notice}</p>}
+        </div>
 
-      {status !== null && (
-        <>
-          <section aria-labelledby="token-status-heading" className="panel">
-            <h2 id="token-status-heading">Hugging Face account</h2>
-            <p>
-              {sentence(
-                family?.data_use_note ??
-                  "requests are routed by Hugging Face to a provider",
-              )}
-              . Your free monthly credit applies first, and Hugging Face refuses
-              once it is spent; OAK never buys credit.
-              {family?.token_help_url ? (
-                <>
-                  {" "}
-                  <a
-                    href={family.token_help_url}
-                    rel="noreferrer noopener"
-                    target="_blank"
+        {status !== null && (
+          <>
+            <section aria-labelledby="token-status-heading" className="card">
+              <h2 id="token-status-heading">Hugging Face account</h2>
+              <p className="thread-aside">
+                {sentence(
+                  family?.data_use_note ??
+                    "requests are routed by Hugging Face to a provider",
+                )}
+                . Your free monthly credit applies first; OAK never buys credit.
+                {family?.token_help_url ? (
+                  <>
+                    {" "}
+                    <a
+                      href={family.token_help_url}
+                      rel="noreferrer noopener"
+                      target="_blank"
+                    >
+                      Create a token
+                    </a>{" "}
+                    ({family.key_hint}).
+                  </>
+                ) : null}
+              </p>
+              <p>
+                {huggingface?.configured === true ? (
+                  <>
+                    A token is stored in the{" "}
+                    <strong>{huggingface.source}</strong> backend (fingerprint{" "}
+                    {huggingface.fingerprint}, {huggingface.length} characters).
+                    Hugging Face says:{" "}
+                    <VerdictBadge verification={verification} />
+                  </>
+                ) : (
+                  <>No Hugging Face token is stored on this machine.</>
+                )}
+              </p>
+              <form onSubmit={onStoreKey}>
+                <div className="field">
+                  <label htmlFor="api-key">Hugging Face token</label>
+                  <input
+                    id="api-key"
+                    name="api-key"
+                    type="password"
+                    autoComplete="off"
+                    spellCheck={false}
+                    value={apiKey}
+                    onChange={(event) => setApiKey(event.target.value)}
+                  />
+                </div>
+                <div className="actions">
+                  <Keycap
+                    type="submit"
+                    icon="key"
+                    busy={busy === "store-key"}
+                    busyLabel="Storing and verifying…"
+                    disabled={busy !== null || apiKey.trim().length < 16}
+                    title="One request to huggingface.co that generates nothing: whether the token is accepted, its role, and whether the account can pay. The token itself is never returned."
                   >
-                    Create a token
-                  </a>{" "}
-                  ({family.key_hint}).
-                </>
-              ) : null}
-            </p>
-            <p>
-              {huggingface?.configured === true ? (
-                <>
-                  A token is stored in the <strong>{huggingface.source}</strong>{" "}
-                  backend (fingerprint {huggingface.fingerprint},{" "}
-                  {huggingface.length} characters). Hugging Face says:{" "}
-                  <VerdictBadge verification={verification} />
-                </>
-              ) : (
-                <>No Hugging Face token is stored on this machine.</>
+                    Store and verify
+                  </Keycap>
+                  {huggingface?.configured === true && (
+                    <>
+                      <Keycap
+                        tone="quiet"
+                        busy={busy === "verify"}
+                        busyLabel="Verifying…"
+                        disabled={busy !== null}
+                        onClick={() =>
+                          run("verify", () =>
+                            verifyModelCredential("huggingface", token).then(
+                              () =>
+                                setNotice(
+                                  "Asked Hugging Face about the stored token.",
+                                ),
+                            ),
+                          )
+                        }
+                      >
+                        Verify again
+                      </Keycap>
+                      <Keycap
+                        tone="quiet"
+                        icon="cross"
+                        disabled={busy !== null}
+                        onClick={() =>
+                          run("remove-key", () =>
+                            deleteModelCredential("huggingface", token).then(
+                              () =>
+                                setNotice("Removed the Hugging Face token."),
+                            ),
+                          )
+                        }
+                      >
+                        Remove token
+                      </Keycap>
+                    </>
+                  )}
+                </div>
+              </form>
+            </section>
+
+            <section aria-labelledby="online-heading" className="card">
+              <h2 id="online-heading">Online AI</h2>
+              <p>
+                {online?.["available"] === true && pair !== null ? (
+                  <>
+                    Would call <strong>{asString(pair["model_id"])}</strong>
+                    {asString(pair["provider_route"]) === null
+                      ? ""
+                      : ` via ${asString(pair["provider_route"])}`}
+                    {typeof pair["output_price_per_million"] === "number"
+                      ? ` at $${pair["output_price_per_million"]}/M output tokens`
+                      : ""}{" "}
+                    (
+                    {asString(pair["source"]) === "pinned"
+                      ? "the pair you pinned"
+                      : "the preferred pair: the current top model on Hugging Face with a structured-output route"}
+                    ).
+                  </>
+                ) : (
+                  <>
+                    Not ready:{" "}
+                    {asString(online?.["reason"] ?? null) ?? "unknown"}.
+                  </>
+                )}
+              </p>
+              <div className="actions">
+                <Keycap
+                  tone="quiet"
+                  icon="online"
+                  busy={busy === "discover"}
+                  busyLabel="Reading the catalogue…"
+                  disabled={busy !== null}
+                  title="Reads two public pages anonymously; the token is not sent."
+                  onClick={() =>
+                    run("discover", () =>
+                      discoverModels("huggingface", token).then(() =>
+                        setNotice("Read the Hugging Face catalogue."),
+                      ),
+                    )
+                  }
+                >
+                  Refresh models
+                </Keycap>
+                {pinned !== null && (
+                  <Keycap
+                    tone="quiet"
+                    disabled={busy !== null}
+                    onClick={() =>
+                      run("clear", () =>
+                        clearModelSelection("huggingface", token).then(() =>
+                          setNotice("Online AI uses the preferred pair again."),
+                        ),
+                      )
+                    }
+                  >
+                    Use the preferred pair instead
+                  </Keycap>
+                )}
+              </div>
+              {discovery !== undefined && (
+                <p className="timeline-meta">
+                  {discovery.model_count} model(s) from the {discovery.source}{" "}
+                  catalogue, read {ageOf(discovery.fetched_at)} (
+                  {discovery.fetched_at})
+                  {discovery.stale ? " — stale; refresh" : ""}
+                  {discovery.recommended === null
+                    ? ""
+                    : `; preferred ${discovery.recommended}`}
+                  .
+                </p>
               )}
-            </p>
-            <form onSubmit={onStoreKey}>
+              {pairs.length > 0 && (
+                <>
+                  <h3>Pick a model and provider pair</h3>
+                  <p className="timeline-meta">
+                    Routes with structured output only
+                    {pairsWithoutStructured > 0
+                      ? ` (${pairsWithoutStructured} other route(s) omitted)`
+                      : ""}
+                    . Prices are the provider's published output price per
+                    million tokens; throughput is Hugging Face's last
+                    measurement.
+                  </p>
+                  <div className="table-scroll">
+                    <table>
+                      <caption className="visually-hidden">
+                        Model and provider pairs the stored token can call
+                      </caption>
+                      <thead>
+                        <tr>
+                          <th scope="col">Model</th>
+                          <th scope="col">Provider</th>
+                          <th scope="col">Licence</th>
+                          <th scope="col">$/M output</th>
+                          <th scope="col">Tokens/s</th>
+                          <th scope="col">
+                            <span className="visually-hidden">Pick</span>
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {pairs.map((row) => {
+                          const isPinned =
+                            pinned !== null &&
+                            asString(pinned["model_id"]) === row.modelId &&
+                            asString(pinned["provider_route"]) === row.provider;
+                          return (
+                            <tr key={`${row.modelId}:${row.provider}`}>
+                              <th scope="row">
+                                {row.modelId}
+                                {discovery?.recommended === row.modelId ? (
+                                  <>
+                                    {" "}
+                                    <Chip small tone="brass">
+                                      preferred
+                                    </Chip>
+                                  </>
+                                ) : null}
+                              </th>
+                              <td>{row.provider}</td>
+                              <td>{row.licence}</td>
+                              <td className="mono">
+                                {row.free
+                                  ? "free (promotion)"
+                                  : row.price === null
+                                    ? "—"
+                                    : `$${row.price}`}
+                              </td>
+                              <td className="mono">
+                                {row.throughput === null
+                                  ? "—"
+                                  : Math.round(row.throughput)}
+                              </td>
+                              <td>
+                                <Keycap
+                                  tone="quiet"
+                                  className="keycap-small"
+                                  disabled={busy !== null || isPinned}
+                                  onClick={() =>
+                                    run("select", () =>
+                                      putModelSelection(
+                                        {
+                                          family: "huggingface",
+                                          model_id: row.modelId,
+                                          provider_route: row.provider,
+                                        },
+                                        token,
+                                      ).then(() =>
+                                        setNotice(
+                                          `Pinned ${row.modelId} via ${row.provider} for Online AI.`,
+                                        ),
+                                      ),
+                                    )
+                                  }
+                                >
+                                  {isPinned ? "Pinned" : "Use this pair"}
+                                </Keycap>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+            </section>
+
+            <section aria-labelledby="local-heading" className="card">
+              <h2 id="local-heading">Local AI</h2>
+              <p className="thread-aside">
+                An OpenAI-compatible server on this machine at{" "}
+                <code>{asString(local?.["endpoint"] ?? null) ?? "—"}</code>.
+                Nothing leaves this machine.{" "}
+                <span title="Set OAK_MODEL_ENDPOINT_LOCAL on the API process to change the endpoint.">
+                  The endpoint is set on the API process.
+                </span>
+              </p>
+              <p>
+                {local?.["available"] === true ? (
+                  <>
+                    Would call <strong>{asString(local["model_id"])}</strong>.
+                  </>
+                ) : (
+                  <>
+                    Not ready:{" "}
+                    {asString(local?.["reason"] ?? null) ??
+                      "no model is pinned"}
+                    .
+                  </>
+                )}
+              </p>
               <div className="field">
-                <label htmlFor="api-key">Hugging Face token</label>
+                <label htmlFor="local-model">
+                  Model the local server serves
+                </label>
                 <input
-                  id="api-key"
-                  name="api-key"
-                  type="password"
-                  autoComplete="off"
+                  id="local-model"
+                  name="local-model"
+                  type="text"
                   spellCheck={false}
-                  value={apiKey}
-                  onChange={(event) => setApiKey(event.target.value)}
+                  value={localModel}
+                  placeholder={
+                    asString(pinnedLocal?.["model_id"] ?? null) ?? "qwen3:8b"
+                  }
+                  onChange={(event) => setLocalModel(event.target.value)}
                 />
               </div>
-              <button
-                type="submit"
-                disabled={busy !== null || apiKey.trim().length < 16}
-              >
-                {busy === "store-key"
-                  ? "Storing and verifying…"
-                  : "Store and verify"}
-              </button>
-            </form>
-            <p className="problem-meta">
-              Storing sends one request to huggingface.co that generates
-              nothing: it asks whether the token is accepted, what role it has
-              and whether the account can pay. The token itself is never
-              returned by this page.
-            </p>
-            {huggingface?.configured === true && (
               <div className="actions">
-                <button
-                  type="button"
-                  disabled={busy !== null}
-                  onClick={() =>
-                    run("verify", () =>
-                      verifyModelCredential("huggingface", token).then(() =>
-                        setNotice("Asked Hugging Face about the stored token."),
-                      ),
-                    )
-                  }
+                <Keycap
+                  icon="local"
+                  disabled={busy !== null || localModel.trim() === ""}
+                  busy={busy === "select-local"}
+                  busyLabel="Pinning…"
+                  onClick={() => {
+                    const wanted = localModel.trim();
+                    run("select-local", () =>
+                      putModelSelection(
+                        { family: "local", model_id: wanted },
+                        token,
+                      ).then(() => {
+                        setLocalModel("");
+                        setNotice(`Pinned ${wanted} for Local AI.`);
+                      }),
+                    );
+                  }}
                 >
-                  {busy === "verify" ? "Verifying…" : "Verify again"}
-                </button>
-                <button
-                  type="button"
-                  disabled={busy !== null}
-                  onClick={() =>
-                    run("remove-key", () =>
-                      deleteModelCredential("huggingface", token).then(() =>
-                        setNotice("Removed the Hugging Face token."),
-                      ),
-                    )
-                  }
-                >
-                  Remove token
-                </button>
+                  Use this model
+                </Keycap>
+                {pinnedLocal !== null && (
+                  <Keycap
+                    tone="quiet"
+                    disabled={busy !== null}
+                    onClick={() =>
+                      run("clear-local", () =>
+                        clearModelSelection("local", token).then(() =>
+                          setNotice("Local AI has no model pinned."),
+                        ),
+                      )
+                    }
+                  >
+                    Clear
+                  </Keycap>
+                )}
               </div>
-            )}
-          </section>
+            </section>
 
-          <section aria-labelledby="online-heading" className="panel">
-            <h2 id="online-heading">Online AI</h2>
-            <p>
-              {online?.["available"] === true && pair !== null ? (
-                <>
-                  Would call <strong>{asString(pair["model_id"])}</strong>
-                  {asString(pair["provider_route"]) === null
-                    ? ""
-                    : ` via ${asString(pair["provider_route"])}`}
-                  {typeof pair["output_price_per_million"] === "number"
-                    ? ` at $${pair["output_price_per_million"]}/M output tokens`
-                    : ""}{" "}
-                  (
-                  {asString(pair["source"]) === "pinned"
-                    ? "the pair you pinned"
-                    : "the preferred pair: the current top model on Hugging Face with a structured-output route"}
-                  ).
-                </>
-              ) : (
-                <>
-                  Not ready: {asString(online?.["reason"] ?? null) ?? "unknown"}
-                  .
-                </>
-              )}
-            </p>
-            <div className="actions">
-              <button
-                type="button"
-                disabled={busy !== null}
-                onClick={() =>
-                  run("discover", () =>
-                    discoverModels("huggingface", token).then(() =>
-                      setNotice("Read the Hugging Face catalogue."),
-                    ),
-                  )
-                }
-              >
-                {busy === "discover"
-                  ? "Reading the catalogue…"
-                  : "Refresh models"}
-              </button>
-              {pinned !== null && (
-                <button
-                  type="button"
-                  disabled={busy !== null}
-                  onClick={() =>
-                    run("clear", () =>
-                      clearModelSelection("huggingface", token).then(() =>
-                        setNotice("Online AI uses the preferred pair again."),
-                      ),
-                    )
-                  }
-                >
-                  Use the preferred pair instead
-                </button>
-              )}
-            </div>
-            {discovery !== undefined && (
-              <p className="problem-meta">
-                {discovery.model_count} model(s) from the {discovery.source}{" "}
-                catalogue, read {ageOf(discovery.fetched_at)} (
-                {discovery.fetched_at})
-                {discovery.stale ? " — stale; refresh" : ""}
-                {discovery.recommended === null
-                  ? ""
-                  : `; preferred ${discovery.recommended}`}
-                . Refreshing reads two public pages anonymously; the token is
-                not sent.
+            <section aria-labelledby="forget-heading" className="card">
+              <h2 id="forget-heading">This browser</h2>
+              <p className="timeline-meta">
+                Keys are stored at{" "}
+                <code>{asString(status.stores["credentials"])}</code>
+                {status.stores["under_compose"] === true
+                  ? " on the api container's own volume."
+                  : " on this machine."}{" "}
+                They are never returned by this page.
               </p>
-            )}
-            {pairs.length > 0 && (
-              <>
-                <h3>Pick a model and provider pair</h3>
-                <p className="problem-meta">
-                  Only routes that support structured output are listed
-                  {pairsWithoutStructured > 0
-                    ? ` (${pairsWithoutStructured} other route(s) omitted)`
-                    : ""}
-                  . Prices are the provider's published output price per million
-                  tokens; throughput is Hugging Face's last measurement.
-                </p>
-                <table>
-                  <caption className="visually-hidden">
-                    Model and provider pairs the stored token can call
-                  </caption>
-                  <thead>
-                    <tr>
-                      <th scope="col">Model</th>
-                      <th scope="col">Provider</th>
-                      <th scope="col">Licence</th>
-                      <th scope="col">$/M output</th>
-                      <th scope="col">Tokens/s</th>
-                      <th scope="col"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pairs.map((row) => {
-                      const isPinned =
-                        pinned !== null &&
-                        asString(pinned["model_id"]) === row.modelId &&
-                        asString(pinned["provider_route"]) === row.provider;
-                      return (
-                        <tr key={`${row.modelId}:${row.provider}`}>
-                          <th scope="row">
-                            {row.modelId}
-                            {discovery?.recommended === row.modelId ? (
-                              <span className="badge"> preferred</span>
-                            ) : null}
-                          </th>
-                          <td>{row.provider}</td>
-                          <td>{row.licence}</td>
-                          <td>
-                            {row.free
-                              ? "free (promotion)"
-                              : row.price === null
-                                ? "—"
-                                : `$${row.price}`}
-                          </td>
-                          <td>
-                            {row.throughput === null
-                              ? "—"
-                              : Math.round(row.throughput)}
-                          </td>
-                          <td>
-                            <button
-                              type="button"
-                              disabled={busy !== null || isPinned}
-                              onClick={() =>
-                                run("select", () =>
-                                  putModelSelection(
-                                    {
-                                      family: "huggingface",
-                                      model_id: row.modelId,
-                                      provider_route: row.provider,
-                                    },
-                                    token,
-                                  ).then(() =>
-                                    setNotice(
-                                      `Pinned ${row.modelId} via ${row.provider} for Online AI.`,
-                                    ),
-                                  ),
-                                )
-                              }
-                            >
-                              {isPinned ? "Pinned" : "Use this pair"}
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </>
-            )}
-          </section>
-
-          <section aria-labelledby="local-heading" className="panel">
-            <h2 id="local-heading">Local AI</h2>
-            <p>
-              An OpenAI-compatible server on this machine (Ollama, vLLM,
-              llama.cpp) at{" "}
-              <code>{asString(local?.["endpoint"] ?? null) ?? "—"}</code>;
-              nothing leaves this machine. Change the endpoint with{" "}
-              <code>OAK_MODEL_ENDPOINT_LOCAL</code> on the API process.
-            </p>
-            <p>
-              {local?.["available"] === true ? (
-                <>
-                  Would call <strong>{asString(local["model_id"])}</strong>.
-                </>
-              ) : (
-                <>
-                  Not ready:{" "}
-                  {asString(local?.["reason"] ?? null) ?? "no model is pinned"}.
-                </>
-              )}
-            </p>
-            <div className="field">
-              <label htmlFor="local-model">Model the local server serves</label>
-              <input
-                id="local-model"
-                name="local-model"
-                type="text"
-                spellCheck={false}
-                value={localModel}
-                placeholder={
-                  asString(pinnedLocal?.["model_id"] ?? null) ?? "qwen3:8b"
-                }
-                onChange={(event) => setLocalModel(event.target.value)}
-              />
-            </div>
-            <div className="actions">
-              <button
-                type="button"
-                disabled={busy !== null || localModel.trim() === ""}
-                onClick={() => {
-                  const wanted = localModel.trim();
-                  run("select-local", () =>
-                    putModelSelection(
-                      { family: "local", model_id: wanted },
-                      token,
-                    ).then(() => {
-                      setLocalModel("");
-                      setNotice(`Pinned ${wanted} for Local AI.`);
-                    }),
-                  );
-                }}
-              >
-                Use this model
-              </button>
-              {pinnedLocal !== null && (
-                <button
-                  type="button"
-                  disabled={busy !== null}
-                  onClick={() =>
-                    run("clear-local", () =>
-                      clearModelSelection("local", token).then(() =>
-                        setNotice("Local AI has no model pinned."),
-                      ),
-                    )
-                  }
+              <div className="actions">
+                <Keycap
+                  tone="quiet"
+                  onClick={() => {
+                    forgetModelToken();
+                    load();
+                  }}
+                  title="Changes nothing on the machine; the stored keys and the pinned models stay as they are."
                 >
-                  Clear
-                </button>
-              )}
-            </div>
-          </section>
-
-          <section aria-labelledby="forget-heading" className="panel">
-            <h2 id="forget-heading">This browser</h2>
-            <p className="problem-meta">
-              Keys are stored at{" "}
-              <code>{asString(status.stores["credentials"])}</code>
-              {status.stores["under_compose"] === true
-                ? " on the api container's own volume."
-                : " on this machine."}{" "}
-              They are never returned by this page.
-            </p>
-            <button
-              type="button"
-              onClick={() => {
-                forgetModelToken();
-                load();
-              }}
-            >
-              Forget the token in this browser
-            </button>
-            <p className="problem-meta">
-              Forgetting the token here changes nothing on the machine; the
-              stored keys and the pinned models stay as they are.{" "}
-              <Link to="/">Back to all cases</Link>
-            </p>
-          </section>
-        </>
-      )}
-    </>
+                  Forget the token in this browser
+                </Keycap>
+              </div>
+              <p className="thread-aside">
+                <Link to="/">Back to all cases</Link>
+              </p>
+            </section>
+          </>
+        )}
+      </div>
+    </div>
   );
 }

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useEffect, useState } from "react";
 
+import { Moment } from "../CaseRail";
 import {
   cancelOperation,
   getOperation,
@@ -9,9 +10,19 @@ import {
 import { ProblemAlert, toActionFailure, type ActionFailure } from "../problems";
 import { Link } from "../router";
 import { newIdempotencyKey } from "../support";
+import { Keycap, Led, type LedState } from "../ui";
 
 const TERMINAL_STATES = new Set(["succeeded", "failed", "cancelled"]);
 const POLL_INTERVAL_MILLISECONDS = 1500;
+
+const LIGHTS: Readonly<Record<string, LedState>> = {
+  queued: "absent",
+  running: "busy",
+  succeeded: "ok",
+  failed: "failed",
+  cancelling: "busy",
+  cancelled: "revoked",
+};
 
 type OperationState =
   | { readonly kind: "loading" }
@@ -91,36 +102,21 @@ export function OperationPage({
   const terminal = TERMINAL_STATES.has(operation.state);
 
   return (
-    <>
-      <p className="eyebrow">Durable operation</p>
-      <h1 id="page-heading">{operation.kind.replaceAll("_", " ")}</h1>
-      <p className="case-id">{operation.operation_id}</p>
+    <div className="convo">
+      <div className="thread">
+        <h1 id="page-heading">{operation.kind.replaceAll("_", " ")}</h1>
+        <p className="case-id">{operation.operation_id}</p>
 
-      <section aria-labelledby="operation-heading" className="panel">
-        <h2 id="operation-heading">Progress</h2>
-        <div aria-live="polite">
-          <dl>
-            <div>
-              <dt>State</dt>
-              <dd>
-                <span className="badge">{operation.state}</span>
-              </dd>
-            </div>
-            <div>
-              <dt>Attempts</dt>
-              <dd>
-                {operation.attempt_count} of {operation.max_attempts}
-              </dd>
-            </div>
-            <div>
-              <dt>Created</dt>
-              <dd>{operation.created_at}</dd>
-            </div>
-            <div>
-              <dt>Completed</dt>
-              <dd>{operation.completed_at ?? "not yet"}</dd>
-            </div>
-          </dl>
+        <Moment fresh>
+          <div className="moment-row" aria-live="polite">
+            <Led
+              state={LIGHTS[operation.state] ?? "unknown"}
+              word={operation.state}
+            />
+            <span className="mono moment-meta">
+              attempt {operation.attempt_count} of {operation.max_attempts}
+            </span>
+          </div>
           {!terminal && <p role="status">Waiting for the worker to finish…</p>}
           {operation.problem !== null && (
             <div className="problem" role="alert">
@@ -130,29 +126,60 @@ export function OperationPage({
               </p>
             </div>
           )}
-        </div>
-        <div className="actions">
           {!terminal && (
-            <button type="button" onClick={onCancel} disabled={cancelling}>
-              {cancelling ? "Requesting cancellation…" : "Cancel operation"}
-            </button>
+            <div className="moment-row">
+              <Keycap
+                tone="danger"
+                icon="cross"
+                onClick={onCancel}
+                busy={cancelling}
+                busyLabel="Requesting…"
+              >
+                Cancel operation
+              </Keycap>
+            </div>
           )}
-        </div>
-        <div aria-live="polite">
-          {cancelFailure !== null && (
-            <ProblemAlert
-              failure={cancelFailure}
-              onReload={() => window.location.reload()}
-            />
-          )}
-        </div>
-      </section>
+          <div aria-live="polite">
+            {cancelFailure !== null && (
+              <ProblemAlert
+                failure={cancelFailure}
+                onReload={() => window.location.reload()}
+              />
+            )}
+          </div>
+        </Moment>
 
-      <p>
-        <Link to={`/cases/${encodeURIComponent(operation.case_id)}`}>
-          Back to case {operation.case_id}
-        </Link>
-      </p>
-    </>
+        <section
+          aria-labelledby="operation-heading"
+          className="card card-inset"
+        >
+          <h2 id="operation-heading">Progress</h2>
+          <dl>
+            <div>
+              <dt>Created</dt>
+              <dd className="mono">{operation.created_at}</dd>
+            </div>
+            <div>
+              <dt>Completed</dt>
+              <dd className="mono">{operation.completed_at ?? "not yet"}</dd>
+            </div>
+            <div>
+              <dt>Next attempt</dt>
+              <dd className="mono">{operation.next_attempt_at}</dd>
+            </div>
+            <div>
+              <dt>Correlation</dt>
+              <dd className="mono">{operation.correlation_id}</dd>
+            </div>
+          </dl>
+        </section>
+
+        <p className="thread-aside">
+          <Link to={`/cases/${encodeURIComponent(operation.case_id)}`}>
+            Back to case {operation.case_id}
+          </Link>
+        </p>
+      </div>
+    </div>
   );
 }

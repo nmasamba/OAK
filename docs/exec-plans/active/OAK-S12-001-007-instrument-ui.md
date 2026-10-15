@@ -13,7 +13,7 @@ Execution is on branch `sprint-12-instrument-ui`, branched from `origin/main` at
 
 - Owner/agent: owner-directed coding agent
 - Started: 2026-10-15
-- Last updated: 2026-10-15 (M6: Downloads and the K1 route)
+- Last updated: 2026-10-15 (M7: remaining pages, full suite, screenshots, PDF)
 - State: in-progress
 - Claimed tasks: `OAK-S12-001`–`OAK-S12-007`
 
@@ -345,6 +345,14 @@ Rollback is a revert of the branch. The throwaway stack is removed at the end wi
   green, `web/e2e/downloads.spec.ts` (the saved candidate-03 hashes to
   `X-OAK-Artifact-Digest`; the tile says "digest matches"; zero axe violations with the
   sheet open), `journey.spec.ts` green, the route curled live on the throwaway stack.
+- [x] 2026-10-15 M7: `OperationPage` (a light with its state word, the attempt count, a
+  danger keycap to cancel), `DecisionPage` (moments and cards with chips for statuses,
+  the assurance keycap) and `SettingsPage` (cards, keycaps, verdict chips, the token
+  command on a copy plate, explanations in titles and a disclosure) on the primitives,
+  every pinned string kept. The throwaway stack was recreated from nothing
+  (`down -v --rmi local`, `up -d --build`); `make web-e2e` ran once: 24 passed, 1 skipped
+  (the gated capture), no `make: ***` line; then the 11 screenshots were captured from
+  that stack, the captions rewritten for the new screens, and the PDF rebuilt.
 
 ## Decisions
 
@@ -388,6 +396,9 @@ Rollback is a revert of the branch. The throwaway stack is removed at the end wi
   opacities (upcoming question, infeasible card, unavailable mode) are expressed as
   border and colour instead, and guard G5 now fails on any `opacity` between 0 and 1 in
   `styles.css`, mutation-checked both ways. Not a flake to retry: a class to prevent.
+- 2026-10-15 M7: a `grep -c 'make: ***'` over the full-run log reported 1 → the script's
+  own progress line echoed the pattern it counts (environment) → count only after
+  excluding the script's own lines; the suite itself had no failure.
 
 ## Self-review
 
@@ -395,6 +406,11 @@ Answered at the end of each milestone: (1) did any pinned name change without it
 (2) did any new text exceed the word budget? (3) did anything touch a boundary in §7?
 
 - M0: (1) no; (2) no new UI text; (3) no.
+- M7: (1) no; (2) new text: "This page needs the token the API printed." (8 words),
+  "Not a password. It lets this browser change model settings here. It changes when the
+  API restarts.", "Without Compose", "Online AI and Local AI are set up here.", "Nothing
+  chosen yet.", "No assurance plan yet.", "Limitations"; (3) no: the same calls, the
+  same token handling (`sessionStorage`, cleared field, never echoed).
 - M6: (1) no; (2) new text: "Take it", "Everything", "Files", "Checked in your browser.
   A download authorises nothing." (4 and 4 words), the tile words and states ("digest
   matches", "digest differs", "fetching", "failed"), "X could not be fetched."; (3)
