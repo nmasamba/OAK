@@ -98,14 +98,14 @@ AI assistant can all see it. Each step uses a different way in.
 
 ### Step 1 — Create and interpret the case in the browser
 
-Open <http://127.0.0.1:5173>. Under **Describe what you want to build**:
+Open <http://127.0.0.1:5173>. Under **What do you want to build?**:
 
-1. tick **I have a structured YAML or JSON brief instead**;
-2. set **Brief file name** to `public-manual-qa.yaml`;
-3. paste the contents of [`examples/briefs/public-manual-qa.yaml`](../examples/briefs/public-manual-qa.yaml)
-   into **Brief content**;
-4. click **Create case**. The case page opens with status `draft` and version `0.1.0`;
-5. leave the reading mode on **Deterministic** and click **Interpret brief**.
+1. set the file-name pill (**Brief file name**) to `public-manual-qa.yaml`;
+2. paste the contents of [`examples/briefs/public-manual-qa.yaml`](../examples/briefs/public-manual-qa.yaml)
+   into **Brief prompt**, or attach the file with the paper-clip control;
+3. press the brass **Create case** keycap. The case page opens with status `draft` and
+   version `0.1.0`;
+4. leave the reading mode chip on **Deterministic** and press **Interpret brief**.
 
 The status becomes `needs_confirmation`, version `0.1.1`, with **5** open questions. The
 audit timeline at the bottom already shows `case_created` and `brief_interpreted`. The

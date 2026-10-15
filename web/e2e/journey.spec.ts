@@ -16,7 +16,7 @@ test("a reviewer completes the reference journey from brief to compiled bundle",
     ).toBeVisible();
     await expectAccessible(page, "case list");
     await page.getByLabel("Brief file name").fill(`${slug}.yaml`);
-    await page.getByLabel("Brief content").fill(briefFor(slug));
+    await page.getByLabel("Brief prompt").fill(briefFor(slug));
     await page.getByRole("button", { name: "Create case" }).click();
     await expect(page).toHaveURL(new RegExp(`/cases/${caseId}$`));
     await expect(page.getByText("draft", { exact: true })).toBeVisible();
@@ -101,7 +101,9 @@ test("a reviewer completes the reference journey from brief to compiled bundle",
     await expect(
       page.getByRole("heading", { name: /4 candidate architectures/ }),
     ).toBeVisible();
-    await expect(page.getByText("simpler_baseline").first()).toBeVisible();
+    await expect(
+      page.getByText("Baseline", { exact: true }).first(),
+    ).toBeVisible();
     await expect(page.getByText("infeasible", { exact: true })).toBeVisible();
     await expect(page.getByText(/constraint\.hardware/).first()).toBeVisible();
     // Explanation entries are objects: they must read as their fields, never as the

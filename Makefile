@@ -20,6 +20,7 @@ toolchain-check:
 
 validate: toolchain-check
 	$(UV) run python scripts/validate_repository.py
+	$(UV) run python scripts/check_studio_ui.py
 
 format:
 	$(UV) run ruff format src tests tools scripts

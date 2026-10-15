@@ -1,6 +1,15 @@
 {
   "components": {
     "schemas": {
+      "ArchitectureFormat": {
+        "description": "The two layouts the architecture document downloads in.",
+        "enum": [
+          "json",
+          "yaml"
+        ],
+        "title": "ArchitectureFormat",
+        "type": "string"
+      },
       "ArtifactListResponse": {
         "additionalProperties": false,
         "properties": {
@@ -1465,6 +1474,107 @@
         "summary": "Get Design Case",
         "tags": [
           "design-cases"
+        ]
+      }
+    },
+    "/v1/design-cases/{case_id}/architecture": {
+      "get": {
+        "description": "The chosen architecture as one file to keep.\n\nComposed at request time from the documents the case already holds (the named or\nselected candidate, the decision, and the installation state once compiled), so it\nhas no stable digest of its own; its parts carry theirs. Reading it compiles, signs,\napproves and installs nothing and writes no successor and no audit event.",
+        "operationId": "get_architecture_v1_design_cases__case_id__architecture_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "case_id",
+            "required": true,
+            "schema": {
+              "title": "Case Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "candidate_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 120,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Candidate Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/ArchitectureFormat",
+              "default": "json"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-OAK-Actor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Oak-Actor"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-OAK-Tenant",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Oak-Tenant"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              },
+              "application/yaml": {}
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Architecture",
+        "tags": [
+          "artifacts"
         ]
       }
     },

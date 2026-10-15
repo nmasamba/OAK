@@ -89,11 +89,15 @@ test.describe("model settings", () => {
 
     // The intake form offers the three ways to read a brief, with Local AI now enabled.
     await page.goto("/");
-    const chooser = page.getByLabel("How should this brief be read?");
+    const chooser = page.getByRole("group", {
+      name: "How should this brief be read?",
+    });
     await expect(chooser).toBeVisible();
-    await expect(chooser.locator("option")).toHaveCount(3);
-    await expect(chooser).toHaveValue("deterministic");
-    await chooser.selectOption("local");
+    await expect(chooser.getByRole("radio")).toHaveCount(3);
+    await expect(
+      chooser.getByRole("radio", { name: "Deterministic" }),
+    ).toBeChecked();
+    await chooser.getByRole("radio", { name: "Local AI" }).check();
     await expect(page.locator("[data-mode-detail=local]")).toContainText(
       "qwen3:8b",
     );
@@ -130,20 +134,24 @@ test.describe("model settings", () => {
 
     await page.goto(`/#token=${encodeURIComponent(token)}`);
     await page.goto("/");
-    const chooser = page.getByLabel("How should this brief be read?");
-    await chooser.selectOption("local");
+    const chooser = page.getByRole("group", {
+      name: "How should this brief be read?",
+    });
+    await chooser.getByRole("radio", { name: "Local AI" }).check();
     await page.getByLabel("Brief file name").fill(`${slug}.md`);
     await page
-      .getByLabel("Brief content")
+      .getByLabel("Brief prompt")
       .fill(
         "A support desk wants drafted answers from public manuals, reviewed by a person.",
       );
     await page.getByRole("button", { name: "Create case" }).click();
 
     // The case page starts from the choice made on the form.
-    await expect(page.getByLabel("How should this brief be read?")).toHaveValue(
-      "local",
-    );
+    await expect(
+      page
+        .getByRole("group", { name: "How should this brief be read?" })
+        .getByRole("radio", { name: "Local AI" }),
+    ).toBeChecked();
     await page.getByRole("button", { name: "Interpret brief" }).click();
     // No loopback model server runs under Compose, so Local AI fails honestly and nothing
     // is recorded; the recovery re-runs the interpretation deterministically.
@@ -202,11 +210,15 @@ test.describe("model settings", () => {
     requireStack();
     await page.goto("/");
     await expect(
-      page.getByRole("heading", { name: "Describe what you want to build" }),
+      page.getByRole("heading", { name: "What do you want to build?" }),
     ).toBeVisible();
-    await expect(page.getByLabel("Brief content")).toBeVisible();
-    const chooser = page.getByLabel("How should this brief be read?");
-    await expect(chooser).toHaveValue("deterministic");
+    await expect(page.getByLabel("Brief prompt")).toBeVisible();
+    const chooser = page.getByRole("group", {
+      name: "How should this brief be read?",
+    });
+    await expect(
+      chooser.getByRole("radio", { name: "Deterministic" }),
+    ).toBeChecked();
     await expect(
       page.locator("[data-mode-detail=deterministic]"),
     ).toContainText("nothing leaves");

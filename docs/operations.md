@@ -415,7 +415,7 @@ only records a choice.
 To use Local AI, run the CLI from a source install on the machine that runs the model
 server.
 
-The web workspace asks for that token once, at Settings → Models, and keeps it for the
+The web workspace asks for that token once, on the Models screen, and keeps it for the
 session only. The token is minted per API process: restarting `api` invalidates it, which is
 deliberate — it is a capability, not a password, and `oak models token` reprints the current
 one. The `/v1/models` routes refuse without it (`OAK-MODEL-TOKEN-REQUIRED`).

@@ -6,6 +6,53 @@ All notable changes to OAK Community are recorded here.
 
 ## Unreleased
 
+### Added
+
+- **OAK Studio, direction A ("Instrument"): the web workspace rebuilt** (Sprint 12,
+  `OAK-S12-001`–`007`, authorized 2026-10-15). Conversation first, symbols over text,
+  tactile, with one-tap downloads; no boundary moved.
+  - **Tokens and primitives** (`OAK-S12-002`): every colour, radius, shadow and duration
+    is a custom property in `web/src/tokens.css`, and `web/src/styles.css` paints no
+    literal colour. Dark theme only, with the tokens arranged so a light theme is a
+    second block. Self-hosted Instrument Serif, IBM Plex Sans and IBM Plex Mono
+    (`@fontsource/*` 5.3.0, OFL-1.1, no CDN). Primitives in `web/src/ui/`: `Keycap`,
+    `Chip`, `Tile`, `Card`, `Led`, `RangeBar`, `ProvenanceMark`, `CopyPlate` and
+    `Icon`. Candidate variant ids reach the page through one label map
+    (`web/src/ui/variantLabel.ts`): Baseline, Minimal, Balanced, High assurance. Motion
+    stops under `prefers-reduced-motion`.
+  - **Guards** (`scripts/check_studio_ui.py`, run by `make validate`): the web source
+    renders no raw variant id and loads no Google Fonts URL (G1); the generated client
+    gains no non-GET call and no button claims an authority the web does not hold (G2);
+    every `<svg>` is hidden or a labelled image and every icon-only button has a name
+    (G3); the bundle page keeps saying the web workspace holds no runner execution
+    authority (G4); the stylesheet paints only tokens and no partial opacity (G5).
+  - **Home** (`OAK-S12-003`): one question, "What do you want to build?", over a composer
+    labelled "Brief prompt" with an attach control (a Markdown, text, YAML or JSON brief
+    of up to 256 KiB, shown only as a chip, its text never rendered), the three modes as
+    radio chips, and one brass send keycap; recent cases as tiles with progress rings.
+  - **Conversation** (`OAK-S12-003`): the case, review and confirm pages as moments of
+    one thread beside a case rail (ring, status, journey pips); questions as chip cards
+    with the value as chips, its origin mark, and the four decisions as radio chips.
+  - **Designs** (`OAK-S12-004`): candidate cards with a topology glyph and three range
+    bars on a shared scale, a table view, the infeasible one dashed with its reason, and
+    a bench that compares two designs by drag or by keyboard.
+  - **Architecture** (`OAK-S12-004`): the selected topology as SVG with its table,
+    prediction chips, the "Take it and install" dock with three install lights and
+    "Copy install steps", which copies six commands and runs nothing.
+  - **Downloads** (`OAK-S12-005`): one tap for the brief as stored, the intent, each
+    design, the decision and the assurance plan, each fetched as raw bytes through the
+    existing artifact read and saved only when its sha256, computed in the browser,
+    equals `X-OAK-Artifact-Digest`; the topology as SVG serialised from the drawn
+    diagram; and the final architecture document through one new read-only route,
+    `GET /v1/design-cases/{case_id}/architecture?candidate_id=&format=json|yaml`,
+    composed at request time in the shared control-plane service and served with
+    `Content-Disposition: attachment`, `nosniff` and `Cache-Control: no-store`. It is
+    listed as unreleased in the compatibility gate until the next release rewrites the
+    baseline. The whole-case export is unchanged.
+  - **Build tooling:** `source-map-js` is overridden to 1.2.2 (GHSA-68fv-2mgg-jv7q, a
+    build-time transitive of Vite's PostCSS; nothing shipped changes), so `make audit`
+    is green again.
+
 ### Fixed
 
 - **The REST compatibility gate now guards what has shipped.**

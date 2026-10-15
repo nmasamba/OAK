@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { JsonObject } from "./generated/api";
 import { asString } from "./support";
+import { ProvenanceMark } from "./ui/ProvenanceMark";
 
 export type ClaimClass =
   | "fact"
@@ -40,9 +41,11 @@ export function ClaimBadge({
   readonly claimClass: ClaimClass;
 }) {
   return (
-    <span className={`badge claim-${claimClass}`}>
-      {CLASS_LABELS[claimClass]}
-    </span>
+    <ProvenanceMark
+      claimClass={claimClass}
+      word={CLASS_LABELS[claimClass]}
+      className={`claim-${claimClass}`}
+    />
   );
 }
 

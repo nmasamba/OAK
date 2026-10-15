@@ -1,0 +1,162 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/*
+ * OAK Studio design tokens, direction A ("Instrument"), dark theme. Every colour the
+ * workspace paints is a custom property here; styles.css carries no literal hex value.
+ * A light theme is a second block of the same names (owner decision K3, 2026-10-15),
+ * not a second stylesheet.
+ */
+:root {
+  color-scheme: dark;
+
+  /* Ground and surfaces */
+  --ground: #101310;
+  --ground-dot: rgba(237, 235, 227, 0.045);
+  --surface-card: #171b16;
+  --surface-raised: #1b1f19;
+  --surface-control: #232820;
+  --surface-inset: #0f120e;
+  --surface-card-hover: #1a1f18;
+  --surface-chip: #1e231c;
+  --surface-mode-on: #2a2f26;
+  --surface-rail: #151914;
+  --surface-sheet: #161a15;
+  --surface-tile-file: #1f241c;
+  --surface-diagram-card: #141813;
+  --surface-diagram: #0e110d;
+  --surface-dock: #1b1a12;
+  --ground-dot-strong: rgba(237, 235, 227, 0.06);
+  --surface-bench: #141a20;
+  --hairline-bench: #34506f;
+  --surface-lamp: #1b1a12;
+  --hairline-install: #4a5543;
+  --shadow-mode-on-edge: #0a0c09;
+
+  /* Hairlines */
+  --hairline: #2c3329;
+  --hairline-2: #343c30;
+  --hairline-strong: #46503f;
+  --hairline-control: #3a4335;
+
+  /* Text, every one at or above 4.5:1 on its surface */
+  --text-1: #edebe3;
+  --text-2: #d3d5cb;
+  --text-3: #b4b8aa;
+  --text-faint: #9ea393;
+
+  /* Brass: the one thing to press */
+  --brass: #e0ae4e;
+  --brass-hover: #ebbb5c;
+  --brass-pressed: #d4a244;
+  --brass-text: #f2c873;
+  --brass-surface: #2a2414;
+  --brass-border: #8c6e2e;
+  --brass-edge: #9c7426;
+  --brass-ink: #1a1407;
+  --brass-glow: rgba(224, 174, 78, 0.18);
+  --brass-glow-hover: rgba(224, 174, 78, 0.26);
+  --brass-ring: rgba(224, 174, 78, 0.12);
+  --brass-surface-busy: #1e1c13;
+  --brass-border-busy: #6b5a33;
+  --brass-track: #3a3320;
+  --brass-zone-surface: #1a1b12;
+  --brass-zone-border: #7a6634;
+
+  /* Green: ok */
+  --ok: #7ccb97;
+  --ok-text: #a8e2bc;
+  --ok-surface: #1c2a20;
+  --ok-border: #3c6a4b;
+
+  /* Blue: focus and selection */
+  --focus: #86b8f2;
+  --focus-text: #b9d6f7;
+  --focus-surface: #1a2330;
+  --focus-border: #4a6a91;
+  --focus-wash: rgba(134, 184, 242, 0.07);
+
+  /* Coral: infeasible or failed */
+  --bad: #f08a74;
+  --bad-text: #f6b0a1;
+  --bad-surface: #2c1915;
+  --bad-border: #8a4a3d;
+
+  /* Lavender: unknown */
+  --unknown: #a9a2d8;
+  --unknown-text: #c9c3ee;
+
+  /* Shadows and highlights */
+  --shadow-card:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 18px 40px rgba(0, 0, 0, 0.35);
+  --shadow-lift: 0 24px 46px rgba(0, 0, 0, 0.45);
+  --shadow-drag: 0 30px 60px rgba(0, 0, 0, 0.55);
+  --shadow-tile: 0 10px 24px rgba(0, 0, 0, 0.35);
+  --shadow-keycap: 0 3px 0 var(--brass-edge);
+  --shadow-keycap-rest:
+    0 3px 0 var(--brass-edge), 0 12px 28px var(--brass-glow),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  --shadow-keycap-hover:
+    0 3px 0 var(--brass-edge), 0 16px 32px var(--brass-glow-hover),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  --shadow-keycap-pressed: inset 0 2px 4px rgba(0, 0, 0, 0.25);
+  --scrim: rgba(0, 0, 0, 0.55);
+  --shadow-composer:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 24px 60px rgba(0, 0, 0, 0.45);
+  --shadow-mode-on:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 2px 0 var(--shadow-mode-on-edge);
+  --shadow-send:
+    0 3px 0 var(--brass-edge), 0 10px 24px rgba(224, 174, 78, 0.22);
+  --brass-glow-send: rgba(224, 174, 78, 0.22);
+
+  --shadow-question:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 16px 36px rgba(0, 0, 0, 0.35);
+
+  --shadow-bench: 0 -10px 36px rgba(0, 0, 0, 0.35);
+
+  --shadow-sheet:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 40px 90px rgba(0, 0, 0, 0.6);
+
+  /* Type */
+  --font-display: "Instrument Serif", Georgia, "Times New Roman", serif;
+  --font-ui: "IBM Plex Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --size-base: 15px;
+  --size-small: 13px;
+  --size-mono: 12.5px;
+  --size-display: clamp(44px, 5vw, 64px);
+  --size-display-small: 44px;
+
+  /* Shape */
+  --radius-control: 10px;
+  --radius-tile: 14px;
+  --radius-card: 20px;
+  --radius-composer: 26px;
+  --radius-pill: 999px;
+  --target: 44px;
+
+  /* Motion */
+  --press: 80ms;
+  --lift: 180ms;
+  --rise: 320ms;
+  --ease-lift: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  /* Focus */
+  --focus-ring: 2px solid var(--focus);
+  --focus-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --press: 0ms;
+    --lift: 0ms;
+    --rise: 0ms;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

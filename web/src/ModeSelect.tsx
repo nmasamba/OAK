@@ -2,6 +2,7 @@
 import type { ModelStatusResponse } from "./generated/api";
 import { Link } from "./router";
 import { ageOf, asObject, asString } from "./support";
+import { Icon } from "./ui/Icon";
 
 /** The three ways a brief can be read. Chosen per request; nothing is "in force". */
 export type InterpretMode = "deterministic" | "online" | "local";
@@ -133,6 +134,86 @@ export function summariseModes(
   };
 }
 
+const MODE_WORDS: Readonly<Record<InterpretMode, string>> = {
+  deterministic: "Deterministic",
+  online: "Online AI",
+  local: "Local AI",
+};
+
+/**
+ * The three modes as a row of radio chips: the chosen one shows its glyph and its word,
+ * the others their glyph with the word for assistive technology. A mode that is not
+ * available is disabled and its reason sits in the chip's title. The group's name is the
+ * question the pins read, "How should this brief be read?".
+ */
+export function ModeChooser({
+  id,
+  value,
+  onChange,
+  status,
+  tokenPresent,
+  disabled,
+}: {
+  readonly id: string;
+  readonly value: InterpretMode;
+  readonly onChange: (mode: InterpretMode) => void;
+  readonly status: ModelStatusResponse | null;
+  readonly tokenPresent: boolean;
+  readonly disabled?: boolean | undefined;
+}) {
+  const summaries = summariseModes(status, tokenPresent);
+  return (
+    <fieldset className="mode-group" disabled={disabled === true}>
+      <legend className="visually-hidden">
+        How should this brief be read?
+      </legend>
+      {INTERPRET_MODES.map((mode) => {
+        const summary = summaries[mode];
+        const on = value === mode;
+        return (
+          <label
+            key={mode}
+            className={`mode${on ? " mode-on" : ""}${summary.available ? "" : " mode-off"}`}
+            title={summary.detail}
+          >
+            <input
+              type="radio"
+              name={id}
+              value={mode}
+              checked={on}
+              disabled={!summary.available}
+              title={summary.detail}
+              onChange={() => onChange(mode)}
+            />
+            <Icon name={mode} size={18} />
+            <span className={on ? "mode-word" : "visually-hidden"}>
+              {MODE_WORDS[mode]}
+            </span>
+          </label>
+        );
+      })}
+    </fieldset>
+  );
+}
+
+/** One line on the chosen mode, with the longer explanation in its title. */
+export function ModeDetail({
+  value,
+  status,
+  tokenPresent,
+}: {
+  readonly value: InterpretMode;
+  readonly status: ModelStatusResponse | null;
+  readonly tokenPresent: boolean;
+}) {
+  const summary = summariseModes(status, tokenPresent)[value];
+  return (
+    <p className="mode-detail" data-mode-detail={value} title={summary.detail}>
+      {summary.label} · <Link to="/settings/models">Model settings</Link>
+    </p>
+  );
+}
+
 export function ModeSelect({
   id,
   value,
@@ -148,38 +229,17 @@ export function ModeSelect({
   readonly tokenPresent: boolean;
   readonly disabled?: boolean;
 }) {
-  const summaries = summariseModes(status, tokenPresent);
   return (
-    <>
-      <div className="field">
-        <label htmlFor={id}>How should this brief be read?</label>
-        <select
-          id={id}
-          name={id}
-          value={value}
-          disabled={disabled === true}
-          onChange={(event) => {
-            const next = event.target.value;
-            if (isInterpretMode(next)) {
-              onChange(next);
-            }
-          }}
-        >
-          {INTERPRET_MODES.map((mode) => (
-            <option
-              key={mode}
-              value={mode}
-              disabled={!summaries[mode].available}
-            >
-              {summaries[mode].label}
-            </option>
-          ))}
-        </select>
-      </div>
-      <p className="hint" data-mode-detail={value}>
-        {summaries[value].detail}{" "}
-        <Link to="/settings/models">Model settings</Link>
-      </p>
-    </>
+    <div className="mode-select">
+      <ModeChooser
+        id={id}
+        value={value}
+        onChange={onChange}
+        status={status}
+        tokenPresent={tokenPresent}
+        disabled={disabled}
+      />
+      <ModeDetail value={value} status={status} tokenPresent={tokenPresent} />
+    </div>
   );
 }
