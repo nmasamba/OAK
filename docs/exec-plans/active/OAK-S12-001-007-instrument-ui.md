@@ -13,7 +13,7 @@ Execution is on branch `sprint-12-instrument-ui`, branched from `origin/main` at
 
 - Owner/agent: owner-directed coding agent
 - Started: 2026-10-15
-- Last updated: 2026-10-15 (M4: Designs)
+- Last updated: 2026-10-15 (M5: Architecture)
 - State: in-progress
 - Claimed tasks: `OAK-S12-001`–`OAK-S12-007`
 
@@ -314,6 +314,16 @@ Rollback is a revert of the branch. The throwaway stack is removed at the end wi
   canonical `variant` (which is `other` for the baseline). One pin changed with its spec:
   `getByText("simpler_baseline")` → `getByText("Baseline")`. `journey.spec.ts` green,
   including `.nth(2)`, the regions and the list names; zero axe violations.
+- [x] 2026-10-15 M5 Architecture: `web/src/topology.ts` lays a candidate's topology out
+  in columns by dependency order and writes one sentence for it; `BundlePage` draws it as
+  SVG (`role="img"` named by that sentence) with a diagram/table toggle, zoom, and the
+  nodes-and-edges tables; prediction chips for quality, latency, energy and monthly cost
+  with labelled glyphs and the range in the title; the "Take it and install" dock with
+  the whole-case export, three install lights (sign, design, install) each a shape and
+  the words `need · state`, "Copy install steps" on a plate that copies six commands and
+  runs nothing, and "Signed in your terminal. The web never installs."; the pinned
+  "Plan, approval, and apply" card keeps its sentence (G4). The rail stacks under the
+  dock. No pin changed. `journey.spec.ts` green; zero axe violations.
 
 ## Decisions
 
@@ -364,6 +374,13 @@ Answered at the end of each milestone: (1) did any pinned name change without it
 (2) did any new text exceed the word budget? (3) did anything touch a boundary in §7?
 
 - M0: (1) no; (2) no new UI text; (3) no.
+- M5: (1) no; (2) new text: "Compile it for a target.", "Select a design and plan
+  assurance first." (7 words), "Compiled. Here is X.", "Take it", "Install",
+  "Everything", "Copy install steps", "Signed in your terminal. The web never
+  installs.", "outside the design", "One compiled manifest; nothing earlier to
+  compare."; (3) no: the dock offers a GET export and a clipboard write; the page still
+  reports approvals and signatures without offering any, and the install lights read
+  what the case carries.
 - M4: (1) one pin, with its spec (see Decisions and Progress); (2) new text: "N designs.
   M fit.", "Drop two designs here to compare." (6 words), "One more to compare.",
   "Nodes, constraints and sensitivity", "Selected", "X is chosen."; (3) no: selection

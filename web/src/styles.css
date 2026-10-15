@@ -1960,6 +1960,180 @@ summary {
   }
 }
 
+/* Architecture: the topology, predictions and the dock */
+.rail-stack {
+  flex: 1 1 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.rail-stack .rail {
+  flex: none;
+}
+
+.topology-card {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  background: var(--surface-diagram-card);
+}
+
+.zoom {
+  width: 40px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--hairline-control);
+  background: var(--surface-chip);
+  color: var(--text-1);
+  font-size: 18px;
+}
+
+.topology-scroll {
+  overflow: auto;
+  border-radius: 16px;
+  background-color: var(--surface-diagram);
+  background-image: radial-gradient(
+    var(--ground-dot-strong) 1px,
+    transparent 1px
+  );
+  background-size: 16px 16px;
+}
+
+.topology {
+  display: block;
+  font-family: var(--font-ui);
+}
+
+.topology-node rect {
+  fill: var(--ok-surface);
+  stroke: var(--ok);
+  stroke-width: 1.5;
+}
+
+.topology-node-external rect {
+  fill: var(--surface-raised);
+  stroke: var(--hairline-strong);
+  stroke-width: 1;
+}
+
+.topology-role {
+  fill: var(--text-1);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.topology-component {
+  fill: var(--ok-text);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+}
+
+.topology-node-external .topology-component {
+  fill: var(--text-3);
+}
+
+.topology-edge {
+  stroke: var(--ok);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.topology-arrow {
+  fill: var(--ok);
+}
+
+.topology-edge-label {
+  fill: var(--ok-text);
+  font-size: 12.5px;
+}
+
+.topology-tables {
+  display: grid;
+  gap: 14px;
+}
+
+.chip-glyph {
+  color: var(--brass);
+}
+
+.dock {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px;
+  border-radius: 22px;
+  background: var(--surface-dock);
+  border: 1.5px solid var(--brass-border-busy);
+  box-shadow: var(--shadow-card);
+}
+
+.dock-heading {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--brass-text);
+}
+
+.dock-all {
+  width: 100%;
+}
+
+.dock-rule {
+  width: 100%;
+  margin: 4px 0;
+  border: 0;
+  border-top: 1px solid var(--brass-track);
+}
+
+.dock-lights {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dock-lights .led-word {
+  font-size: var(--size-mono);
+  color: var(--text-3);
+}
+
+.dock-plate {
+  flex-direction: column;
+  align-items: stretch;
+  padding: 0.8rem;
+}
+
+.dock-plate .plate-command {
+  font-size: var(--size-mono);
+  line-height: 1.6;
+}
+
+.dock-plate .plate-copy {
+  align-self: flex-start;
+  border: 1.5px solid var(--brass);
+  color: var(--brass-text);
+  font-weight: 600;
+}
+
+.dock-plate .plate-copy-copied {
+  border-color: var(--ok-border);
+  color: var(--ok-text);
+}
+
+.dock-note {
+  margin: 0;
+  color: var(--text-faint);
+  font-size: var(--size-mono);
+  text-align: center;
+}
+
 /* Rising messages */
 .rise {
   animation: rise var(--rise) var(--ease-lift);

@@ -19,6 +19,10 @@
   --surface-chip: #1e231c;
   --surface-mode-on: #2a2f26;
   --surface-rail: #151914;
+  --surface-diagram-card: #141813;
+  --surface-diagram: #0e110d;
+  --surface-dock: #1b1a12;
+  --ground-dot-strong: rgba(237, 235, 227, 0.06);
   --surface-bench: #141a20;
   --hairline-bench: #34506f;
   --surface-lamp: #1b1a12;
