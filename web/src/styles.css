@@ -999,6 +999,268 @@ summary {
   border: 0;
 }
 
+/* Masthead glyph nav and the home screen */
+.spacer {
+  flex: 1 1 auto;
+}
+
+.masthead-nav {
+  display: flex;
+  gap: 6px;
+}
+
+.ico {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--target);
+  height: var(--target);
+  border-radius: 12px;
+  color: var(--text-2);
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color var(--press);
+}
+
+.ico:hover,
+.ico:focus-within {
+  background: var(--surface-control);
+}
+
+.ico[aria-current="page"] {
+  background: var(--surface-control);
+  color: var(--text-1);
+}
+
+.ico:focus-within {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
+.home {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2rem;
+  max-width: 920px;
+  margin: 0 auto;
+  padding-top: clamp(1rem, 6vw, 3rem);
+}
+
+.home-title {
+  text-align: center;
+  font-size: var(--size-display);
+  line-height: 1.05;
+  letter-spacing: -0.5px;
+}
+
+.composer {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 22px 22px 16px;
+  background: var(--surface-raised);
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius-composer);
+  box-shadow: var(--shadow-composer);
+  transition:
+    border-color var(--press),
+    box-shadow var(--lift) var(--ease-lift);
+}
+
+.composer[data-drop="over"] {
+  border: 2px solid var(--brass);
+  background: var(--brass-surface);
+  box-shadow: 0 0 0 6px var(--brass-ring);
+}
+
+.composer[data-drop="refused"] {
+  border-color: var(--bad-border);
+}
+
+.composer-label {
+  margin: 0;
+  font-size: var(--size-small);
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  color: var(--text-2);
+}
+
+.composer-prompt {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-1);
+  font-family: var(--font-ui);
+  font-size: 19px;
+  line-height: 1.5;
+  resize: none;
+}
+
+.composer-prompt:focus-visible {
+  outline: none;
+}
+
+.composer:focus-within {
+  border-color: var(--focus);
+}
+
+.composer-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 38px;
+}
+
+.composer-chips .chip {
+  min-height: 38px;
+}
+
+.composer-name-chip {
+  padding-right: 0.6rem;
+}
+
+.composer-name {
+  width: 12ch;
+  min-height: 0;
+  padding: 0.2rem 0.3rem;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-1);
+  font-family: var(--font-mono);
+  font-size: var(--size-mono);
+}
+
+.composer-name:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 0;
+}
+
+.composer-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.mode-select {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.mode-group {
+  display: flex;
+  gap: 2px;
+  margin: 0;
+  padding: 4px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--surface-inset);
+}
+
+.mode {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 40px;
+  height: 40px;
+  padding: 0 12px;
+  border-radius: var(--radius-pill);
+  color: var(--text-faint);
+  font-size: var(--size-small);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color var(--press);
+}
+
+.mode input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+}
+
+.mode:hover {
+  background: var(--surface-control);
+}
+
+.mode-on {
+  background: var(--surface-mode-on);
+  box-shadow: var(--shadow-mode-on);
+  color: var(--text-1);
+}
+
+.mode-on .icon {
+  color: var(--brass);
+}
+
+.mode-off {
+  color: var(--text-faint);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.mode:focus-within {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
+.mode-group:disabled .mode {
+  cursor: not-allowed;
+}
+
+.mode-detail {
+  margin: 0;
+  color: var(--text-faint);
+  font-size: var(--size-small);
+}
+
+.keycap-round {
+  width: 48px;
+  min-width: 48px;
+  padding: 0;
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-send);
+}
+
+.keycap-round .keycap-label:empty {
+  display: none;
+}
+
+.recent {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.recent h2 {
+  margin: 0;
+}
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tile {
+  border-radius: 18px;
+}
+
+.boundary-footer p {
+  text-align: center;
+  font-size: var(--size-mono);
+}
+
 /* Rising messages */
 .rise {
   animation: rise var(--rise) var(--ease-lift);

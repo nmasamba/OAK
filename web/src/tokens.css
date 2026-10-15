@@ -17,6 +17,9 @@
   --surface-inset: #0f120e;
   --surface-card-hover: #1a1f18;
   --surface-chip: #1e231c;
+  --surface-mode-on: #2a2f26;
+  --surface-rail: #151914;
+  --shadow-mode-on-edge: #0a0c09;
 
   /* Hairlines */
   --hairline: #2c3329;
@@ -86,6 +89,13 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.4);
   --shadow-keycap-pressed: inset 0 2px 4px rgba(0, 0, 0, 0.25);
   --scrim: rgba(0, 0, 0, 0.55);
+  --shadow-composer:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 24px 60px rgba(0, 0, 0, 0.45);
+  --shadow-mode-on:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 2px 0 var(--shadow-mode-on-edge);
+  --shadow-send:
+    0 3px 0 var(--brass-edge), 0 10px 24px rgba(224, 174, 78, 0.22);
+  --brass-glow-send: rgba(224, 174, 78, 0.22);
 
   /* Type */
   --font-display: "Instrument Serif", Georgia, "Times New Roman", serif;

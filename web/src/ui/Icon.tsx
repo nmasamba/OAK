@@ -27,7 +27,11 @@ export type IconName =
   | "clock"
   | "key"
   | "file"
-  | "plus";
+  | "plus"
+  | "up"
+  | "cases"
+  | "models"
+  | "bulb";
 
 const PATHS: Readonly<Record<IconName, readonly string[]>> = {
   send: ["M4 12h14", "M12 6l6 6-6 6"],
@@ -47,9 +51,12 @@ const PATHS: Readonly<Record<IconName, readonly string[]>> = {
     "M15 18h.01",
   ],
   back: ["M20 12H6", "M12 6l-6 6 6 6"],
-  deterministic: ["M4 12h4l2-6 4 12 2-6h4"],
-  online: ["M12 20v-6", "M8 10a5 5 0 0 1 8 0", "M5 7a9 9 0 0 1 14 0"],
-  local: ["M4 6h16v10H4z", "M2 20h20", "M9 13h6"],
+  deterministic: [
+    "M6 6h12v12H6z",
+    "M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4",
+  ],
+  online: ["M7 18a5 5 0 0 1-.6-9.96A6 6 0 0 1 18 9a4.5 4.5 0 0 1-.5 9z"],
+  local: ["M4 5h16v11H4z", "M2 19h20"],
   cards: ["M3 5h8v14H3z", "M13 5h8v14h-8z"],
   table: ["M3 6h18", "M3 12h18", "M3 18h18", "M9 6v12"],
   compare: ["M5 12l4-8 4 8H5z", "M11 20l4-8 4 8h-8z"],
@@ -60,6 +67,21 @@ const PATHS: Readonly<Record<IconName, readonly string[]>> = {
   key: ["M8 14a4 4 0 1 1 0-8 4 4 0 0 1 0 8z", "M11 11l9 9", "M17 17l2-2"],
   file: ["M6 3h8l4 4v14H6z", "M14 3v4h4"],
   plus: ["M12 5v14", "M5 12h14"],
+  up: ["M12 19V5", "M5 12l7-7 7 7"],
+  cases: ["M3 3h7v7H3z", "M14 3h7v7h-7z", "M3 14h7v7H3z", "M14 14h7v7h-7z"],
+  models: [
+    "M4 7h10",
+    "M18 7h2",
+    "M16 7m-2 0a2 2 0 1 0 4 0a2 2 0 1 0-4 0",
+    "M4 17h4",
+    "M12 17h8",
+    "M10 17m-2 0a2 2 0 1 0 4 0a2 2 0 1 0-4 0",
+  ],
+  bulb: [
+    "M9 18h6",
+    "M10 21h4",
+    "M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z",
+  ],
 };
 
 export function Icon({

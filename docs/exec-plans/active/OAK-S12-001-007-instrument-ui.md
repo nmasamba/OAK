@@ -13,7 +13,7 @@ Execution is on branch `sprint-12-instrument-ui`, branched from `origin/main` at
 
 - Owner/agent: owner-directed coding agent
 - Started: 2026-10-15
-- Last updated: 2026-10-15 (M1: tokens, fonts, primitives, guards)
+- Last updated: 2026-10-15 (M2: Home)
 - State: in-progress
 - Claimed tasks: `OAK-S12-001`–`OAK-S12-007`
 
@@ -282,9 +282,30 @@ Rollback is a revert of the branch. The throwaway stack is removed at the end wi
   `make validate`; each guard mutation-checked (a planted violation per guard fails it).
   Build green (fonts bundled as woff2 in `dist/assets`); `journey.spec.ts` green with
   zero axe violations on its eight screens. `OAK-S12-002` complete.
+- [x] 2026-10-15 M2 Home: `CaseListPage` is the composer ("What do you want to build?",
+  "Brief prompt", an attach control that reads .md/.txt/.yaml/.yml/.json up to 256 KiB
+  into a chip (name · size · remove) and never shows its text, drag-and-drop onto the
+  composer, the file-name pill still labelled "Brief file name", the three modes as radio
+  chips in a group named "How should this brief be read?", one round brass send keycap
+  named "Create case") above recent cases as tiles with progress rings under the heading
+  "Design cases". The masthead is the serif wordmark, two glyph links (Cases, Models) and
+  the mono version line; the footer is two short sentences. `journey.spec.ts` and
+  `models.spec.ts` green on the rebuilt stack, with the pin changes below.
 
 ## Decisions
 
+- 2026-10-15 M2 pin changes, each with its spec in the same commit: "Brief content" →
+  "Brief prompt" (journey, models ×2, manual-screens); the heading "Describe what you
+  want to build" → "What do you want to build?" (models); and, because the mode chooser is
+  now a group of three radio chips rather than a `<select>`, the models spec asserts
+  `getByRole("group", { name: "How should this brief be read?" })` with three radios,
+  "Deterministic" checked by default, and `check()` on "Local AI" where it used
+  `toHaveValue`/`selectOption`/`option` count. Each replacement asserts the same fact
+  about the same control; nothing was deleted. `[data-mode-detail]` and `.masthead`
+  pins are untouched.
+- 2026-10-15 No free-text reply composer on the conversation screens, although the
+  Conversation artboard draws one: no API action backs a free-text reply, and the web
+  shows only the actions the API returns (§7).
 - 2026-10-15 Keep one plan for seven task IDs (one source tree, one suite).
 - 2026-10-15 The K1 document shows its parts' digests, not a digest of itself, because it
   is composed at request time (prompt §3).
@@ -304,6 +325,11 @@ Answered at the end of each milestone: (1) did any pinned name change without it
 (2) did any new text exceed the word budget? (3) did anything touch a boundary in §7?
 
 - M0: (1) no; (2) no new UI text; (3) no.
+- M2: (1) three pins changed, each with its spec in the same commit (see Decisions); (2)
+  new text: "What do you want to build?" (5 words), "Describe it in your own words…",
+  "No cases yet.", "Attach a brief", the two refusal sentences (≤7 words), the footer's
+  two sentences (8 and 6 words); (3) no: the attach control reads a file in the browser
+  and sends it through the existing create call.
 - M1: (1) no, every pinned name is untouched (the journey spec passed unchanged); (2) the
   only new visible words are the copy control's "Copy", "Copied" and "Copy failed. Select
   the text." (5 words); (3) no: no call added, no button named for an authority, the copy

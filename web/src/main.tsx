@@ -17,6 +17,7 @@ import { OperationPage } from "./pages/OperationPage";
 import { ReviewPage } from "./pages/ReviewPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { Link, RouterProvider, matchPath, useRouter } from "./router";
+import { Icon } from "./ui/Icon";
 // Self-hosted fonts (OFL-1.1), bundled by Vite and served same-origin: no CDN.
 import "@fontsource/instrument-serif/400.css";
 import "@fontsource/instrument-serif/400-italic.css";
@@ -155,15 +156,32 @@ function AppShell() {
         Skip to content
       </a>
       <header className="masthead">
-        <nav aria-label="Primary">
-          <Link to="/" className="wordmark">
-            OAK Community
+        <Link to="/" className="wordmark">
+          OAK
+        </Link>
+        <span className="spacer" />
+        <nav aria-label="Primary" className="masthead-nav">
+          <Link
+            to="/"
+            className="ico"
+            {...(path === "/" ? { ariaCurrent: "page" as const } : {})}
+          >
+            <Icon name="cases" size={22} />
+            <span className="visually-hidden">Cases</span>
           </Link>
-          <Link to="/settings/models">Models</Link>
+          <Link
+            to="/settings/models"
+            className="ico"
+            {...(path === "/settings/models"
+              ? { ariaCurrent: "page" as const }
+              : {})}
+          >
+            <Icon name="models" size={22} />
+            <span className="visually-hidden">Models</span>
+          </Link>
         </nav>
-        <p className="masthead-meta">
+        <p className="masthead-meta" title="Local, non-production workspace">
           {version === null ? "API unavailable" : `v${version}`} · local
-          non-production workspace
           {interpreter === null ? "" : ` · ${interpreter}`}
         </p>
       </header>
@@ -174,11 +192,8 @@ function AppShell() {
       </main>
       <footer className="boundary-footer">
         <p>
-          This web workspace cannot sign, approve, install or observe — those
-          steps run only on the local command line — and it resolves no secret;
-          compiled plans stay draft review artifacts here. It contacts a model
-          only for a brief you choose to read with Online AI or Local AI; the
-          default contacts nothing.
+          Signing, approving and installing happen only in your terminal. By
+          default, nothing leaves this machine.
         </p>
       </footer>
     </>

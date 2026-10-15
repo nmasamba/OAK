@@ -50,7 +50,7 @@ test("capture the manual screenshots from the reference journey", async ({
   await shoot(page, "01-case-list");
 
   await page.getByLabel("Brief file name").fill(`${slug}.yaml`);
-  await page.getByLabel("Brief content").fill(briefFor(slug));
+  await page.getByLabel("Brief prompt").fill(briefFor(slug));
   await shoot(page, "02-create-case");
   await page.getByRole("button", { name: "Create case" }).click();
   await expect(page).toHaveURL(new RegExp(`/cases/${caseId}$`));

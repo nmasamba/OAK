@@ -16,7 +16,7 @@ test("a reviewer completes the reference journey from brief to compiled bundle",
     ).toBeVisible();
     await expectAccessible(page, "case list");
     await page.getByLabel("Brief file name").fill(`${slug}.yaml`);
-    await page.getByLabel("Brief content").fill(briefFor(slug));
+    await page.getByLabel("Brief prompt").fill(briefFor(slug));
     await page.getByRole("button", { name: "Create case" }).click();
     await expect(page).toHaveURL(new RegExp(`/cases/${caseId}$`));
     await expect(page.getByText("draft", { exact: true })).toBeVisible();
