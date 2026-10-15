@@ -13,7 +13,7 @@ Execution is on branch `sprint-12-instrument-ui`, branched from `origin/main` at
 
 - Owner/agent: owner-directed coding agent
 - Started: 2026-10-15
-- Last updated: 2026-10-15 (M2: Home)
+- Last updated: 2026-10-15 (M3: Conversation)
 - State: in-progress
 - Claimed tasks: `OAK-S12-001`–`OAK-S12-007`
 
@@ -291,6 +291,18 @@ Rollback is a revert of the branch. The throwaway stack is removed at the end wi
   "Design cases". The masthead is the serif wordmark, two glyph links (Cases, Models) and
   the mono version line; the footer is two short sentences. `journey.spec.ts` and
   `models.spec.ts` green on the rebuilt stack, with the pin changes below.
+- [x] 2026-10-15 M3 Conversation: `CaseRail` (ring named by its step count, raw status
+  in mono, eight journey pips each with hidden words, version and age) beside a thread.
+  `CasePage`: the brief as a bubble (name · size from its source record, the mode glyph
+  while still a draft), machine moments per status with the pinned links and keycaps,
+  candidates as chips through the label map, the audit timeline. `ReviewPage`: the
+  claims table with provenance marks and the pinned headings. `ConfirmPage`: one
+  `<fieldset>` per question (current, upcoming, answered), the value as chips with its
+  origin mark, the reason in a disclosure, the four decisions as radio chips whose
+  accessible names are unchanged, the value field only for a correction, "Done"
+  collapses an answered question to a reply bubble with "Edit", progress pips named
+  "Question k of n". No pin changed. `journey.spec.ts`, `models.spec.ts` and
+  `failures.spec.ts` green; zero axe violations on the three screens.
 
 ## Decisions
 
@@ -319,12 +331,25 @@ Rollback is a revert of the branch. The throwaway stack is removed at the end wi
 
 (symptom → cause → fix; written before each fix)
 
+- 2026-10-15 M3: the built CSS bundle kept M2's hash although the conversation styles
+  had been "added" → the edit script anchored on the one-line `--shadow-send` token, which
+  Prettier had reflowed onto three lines after M2, so its assertion failed; and the script
+  ran inside the same backgrounded command as the verification, so the failure did not
+  stop the run (environment, not product) → edits now anchor on single-line tokens or
+  section comments and run in their own foreground command before any verification.
+
 ## Self-review
 
 Answered at the end of each milestone: (1) did any pinned name change without its spec?
 (2) did any new text exceed the word budget? (3) did anything touch a boundary in §7?
 
 - M0: (1) no; (2) no new UI text; (3) no.
+- M3: (1) no; (2) new text: "Ready when you are.", "N checks before I design.", "Ready
+  to design.", "N designs.", "What I read, and where each value came from." (9 words),
+  "Nothing read yet. Interpret the brief first.", "No open questions.", "Why it
+  matters", "Done", "Edit", "Clear decision", "Five per round; N more follow."; the
+  decision chips show "Confirm", "Correct", "Reject", "Accept the risk" with the rest
+  of each pinned name visually hidden; (3) no: the same calls, the same conflict path.
 - M2: (1) three pins changed, each with its spec in the same commit (see Decisions); (2)
   new text: "What do you want to build?" (5 words), "Describe it in your own words…",
   "No cases yet.", "Attach a brief", the two refusal sentences (≤7 words), the footer's

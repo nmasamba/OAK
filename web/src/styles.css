@@ -1261,6 +1261,415 @@ summary {
   font-size: var(--size-mono);
 }
 
+/* The conversation: a thread beside the case rail */
+.convo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 36px;
+  max-width: 1180px;
+  margin: 0 auto;
+}
+
+.thread {
+  flex: 999 1 640px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.thread h1 {
+  margin: 0 0 6px;
+  font-size: var(--size-display-small);
+  line-height: 1.1;
+}
+
+.thread-aside {
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--size-small);
+}
+
+.rail {
+  flex: 1 1 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px;
+  border-radius: var(--radius-card);
+  background: var(--surface-rail);
+  border: 1px solid var(--hairline);
+}
+
+.rail-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.rail-ring {
+  flex: none;
+}
+
+.rail-ring .tile-ring-track,
+.rail-ring .tile-ring-fill {
+  stroke-width: 6;
+}
+
+.rail-ring .tile-ring-track {
+  stroke: var(--hairline);
+}
+
+.rail-status {
+  color: var(--brass-text);
+}
+
+.rail-meta {
+  margin: 0;
+  color: var(--text-faint);
+  font-size: var(--size-small);
+  overflow-wrap: anywhere;
+}
+
+.rail-actions {
+  display: grid;
+  gap: 8px;
+}
+
+.rail-actions .keycap {
+  justify-content: flex-start;
+  height: auto;
+  min-height: var(--target);
+  padding: 0.4rem 0.9rem;
+  font-size: var(--size-small);
+  text-align: left;
+  white-space: normal;
+}
+
+.rail-links {
+  margin: 0;
+  font-size: var(--size-small);
+}
+
+.journey {
+  display: flex;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.journey li {
+  flex: 1 1 0;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--hairline);
+}
+
+.journey li.journey-done {
+  background: var(--ok);
+}
+
+.journey li.journey-current {
+  background: var(--brass);
+}
+
+.journey li.journey-install.journey-next {
+  background: transparent;
+  border: 1px dashed var(--hairline-install);
+}
+
+.bubble {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 100%;
+  padding: 10px 16px;
+  border-radius: 20px 20px 6px 20px;
+  background: var(--brass-surface);
+  border: 1px solid var(--brass-border);
+  color: var(--text-1);
+}
+
+.bubble-user {
+  align-self: flex-end;
+  padding: 10px 12px 10px 16px;
+}
+
+.bubble-user .mono {
+  color: var(--brass-text);
+  font-size: 13.5px;
+}
+
+.bubble-user .icon {
+  color: var(--brass);
+}
+
+.bubble-mode {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-lamp);
+  color: var(--brass);
+}
+
+.bubble-reply {
+  align-self: flex-end;
+  margin-top: 0.5rem;
+}
+
+.bubble-reply .icon {
+  color: var(--brass);
+}
+
+.moment {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.moment-lamp {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-pill);
+  background: var(--brass-surface);
+  border: 1px solid var(--brass-border);
+  color: var(--brass);
+}
+
+.moment-body {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  flex: 1 1 auto;
+  padding-top: 4px;
+}
+
+.moment-body > p {
+  margin: 0;
+  font-size: 17px;
+  color: var(--text-1);
+}
+
+.moment-body > p a {
+  color: var(--brass-text);
+}
+
+.moment-body > p a.keycap {
+  display: inline-flex;
+  height: 40px;
+  min-height: 40px;
+  padding: 0 18px;
+  border-radius: var(--radius-pill);
+  color: var(--brass-ink);
+  font-size: 14px;
+  text-decoration: none;
+  vertical-align: middle;
+}
+
+.moment-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.moment-meta {
+  color: var(--text-faint);
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pips {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.pip {
+  width: 22px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--hairline-2);
+}
+
+.pip-done {
+  background: var(--ok);
+}
+
+.pip-current {
+  background: var(--brass);
+}
+
+.questions {
+  display: grid;
+  gap: 12px;
+}
+
+.questions .question-list {
+  padding: 0;
+  list-style: none;
+  gap: 14px;
+}
+
+.question {
+  margin: 0 0 0 48px;
+  padding: 22px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 22px;
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-question);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  transition:
+    opacity var(--lift) var(--ease-lift),
+    border-color var(--lift) var(--ease-lift);
+}
+
+.question legend {
+  padding: 0 8px;
+  font-size: 19px;
+  font-weight: 500;
+}
+
+.question[data-state="upcoming"] {
+  opacity: 0.8;
+}
+
+.question[data-state="answered"] {
+  border-color: var(--hairline);
+  background: var(--surface-card);
+  box-shadow: none;
+}
+
+.question[data-state="current"] {
+  border-color: var(--brass-border);
+}
+
+.question .timeline-meta {
+  margin: -6px 0 0;
+}
+
+.question-values .prov {
+  margin-right: 4px;
+}
+
+.question-why {
+  margin: 0;
+}
+
+.question-why summary {
+  font-size: var(--size-small);
+  color: var(--text-3);
+}
+
+.question-why p {
+  margin: 0.4rem 0 0;
+  font-size: var(--size-small);
+  color: var(--text-3);
+}
+
+.question-answer {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.question-answer .field {
+  margin: 0;
+}
+
+.decision-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chipb {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: var(--target);
+  padding: 0 18px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--hairline-strong);
+  background: transparent;
+  color: var(--text-1);
+  font: inherit;
+  font-size: 14.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    border-color var(--press),
+    background-color var(--press),
+    transform var(--press);
+}
+
+.chipb:hover {
+  border-color: var(--brass);
+  background: var(--surface-control);
+}
+
+.chipb:active {
+  transform: translateY(1px);
+}
+
+.chipb:disabled {
+  color: var(--text-faint);
+  cursor: not-allowed;
+  transform: none;
+}
+
+.chipb input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+}
+
+.chipb:focus-within {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
+.chipb-on {
+  border-color: var(--brass);
+  background: var(--brass);
+  color: var(--brass-ink);
+  font-weight: 600;
+  box-shadow: var(--shadow-keycap);
+}
+
+.bubble-reply .chipb {
+  min-height: 32px;
+  padding: 0 12px;
+  font-size: var(--size-small);
+}
+
+@media (max-width: 40rem) {
+  .question {
+    margin-left: 0;
+  }
+}
+
 /* Rising messages */
 .rise {
   animation: rise var(--rise) var(--ease-lift);

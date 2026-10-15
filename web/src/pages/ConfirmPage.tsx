@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useEffect, useState, type FormEvent } from "react";
 
+import { CaseRail, Moment } from "../CaseRail";
 import { ClaimBadge, MaterialityBadge, claimClassForSource } from "../claims";
 import {
   confirmDesignCase,
@@ -18,12 +19,32 @@ import {
   etagFor,
   newIdempotencyKey,
 } from "../support";
+import { Chip, Icon, Keycap } from "../ui";
 
+/**
+ * The four decisions. `shown` is the word on the chip; `rest` completes the accessible
+ * name the pins read, visually hidden, so "Confirm" is named "Confirm the current value".
+ */
 const DECISIONS = [
-  { value: "confirm", label: "Confirm the current value" },
-  { value: "correct", label: "Correct it to a different value" },
-  { value: "reject", label: "Reject the claim" },
-  { value: "accept_risk", label: "Accept the risk of leaving it open" },
+  {
+    value: "confirm",
+    shown: "Confirm",
+    rest: " the current value",
+    done: "Confirmed",
+  },
+  {
+    value: "correct",
+    shown: "Correct",
+    rest: " it to a different value",
+    done: "Corrected",
+  },
+  { value: "reject", shown: "Reject", rest: " the claim", done: "Rejected" },
+  {
+    value: "accept_risk",
+    shown: "Accept the risk",
+    rest: " of leaving it open",
+    done: "Risk accepted",
+  },
 ] as const;
 
 type ConfirmState =
@@ -50,6 +71,22 @@ function parseValue(raw: string): unknown {
 }
 
 const QUESTIONS_PER_ROUND = 5;
+
+/** A value as chips: one per scalar, one per array item, one per object field. */
+function valueChips(value: unknown): readonly string[] {
+  if (value === undefined || value === null) {
+    return [];
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => formatValue(item));
+  }
+  if (typeof value === "object") {
+    return Object.entries(value as Record<string, unknown>).map(
+      ([key, item]) => `${key}: ${formatValue(item)}`,
+    );
+  }
+  return [formatValue(value)];
+}
 
 /**
  * Where a question's current value came from.
@@ -92,13 +129,14 @@ function ClaimOrigin({
   if (lowest === null) {
     return null;
   }
+  const detail =
+    lowest.source === "model_proposed"
+      ? `Proposed by the model with confidence ${lowest.confidence.toFixed(2)}. ${lowest.rationale}`
+      : lowest.rationale;
   return (
-    <p className="hint">
-      <ClaimBadge claimClass={claimClassForSource(lowest.source)} />{" "}
-      {lowest.source === "model_proposed"
-        ? `Proposed by the model with confidence ${lowest.confidence.toFixed(2)}. ${lowest.rationale}`
-        : lowest.rationale}
-    </p>
+    <span className="question-origin" title={detail}>
+      <ClaimBadge claimClass={claimClassForSource(lowest.source)} />
+    </span>
   );
 }
 
@@ -106,6 +144,7 @@ export function ConfirmPage({ caseId }: { readonly caseId: string }) {
   const { navigate } = useRouter();
   const [state, setState] = useState<ConfirmState>({ kind: "loading" });
   const [drafts, setDrafts] = useState<Record<string, AnswerDraft>>({});
+  const [collapsed, setCollapsed] = useState<readonly string[]>([]);
   const [failure, setFailure] = useState<ActionFailure | null>(null);
   const [validation, setValidation] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -115,6 +154,7 @@ export function ConfirmPage({ caseId }: { readonly caseId: string }) {
     setFailure(null);
     setValidation(null);
     setDrafts({});
+    setCollapsed([]);
     getDesignCase(caseId)
       .then((response) =>
         setState({
@@ -150,25 +190,23 @@ export function ConfirmPage({ caseId }: { readonly caseId: string }) {
     .map(asObject)
     .filter((question): question is JsonObject => question !== null)
     .filter((question) => asString(question["status"]) === "open");
+  const href = (suffix: string) =>
+    `/cases/${encodeURIComponent(caseId)}${suffix}`;
 
   if (status !== "needs_confirmation" || openQuestions.length === 0) {
     return (
-      <>
-        <p className="eyebrow">Question review</p>
-        <h1 id="page-heading">{title}</h1>
-        <p className="case-id">{caseId}</p>
-        <section className="panel">
-          <p>
-            This case has no open questions awaiting confirmation. Its current
-            status is <span className="badge">{status}</span>.
-          </p>
-          <p>
-            <Link to={`/cases/${encodeURIComponent(caseId)}`}>
-              Back to the case
-            </Link>
-          </p>
-        </section>
-      </>
+      <div className="convo">
+        <div className="thread">
+          <h1 id="page-heading">{title}</h1>
+          <Moment fresh>
+            <p>No open questions.</p>
+            <p className="thread-aside">
+              <Link to={href("")}>Back to the case</Link>
+            </p>
+          </Moment>
+        </div>
+        <CaseRail caseId={caseId} caseDocument={caseDocument} />
+      </div>
     );
   }
 
@@ -198,6 +236,18 @@ export function ConfirmPage({ caseId }: { readonly caseId: string }) {
     }));
   };
 
+  const isAnswered = (draft: AnswerDraft) =>
+    draft.decision !== "" && draft.rationale.trim() !== "";
+  const answeredCount = presented.filter((question) =>
+    isAnswered(
+      draftFor(asString(question["id"]) ?? "", asString(question["path"])),
+    ),
+  ).length;
+  const currentIndex = presented.findIndex((question) => {
+    const id = asString(question["id"]) ?? "";
+    return !collapsed.includes(id);
+  });
+
   const onSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setValidation(null);
@@ -211,9 +261,7 @@ export function ConfirmPage({ caseId }: { readonly caseId: string }) {
         continue;
       }
       if (draft.rationale.trim() === "") {
-        setValidation(
-          `Provide a rationale for ${id} or clear its decision before submitting.`,
-        );
+        setValidation(`${id} needs a rationale, or clear its decision.`);
         return;
       }
       answers.push({
@@ -240,148 +288,234 @@ export function ConfirmPage({ caseId }: { readonly caseId: string }) {
         etag: etagFor(version),
       },
     )
-      .then(() => navigate(`/cases/${encodeURIComponent(caseId)}`))
+      .then(() => navigate(href("")))
       .catch((error: unknown) => setFailure(toActionFailure(error)))
       .finally(() => setSubmitting(false));
   };
 
   return (
-    <>
-      <p className="eyebrow">Question review</p>
-      <h1 id="page-heading">{title}</h1>
-      <p className="case-id">
-        {caseId} · case version {version}
-      </p>
+    <div className="convo">
+      <div className="thread">
+        <h1 id="page-heading">{title}</h1>
+        <Moment fresh>
+          <p>
+            {openQuestions.length} check
+            {openQuestions.length === 1 ? "" : "s"} before I design.
+          </p>
+          <span
+            role="img"
+            aria-label={`Question ${Math.min(answeredCount + 1, presented.length)} of ${presented.length}`}
+            className="pips"
+          >
+            {presented.map((question, index) => (
+              <span
+                key={asString(question["id"]) ?? index}
+                className={
+                  index < answeredCount
+                    ? "pip pip-done"
+                    : index === answeredCount
+                      ? "pip pip-current"
+                      : "pip"
+                }
+              />
+            ))}
+          </span>
+        </Moment>
 
-      <section aria-labelledby="questions-heading" className="panel">
-        <h2 id="questions-heading">
-          {openQuestions.length} ranked question
-          {openQuestions.length === 1 ? "" : "s"} block this design
-        </h2>
-        <p className="hint">
-          Decisions are recorded with your local actor identity and a value
-          digest. You can answer a subset now; unanswered questions stay open
-          and the case remains awaiting confirmation.
-          {deferred > 0
-            ? ` Five are shown per round; ${deferred} more follow this one.`
-            : ""}
-        </p>
-        <form onSubmit={onSubmit}>
-          <ol className="question-list">
-            {presented.map((question) => {
-              const id = asString(question["id"]) ?? "";
-              const path = asString(question["path"]);
-              const draft = draftFor(id, path);
-              return (
-                <li key={id}>
-                  <fieldset>
-                    <legend>
-                      {asString(question["question"])}{" "}
-                      <MaterialityBadge
-                        materiality={asString(question["materiality"])}
-                      />
-                    </legend>
-                    <p className="timeline-meta">
-                      {id} · affects <code>{path}</code> · blocks{" "}
-                      {asString(question["blocking_stage"])}
-                    </p>
-                    <p className="hint">{asString(question["reason"])}</p>
-                    <ClaimOrigin intent={intent} path={path} />
-                    <div
-                      role="radiogroup"
-                      aria-label={`Decision for ${id}`}
-                      className="decision-options"
-                    >
-                      {DECISIONS.map((option) => (
-                        <label key={option.value} className="decision-option">
-                          <input
-                            type="radio"
-                            name={`decision-${id}`}
-                            value={option.value}
-                            checked={draft.decision === option.value}
-                            onChange={() =>
-                              updateDraft(id, path, {
-                                decision: option.value,
-                              })
-                            }
-                          />{" "}
-                          {option.label}
-                        </label>
-                      ))}
-                    </div>
-                    {draft.decision !== "" && (
-                      <>
-                        <div className="field">
-                          <label htmlFor={`value-${id}`}>
-                            Value (JSON or plain text)
-                          </label>
-                          <textarea
-                            id={`value-${id}`}
-                            rows={3}
-                            value={draft.value}
-                            onChange={(event) =>
-                              updateDraft(id, path, {
-                                value: event.target.value,
-                              })
-                            }
-                            spellCheck={false}
-                          />
-                        </div>
-                        <div className="field">
-                          <label htmlFor={`rationale-${id}`}>Rationale</label>
-                          <textarea
-                            id={`rationale-${id}`}
-                            rows={2}
-                            value={draft.rationale}
-                            onChange={(event) =>
-                              updateDraft(id, path, {
-                                rationale: event.target.value,
-                              })
-                            }
-                          />
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            updateDraft(id, path, { decision: "" })
-                          }
-                        >
-                          Clear decision for this question
-                        </button>
-                      </>
-                    )}
-                  </fieldset>
-                </li>
-              );
-            })}
-          </ol>
-          <div className="actions">
-            <button type="submit" disabled={submitting}>
-              {submitting ? "Recording decisions…" : "Record decisions"}
-            </button>
-          </div>
-        </form>
-        <div aria-live="polite">
-          {validation !== null && (
-            <p className="problem" role="alert">
-              {validation}
+        <section aria-labelledby="questions-heading" className="questions">
+          <h2 id="questions-heading" className="visually-hidden">
+            {openQuestions.length} ranked question
+            {openQuestions.length === 1 ? "" : "s"} block this design
+          </h2>
+          {deferred > 0 ? (
+            <p className="thread-aside">
+              Five per round; {deferred} more follow.
             </p>
-          )}
-          {failure !== null && (
-            <ProblemAlert failure={failure} onReload={load} />
-          )}
-        </div>
-      </section>
+          ) : null}
+          <form onSubmit={onSubmit}>
+            <ol className="question-list">
+              {presented.map((question, index) => {
+                const id = asString(question["id"]) ?? "";
+                const path = asString(question["path"]);
+                const draft = draftFor(id, path);
+                const isCollapsed = collapsed.includes(id);
+                const decision = DECISIONS.find(
+                  (option) => option.value === draft.decision,
+                );
+                const chips =
+                  intent !== null && path !== null
+                    ? valueChips(resolvePointer(intent, path))
+                    : [];
+                const dataState = isCollapsed
+                  ? "answered"
+                  : index === currentIndex
+                    ? "current"
+                    : "upcoming";
+                return (
+                  <li key={id}>
+                    <fieldset className="question" data-state={dataState}>
+                      <legend>
+                        {asString(question["question"])}{" "}
+                        <MaterialityBadge
+                          materiality={asString(question["materiality"])}
+                        />
+                      </legend>
+                      <p className="timeline-meta">
+                        {id} · affects <code>{path}</code> · blocks{" "}
+                        {asString(question["blocking_stage"])}
+                      </p>
+                      {isCollapsed && decision !== undefined ? (
+                        <div className="bubble bubble-reply rise">
+                          <Icon name="check" />
+                          <span>{decision.done}</span>
+                          <button
+                            type="button"
+                            className="chipb"
+                            onClick={() =>
+                              setCollapsed((current) =>
+                                current.filter((entry) => entry !== id),
+                              )
+                            }
+                          >
+                            Edit
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="chip-row question-values">
+                            <ClaimOrigin intent={intent} path={path} />
+                            {chips.map((chip) => (
+                              <Chip key={chip} small mono>
+                                {chip}
+                              </Chip>
+                            ))}
+                          </div>
+                          <details className="question-why">
+                            <summary>Why it matters</summary>
+                            <p>{asString(question["reason"])}</p>
+                          </details>
+                          <div
+                            role="radiogroup"
+                            aria-label={`Decision for ${id}`}
+                            className="decision-chips"
+                          >
+                            {DECISIONS.map((option) => (
+                              <label
+                                key={option.value}
+                                className={`chipb${draft.decision === option.value ? " chipb-on" : ""}`}
+                              >
+                                <input
+                                  type="radio"
+                                  name={`decision-${id}`}
+                                  value={option.value}
+                                  checked={draft.decision === option.value}
+                                  onChange={() =>
+                                    updateDraft(id, path, {
+                                      decision: option.value,
+                                    })
+                                  }
+                                />
+                                {option.shown}
+                                <span className="visually-hidden">
+                                  {option.rest}
+                                </span>
+                              </label>
+                            ))}
+                          </div>
+                          {draft.decision !== "" && (
+                            <div className="question-answer rise">
+                              {draft.decision === "correct" && (
+                                <div className="field">
+                                  <label htmlFor={`value-${id}`}>
+                                    Value (JSON or plain text)
+                                  </label>
+                                  <textarea
+                                    id={`value-${id}`}
+                                    rows={3}
+                                    value={draft.value}
+                                    onChange={(event) =>
+                                      updateDraft(id, path, {
+                                        value: event.target.value,
+                                      })
+                                    }
+                                    spellCheck={false}
+                                  />
+                                </div>
+                              )}
+                              <div className="field">
+                                <label htmlFor={`rationale-${id}`}>
+                                  Rationale
+                                </label>
+                                <textarea
+                                  id={`rationale-${id}`}
+                                  rows={2}
+                                  value={draft.rationale}
+                                  onChange={(event) =>
+                                    updateDraft(id, path, {
+                                      rationale: event.target.value,
+                                    })
+                                  }
+                                />
+                              </div>
+                              <div className="chip-row">
+                                <button
+                                  type="button"
+                                  className="chipb"
+                                  disabled={!isAnswered(draft)}
+                                  onClick={() =>
+                                    setCollapsed((current) => [...current, id])
+                                  }
+                                >
+                                  Done
+                                </button>
+                                <button
+                                  type="button"
+                                  className="chipb"
+                                  onClick={() =>
+                                    updateDraft(id, path, { decision: "" })
+                                  }
+                                >
+                                  Clear decision
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </fieldset>
+                  </li>
+                );
+              })}
+            </ol>
+            <div className="actions">
+              <Keycap
+                type="submit"
+                busy={submitting}
+                busyLabel="Recording…"
+                icon="check"
+              >
+                Record decisions
+              </Keycap>
+            </div>
+          </form>
+          <div aria-live="polite">
+            {validation !== null && (
+              <p className="problem" role="alert">
+                {validation}
+              </p>
+            )}
+            {failure !== null && (
+              <ProblemAlert failure={failure} onReload={load} />
+            )}
+          </div>
+        </section>
 
-      <p>
-        <Link to={`/cases/${encodeURIComponent(caseId)}/review`}>
-          Review the interpreted claims first
-        </Link>{" "}
-        ·{" "}
-        <Link to={`/cases/${encodeURIComponent(caseId)}`}>
-          Back to the case
-        </Link>
-      </p>
-    </>
+        <p className="thread-aside">
+          <Link to={href("/review")}>Review the interpreted claims first</Link>{" "}
+          · <Link to={href("")}>Back to the case</Link>
+        </p>
+      </div>
+      <CaseRail caseId={caseId} caseDocument={caseDocument} />
+    </div>
   );
 }

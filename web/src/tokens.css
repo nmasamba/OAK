@@ -19,6 +19,8 @@
   --surface-chip: #1e231c;
   --surface-mode-on: #2a2f26;
   --surface-rail: #151914;
+  --surface-lamp: #1b1a12;
+  --hairline-install: #4a5543;
   --shadow-mode-on-edge: #0a0c09;
 
   /* Hairlines */
@@ -96,6 +98,9 @@
   --shadow-send:
     0 3px 0 var(--brass-edge), 0 10px 24px rgba(224, 174, 78, 0.22);
   --brass-glow-send: rgba(224, 174, 78, 0.22);
+
+  --shadow-question:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 16px 36px rgba(0, 0, 0, 0.35);
 
   /* Type */
   --font-display: "Instrument Serif", Georgia, "Times New Roman", serif;

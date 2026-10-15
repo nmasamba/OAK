@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import type { JsonObject } from "./generated/api";
+import type { ArtifactReference, JsonObject } from "./generated/api";
 
 export function newIdempotencyKey(step: string): string {
   return `web-${step}-${crypto.randomUUID()}`;
@@ -52,4 +52,26 @@ export function ageOf(iso: string, now: number = Date.now()): string {
     return `${Math.round(seconds / 3600)} h ago`;
   }
   return `${Math.round(seconds / 86400)} d ago`;
+}
+
+/** An artifact reference as the case document carries it, or null when any part is missing. */
+export function asReference(value: unknown): ArtifactReference | null {
+  const entry = asObject(value);
+  if (entry === null) {
+    return null;
+  }
+  const id = asString(entry["id"]);
+  const version = asString(entry["version"]);
+  const digest = asString(entry["digest"]);
+  if (id === null || version === null || digest === null) {
+    return null;
+  }
+  return { id, version, digest };
+}
+
+export function formatBytes(bytes: number | null): string {
+  if (bytes === null) {
+    return "";
+  }
+  return bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KB`;
 }
