@@ -788,7 +788,7 @@ def _asked(ctx: _Context) -> dict[str, Any]:
         "asked",
         "3",
         _title_within(title, "What the brief asks for"),
-        "Each value with where it came from; detail in appendix A.",
+        "Each value as the confirmed intent holds it, with where it came from.",
         [
             _table(
                 "asked",
@@ -837,7 +837,7 @@ def _options(ctx: _Context) -> dict[str, Any]:
         "options",
         "4",
         _title_within(title, "The options considered"),
-        "Baseline first; why each one lost or what blocks it. Cards in appendix B.",
+        "Baseline first, with why each one lost or what blocks it.",
         [
             _table(
                 "options",
@@ -947,7 +947,7 @@ def _comparison(ctx: _Context) -> dict[str, Any]:
             if quantity["type"] == "quantity":
                 unit = quantity["unit"]
                 bars.append({"label": ctx.label(candidate), "value": quantity})
-        series.append({"objective": OBJECTIVE_NAMES[name], "unit": unit, "bars": bars})
+        series.append({"objective": OBJECTIVE_NAMES[name], "unit": format_unit(unit), "bars": bars})
         found = ctx.objective(ctx.selected, name)
         direction = (found[1].get("direction") if found else None) or "minimize"
         rows.append(
@@ -1241,7 +1241,7 @@ def _cost(ctx: _Context) -> dict[str, Any]:
         "cost",
         "8",
         _title_within(title, "Cost"),
-        "Point estimate and range; how the estimates were made is in appendix D.",
+        "Point estimate and range, the selected option beside the baseline.",
         blocks,
         ("D",),
     )

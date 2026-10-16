@@ -823,7 +823,7 @@
       "note": null,
       "number": "3",
       "state": "ready",
-      "subtitle": "Each value with where it came from; detail in appendix A.",
+      "subtitle": "Each value as the confirmed intent holds it, with where it came from.",
       "title": "Every value is stated in the brief or confirmed"
     },
     {
@@ -958,7 +958,7 @@
       "note": null,
       "number": "4",
       "state": "ready",
-      "subtitle": "Baseline first; why each one lost or what blocks it. Cards in appendix B.",
+      "subtitle": "Baseline first, with why each one lost or what blocks it.",
       "title": "Four options considered; one cannot be built"
     },
     {
@@ -1525,7 +1525,7 @@
                 }
               ],
               "objective": "Quality",
-              "unit": "normalized_fixture_score"
+              "unit": "normalized fixture score"
             },
             {
               "bars": [
@@ -1595,7 +1595,7 @@
                 }
               ],
               "objective": "Operability",
-              "unit": "normalized_fixture_score"
+              "unit": "normalized fixture score"
             },
             {
               "bars": [
@@ -2688,7 +2688,7 @@
       "note": null,
       "number": "8",
       "state": "ready",
-      "subtitle": "Point estimate and range; how the estimates were made is in appendix D.",
+      "subtitle": "Point estimate and range, the selected option beside the baseline.",
       "title": "Balanced is estimated to cost more than the baseline per month"
     },
     {

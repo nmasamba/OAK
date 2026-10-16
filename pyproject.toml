@@ -28,6 +28,7 @@ dependencies = [
   "psycopg[binary]>=3.3,<4",
   "pydantic>=2.10,<3",
   "pyyaml>=6.0,<7",
+  "reportlab>=5.0.1,<6",
   "sqlalchemy>=2.0.45,<2.1",
   "typer>=0.15,<1",
   "uvicorn>=0.34,<1",
@@ -126,4 +127,10 @@ exclude = ["tests/fixtures/import_violation"]
 [[tool.mypy.overrides]]
 # `keyring` is an optional extra imported lazily; CI type-checks without extras installed.
 module = ["keyring", "keyring.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# ReportLab ships no type information, and a stubs package would be one more dependency for
+# a library only `oak.adapters.report` calls; the adapter types every value it takes back.
+module = ["reportlab", "reportlab.*"]
 ignore_missing_imports = true

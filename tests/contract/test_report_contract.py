@@ -26,7 +26,6 @@ from oak.domain.design_case import ALLOWED_TRANSITIONS
 from oak.domain.report import (
     NARRATIVE_MEDIA_TYPE,
     PDF_MEDIA_TYPE,
-    PPTX_MEDIA_TYPE,
     RENDERING_KIND,
     REPORT_MEDIA_TYPE,
 )
@@ -64,27 +63,25 @@ def test_report_recorded_is_an_audit_event_type() -> None:
     REGISTRY.validate("audit-event.schema.json", {**event, "event_type": "report_recorded"})
 
 
-@pytest.mark.parametrize(
-    ("media_type", "content"),
-    ((PPTX_MEDIA_TYPE, b"PK\x03\x04rest-of-package"), (PDF_MEDIA_TYPE, b"%PDF-1.4\n...")),
-)
-def test_a_rendering_is_accepted_only_as_the_format_it_claims(
-    media_type: str, content: bytes
-) -> None:
+PPTX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+
+
+def test_a_rendering_is_accepted_only_as_a_pdf() -> None:
     validate_opaque_artifact(
         Artifact(
             id="report.x.pdf",
             version="0.1.0",
             kind=RENDERING_KIND,
-            media_type=media_type,
-            content=content,
+            media_type=PDF_MEDIA_TYPE,
+            content=b"%PDF-1.4\n...",
         )
     )
-    swapped = PDF_MEDIA_TYPE if media_type == PPTX_MEDIA_TYPE else PPTX_MEDIA_TYPE
+    # A PPTX rendering was deferred by the owner (Sprint 13, M3): nothing produces one, so
+    # nothing may store one under this kind until a renderer and its review exist.
     for wrong_type, wrong_content in (
-        (swapped, content),
-        ("application/json", content),
-        (media_type, b'{"looks": "like json"}'),
+        (PPTX_MEDIA_TYPE, b"PK\x03\x04rest-of-package"),
+        ("application/json", b"%PDF-1.4"),
+        (PDF_MEDIA_TYPE, b'{"looks": "like json"}'),
     ):
         with pytest.raises(OAKError) as refused:
             validate_opaque_artifact(

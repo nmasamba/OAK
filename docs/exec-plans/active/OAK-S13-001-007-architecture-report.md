@@ -27,7 +27,7 @@ the screen, and are judged by one set of guards and one browser spec.
 | # | Question | Answer (2026-10-16) | Effect on this plan |
 |---|---|---|---|
 | K1 | Record the report, or compose it on every read? | **Record** | `record-report` is the one new mutation: three or four artifacts, a case successor with the same status, and a `report_recorded` audit event. G2's `KNOWN_MUTATIONS` gains `recordReport`. |
-| K2 | Where are the files rendered? | **Server side, in Python** | `python-pptx` and `reportlab` in one adapter behind `ReportRendererPort`; both get the full dependency review in M3. |
+| K2 | Where are the files rendered? | **Server side, in Python**, then **PDF only** (after the M3 review) | `reportlab` in one adapter behind `ReportRendererPort`. `python-pptx` failed the maintenance review in M3, and the owner chose to ship the PDF now and the PPTX later. |
 | K3 | Who writes the words? | **A model narrative**, then on a follow-up question: **an opt-in mode on Record**, with **a note on each main slide** | See "The opt-in notes" below. Deterministic stays the default and makes no model call. |
 | K4 | How early can a report be recorded? | **From `candidate_selected`** | Earlier is `OAK-REPORT-STATE` (409) naming the missing step. A record that does not exist yet is shown as "Not yet" with the step that makes it. |
 | K5 | How do the files look? | **The print palette** | Light paper, ink, one brass accent; the dark ground on the cover only. Helvetica and Courier, which PDF readers always have, so no font file is added. |
@@ -291,9 +291,15 @@ artifacts and an unknown extension behind; readers ignore both.
   `6142270`; this plan.
 - [x] 2026-10-16 M1: `architecture-report` and `report-narrative` schemas `0.1.0` with examples, registered in `EXAMPLE_BY_SCHEMA` and `schemas/README.md`. The kinds `architecture_report` and `report_narrative` (JSON) and `report_rendering` (bytes, PPTX or PDF magic only) are registered in both adapters and the manifest enum, with `report_recorded` and the `oak.community/report` export-lineage check. `lxml`, `PIL`, `pptx` and `reportlab` are forbidden outside adapters. Tests: `tests/contract/test_report_contract.py` (9); `make validate`, all contract tests, the reference digests and mypy are green.
 - [x] 2026-10-16 M2: `oak.application.report`. The pure `report_document` has twenty section builders, each with its "Not yet" state, and `gather_records` reads every record through the repository port by digest. Also: the Python variant-label map, provenance words and install steps, held equal to the web's by `tests/contract/test_report_agreement.py`; the topology port; the web's three-significant-digit number format; `narrator_facts`, which redacts digests. The vocabulary patterns moved to `oak.domain.vocabulary`. `scripts/check_report.py` (R1–R4) is in `make validate` and composes the reference report live at `candidate_selected`, `assurance_planned` and `bundle_compiled`. The golden is `tests/fixtures/report/public-manual-qa.report.json`, and the example is generated from it. Tests: `test_report_composer.py` (53), `test_report_guards.py` (17 planted violations), `test_report_agreement.py` (3). Live composer mutations for R1, R2 and R3 were all killed. 848 unit and contract tests are green.
+- [x] 2026-10-16 M3: the dependency review stopped on `python-pptx` (maintenance), and the owner chose PDF only. `reportlab` 5.0.1 (with `Pillow` 12.3.0) was reviewed in `docs/dependencies.md` and locked, and `docs/platforms.md` records the new floors: Linux x86_64 glibc 2.27 (Pillow), and armv7l now unsupported. `ReportRendererPort` (`oak.ports.report`) and `oak.adapters.report.pdf`. The renderer has its own paginator with continuation pages and repeated table headers, shape-and-word status marks, the workspace's provenance shapes, the topology drawn from the report's layout, range bars, the print palette, Helvetica and Courier with none embedded, and dates from `generated_at` in invariant mode. The reference PDF is 31 pages and 60 KB. Tests: `test_report_pdf.py` (12): two processes give the same bytes under different hash seeds and time zones; a standard-library read-back of xref offsets, pages, footers, titles and dates; fonts, size and refusals. `test_report_layout_agreement.py`: the Python layout and number format equal `web/src/topology.ts` and `formatQuantity`, run through Vite in Node, on four reference candidates, four awkward shapes and twenty numbers; mutation-checked. The API image builds clean (`--no-cache`) and imports the renderer.
 
 ## Decisions
 
+- 2026-10-16 **PDF only (owner, after the M3 dependency review).** The report records the
+  document (JSON) and one rendering, the PDF. `report_rendering` accepts only `application/pdf`;
+  the case extension holds `pdf_ref` and no `pptx_ref`, so a PPTX added later is additive.
+  The Report screen offers PDF and JSON. `ReportRendererPort` names its formats, so a PPTX
+  renderer can join without changing the port.
 - 2026-10-16 **The renderings are a second opaque kind, `report_rendering`,** beside
   `brief_source`, rather than one kind per format: one exemption in each adapter, gated on
   the two media types.
@@ -323,6 +329,7 @@ artifacts and an unknown extension behind; readers ignore both.
 (Each line: symptom → cause → fix, written before the fix.)
 
 - 2026-10-16 M1, spec pin. `test_no_committed_schema_permits_execution_fields` failed. Cause: the "Not yet" block named a field `command`, and no committed schema may name an execution field outside a denial. Fix: rename it `hint`. It is display text, and the name should not suggest otherwise.
+- 2026-10-16 M3, dependency review. `python-pptx` fails maintenance: its last commit and release were 2024-08-07, and it has 541 open issues with no maintainer reply since. Licence, OSV and wheels are clean for it and for `reportlab` 5.0.1, `lxml`, `Pillow`, `XlsxWriter` and `charset-normalizer`. Cause: the library is dormant. Under the prompt's stop rule I stopped and asked the owner. Fix: the owner chose **PDF only this sprint**. `python-pptx` is not added; PPTX becomes a follow-up that needs a library decision.
 
 ## Self-review
 
@@ -331,6 +338,7 @@ sentences without a source; boundaries touched.)
 
 - **M1.** (1) No pinned name changed; no UI was touched. (2) The schema makes every number a `quantity` with a unit, basis and source, and every cell carry a source; a contract test proves a quantity without them is refused. (3) Boundaries were tightened only: the document libraries are now forbidden in the domain, compiler, ports, application and runner.
 - **M2.** (1) No pinned name changed. The report reuses the web's words through a contract-tested mirror (Balanced, Baseline, the provenance words and the six install steps). (2) Every number is a quantity, with R2 and the schema enforcing it. Template counts are words. Every sentence the composer writes is either fixed template text or a record value with its pointer, and the golden holds no unsourced cell. (3) No boundary moved. The composer is pure and reads through the repository port; the shown-to-a-model facts exclude digests and appendices.
+- **M3.** (1) No pinned name changed. The PPTX chip the prompt pinned for M5 is now out of scope by the owner's decision, recorded before any UI work. (2) The renderer adds no words of its own beyond layout furniture: "(continued)", "Detail in appendix", "page n of N", "Not yet" and the mark words. Every figure it draws comes from a quantity's own text. (3) Boundaries: the document libraries are reachable only from `oak.adapters.report`, which `tools/check_boundaries.py` enforces. The Linux glibc floor moved and is documented.
 
 ## Retro
 

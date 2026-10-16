@@ -75,8 +75,8 @@ JSON_MEDIA_KIND = {
     "application/vnd.oak.report-narrative+json": "report_narrative",
 }
 # Kinds stored as opaque bytes: no schema, never parsed as JSON. The brief is kept as the
-# user supplied it; a report rendering is accepted only as a PPTX or PDF that starts with
-# its format's header.
+# user supplied it; a report rendering is accepted only as a PDF that starts with the PDF
+# header.
 OPAQUE_KINDS = frozenset({"brief_source", RENDERING_KIND})
 ReplaceFile = Callable[[Path, Path], None]
 
@@ -89,9 +89,7 @@ def validate_opaque_artifact(artifact: Artifact) -> None:
     if artifact.kind == RENDERING_KIND:
         magic = RENDERING_MAGIC.get(artifact.media_type)
         if magic is None or not artifact.content.startswith(magic):
-            raise OAKError(
-                "OAK-ARTIFACT-INVALID", "a report rendering must be a PPTX or a PDF document"
-            )
+            raise OAKError("OAK-ARTIFACT-INVALID", "a report rendering must be a PDF document")
 
 
 def _replace_path(source: Path, destination: Path) -> None:
@@ -660,7 +658,6 @@ class FileWorkspaceRepository:
             if isinstance(report, dict):
                 for field, kind in (
                     ("document_ref", "architecture_report"),
-                    ("pptx_ref", RENDERING_KIND),
                     ("pdf_ref", RENDERING_KIND),
                     ("narrative_ref", "report_narrative"),
                 ):

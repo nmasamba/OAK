@@ -1,2 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
-"""PPTX and PDF renderings of an architecture report, behind `ReportRendererPort`."""
+"""The PDF rendering of an architecture report, behind `ReportRendererPort`."""
+
+from oak.adapters.report.pdf import PdfReportRenderer
+
+__all__ = ["PdfReportRenderer"]
