@@ -16,7 +16,7 @@ a release.
 - Owner/agent: owner-directed coding agent
 - Started: 2026-10-16
 - Last updated: 2026-10-16
-- State: complete (awaiting the owner's merge)
+- State: complete (PR #36 open for the owner's merge)
 - Claimed tasks: `OAK-S13-001`–`OAK-S13-007`
 
 One plan covers seven task IDs because they build one vertical feature, from the schema to
