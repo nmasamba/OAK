@@ -2121,9 +2121,9 @@ sections:
       - mark: null
         text: Citation correctness
         type: text
-      - basis: measured
+      - basis: synthetic estimate
         confidence: null
-        estimator: null
+        estimator: public-manual-qa-evaluation-1.0.0
         lower: null
         short: '0.99'
         source: evaluation-result.candidate-03@0.1.0#/metrics/0/value
@@ -2146,9 +2146,9 @@ sections:
         unit: proportion
         upper: null
         value: 0.98
-      - basis: counted
+      - basis: synthetic estimate
         confidence: null
-        estimator: null
+        estimator: public-manual-qa-evaluation-1.0.0
         lower: null
         short: '100'
         source: evaluation-result.candidate-03@0.1.0#/metrics/0/sample_size
@@ -2166,9 +2166,9 @@ sections:
       - mark: null
         text: Unsupported assertion rate
         type: text
-      - basis: measured
+      - basis: synthetic estimate
         confidence: null
-        estimator: null
+        estimator: public-manual-qa-evaluation-1.0.0
         lower: null
         short: '0.005'
         source: evaluation-result.candidate-03@0.1.0#/metrics/1/value
@@ -2191,9 +2191,9 @@ sections:
         unit: proportion
         upper: null
         value: 0.01
-      - basis: counted
+      - basis: synthetic estimate
         confidence: null
-        estimator: null
+        estimator: public-manual-qa-evaluation-1.0.0
         lower: null
         short: '100'
         source: evaluation-result.candidate-03@0.1.0#/metrics/1/sample_size
@@ -2211,9 +2211,9 @@ sections:
       - mark: null
         text: Interactive latency p95
         type: text
-      - basis: measured
+      - basis: synthetic estimate
         confidence: null
-        estimator: null
+        estimator: public-manual-qa-evaluation-1.0.0
         lower: null
         short: 1,200
         source: evaluation-result.candidate-03@0.1.0#/metrics/2/value
@@ -2236,9 +2236,9 @@ sections:
         unit: milliseconds
         upper: null
         value: 5000
-      - basis: counted
+      - basis: synthetic estimate
         confidence: null
-        estimator: null
+        estimator: public-manual-qa-evaluation-1.0.0
         lower: null
         short: '100'
         source: evaluation-result.candidate-03@0.1.0#/metrics/2/sample_size
@@ -3312,9 +3312,9 @@ sections:
       - mark: null
         text: Energy
         type: text
-      - basis: declared
+      - basis: synthetic estimate
         confidence: null
-        estimator: null
+        estimator: component.fixture-lexical-search
         lower: null
         short: '0.08'
         source: component.fixture-lexical-search@1.0.0#/extensions/oak.community~1objectives/energy_wh
@@ -3337,9 +3337,9 @@ sections:
       - mark: null
         text: Latency p95
         type: text
-      - basis: declared
+      - basis: synthetic estimate
         confidence: null
-        estimator: null
+        estimator: component.fixture-lexical-search
         lower: null
         short: '180'
         source: component.fixture-lexical-search@1.0.0#/extensions/oak.community~1objectives/latency_p95_ms
@@ -3362,9 +3362,9 @@ sections:
       - mark: null
         text: Monthly cost
         type: text
-      - basis: declared
+      - basis: synthetic estimate
         confidence: null
-        estimator: null
+        estimator: component.fixture-lexical-search
         lower: null
         short: '8'
         source: component.fixture-lexical-search@1.0.0#/extensions/oak.community~1objectives/monthly_cost_usd
@@ -3387,9 +3387,9 @@ sections:
       - mark: null
         text: Operability
         type: text
-      - basis: declared
+      - basis: synthetic estimate
         confidence: null
-        estimator: null
+        estimator: component.fixture-lexical-search
         lower: null
         short: '0.92'
         source: component.fixture-lexical-search@1.0.0#/extensions/oak.community~1objectives/operability_score
@@ -3412,9 +3412,9 @@ sections:
       - mark: null
         text: Quality
         type: text
-      - basis: declared
+      - basis: synthetic estimate
         confidence: null
-        estimator: null
+        estimator: component.fixture-lexical-search
         lower: null
         short: '0.62'
         source: component.fixture-lexical-search@1.0.0#/extensions/oak.community~1objectives/quality_score
@@ -3437,9 +3437,9 @@ sections:
       - mark: null
         text: Latency p95
         type: text
-      - basis: measured
+      - basis: synthetic estimate
         confidence: null
-        estimator: null
+        estimator: evidence.fixture-lexical-measurement
         lower: null
         short: '180'
         source: component.fixture-lexical-search@1.0.0#/measurements/0/value
@@ -3462,9 +3462,9 @@ sections:
       - mark: null
         text: Energy
         type: text
-      - basis: declared
+      - basis: synthetic estimate
         confidence: null
-        estimator: null
+        estimator: component.fixture-local-model
         lower: null
         short: '0.65'
         source: component.fixture-local-model@1.0.0#/extensions/oak.community~1objectives/energy_wh
@@ -3487,9 +3487,9 @@ sections:
       - mark: null
         text: Latency p95
         type: text
-      - basis: declared
+      - basis: synthetic estimate
         confidence: null
-        estimator: null
+        estimator: component.fixture-local-model
         lower: null
         short: 1,200
         source: component.fixture-local-model@1.0.0#/extensions/oak.community~1objectives/latency_p95_ms
@@ -3512,9 +3512,9 @@ sections:
       - mark: null
         text: Monthly cost
         type: text
-      - basis: declared
+      - basis: synthetic estimate
         confidence: null
-        estimator: null
+        estimator: component.fixture-local-model
         lower: null
         short: '28'
         source: component.fixture-local-model@1.0.0#/extensions/oak.community~1objectives/monthly_cost_usd
@@ -3537,9 +3537,9 @@ sections:
       - mark: null
         text: Operability
         type: text
-      - basis: declared
+      - basis: synthetic estimate
         confidence: null
-        estimator: null
+        estimator: component.fixture-local-model
         lower: null
         short: '0.72'
         source: component.fixture-local-model@1.0.0#/extensions/oak.community~1objectives/operability_score
@@ -3562,9 +3562,9 @@ sections:
       - mark: null
         text: Quality
         type: text
-      - basis: declared
+      - basis: synthetic estimate
         confidence: null
-        estimator: null
+        estimator: component.fixture-local-model
         lower: null
         short: '0.86'
         source: component.fixture-local-model@1.0.0#/extensions/oak.community~1objectives/quality_score
@@ -3587,9 +3587,9 @@ sections:
       - mark: null
         text: Latency p95
         type: text
-      - basis: measured
+      - basis: synthetic estimate
         confidence: null
-        estimator: null
+        estimator: evidence.fixture-model-measurement
         lower: null
         short: 1,200
         source: component.fixture-local-model@1.0.0#/measurements/0/value

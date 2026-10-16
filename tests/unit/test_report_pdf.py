@@ -18,8 +18,8 @@ from typing import Any
 
 import pytest
 
-from oak.adapters.report import PdfReportRenderer
-from oak.adapters.report.pdf import paginate, pdf_text
+from oak.adapters.report import PdfReportRenderer, pdf
+from oak.adapters.report.pdf import CONTENT_BOTTOM, PAGE_HEIGHT, paginate, pdf_text, wrap
 from oak.domain import OAKError
 from oak.domain.report import MAXIMUM_RENDERING_BYTES, PDF_MEDIA_TYPE
 from tests.report_pdf_support import parse_pdf
@@ -147,6 +147,67 @@ def test_long_tables_continue_with_their_header_repeated() -> None:
     texts = parse_pdf(rendered).page_texts
     continued = [text for text in texts if "Every input record, by digest (continued)" in text]
     assert continued and all("Identifier" in text for text in continued)
+
+
+def test_no_unit_runs_off_its_page_however_long_the_record_text() -> None:
+    document = _golden()
+    for section in document["sections"]:
+        for block in section["blocks"]:
+            if block["kind"] in {"quote", "callout", "paragraph"}:
+                block["text"] = "Because the brief says so. " * 444
+            elif block["kind"] == "table":
+                for row in block["rows"][:2]:
+                    for cell in row["cells"]:
+                        if cell["type"] == "text":
+                            cell["text"] = "A long problem statement. " * 153
+            elif block["kind"] == "facts":
+                for item in block["items"]:
+                    if item["value"]["type"] == "text":
+                        item["value"]["text"] = "word " * 800
+    assert len("Because the brief says so. " * 444) <= 12000
+    pages = paginate(document)
+    overflow = [
+        (page.section["id"], round(top + unit.height))
+        for page in pages
+        for top, unit in page.placed
+        if top + unit.height > PAGE_HEIGHT - CONTENT_BOTTOM
+    ]
+    assert overflow == []
+    texts = parse_pdf(PdfReportRenderer().render(document, PDF_MEDIA_TYPE)).page_texts
+    assert len(texts) == len(pages)
+
+
+def test_a_long_case_title_is_shortened_in_the_footer_and_the_page_count_kept() -> None:
+    document = _golden()
+    cover = document["sections"][0]
+    facts = next(block for block in cover["blocks"] if block["kind"] == "facts")
+    case = next(item for item in facts["items"] if item["label"] == "Case")
+    case["value"]["text"] = "A very long case title " * 12
+    texts = parse_pdf(PdfReportRenderer().render(document, PDF_MEDIA_TYPE)).page_texts
+    assert all(f"page {number} of {len(texts)}" in text for number, text in enumerate(texts, 1))
+    assert all("..." in text for text in texts)
+
+
+def test_wrapping_measures_each_character_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = 0
+    measure = pdf.stringWidth
+
+    def counting(text: str, font: str, size: float) -> float:
+        nonlocal calls
+        calls += 1
+        return float(measure(text, font, size))
+
+    monkeypatch.setattr(pdf, "stringWidth", counting)
+    word = "x" * 12000
+    lines = wrap(word, "Helvetica", 10, 300)
+    assert "".join(lines) == word
+    assert all(measure(line, "Helvetica", 10) <= 300 for line in lines)
+    assert calls <= len(word) + 2
+    calls = 0
+    sentence = "Because the brief says so. " * 444
+    lines = wrap(sentence, "Helvetica", 10, 300)
+    assert " ".join(lines).split() == sentence.split()
+    assert calls <= len(sentence.split(" ")) + 2
 
 
 def test_the_renderer_draws_only_palette_colours() -> None:

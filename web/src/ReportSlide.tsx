@@ -214,7 +214,12 @@ function Diagram({ block }: { readonly block: JsonObject }) {
   };
   return (
     <figure className="report-diagram">
-      <div className="topology-scroll">
+      <div
+        className="topology-scroll"
+        tabIndex={0}
+        role="region"
+        aria-label="Topology diagram"
+      >
         <TopologyDiagram layout={layout} id="report-topology" />
       </div>
       <figcaption>{layout.description}</figcaption>

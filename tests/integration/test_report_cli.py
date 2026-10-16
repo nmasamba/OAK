@@ -23,6 +23,7 @@ from typer.testing import CliRunner
 from oak.bootstrap import create_candidate_planning_service
 from oak.domain import content_digest
 from oak.interfaces.api.app import create_app
+from oak.interfaces.cli.main import _write_report_file
 from oak.interfaces.cli.main import app as cli_app
 from tests.mcp_support import NOW, ROOT, build_file_control_plane, drain_operations
 from tests.report_pdf_support import parse_pdf
@@ -199,3 +200,19 @@ def test_the_remote_cli_records_and_downloads_verified_files(
     document = _remote(live_server, "report", "--case", CASE_ID)
     assert document.exit_code == 0, _output(document)
     assert json.loads(document.output)["case_ref"]["version"] == entry["made_from_case_version"]
+
+
+def test_a_report_file_is_written_through_a_fresh_temporary_name(tmp_path: Path) -> None:
+    victim = tmp_path / "victim.txt"
+    victim.write_bytes(b"keep me")
+    target = tmp_path / "report.pdf"
+    # A link planted at a guessable temporary name beside the target is never followed.
+    (tmp_path / f".{target.name}.oak-tmp").symlink_to(victim)
+    _write_report_file(target, b"%PDF-1.4 report")
+    assert target.read_bytes() == b"%PDF-1.4 report"
+    assert victim.read_bytes() == b"keep me"
+    assert sorted(path.name for path in tmp_path.iterdir()) == [
+        ".report.pdf.oak-tmp",
+        "report.pdf",
+        "victim.txt",
+    ]

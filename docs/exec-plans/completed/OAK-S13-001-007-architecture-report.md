@@ -16,7 +16,7 @@ a release.
 - Owner/agent: owner-directed coding agent
 - Started: 2026-10-16
 - Last updated: 2026-10-16
-- State: in-progress
+- State: complete (awaiting the owner's merge)
 - Claimed tasks: `OAK-S13-001`–`OAK-S13-007`
 
 One plan covers seven task IDs because they build one vertical feature, from the schema to
@@ -296,6 +296,7 @@ artifacts and an unknown extension behind; readers ignore both.
 - [x] 2026-10-16 M5: `/cases/:caseId/report` (`ReportPage`, `ReportSlide`). The screen shows one section per slide, with ←, →, PageUp, PageDown, Home and End on the slide region, "Slide n of N" announced politely, and a contents list. Values are drawn as shape and word: `Led` for statuses and `ProvenanceMark` for marks. The topology uses the workspace's own `TopologyDiagram`, beside its nodes and edges tables. Quoted notes carry their "Proposed by model" label, and "Not yet" boxes name the next step. The record keycap ("Record report" or "Record again") comes with the notes chooser (`ModeChooser` with the new `purpose="report"`; the brief's pinned legend is unchanged). A recorded report names its source version, and a stale one says the case moved on. PDF and JSON tiles go through `downloadVerified` and read "digest matches". The case rail links to the report, and a Report tile appears in the Take it sheet and the dock. `report.spec.ts` covers recording, all twenty slides by keyboard, the diagram beside its tables, PDF and JSON matched to `X-OAK-Artifact-Digest`, the sheet tile, the stale notice, and four axe scans with zero violations. `journey.spec.ts`, `downloads.spec.ts` and `models.spec.ts` are green and unchanged. G1–G5 pass.
 - [x] 2026-10-16 M6: manual: "6 · Record the architecture report" in the CLI chapter and the twelfth figure (`12-report.png`, captured by `manual-screens.spec.ts` after the timeline shot). Docs: README (step 7 and everyday use), `docs/interfaces.md`, `docs/architecture.md`, `docs/compatibility.md` (schema, REST and CLI additions), `docs/dependencies.md` and `docs/platforms.md` (M3), `docs/security/threat-coverage.md` (TM-13 cites the narrator and deterministic-report tests), the residual-risk register (`RR-044` to `RR-047`; the live count is now 47), CHANGELOG, both `STATUS.md` files, and the governance interface contract's routes and views list and the roadmap. Every page that lists the workspace's screens lists the Report screen.
 - [x] 2026-10-16 M7: the throwaway stack was recreated empty (`down -v --rmi local`, then `up -d --build`) and `make web-e2e` ran once: 25 passed, 1 skipped (the gated capture), zero `make: ***` lines. On that same stack the twelve manual screenshots were captured (`OAK_MANUAL_SCREENS=1`, including the new `12-report.png`), and `docs/manual/OAK-Community-Manual.pdf` was rebuilt.
+- [x] 2026-10-16 M8: one closing workflow (three finders, one refute-by-default skeptic) raised 21 findings; 14 survived and are fixed with tests (see Closing review). The golden moved only where a fixture-sourced figure is now labelled "synthetic estimate" (18 values). `make audit` ran once: no known vulnerabilities, zero `make: ***` lines. Because M8 touched the web, the stack was recreated empty and `make web-e2e` ran once more: 25 passed, 1 skipped (the gated capture), zero `make: ***` lines. `make check` ran once: 922 unit and contract tests, 318 integration tests (24 skipped) and 42 end-to-end tests (1 skipped) passed, with every guard (G1–G5, R1–R4) green and zero `make: ***` lines.
 
 ## Decisions
 
@@ -324,6 +325,19 @@ artifacts and an unknown extension behind; readers ignore both.
   validator.** It ran `check_schema` on every call, which took almost all of a report's
   record reads (46 s for the guard, 4.7 s after). The schemas are fixed for the registry's
   life, so the answer cannot change. Every other path through the registry gets faster too.
+- 2026-10-16 **An offline evaluation's figures are synthetic.** Every evaluation result names
+  the fixture set it ran over (`fixture_version` is required), so its metric values and
+  sample sizes are "synthetic estimate" with that fixture as estimator, and a fixture
+  component's inputs and measurements likewise. The basis word "measured" is kept for a
+  figure that came from a real run; R2 refuses it on a fixture source.
+- 2026-10-16 **A model's note must stay inside its slide.** The note checks were rewritten from
+  naming forbidden things to requiring the note's numbers, number words, units and host
+  names to be on the slide it describes, with control and format characters, authority
+  words and benefit words refused outright. A dropped note costs a reader one sentence; a
+  kept wrong one costs trust, so the checks lean to dropping.
+- 2026-10-16 **Report text holds up to 12,000 characters, a decision rationale's limit,** and
+  record text beyond a field's limit is shortened with a visible marker naming where the
+  full text is. The PDF splits any unit taller than 280 points into continuing pieces.
 - 2026-10-16 **The print palette landed in M2 rather than M3**, so R4 could join
   `make validate` with the other guards. It is a small module of colours and pairs; the
   renderers that draw with it follow in M3.
@@ -335,6 +349,21 @@ artifacts and an unknown extension behind; readers ignore both.
 - 2026-10-16 M1, spec pin. `test_no_committed_schema_permits_execution_fields` failed. Cause: the "Not yet" block named a field `command`, and no committed schema may name an execution field outside a denial. Fix: rename it `hint`. It is display text, and the name should not suggest otherwise.
 - 2026-10-16 M3, dependency review. `python-pptx` fails maintenance: its last commit and release were 2024-08-07, and it has 541 open issues with no maintainer reply since. Licence, OSV and wheels are clean for it and for `reportlab` 5.0.1, `lxml`, `Pillow`, `XlsxWriter` and `charset-normalizer`. Cause: the library is dormant. Under the prompt's stop rule I stopped and asked the owner. Fix: the owner chose **PDF only this sprint**. `python-pptx` is not added; PPTX becomes a follow-up that needs a library decision.
 - 2026-10-16 M5, product defect (presentation). `report.spec.ts` matched "Slide 1 of 20" twice. Cause: the slide marker repeated the position ("Section 1 · slide 1 of 20") that the counter under the slide already announces. Fix: the marker names only the section; the counter alone carries the position, and the spec matches it exactly.
+- 2026-10-16 M8, product defects (closing review, 14 of 21 findings survived the skeptic). Logged here before any fix:
+  - **Model-note checks (H-1 to H-4), one class:** a denylist over untrusted text is incomplete.
+    - Symptoms: invisible Cf characters split a forbidden word; "cleared for deployment" and "secure" pass; bare domains and emails pass; spelled-out numbers, a unit swapped from another row, and an invented saving all pass.
+    - Root cause: the checks name forbidden things instead of requiring the note to stay inside its slide.
+    - Fix: refuse every Unicode control or format character. Widen the authority words to cover the narrator's own rule 3. Refuse `@`, schemes and any dotted host the slide does not hold. Require spelled-out numbers to appear on the slide. Pair a number's unit word with the slide line that holds the number. Refuse benefit and return words. The parametrised tests carry every probe.
+  - **Composer honesty (H-5, H-6, H-9), one class:** labels that contradict the records.
+    - Fixture evaluation results and fixture component measurements were labelled "measured". Numbers whose field has no known suffix got the unit "as recorded". Slide 3's title ignored its "Not stated" rows.
+    - Fix: label fixture-sourced numbers "synthetic estimate", naming the fixture as estimator. Map the admissible numeric intent fields to real units and show anything else as `unknown`. Count missing values in the title.
+    - New guard rules: R2 refuses the unit "as recorded" and a "measured" or "counted" quantity sourced from an evaluation result or a fixture component.
+  - **PDF robustness (R-1 to R-4):**
+    - A unit taller than a page was drawn past the footer. Fix: units split by lines, and a test that nothing crosses the content edge.
+    - A rationale over 4,000 characters failed the schema, so the case could never get a report. Fix: report text to 12,000, and record text clipped with a visible marker.
+    - A long case title pushed "page n of N" off the page. Fix: the page number is right-aligned and the title is truncated.
+    - `wrap()` was cubic on unbroken text. Fix: one normalisation pass and per-character widths.
+  - **Interfaces (A-1, A-3, R-6):** the slide's arrow keys swallowed table scrolling, the diagram scroller was not focusable, and `oak report --output` wrote through a predictable temp name. Fix: nested scroll regions keep their keys, the scroller is a named focusable region, and the CLI uses `mkstemp` beside the target.
 
 ## Self-review
 
@@ -347,6 +376,36 @@ sentences without a source; boundaries touched.)
 - **M4.** (1) No pinned name changed. The only new mutation in the generated client is `recordReport`, added to `KNOWN_MUTATIONS` with a comment. (2) The command adds no words to the report. A model's notes pass `check_notes`, which drops any note with a number its slide does not hold, and they are quoted under "Proposed by model" with the model named. (3) Boundaries: recording needs no signature and moves no status; approval, dispatch and the runner never read `oak.community/report`. The narrator is reached only in a model mode, the offline-boundary test proves the default loads no provider module, and the capability token is demanded before any model call.
 - **M5.** (1) No pinned name changed. The brief chooser keeps "How should this brief be read?" (the default purpose). "Take it", "Copy install steps" and the journey pins are untouched, and the new copy control is named "Copy the next steps", starting with "Copy" as G2 requires. (2) The screen writes no number or sentence of its own beyond navigation words ("Slide n of N", "Section 9", "Detail in appendix", "Not yet") and the stale notice, which quotes the two versions from the case. (3) The web adds exactly one mutation, `recordReport`. It signs, approves and installs nothing, and the model token is sent only in a model mode.
 
+- **M6.** (1) No pinned name changed; the manual and README name the screen and command as they ship. (2) Every number in the docs is the reference case's own (pages, sizes, counts), re-read after the final run. (3) No boundary moved; the docs describe the one new mutation and the opt-in model mode as they are.
+- **M7.** (1) No pinned name changed; the twelve screenshots were captured from one suite run on a fresh throwaway stack. (2) The manual's figures are captures, not drawings. (3) Only the throwaway stack (`oak-s13`, ports 18080 and 15174) was used; the owner's stack was not touched.
+- **M8.** (1) No pinned name changed. The Report screen's keys and the diagram scroller's name ("Topology diagram") are new, both covered by `report.spec.ts`. (2) The fixes make more numbers honest, not fewer: fixture-sourced figures now say "synthetic estimate", and a number without a unit is `unknown`. (3) No boundary moved; the narrator's rule 3 now names the same words the note check refuses.
+
+## Closing review
+
+One workflow: three finders (honesty of the composed report, robustness of the PDF and the
+CLI, the web's keyboard and accessibility) and one skeptic told to refute each finding by
+default. 21 findings were raised; 7 were refuted (A-2, A-4, A-5, R-5, H-7, H-8, H-10) and
+14 survived. Each survivor's fix and its proof:
+
+| Finding | Fix | Proof |
+| --- | --- | --- |
+| H-1 invisible characters split a forbidden word | refuse any Unicode category C character after NFKC | `test_report_notes.py`: zero-width space, soft hyphen, word joiner, right-to-left override |
+| H-2 authority in other words | `AUTHORITY` widened (secure, safe, cleared, endorsed, vetted, verified, validated, …); narrator rule 3 names them | four probe sentences dropped |
+| H-3 addresses and hosts | refuse `@`, any scheme, `mailto:` and a dotted host the slide does not hold | four probes dropped; a host on the slide kept |
+| H-4 numbers in words, moved units, benefits | number words must be on the slide; a number's unit must sit beside it on one slide line; benefit words refused | six probes dropped |
+| H-5 fixture runs labelled "measured" | evaluation metrics and samples, fixture component inputs and measurements, and calibration against a fixture are "synthetic estimate" | composer tests; R2 rule, mutation-checked |
+| H-6 "as recorded" for a unit | every numeric intent field has a unit (schema-walk test); no unit means `unknown` | composer tests; R2 rule, mutation-checked |
+| H-9 slide 3 title ignored unstated values | the title counts them | composer test |
+| R-1 a unit taller than a page | units split by lines; a too-tall group may break | `test_no_unit_runs_off_its_page…`, killed by an unbounded limit |
+| R-2 a long rationale failed the schema | report text to 12,000; visible clipping elsewhere | composer test with a 12,000-character rationale and a long reason |
+| R-3 the page count pushed off the page | page count right-aligned, title truncated | footer test on every page |
+| R-4 cubic wrapping | one normalisation, per-character widths | measuring-call count test |
+| R-6 a predictable temporary file | `mkstemp` beside the target | planted-link test |
+| A-1 slide keys swallowed table scrolling | nested scroll regions keep their keys | `report.spec.ts` on slide 9 |
+| A-3 the diagram scroller was unreachable | a named, focusable region | `report.spec.ts` and axe |
+
 ## Retro
 
-(Three lines at the end.)
+- **What worked:** composing the report as a pure document first, and rendering it second, meant one golden test, one guard and one set of agreement tests covered the PDF, the screen and the CLI at once. The guard composes live rather than reading the golden, so a composer regression cannot hide behind a refreshed fixture.
+- **What cost time:** text-anchored patch scripts against files `ruff format` had already reflowed failed silently (`count == 0`) and had to be redone with reads. `SchemaRegistry` re-checking every schema on every call made the first guard take 46 s.
+- **What to keep:** asking the owner again when an answer conflicts with a hard invariant (K3) and when a dependency fails review (`python-pptx`). Both questions changed the sprint for the better, cheaply, before any code depended on them.

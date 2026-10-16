@@ -142,6 +142,15 @@ test("a reviewer records the report, reads every slide and takes it away", async
     await expect(page.getByRole("img", { name: /feeds/ })).toBeVisible();
     await expect(page.getByRole("table", { name: "Nodes" })).toBeVisible();
     await expect(page.getByRole("table", { name: "Edges" })).toBeVisible();
+    // Inside the diagram or a table that scrolls, the keys scroll it and the slide stays.
+    for (const name of ["Topology diagram", "Nodes"]) {
+      await page.getByRole("region", { name, exact: true }).focus();
+      await page.keyboard.press("ArrowRight");
+      await page.keyboard.press("End");
+      await expect(
+        page.getByText("Slide 9 of 20", { exact: true }),
+      ).toBeVisible();
+    }
     await expectAccessible(page, "report, architecture slide");
   });
 

@@ -86,6 +86,20 @@ def _unknown_without_reason(document: dict[str, Any]) -> None:
     table["rows"][1]["cells"][4]["reason"] = ""
 
 
+def _as_recorded_unit(document: dict[str, Any]) -> None:
+    _first_quantity(document)["unit"] = "as recorded"
+
+
+def _measured_fixture_run(document: dict[str, Any]) -> None:
+    table = next(b for b in _section(document, "evidence")["blocks"] if b["kind"] == "table")
+    table["rows"][0]["cells"][1]["basis"] = "measured"
+
+
+def _counted_fixture_sample(document: dict[str, Any]) -> None:
+    table = next(b for b in _section(document, "evidence")["blocks"] if b["kind"] == "table")
+    table["rows"][0]["cells"][4]["basis"] = "counted"
+
+
 def _bare_number(document: dict[str, Any]) -> None:
     _section(document, "options")["subtitle"] = "We looked at 4 options."
 
@@ -99,6 +113,9 @@ def _bare_number(document: dict[str, Any]) -> None:
         _estimate_without_estimator,
         _no_value,
         _unknown_without_reason,
+        _as_recorded_unit,
+        _measured_fixture_run,
+        _counted_fixture_sample,
         _bare_number,
     ),
 )

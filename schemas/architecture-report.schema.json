@@ -86,7 +86,7 @@
       "maxLength": 400,
       "pattern": "^(template|[A-Za-z][A-Za-z0-9._:/-]*@[^#\\s]+#(/[^\\s]*)?)$"
     },
-    "text": {"type": "string", "maxLength": 4000},
+    "text": {"type": "string", "maxLength": 12000},
     "input": {
       "type": "object",
       "additionalProperties": false,

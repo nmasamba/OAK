@@ -1434,8 +1434,12 @@ def _write_report_file(path: Path, content: bytes) -> None:
     """Write beside the target, then replace it, so a failed write leaves no half file."""
 
     target = path.expanduser().resolve()
-    temporary = target.with_name(f".{target.name}.oak-tmp")
-    descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    # A fresh, unpredictable name created exclusively: nothing already at a guessable path
+    # (a link planted beside the target) can be written through or truncated.
+    descriptor, name = tempfile.mkstemp(
+        dir=target.parent, prefix=f".{target.name}.", suffix=".oak-tmp"
+    )
+    temporary = Path(name)
     try:
         with os.fdopen(descriptor, "wb") as stream:
             stream.write(content)
@@ -1443,8 +1447,7 @@ def _write_report_file(path: Path, content: bytes) -> None:
             os.fsync(stream.fileno())
         os.replace(temporary, target)
     finally:
-        if temporary.exists():
-            temporary.unlink()
+        temporary.unlink(missing_ok=True)
 
 
 @app.command()

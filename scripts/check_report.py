@@ -75,6 +75,11 @@ def _template_strings(section: dict[str, Any]) -> Iterator[tuple[str, str]]:
             yield f"{where}/items/label", item["label"]
 
 
+# Records whose figures come from a fixture set: an offline evaluation and a fixture
+# component. Their numbers are never "measured" or "counted" in a report.
+SYNTHETIC_SOURCES = ("evaluation-result.", "component.fixture-")
+
+
 def guard_r2_numbers(document: dict[str, Any], label: str) -> list[str]:
     failures = []
     for path, value in _walk(document):
@@ -86,6 +91,15 @@ def guard_r2_numbers(document: dict[str, Any], label: str) -> list[str]:
                 failures.append(f"R2 {label}{path}: a quantity with no value must be unknown")
             if not str(value.get("unit") or "").strip():
                 failures.append(f"R2 {label}{path}: quantity has no unit")
+            elif str(value["unit"]).strip().lower() == "as recorded":
+                failures.append(f"R2 {label}{path}: 'as recorded' is not a unit; say unknown")
+            if str(value.get("source") or "").startswith(SYNTHETIC_SOURCES) and value.get(
+                "basis"
+            ) in {"measured", "counted"}:
+                failures.append(
+                    f"R2 {label}{path}: a figure from a fixture run is labelled "
+                    f"{value['basis']}, not synthetic"
+                )
             if not SOURCE.match(str(value.get("source") or "")):
                 failures.append(f"R2 {label}{path}: quantity has no source")
             estimator = value.get("estimator")

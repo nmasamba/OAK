@@ -43,6 +43,12 @@ CONTENT_WIDTH = PAGE_WIDTH - 2 * MARGIN_X
 BLOCK_GAP = 12.0
 CELL_PAD_X = 5.0
 CELL_PAD_Y = 4.0
+# The tallest single unit: a page's content area less the tallest header (a two-line title,
+# a two-line subtitle and its appendix line) and a table's caption and header row. Anything
+# taller is split into continuing pieces, so no record's text can run off a page.
+UNIT_LIMIT = 280.0
+ELLIPSIS = "..."
+BAR_HEIGHT = 9.0
 
 FONT = palette.FONT
 BOLD = palette.FONT_BOLD
@@ -77,29 +83,55 @@ def text_width(text: str, font: str, size: float) -> float:
 
 
 def wrap(text: str, font: str, size: float, width: float) -> list[str]:
-    """Greedy word wrap; a word wider than the line is broken by characters."""
+    """Greedy word wrap; a word wider than the line is broken by characters.
 
-    words = pdf_text(text).split(" ")
+    The text is made drawable once and each word measured once, so a long record costs
+    time in proportion to its length.
+    """
+
+    space = float(stringWidth(" ", font, size))
     lines: list[str] = []
     current = ""
-    for word in words:
-        candidate = word if not current else f"{current} {word}"
-        if text_width(candidate, font, size) <= width:
-            current = candidate
+    current_width = 0.0
+    for word in pdf_text(text).split(" "):
+        word_width = float(stringWidth(word, font, size))
+        if current and current_width + space + word_width <= width:
+            current, current_width = f"{current} {word}", current_width + space + word_width
+            continue
+        if not current and word_width <= width:
+            current, current_width = word, word_width
             continue
         if current:
             lines.append(current)
-        current = ""
-        while text_width(word, font, size) > width and len(word) > 1:
-            cut = len(word)
-            while cut > 1 and text_width(word[:cut], font, size) > width:
-                cut -= 1
-            lines.append(word[:cut])
-            word = word[cut:]
-        current = word
+        if word_width <= width:
+            current, current_width = word, word_width
+            continue
+        current, current_width = "", 0.0
+        for character in word:
+            character_width = float(stringWidth(character, font, size))
+            if current and current_width + character_width > width:
+                lines.append(current)
+                current, current_width = "", 0.0
+            current, current_width = current + character, current_width + character_width
     if current or not lines:
         lines.append(current)
     return lines
+
+
+def fit(text: str, font: str, size: float, width: float) -> str:
+    """One line of text, shortened with an ellipsis when it is wider than `width`."""
+
+    drawable = pdf_text(text)
+    if stringWidth(drawable, font, size) <= width:
+        return drawable
+    room = width - float(stringWidth(ELLIPSIS, font, size))
+    kept, used = "", 0.0
+    for character in drawable:
+        used += float(stringWidth(character, font, size))
+        if used > room:
+            break
+        kept += character
+    return kept.rstrip() + ELLIPSIS
 
 
 # ----- drawing primitives ----------------------------------------------------------------
@@ -280,6 +312,13 @@ class Line:
 
 def _lines_height(lines: Sequence[Line], leading: float) -> float:
     return len(lines) * leading
+
+
+def _pieces(lines: list[Line], leading: float, reserve: float) -> list[list[Line]]:
+    """Lines cut into runs that each fit one unit, with `reserve` points kept for its frame."""
+
+    per_piece = max(1, int((UNIT_LIMIT - reserve) // leading))
+    return [lines[start : start + per_piece] for start in range(0, len(lines), per_piece)] or [[]]
 
 
 def _draw_lines(ink: Ink, x: float, top: float, lines: Sequence[Line], leading: float) -> None:
@@ -483,20 +522,36 @@ def _table_units(block: dict[str, Any]) -> list[Unit]:
                 else {"type": "text", "text": "", "mark": None}
             )
             cell_lines.append(_marked_lines(cell, width - 2 * CELL_PAD_X, size, display=display))
-        height = max(_lines_height(lines, leading) for lines in cell_lines) + 2 * CELL_PAD_Y
+        # A row taller than one unit continues in pieces; only its last piece is ruled off.
+        per_piece = max(1, int((UNIT_LIMIT - 2 * CELL_PAD_Y) // leading))
+        tallest = max(1, *(len(lines) for lines in cell_lines))
+        for start in range(0, tallest, per_piece):
+            piece = [lines[start : start + per_piece] for lines in cell_lines]
+            last = start + per_piece >= tallest
+            height = max(_lines_height(lines, leading) for lines in piece) + 2 * CELL_PAD_Y
 
-        def draw_row(
-            ink: Ink, top: float, cell_lines: list[list[Line]] = cell_lines, height: float = height
-        ) -> None:
-            x = MARGIN_X
-            for lines, width in zip(cell_lines, widths, strict=True):
-                _draw_lines(ink, x + CELL_PAD_X, top + CELL_PAD_Y, lines, leading)
-                x += width
-            ink.line(
-                MARGIN_X, top + height, MARGIN_X + CONTENT_WIDTH, top + height, palette.RULE, 0.5
-            )
+            def draw_row(
+                ink: Ink,
+                top: float,
+                piece: list[list[Line]] = piece,
+                height: float = height,
+                last: bool = last,
+            ) -> None:
+                x = MARGIN_X
+                for lines, width in zip(piece, widths, strict=True):
+                    _draw_lines(ink, x + CELL_PAD_X, top + CELL_PAD_Y, lines, leading)
+                    x += width
+                if last:
+                    ink.line(
+                        MARGIN_X,
+                        top + height,
+                        MARGIN_X + CONTENT_WIDTH,
+                        top + height,
+                        palette.RULE,
+                        0.5,
+                    )
 
-        units.append(Unit(height=height, draw=draw_row, repeat=header))
+            units.append(Unit(height=height, draw=draw_row, repeat=header))
     return units
 
 
@@ -516,15 +571,22 @@ def _facts_units(
             for t in wrap(str(item["label"]), BOLD, size - 1, label_width)
         ]
         values = _marked_lines(item["value"], value_width, size, colour=colour, muted=muted)
-        height = max(_lines_height(labels, leading), _lines_height(values, leading)) + 4
+        per_piece = max(1, int((UNIT_LIMIT - 4) // leading))
+        for start in range(0, max(len(labels), len(values)), per_piece):
+            label_piece = labels[start : start + per_piece]
+            value_piece = values[start : start + per_piece]
+            height = max(_lines_height(label_piece, leading), _lines_height(value_piece, leading))
 
-        def draw_fact(
-            ink: Ink, top: float, labels: list[Line] = labels, values: list[Line] = values
-        ) -> None:
-            _draw_lines(ink, MARGIN_X, top, labels, leading)
-            _draw_lines(ink, MARGIN_X + label_width + 10, top, values, leading)
+            def draw_fact(
+                ink: Ink,
+                top: float,
+                labels: list[Line] = label_piece,
+                values: list[Line] = value_piece,
+            ) -> None:
+                _draw_lines(ink, MARGIN_X, top, labels, leading)
+                _draw_lines(ink, MARGIN_X + label_width + 10, top, values, leading)
 
-        units.append(Unit(height=height, draw=draw_fact))
+            units.append(Unit(height=height + 4, draw=draw_fact))
     return units
 
 
@@ -534,29 +596,49 @@ def _quote_unit(
     colour: str = palette.INK,
     muted: str = palette.INK_MUTED,
     accent: str = palette.BRASS,
-) -> Unit:
+) -> list[Unit]:
     size = 14.0
     leading = size * 1.3
     width = CONTENT_WIDTH - 24
     label = Line(str(block["label"]), BOLD, 8.5, accent)
     body = [Line(t, ITALIC, size, colour) for t in wrap(f'"{block["text"]}"', ITALIC, size, width)]
     attribution = Line(str(block["attribution"]), FONT, 9, muted)
-    height = 14 + _lines_height(body, leading) + 16
+    pieces = _pieces(body, leading, 30)
+    units: list[Unit] = []
+    for index, piece in enumerate(pieces):
+        first, last = index == 0, index == len(pieces) - 1
+        head = 14 if first else 0
+        height = head + _lines_height(piece, leading) + (16 if last else 4)
 
-    def draw(ink: Ink, top: float) -> None:
-        ink.rect(MARGIN_X, top, 3, height - 4, fill=accent)
-        _draw_lines(ink, MARGIN_X + 14, top, [label], 12)
-        _draw_lines(ink, MARGIN_X + 14, top + 14, body, leading)
-        _draw_lines(
-            ink, MARGIN_X + 14, top + 14 + _lines_height(body, leading) + 2, [attribution], 12
-        )
+        def draw(
+            ink: Ink,
+            top: float,
+            piece: list[Line] = piece,
+            first: bool = first,
+            last: bool = last,
+            head: float = head,
+            height: float = height,
+        ) -> None:
+            ink.rect(MARGIN_X, top, 3, height - 4, fill=accent)
+            if first:
+                _draw_lines(ink, MARGIN_X + 14, top, [label], 12)
+            _draw_lines(ink, MARGIN_X + 14, top + head, piece, leading)
+            if last:
+                _draw_lines(
+                    ink,
+                    MARGIN_X + 14,
+                    top + head + _lines_height(piece, leading) + 2,
+                    [attribution],
+                    12,
+                )
 
-    return Unit(height=height, draw=draw)
+        units.append(Unit(height=height, draw=draw))
+    return units
 
 
 def _callout_unit(
     block: dict[str, Any], *, colour: str = palette.INK, accent: str = palette.BRASS
-) -> Unit:
+) -> list[Unit]:
     size = 16.0
     leading = size * 1.25
     body = [
@@ -564,26 +646,41 @@ def _callout_unit(
         for t in wrap(str(block["text"]), BOLD, size, CONTENT_WIDTH - 14)
     ]
     label = Line(str(block["label"]), BOLD, 8.5, accent)
-    height = 13 + _lines_height(body, leading) + 4
+    units: list[Unit] = []
+    for index, piece in enumerate(_pieces(body, leading, 17)):
+        head = 13 if index == 0 else 0
+        height = head + _lines_height(piece, leading) + 4
 
-    def draw(ink: Ink, top: float) -> None:
-        ink.rect(MARGIN_X, top, 3, height - 4, fill=accent)
-        _draw_lines(ink, MARGIN_X + 12, top, [label], 12)
-        _draw_lines(ink, MARGIN_X + 12, top + 13, body, leading)
+        def draw(
+            ink: Ink,
+            top: float,
+            piece: list[Line] = piece,
+            head: float = head,
+            height: float = height,
+        ) -> None:
+            ink.rect(MARGIN_X, top, 3, height - 4, fill=accent)
+            if head:
+                _draw_lines(ink, MARGIN_X + 12, top, [label], 12)
+            _draw_lines(ink, MARGIN_X + 12, top + head, piece, leading)
 
-    return Unit(height=height, draw=draw)
+        units.append(Unit(height=height, draw=draw))
+    return units
 
 
-def _paragraph_unit(block: dict[str, Any], *, colour: str = palette.INK) -> Unit:
+def _paragraph_unit(block: dict[str, Any], *, colour: str = palette.INK) -> list[Unit]:
     size = 10.5
     leading = size * 1.35
     lines = [
         Line(t, FONT, size, colour) for t in wrap(str(block["text"]), FONT, size, CONTENT_WIDTH)
     ]
-    return Unit(
-        height=_lines_height(lines, leading),
-        draw=lambda ink, top: _draw_lines(ink, MARGIN_X, top, lines, leading),
-    )
+    units: list[Unit] = []
+    for piece in _pieces(lines, leading, 0):
+
+        def draw(ink: Ink, top: float, piece: list[Line] = piece) -> None:
+            _draw_lines(ink, MARGIN_X, top, piece, leading)
+
+        units.append(Unit(height=_lines_height(piece, leading), draw=draw))
+    return units
 
 
 def _commands_unit(block: dict[str, Any]) -> list[Unit]:
@@ -599,18 +696,20 @@ def _commands_unit(block: dict[str, Any]) -> list[Unit]:
     ]
     if not lines:
         lines = [Line("Nothing to run.", FONT, size, palette.INK_MUTED)]
-    box = _lines_height(lines, leading) + 14
+    pieces = _pieces(lines, leading, 14)
+    for index, piece in enumerate(pieces):
+        box = _lines_height(piece, leading) + 14
 
-    def draw(ink: Ink, top: float) -> None:
-        ink.rect(MARGIN_X, top, CONTENT_WIDTH, box, fill=palette.PAPER_SHADE)
-        _draw_lines(ink, MARGIN_X + 12, top + 7, lines, leading)
+        def draw(ink: Ink, top: float, piece: list[Line] = piece, box: float = box) -> None:
+            ink.rect(MARGIN_X, top, CONTENT_WIDTH, box, fill=palette.PAPER_SHADE)
+            _draw_lines(ink, MARGIN_X + 12, top + 7, piece, leading)
 
-    units.append(Unit(height=box, draw=draw, keep_with_next=True))
+        units.append(Unit(height=box, draw=draw, keep_with_next=index == len(pieces) - 1))
     units.append(_caption_unit(str(block["note"])))
     return units
 
 
-def _not_yet_unit(block: dict[str, Any]) -> Unit:
+def _not_yet_unit(block: dict[str, Any]) -> list[Unit]:
     size = 10.0
     leading = size * 1.35
     width = CONTENT_WIDTH - 24
@@ -624,13 +723,16 @@ def _not_yet_unit(block: dict[str, Any]) -> Unit:
             Line(t, MONO, size - 1, palette.INK_MUTED)
             for t in wrap(str(block["hint"]), MONO, size - 1, width)
         ]
-    height = _lines_height(lines, leading) + 14
+    units: list[Unit] = []
+    for piece in _pieces(lines, leading, 14):
+        height = _lines_height(piece, leading) + 14
 
-    def draw(ink: Ink, top: float) -> None:
-        ink.rect(MARGIN_X, top, CONTENT_WIDTH, height, stroke=palette.INK_MUTED, dash=True)
-        _draw_lines(ink, MARGIN_X + 12, top + 7, lines, leading)
+        def draw(ink: Ink, top: float, piece: list[Line] = piece, height: float = height) -> None:
+            ink.rect(MARGIN_X, top, CONTENT_WIDTH, height, stroke=palette.INK_MUTED, dash=True)
+            _draw_lines(ink, MARGIN_X + 12, top + 7, piece, leading)
 
-    return Unit(height=height, draw=draw)
+        units.append(Unit(height=height, draw=draw))
+    return units
 
 
 def _diagram_unit(block: dict[str, Any]) -> Unit:
@@ -705,16 +807,12 @@ def _chart_units(block: dict[str, Any], selected_label: str | None) -> list[Unit
             keep_with_next=True,
         )
     )
-    label_width = 150.0
-    value_width = 150.0
-    track_x = MARGIN_X + label_width
-    track_width = CONTENT_WIDTH - label_width - value_width - 10
-    bar_height = 9.0
-    for series in block["series"]:
-        bars = series["bars"]
+    per_piece = max(1, int((UNIT_LIMIT - 21) // (BAR_HEIGHT + 4)))
+    for whole in block["series"]:
+        every_bar = whole["bars"]
         numbers = [
             float(n)
-            for bar in bars
+            for bar in every_bar
             for n in (
                 bar["value"].get("lower"),
                 bar["value"].get("upper"),
@@ -725,54 +823,71 @@ def _chart_units(block: dict[str, Any], selected_label: str | None) -> list[Unit
         low = min([0.0, *numbers]) if numbers else 0.0
         high = max(numbers) if numbers else 1.0
         span = (high - low) or 1.0
-        height = 15 + len(bars) * (bar_height + 4) + 6
-
-        def draw(
-            ink: Ink,
-            top: float,
-            series: dict[str, Any] = series,
-            bars: list[dict[str, Any]] = bars,
-            low: float = low,
-            span: float = span,
-        ) -> None:
-            ink.text(
-                MARGIN_X, top, f"{series['objective']} ({series['unit']})", BOLD, 9, palette.INK
-            )
-            for index, bar in enumerate(bars):
-                row_top = top + 15 + index * (bar_height + 4)
-                value = bar["value"]
-                ink.text(MARGIN_X + 8, row_top, str(bar["label"]), FONT, 8.5, palette.INK)
-                ink.rect(track_x, row_top + 3, track_width, 3, fill=palette.PAPER_SHADE)
-                lower = (
-                    value.get("lower")
-                    if isinstance(value.get("lower"), (int, float))
-                    else value.get("value")
-                )
-                upper = (
-                    value.get("upper")
-                    if isinstance(value.get("upper"), (int, float))
-                    else value.get("value")
-                )
-                if isinstance(lower, (int, float)) and isinstance(upper, (int, float)):
-                    x1 = track_x + (float(lower) - low) / span * track_width
-                    x2 = track_x + (float(upper) - low) / span * track_width
-                    colour = palette.BRASS if bar["label"] == selected_label else palette.INK_MUTED
-                    ink.rect(x1, row_top + 1, max(x2 - x1, 2.0), bar_height - 2, fill=colour)
-                point = value.get("value")
-                if isinstance(point, (int, float)):
-                    x = track_x + (float(point) - low) / span * track_width
-                    ink.rect(x - 1, row_top - 1, 2, bar_height + 2, fill=palette.INK)
-                ink.text(
-                    track_x + track_width + 10,
-                    row_top,
-                    str(value.get("short") or value.get("text")),
-                    FONT,
-                    8.5,
-                    palette.INK,
-                )
-
-        units.append(Unit(height=height, draw=draw))
+        # Every piece of one series shares its scale, so bars stay comparable across pieces.
+        for start in range(0, max(len(every_bar), 1), per_piece):
+            bars = every_bar[start : start + per_piece]
+            series = {**whole, "objective": whole["objective"] + (" (continued)" if start else "")}
+            units.append(_series_unit(series, bars, low, span, selected_label))
     return units
+
+
+def _series_unit(
+    series: dict[str, Any],
+    bars: list[dict[str, Any]],
+    low: float,
+    span: float,
+    selected_label: str | None,
+) -> Unit:
+    label_width = 150.0
+    value_width = 150.0
+    track_x = MARGIN_X + label_width
+    track_width = CONTENT_WIDTH - label_width - value_width - 10
+    bar_height = BAR_HEIGHT
+    height = 15 + len(bars) * (bar_height + 4) + 6
+
+    def draw(
+        ink: Ink,
+        top: float,
+        series: dict[str, Any] = series,
+        bars: list[dict[str, Any]] = bars,
+        low: float = low,
+        span: float = span,
+    ) -> None:
+        ink.text(MARGIN_X, top, f"{series['objective']} ({series['unit']})", BOLD, 9, palette.INK)
+        for index, bar in enumerate(bars):
+            row_top = top + 15 + index * (bar_height + 4)
+            value = bar["value"]
+            ink.text(MARGIN_X + 8, row_top, str(bar["label"]), FONT, 8.5, palette.INK)
+            ink.rect(track_x, row_top + 3, track_width, 3, fill=palette.PAPER_SHADE)
+            lower = (
+                value.get("lower")
+                if isinstance(value.get("lower"), (int, float))
+                else value.get("value")
+            )
+            upper = (
+                value.get("upper")
+                if isinstance(value.get("upper"), (int, float))
+                else value.get("value")
+            )
+            if isinstance(lower, (int, float)) and isinstance(upper, (int, float)):
+                x1 = track_x + (float(lower) - low) / span * track_width
+                x2 = track_x + (float(upper) - low) / span * track_width
+                colour = palette.BRASS if bar["label"] == selected_label else palette.INK_MUTED
+                ink.rect(x1, row_top + 1, max(x2 - x1, 2.0), bar_height - 2, fill=colour)
+            point = value.get("value")
+            if isinstance(point, (int, float)):
+                x = track_x + (float(point) - low) / span * track_width
+                ink.rect(x - 1, row_top - 1, 2, bar_height + 2, fill=palette.INK)
+            ink.text(
+                track_x + track_width + 10,
+                row_top,
+                str(value.get("short") or value.get("text")),
+                FONT,
+                8.5,
+                palette.INK,
+            )
+
+    return Unit(height=height, draw=draw)
 
 
 def _note_unit(note: dict[str, Any]) -> Unit:
@@ -803,15 +918,15 @@ def _block_units(
     if kind == "table":
         return _table_units(block)
     if kind == "quote":
-        return [_quote_unit(block, colour=colour, muted=muted, accent=accent)]
+        return _quote_unit(block, colour=colour, muted=muted, accent=accent)
     if kind == "callout":
-        return [_callout_unit(block, colour=colour, accent=accent)]
+        return _callout_unit(block, colour=colour, accent=accent)
     if kind == "paragraph":
-        return [_paragraph_unit(block, colour=colour)]
+        return _paragraph_unit(block, colour=colour)
     if kind == "commands":
         return _commands_unit(block)
     if kind == "not_yet":
-        return [_not_yet_unit(block)]
+        return _not_yet_unit(block)
     if kind == "diagram":
         return [_diagram_unit(block)]
     if kind == "chart":
@@ -915,6 +1030,9 @@ def paginate(document: dict[str, Any]) -> list[Page]:
                 if unit.repeat is not None:
                     page.placed.append((top, unit.repeat))
                     top += unit.repeat.height
+            if top + needed > PAGE_HEIGHT - CONTENT_BOTTOM and len(group) > 1:
+                # Too tall to keep together even on a fresh page: let the group break.
+                group, follow = [unit], index
             for item in group:
                 page.placed.append((top, item))
                 top += item.height
@@ -942,8 +1060,13 @@ def _draw_page(ink: Ink, page: Page, number: int, total: int, footer: str) -> No
     for top, unit in page.placed:
         unit.draw(ink, top)
     muted = palette.COVER_MUTED if cover else palette.INK_MUTED
-    footer_text = f"{footer} · page {number} of {total}"
-    ink.text(MARGIN_X, PAGE_HEIGHT - FOOTER_BASELINE, footer_text, FONT, 8, muted)
+    page_text = f"page {number} of {total}"
+    page_width = text_width(page_text, FONT, 8)
+    baseline = PAGE_HEIGHT - FOOTER_BASELINE
+    ink.text(PAGE_WIDTH - MARGIN_X - page_width, baseline, page_text, FONT, 8, muted)
+    ink.text(
+        MARGIN_X, baseline, fit(footer, FONT, 8, CONTENT_WIDTH - page_width - 24), FONT, 8, muted
+    )
 
 
 def _pdf_date(timestamp: str) -> Callable[..., str]:

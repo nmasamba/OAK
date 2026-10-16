@@ -154,6 +154,13 @@ export function ReportPage({ caseId }: { readonly caseId: string }) {
   };
 
   const onSlideKey = (event: KeyboardEvent<HTMLElement>) => {
+    // Inside a table or diagram that scrolls, the keys scroll it rather than turn the page.
+    if (
+      event.target instanceof HTMLElement &&
+      event.target.closest(".table-scroll, .topology-scroll") !== null
+    ) {
+      return;
+    }
     if (event.key === "ArrowRight" || event.key === "PageDown") {
       event.preventDefault();
       go(slide + 1);

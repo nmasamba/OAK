@@ -18,6 +18,7 @@ quoted on their slide under their own label, beside the template text.
 
 from __future__ import annotations
 
+import math
 import re
 from collections import Counter
 from collections.abc import Iterable, Sequence
@@ -92,11 +93,27 @@ UNIT_SUFFIXES = (
     ("_gb", "GB"),
     ("_mb", "MB"),
     ("_ms", "milliseconds"),
+    ("_per_second", "per second"),
     ("_seconds", "seconds"),
     ("_hours", "hours"),
+    ("_months", "months"),
+    ("_percent", "%"),
     ("_watts", "watts"),
     ("_usd", "USD"),
 )
+# Intent fields whose name carries no unit suffix but whose unit the schema fixes.
+FIELD_UNITS = {
+    "concurrency": "concurrent requests",
+    "expected_users": "users",
+    "team_size": "people",
+}
+FIXTURE_COMPONENT_PREFIX = "component.fixture-"
+# The longest record text the report holds (a decision's rationale), and a list item's.
+MAXIMUM_TEXT = 12000
+MAXIMUM_LIST_ITEM = 1000
+SHORTENED = " … (shortened; the full text is in the record named in the source)"
+NO_UNIT = "The record states a number here but no unit."
+NO_NUMBER = "The record holds no number here."
 CONSTRAINT_WORDS = {
     "pass": "pass",
     "fail": "fail",
@@ -169,25 +186,52 @@ def source(document: dict[str, Any], *parts: Any) -> str:
     return f"{document['id']}@{_version_of(document)}#{pointer}"
 
 
+def _clip(text: str, limit: int = MAXIMUM_TEXT) -> str:
+    """Record text that fits the report, shortened visibly rather than silently or not at all."""
+
+    if len(text) <= limit:
+        return text
+    return text[: limit - len(SHORTENED)].rstrip() + SHORTENED
+
+
 def _text(text: str, mark: dict[str, Any] | None = None) -> dict[str, Any]:
-    return {"type": "text", "text": text, "mark": mark}
+    return {"type": "text", "text": _clip(text), "mark": mark}
 
 
 def _list(items: Iterable[str], mark: dict[str, Any] | None = None) -> dict[str, Any]:
-    return {"type": "list", "items": [str(item) for item in items], "mark": mark}
+    return {
+        "type": "list",
+        "items": [_clip(str(item), MAXIMUM_LIST_ITEM) for item in items],
+        "mark": mark,
+    }
+
+
+def _evaluation_fixture(evaluation: dict[str, Any]) -> str | None:
+    """The fixture set an evaluation ran over, when it ran over one."""
+
+    fixture = evaluation.get("fixture_version")
+    if isinstance(fixture, str) and fixture:
+        return fixture
+    limitations = " ".join(str(item) for item in evaluation.get("limitations") or [])
+    return str(evaluation.get("id")) if "synthetic" in limitations.lower() else None
 
 
 def _status(status: str, word: str, reason: str | None = None) -> dict[str, Any]:
-    return {"type": "status", "status": status, "word": word, "reason": reason}
+    return {
+        "type": "status",
+        "status": status,
+        "word": word,
+        "reason": None if reason is None else _clip(reason, MAXIMUM_LIST_ITEM),
+    }
 
 
 def _unknown(reason: str) -> dict[str, Any]:
-    return {"type": "unknown", "reason": reason}
+    return {"type": "unknown", "reason": _clip(reason, MAXIMUM_LIST_ITEM)}
 
 
 def _quantity(
     value: float | int | None,
-    unit: str,
+    unit: str | None,
     basis: str,
     origin: str,
     *,
@@ -195,8 +239,15 @@ def _quantity(
     upper: float | int | None = None,
     confidence: float | None = None,
     estimator: str | None = None,
+    synthetic: bool = False,
 ) -> dict[str, Any]:
-    if estimator is not None and estimator.startswith("fixture-"):
+    """A number with its unit, basis and source; without a number or a unit it is unknown."""
+
+    if not unit:
+        return _unknown(NO_UNIT)
+    if not isinstance(value, (int, float)) or isinstance(value, bool) or not math.isfinite(value):
+        return _unknown(NO_NUMBER)
+    if synthetic or (estimator is not None and estimator.startswith("fixture-")):
         basis = "synthetic estimate"
     short = format_number(value)
     if lower is not None and upper is not None:
@@ -219,8 +270,23 @@ def _quantity(
     }
 
 
-def _count(count: int, singular: str, plural: str, origin: str) -> dict[str, Any]:
-    return _quantity(count, singular if count == 1 else plural, "counted", origin)
+def _count(
+    count: int,
+    singular: str,
+    plural: str,
+    origin: str,
+    *,
+    estimator: str | None = None,
+    synthetic: bool = False,
+) -> dict[str, Any]:
+    return _quantity(
+        count,
+        singular if count == 1 else plural,
+        "counted",
+        origin,
+        estimator=estimator,
+        synthetic=synthetic,
+    )
 
 
 def _fact(label: str, value: dict[str, Any], origin: str) -> dict[str, Any]:
@@ -262,18 +328,18 @@ def _quote(label: str, text: str, attribution: str, origin: str) -> dict[str, An
     return {
         "kind": "quote",
         "label": label,
-        "text": text,
+        "text": _clip(text),
         "attribution": attribution,
         "source": origin,
     }
 
 
 def _callout(label: str, text: str, origin: str) -> dict[str, Any]:
-    return {"kind": "callout", "label": label, "text": text, "source": origin}
+    return {"kind": "callout", "label": label, "text": _clip(text), "source": origin}
 
 
 def _paragraph(text: str, origin: str = TEMPLATE) -> dict[str, Any]:
-    return {"kind": "paragraph", "text": text, "source": origin}
+    return {"kind": "paragraph", "text": _clip(text), "source": origin}
 
 
 def _not_yet(what: str, step: str, hint: str | None) -> dict[str, Any]:
@@ -349,6 +415,16 @@ class _Context:
         others = [candidate for candidate in records.candidates if candidate not in baselines]
         self.ordered = [*baselines, *others]
         self.provenance: dict[str, dict[str, Any]] = dict(self.intent.get("provenance") or {})
+        self.synthetic_estimators = {
+            fixture
+            for fixture in (_evaluation_fixture(item) for item in records.evaluations)
+            if fixture is not None
+        } | {
+            str(objective.get("estimator_ref"))
+            for candidate in records.candidates
+            for objective in candidate.get("objectives") or []
+            if str(objective.get("estimator_ref")).startswith("fixture-")
+        }
 
     def name(self, candidate: dict[str, Any]) -> str:
         return f"{candidate_label(candidate)} ({candidate['id']})"
@@ -385,7 +461,7 @@ class _Context:
         index, objective = found
         return _quantity(
             objective.get("value"),
-            str(objective.get("unit") or "as recorded"),
+            _recorded_unit(objective.get("unit")),
             "estimated",
             source(candidate, "objectives", index),
             lower=objective.get("lower"),
@@ -702,11 +778,21 @@ def _resolve(document: Any, pointer: str) -> Any:
     return current
 
 
-def _unit_for(field_name: str) -> str:
+def _unit_for(field_name: str) -> str | None:
+    if field_name in FIELD_UNITS:
+        return FIELD_UNITS[field_name]
     for suffix, unit in UNIT_SUFFIXES:
         if field_name.endswith(suffix):
             return unit
-    return "as recorded"
+    return None
+
+
+def _recorded_unit(unit: Any) -> str | None:
+    return str(unit) if isinstance(unit, str) and unit.strip() else None
+
+
+def _unit_words(unit: str | None) -> str:
+    return format_unit(unit) if unit else "no unit recorded"
 
 
 def _basis_for(mark: dict[str, Any]) -> str:
@@ -740,11 +826,13 @@ def _asked(ctx: _Context) -> dict[str, Any]:
     rows: list[dict[str, Any]] = []
     open_values = 0
     assumed_values = 0
+    missing_values = 0
     for pointer, label in _ASKED_FIELDS:
         value = _resolve(ctx.intent, pointer)
         if value is None or value == []:
             if pointer.startswith(("/spec/hardware/accelerators", "/spec/hardware/vram_gib")):
                 continue
+            missing_values += 1
             rows.append(
                 _row(
                     [_text(label), _unknown("The brief does not state it."), _text("Not stated")],
@@ -775,6 +863,13 @@ def _asked(ctx: _Context) -> dict[str, Any]:
         title = (
             f"{_capital(count_words(open_values))} values still wait for a person's confirmation"
         )
+    elif assumed_values and missing_values:
+        title = (
+            f"{_capital(count_words(assumed_values))} "
+            f"{'value is' if assumed_values == 1 else 'values are'} assumed and "
+            f"{count_words(missing_values)} {'is' if missing_values == 1 else 'are'} "
+            "not stated in the brief"
+        )
     elif assumed_values == 1:
         title = "One value is assumed; the rest are stated or confirmed"
     elif assumed_values:
@@ -782,6 +877,10 @@ def _asked(ctx: _Context) -> dict[str, Any]:
             f"{_capital(count_words(assumed_values))} values are assumed; "
             "the rest are stated or confirmed"
         )
+    elif missing_values == 1:
+        title = "One value is not stated in the brief"
+    elif missing_values:
+        title = f"{_capital(count_words(missing_values))} values are not stated in the brief"
     else:
         title = "Every value is stated in the brief or confirmed"
     return _section(
@@ -939,7 +1038,7 @@ def _comparison(ctx: _Context) -> dict[str, Any]:
     rows = []
     for name in names:
         bars = []
-        unit = "as recorded"
+        unit: str | None = None
         cells = []
         for candidate in ctx.ordered:
             quantity = ctx.objective_quantity(candidate, name)
@@ -947,7 +1046,7 @@ def _comparison(ctx: _Context) -> dict[str, Any]:
             if quantity["type"] == "quantity":
                 unit = quantity["unit"]
                 bars.append({"label": ctx.label(candidate), "value": quantity})
-        series.append({"objective": OBJECTIVE_NAMES[name], "unit": format_unit(unit), "bars": bars})
+        series.append({"objective": OBJECTIVE_NAMES[name], "unit": _unit_words(unit), "bars": bars})
         found = ctx.objective(ctx.selected, name)
         direction = (found[1].get("direction") if found else None) or "minimize"
         rows.append(
@@ -955,7 +1054,7 @@ def _comparison(ctx: _Context) -> dict[str, Any]:
                 [
                     _text(OBJECTIVE_NAMES[name]),
                     _text(
-                        f"{format_unit(unit)}, "
+                        f"{_unit_words(unit)}, "
                         f"{'lower' if direction == 'minimize' else 'higher'} is better"
                     ),
                     *cells,
@@ -1699,9 +1798,11 @@ def _evidence(ctx: _Context) -> dict[str, Any]:
     if selected_evaluations:
         evaluation = selected_evaluations[-1]
         status_word = str(evaluation.get("status"))
+        # An offline evaluation runs over a fixture set: its figures are synthetic.
+        fixture = _evaluation_fixture(evaluation)
         rows = []
         for index, metric in enumerate(evaluation.get("metrics") or []):
-            unit = str(metric.get("unit") or "as recorded")
+            unit = _recorded_unit(metric.get("unit"))
             result = str(metric.get("result"))
             rows.append(
                 _row(
@@ -1716,6 +1817,8 @@ def _evidence(ctx: _Context) -> dict[str, Any]:
                             unit,
                             "measured",
                             source(evaluation, "metrics", index, "value"),
+                            estimator=fixture,
+                            synthetic=fixture is not None,
                         ),
                         _text(str(metric.get("direction")).replace("_", " ")),
                         _quantity(
@@ -1729,6 +1832,8 @@ def _evidence(ctx: _Context) -> dict[str, Any]:
                             "case",
                             "cases",
                             source(evaluation, "metrics", index, "sample_size"),
+                            estimator=fixture,
+                            synthetic=fixture is not None,
                         ),
                         _status(result if result in {"pass", "fail"} else "unknown", result),
                     ],
@@ -1759,7 +1864,8 @@ def _evidence(ctx: _Context) -> dict[str, Any]:
         for index, row in enumerate(record.get("calibration") or []):
             predicted = row.get("predicted") or {}
             observed = row.get("observed") or {}
-            unit = str(row.get("unit") or predicted.get("unit") or "as recorded")
+            unit = _recorded_unit(row.get("unit")) or _recorded_unit(predicted.get("unit"))
+            estimator = (row.get("estimator") or {}).get("ref")
             observed_value = (
                 _quantity(
                     observed.get("value"),
@@ -1785,7 +1891,8 @@ def _evidence(ctx: _Context) -> dict[str, Any]:
                             source(record, "calibration", index, "predicted"),
                             lower=predicted.get("lower"),
                             upper=predicted.get("upper"),
-                            estimator=(row.get("estimator") or {}).get("ref"),
+                            estimator=estimator,
+                            synthetic=estimator in ctx.synthetic_estimators,
                         ),
                         observed_value,
                     ],
@@ -2232,6 +2339,8 @@ def _appendix_estimates(ctx: _Context) -> dict[str, Any]:
     for key in sorted(ctx.records.components):
         manifest = ctx.records.components[key]
         inputs = (manifest.get("extensions") or {}).get(COMPONENT_OBJECTIVES_EXTENSION) or {}
+        # A fixture component's inputs and measurements are synthetic, not observed.
+        fixture = str(manifest.get("id", "")).startswith(FIXTURE_COMPONENT_PREFIX)
         for name in sorted(inputs):
             component_rows.append(
                 _row(
@@ -2240,9 +2349,11 @@ def _appendix_estimates(ctx: _Context) -> dict[str, Any]:
                         _text(COMPONENT_INPUT_LABELS.get(name, humanise(name))),
                         _quantity(
                             inputs[name],
-                            COMPONENT_INPUT_UNITS.get(name, "as recorded"),
+                            COMPONENT_INPUT_UNITS.get(name),
                             "declared",
                             source(manifest, "extensions", COMPONENT_OBJECTIVES_EXTENSION, name),
+                            estimator=str(manifest.get("id")) if fixture else None,
+                            synthetic=fixture,
                         ),
                         _text("estimator input"),
                         _text("not measured"),
@@ -2263,9 +2374,15 @@ def _appendix_estimates(ctx: _Context) -> dict[str, Any]:
                         ),
                         _quantity(
                             measurement.get("value"),
-                            str(measurement.get("unit") or "as recorded"),
+                            _recorded_unit(measurement.get("unit")),
                             "measured",
                             source(manifest, "measurements", index, "value"),
+                            estimator=(
+                                str(measurement.get("evidence_ref") or manifest.get("id"))
+                                if fixture
+                                else None
+                            ),
+                            synthetic=fixture,
                         ),
                         _text(f"{measurement.get('workload')} on {measurement.get('hardware')}"),
                         _text(

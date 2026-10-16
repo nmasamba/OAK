@@ -20,7 +20,13 @@ import pytest
 
 from oak.adapters.persistence import FileWorkspaceRepository
 from oak.application.report import Narrative, ReportRecords, narrator_facts, report_document
-from oak.application.report.composer import INSTALL_STEPS, MAIN_SECTIONS
+from oak.application.report.composer import (
+    INSTALL_STEPS,
+    MAIN_SECTIONS,
+    NO_UNIT,
+    SHORTENED,
+    _unit_for,
+)
 from oak.application.report.formatting import format_number
 from oak.application.report.records import gather_records
 from oak.application.report.topology import layout_topology
@@ -239,6 +245,70 @@ def test_what_was_asked_marks_every_value_and_names_what_is_missing(
     memory = next(row for row in rows if row["cells"][0]["text"] == "Memory")
     assert memory["cells"][1] == {"type": "unknown", "reason": "The brief does not state it."}
     assert section(changed, "asked")["title"] == "One value still waits for a person's confirmation"
+    unstated = copy.deepcopy(records.intent)
+    unstated["spec"]["hardware"] = {"cpu_architectures": ["x86_64"]}
+    title = section(compose(replace(records, intent=unstated)), "asked")["title"]
+    assert title == "Two values are not stated in the brief"
+
+
+def test_every_numeric_intent_field_has_a_unit() -> None:
+    schema = json.loads((ROOT / "schemas/system-intent.schema.json").read_text())
+    numeric: list[str] = []
+
+    def walk(node: Any, name: str) -> None:
+        if isinstance(node, dict):
+            kinds = node.get("type")
+            kinds = kinds if isinstance(kinds, list) else [kinds]
+            if name and ({"number", "integer"} & set(kinds)):
+                numeric.append(name)
+            for key, child in (node.get("properties") or {}).items():
+                walk(child, key)
+            for key in ("items", "$defs", "definitions"):
+                child = node.get(key)
+                if isinstance(child, dict) and key == "items":
+                    walk(child, name)
+                elif isinstance(child, dict):
+                    for inner in child.values():
+                        walk(inner, "")
+
+    walk(schema, "")
+    assert {"latency_p95_ms", "expected_users", "team_size"} <= set(numeric)
+    assert [name for name in numeric if _unit_for(name) is None] == []
+
+
+def test_a_number_without_a_unit_stays_unknown(reference: dict[str, ReportRecords]) -> None:
+    records = reference["bundle_compiled"]
+    candidates = copy.deepcopy(list(records.candidates))
+    for candidate in candidates:
+        for objective in candidate["objectives"]:
+            if objective["name"] == "latency_p95":
+                objective["unit"] = ""
+    document = compose(replace(records, candidates=tuple(candidates)))
+    table = blocks(document, "comparison", "table")[0]
+    latency = next(row for row in table["rows"] if row["cells"][0]["text"] == "Latency p95")
+    assert latency["cells"][1]["text"] == "no unit recorded, lower is better"
+    assert {cell["reason"] for cell in latency["cells"][2:]} == {NO_UNIT}
+    assert "as recorded" not in json.dumps(document)
+
+
+def test_long_record_text_fits_and_says_it_was_shortened(
+    reference: dict[str, ReportRecords],
+) -> None:
+    records = reference["bundle_compiled"]
+    decision = {**(records.decision or {}), "rationale": "Because. " * 1333 + "End"}
+    assert len(decision["rationale"]) <= 12000
+    document = compose(replace(records, decision=decision))
+    quotes = [block["text"] for block in blocks(document, "recommendation", "quote")]
+    assert decision["rationale"] in quotes
+    candidates = copy.deepcopy(list(records.candidates))
+    candidates[-1]["rejection_reasons"] = ["Too slow. " * 150]
+    reasons = [
+        item
+        for value in strings(compose(replace(records, candidates=tuple(candidates))))
+        for item in [value]
+        if item.endswith(SHORTENED)
+    ]
+    assert reasons and all(len(item) <= 1000 for item in reasons)
 
 
 def test_options_lists_the_baseline_first_and_why_each_lost(
@@ -455,9 +525,11 @@ def test_evidence_shows_metrics_and_waits_for_observations(
     document = compose(records)
     metrics = blocks(document, "evidence", "table")[0]
     citation = metrics["rows"][0]["cells"]
-    assert (citation[1]["value"], citation[1]["basis"]) == (0.99, "measured")
+    # The offline evaluation ran over a fixture set: its value and sample are synthetic.
+    assert (citation[1]["value"], citation[1]["basis"]) == (0.99, "synthetic estimate")
+    assert citation[1]["estimator"] == "public-manual-qa-evaluation-1.0.0"
     assert (citation[3]["value"], citation[3]["unit"]) == (0.98, "proportion")
-    assert citation[4]["text"] == "100 cases"
+    assert (citation[4]["text"], citation[4]["basis"]) == ("100 cases", "synthetic estimate")
     assert blocks(document, "evidence", "not_yet")[0]["step"] == "Install, then observe"
     observation = load_yaml_document(
         (ROOT / "examples/example-observation-record.yaml").read_text()
@@ -571,6 +643,26 @@ def test_appendix_d_groups_each_estimator_once(reference: dict[str, ReportRecord
     assert section(document, "appendix-estimates")["title"] == (
         "Every figure is a synthetic estimate from a fixture estimator"
     )
+
+
+def test_fixture_components_inputs_and_measurements_are_synthetic(
+    reference: dict[str, ReportRecords],
+) -> None:
+    records = reference["bundle_compiled"]
+    inputs = next(
+        table
+        for table in blocks(compose(records), "appendix-estimates", "table")
+        if table["id"] == "component-inputs"
+    )
+    values = [row["cells"][2] for row in inputs["rows"]]
+    assert values and {value["basis"] for value in values} == {"synthetic estimate"}
+    assert all(value["estimator"] for value in values)
+    evaluations = tuple(
+        {**evaluation, "fixture_version": "", "limitations": []}
+        for evaluation in records.evaluations
+    )
+    measured = blocks(compose(replace(records, evaluations=evaluations)), "evidence", "table")[0]
+    assert measured["rows"][0]["cells"][1]["basis"] == "measured"
 
 
 def test_appendix_e_lists_evidence_and_the_snapshot(reference: dict[str, ReportRecords]) -> None:
