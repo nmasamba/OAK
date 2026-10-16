@@ -438,6 +438,9 @@ has the whole journey. The commands an operator meets:
 | `oak approve architecture` | Records the approval of the architecture as compiled. Installs nothing, and `oak approve apply` is refused without it (`OAK-APPROVAL-ARCHITECTURE`) | Local only |
 | `oak observe` | Records an `observation_record` from the runner completions that ingest accepted, and moves the case to `observing`. Proposes and dispatches nothing | Local only |
 
+The browser's **Take it** sheet downloads the same document as `oak architecture`, as
+YAML or JSON, through the read-only `GET /v1/design-cases/{case_id}/architecture`.
+
 An installation is one container per node of the selected candidate, labelled
 `oak.fixture=true`, `oak.case=<case id>` and `oak.node=<node id>`. On a profile that
 acknowledges `isolated-non-production-hardened-start`, those containers keep running until

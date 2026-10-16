@@ -193,7 +193,9 @@ Notes:
   and exposes no standalone operation command.
 - The CLI reads audit events and artifacts through `oak export`, which emits the full
   canonical set; there is no separate audit or artifact command. The web workspace
-  can download a canonical export but cannot import one.
+  downloads the canonical export, each stored artifact (saved only when its SHA-256
+  matches `X-OAK-Artifact-Digest`) and the architecture document, but cannot import an
+  export.
 - `oak validate` is a server-free read-only checker (export, bundle, webhook)
   intended for CI and portals. It checks schema validity, digest integrity, and
   the execution-field ban across all three kinds. For a compiled bundle it

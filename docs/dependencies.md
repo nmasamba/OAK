@@ -96,8 +96,10 @@ IBM Plex Sans and IBM Plex Mono as static `woff2` files that Vite bundles into t
 image and nginx serves same-origin. No stylesheet, font or script is fetched from a CDN or
 from Google Fonts at runtime; guard G1 in `scripts/check_studio_ui.py` fails on any such
 URL in the web source. All three typefaces are under the SIL Open Font License 1.1, which
-permits bundling and redistribution and requires no attribution in the interface; the
-packages declare no install-time build hook, so the pnpm build allowlist is unchanged
+permits bundling and redistribution and requires no attribution in the interface. It
+asks that the copyright notice and the licence travel with the fonts, so the three
+licence texts are committed under `web/public/licenses/` and Vite copies them into every
+built bundle, beside the font files. The packages declare no install-time build hook, so the pnpm build allowlist is unchanged
 (`esbuild` only). Each package is replaceable by editing the seven `@fontsource/...`
 imports at the top of `web/src/main.tsx` and the three `--font-*` tokens in
 `web/src/tokens.css`. Only the weights the design uses are imported (serif 400 and 400
