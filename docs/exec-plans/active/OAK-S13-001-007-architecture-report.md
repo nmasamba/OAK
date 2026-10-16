@@ -290,6 +290,7 @@ artifacts and an unknown extension behind; readers ignore both.
   `sprints.md` and both `STATUS.md` files; branch `sprint-13-architecture-report` from
   `6142270`; this plan.
 - [x] 2026-10-16 M1: `architecture-report` and `report-narrative` schemas `0.1.0` with examples, registered in `EXAMPLE_BY_SCHEMA` and `schemas/README.md`. The kinds `architecture_report` and `report_narrative` (JSON) and `report_rendering` (bytes, PPTX or PDF magic only) are registered in both adapters and the manifest enum, with `report_recorded` and the `oak.community/report` export-lineage check. `lxml`, `PIL`, `pptx` and `reportlab` are forbidden outside adapters. Tests: `tests/contract/test_report_contract.py` (9); `make validate`, all contract tests, the reference digests and mypy are green.
+- [x] 2026-10-16 M2: `oak.application.report`. The pure `report_document` has twenty section builders, each with its "Not yet" state, and `gather_records` reads every record through the repository port by digest. Also: the Python variant-label map, provenance words and install steps, held equal to the web's by `tests/contract/test_report_agreement.py`; the topology port; the web's three-significant-digit number format; `narrator_facts`, which redacts digests. The vocabulary patterns moved to `oak.domain.vocabulary`. `scripts/check_report.py` (R1–R4) is in `make validate` and composes the reference report live at `candidate_selected`, `assurance_planned` and `bundle_compiled`. The golden is `tests/fixtures/report/public-manual-qa.report.json`, and the example is generated from it. Tests: `test_report_composer.py` (53), `test_report_guards.py` (17 planted violations), `test_report_agreement.py` (3). Live composer mutations for R1, R2 and R3 were all killed. 848 unit and contract tests are green.
 
 ## Decisions
 
@@ -309,6 +310,13 @@ artifacts and an unknown extension behind; readers ignore both.
   recorded as a residual risk.
 - 2026-10-16 **The vocabulary patterns move to `oak.domain.vocabulary`** so the runtime note
   check and the repository check share one definition.
+- 2026-10-16 **`SchemaRegistry.validate` meta-checks each schema once and reuses its
+  validator.** It ran `check_schema` on every call, which took almost all of a report's
+  record reads (46 s for the guard, 4.7 s after). The schemas are fixed for the registry's
+  life, so the answer cannot change. Every other path through the registry gets faster too.
+- 2026-10-16 **The print palette landed in M2 rather than M3**, so R4 could join
+  `make validate` with the other guards. It is a small module of colours and pairs; the
+  renderers that draw with it follow in M3.
 
 ## Discoveries
 
@@ -322,6 +330,7 @@ artifacts and an unknown extension behind; readers ignore both.
 sentences without a source; boundaries touched.)
 
 - **M1.** (1) No pinned name changed; no UI was touched. (2) The schema makes every number a `quantity` with a unit, basis and source, and every cell carry a source; a contract test proves a quantity without them is refused. (3) Boundaries were tightened only: the document libraries are now forbidden in the domain, compiler, ports, application and runner.
+- **M2.** (1) No pinned name changed. The report reuses the web's words through a contract-tested mirror (Balanced, Baseline, the provenance words and the six install steps). (2) Every number is a quantity, with R2 and the schema enforcing it. Template counts are words. Every sentence the composer writes is either fixed template text or a record value with its pointer, and the golden holds no unsourced cell. (3) No boundary moved. The composer is pure and reads through the repository port; the shown-to-a-model facts exclude digests and appendices.
 
 ## Retro
 

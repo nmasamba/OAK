@@ -60,6 +60,10 @@ class SchemaRegistry:
                 raise ValueError("every canonical schema must have a non-empty $id")
             resources.append((schema_id, Resource.from_contents(schema)))
         self._registry = Registry().with_resources(resources)
+        # Each schema is meta-validated once, on first use, and its validator reused: the
+        # schemas are fixed for the registry's life, so checking them on every call only
+        # repeated the same answer (it was most of the time a report's record reads took).
+        self._validators: dict[str, Any] = {}
 
     @classmethod
     def from_directory(cls, directory: Path) -> "SchemaRegistry":
@@ -82,10 +86,13 @@ class SchemaRegistry:
             raise KeyError(f"unknown canonical schema: {name}") from error
 
     def validate(self, name: str, instance: Any) -> None:
-        schema = self.schema(name)
-        validator_class = validator_for(schema)
-        validator_class.check_schema(schema)
-        validator = validator_class(schema, registry=self._registry)
+        validator = self._validators.get(name)
+        if validator is None:
+            schema = self.schema(name)
+            validator_class = validator_for(schema)
+            validator_class.check_schema(schema)
+            validator = validator_class(schema, registry=self._registry)
+            self._validators[name] = validator
         errors = sorted(validator.iter_errors(instance), key=lambda item: list(item.absolute_path))
         if errors:
             raise self._error(name, errors[0])
