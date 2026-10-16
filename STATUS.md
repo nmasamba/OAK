@@ -139,12 +139,12 @@
 | `OAK-S12-005` | complete | One-tap downloads: stored artifacts fetched raw and saved only when their sha256 equals `X-OAK-Artifact-Digest`, the drawn topology serialised to SVG, the downloads sheet, and the read-only `GET /v1/design-cases/{case_id}/architecture?candidate_id=&format=json\|yaml` composed in the shared control-plane service (integration-tested, listed as unreleased in the compatibility gate) |
 | `OAK-S12-006` | complete | Decision, operation and settings pages on the tokens and primitives with every pinned string kept; `make web-e2e` green on a fresh throwaway stack; the 11 manual screenshots captured after that one run, captions rewritten, PDF rebuilt |
 | `OAK-S12-007` | complete | Docs sweep in both repositories, the closing review (three finders, one refute-by-default skeptic) with its survivors fixed, `make check` green once, PR #34 open for the owner's merge; no tag, no release |
-| `OAK-S13-001` | in progress | The owner's six kickoff answers (2026-10-16), branch `sprint-13-architecture-report` from `origin/main` (`6142270`), the ExecPlan, Sprint 13 registered in governance, tasks claimed, the throwaway stack on 18080/15174 and a green baseline |
-| `OAK-S13-002` | claimed | The `architecture-report` contract, the kind, `report_recorded`, and the pure composer with a "Not yet" state for every section |
-| `OAK-S13-003` | claimed | PPTX and PDF renderers behind one port, byte-stable across processes, with the dependency review |
-| `OAK-S13-004` | claimed | `record-report` through the shared service, REST, CLI and OpenAPI, with the opt-in model note (K3) |
-| `OAK-S13-005` | claimed | The Report screen, its download chips and the Report tiles |
-| `OAK-S13-006` | claimed | Docs, the twelfth screenshot and the manual |
+| `OAK-S13-001` | complete | The owner's six kickoff answers (2026-10-16), branch `sprint-13-architecture-report` from `origin/main` (`6142270`), the ExecPlan, Sprint 13 registered in governance, tasks claimed, the throwaway stack on 18080/15174 and a green baseline |
+| `OAK-S13-002` | complete | `architecture-report` and `report-narrative` schemas, the three kinds, `report_recorded`, and the pure composer: twenty sections each with a "Not yet" state, quantities with unit, basis and source, and the report guards R1–R4 in `make validate` (`d3fee4c`, `67ca147`) |
+| `OAK-S13-003` | complete | The PDF renderer behind `ReportRendererPort` (`reportlab` 5.0.1), byte-stable across processes, with the layout agreement test against `web/src/topology.ts`. The PPTX was deferred by the owner after `python-pptx` failed the maintenance review (`770d941`) |
+| `OAK-S13-004` | complete | `ReportService.record`, `POST /v1/design-cases/{case_id}:record-report` (unreleased), `oak report` locally and with `--server`, and the opt-in narrator, whose checked notes are labelled "Proposed by model" (`dd78cfb`) |
+| `OAK-S13-005` | complete | `/cases/:caseId/report` with keyboard paging, the record keycap and notes chooser, the stale notice, PDF and JSON downloads that read "digest matches", the rail link and the Report tiles; `report.spec.ts` green (`255c90f`) |
+| `OAK-S13-006` | in progress | Docs written (manual section and twelfth figure, README, interfaces, architecture, compatibility, dependencies, platforms, threat coverage, `RR-044`–`RR-047`, CHANGELOG); screenshots and the manual PDF follow the full browser suite |
 | `OAK-S13-007` | claimed | The closing review, the full gates and a pull request with CI green |
 | `OAK-S11-009` | complete | `0.9.0` cut after the Sprint 11 merge, at the owner's instruction: version touch-list, `0.9.0` changelog section, image scan from a clean tree, release build and verification, clean-room rehearsal, `docs/release/0.9.0/release-decision.md` with its evidence filled, the `v0.9.0` tag on `ff7d4df` (the merge commit of #31), the owner's three signatures on 2026-10-01, and the GitHub Release published that day from the verified `release.yml` artifacts |
 
@@ -352,7 +352,7 @@
   generated inventory now shows LGPL-3.0 Psycopg as the only copyleft entry.
 - Security review produced `docs/security/threat-coverage.md`,
   `docs/security/residual-risk.md` (38 entries at the `0.7.0` release, each with a stable id;
-  now 43 stable-id entries) and `SECURITY.md`. At Sprint 8 the
+  now 47 stable-id entries) and `SECURITY.md`. At Sprint 8 the
   coverage index mapped all nineteen threat ids then defined to tests (8 direct, 9 partial,
   2 structural, 0 uncovered, every cited test verified to exist); it now maps twenty
   (10 direct, 9 partial, 1 structural). **No

@@ -83,6 +83,14 @@ mechanical migration; **breaking** otherwise.
   optional and deprecated, and the compiler refuses a profile that still declares them
   (`OAK-TARGET-EXECUTION`). For producers of mutation profiles that is a tightening,
   recorded in the changelog.
+- Sprint 13 added the `report_recorded` audit event, the `architecture_report`,
+  `report_narrative` and `report_rendering` artifact kinds in
+  `workspace-manifest.schema.json`, the case extension `oak.community/report`, and the new
+  `architecture-report.schema.json` and `report-narrative.schema.json` at `0.1.0`. All are
+  additive. A workspace that never recorded a report exports nothing a `0.9.0` reader cannot
+  validate, and an export that holds a report cannot be imported by `0.9.0`.
+  `report_rendering` is the second kind stored as bytes, beside `brief_source`, and is
+  accepted only as a PDF.
 - `model-configuration.schema.json` (Sprint 9) has never been published, so Sprint 10
   changed it in place at `0.1.0`: the `family` enum shrank to `huggingface` and `local`,
   `selection` became one entry per family, `verification` was added, and provider routes
@@ -130,7 +138,13 @@ mechanical migration; **breaking** otherwise.
   `X-OAK-Model-Token` (Sprint 9) is required only on the model-configuration routes it was
   introduced with and on `:interpret` when the request asks for `online` or `local`; it is
   never a required parameter of a pre-existing operation, and an `:interpret` that names no
-  interpreter never needs it.
+  interpreter never needs it. The same holds for `:record-report` (Sprint 13), which needs
+  it only when `narrative` is `online` or `local`.
+- Sprint 13 adds `POST /v1/design-cases/{case_id}:record-report` with the `NarrativeMode`
+  and `ReportResponse` schemas, listed as unreleased in
+  `tests/unit/test_openapi_compatibility.py` until the next release rewrites the baseline.
+  It changes no existing operation. The report's files are served by the existing artifact
+  read.
 - The loopback guard (Sprint 9) — `Host` allowlist, `Origin` and `Sec-Fetch-Site` checks —
   runs as middleware before routing. It adds no parameter to the OpenAPI contract and is
   therefore outside this baseline; its behaviour is documented in
@@ -166,6 +180,11 @@ mechanical migration; **breaking** otherwise.
   records this as breaking. `oak approve` and `oak dispatch` now derive their default
   idempotency keys from the case version, so a renewed approval or a deliberate re-apply
   is a new request.
+- Sprint 13 adds `oak report` (`--record`, `--narrative`, `--format json|pdf`,
+  `--output`, `--case`, `--idempotency-key`). It is not local-only. Exit `2` with
+  `OAK-REPORT-MISSING` when nothing is recorded, `OAK-REPORT-OUTPUT` when a PDF is
+  requested without `--output`, and `OAK-REPORT-STATE` before `candidate_selected`. It
+  changes no existing command.
 
 ## MCP
 

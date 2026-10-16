@@ -80,6 +80,14 @@ answers questions from a set of public technical manuals and cites the passage i
    architecture, one of the install) and the runner's own checks, which is deliberately
    hard to skip. If the design is all you want, `oak architecture` prints it, and you can
    stop there.
+7. **OAK writes it up.** Once a design is chosen, `oak report --record` (or **Record
+   report** on the Report screen) composes the **architecture report**: a slide-by-slide
+   decision document covering what was asked, the options and why each lost, the
+   recommendation with your own reasons quoted, cost beside the simpler baseline, risks,
+   security, governance and the evidence so far. Every figure carries its unit and
+   source, and a part that doesn't exist yet says "Not yet". It's kept in the case and
+   downloads as a PDF. No AI writes it unless you ask, and then the AI's notes are
+   labelled as such.
 
 <details>
 <summary><strong>New to the jargon?</strong> A few words you'll meet below</summary>
@@ -331,6 +339,9 @@ the old image, which is why checking `/version` is a good habit.
 **Command line.** Each case is a folder. `cd` into it and carry on where you left off, for
 example with `uv run oak questions`. Two more things are worth making habits:
 
+- **To take the decision away as a document**, run `uv run oak report --record --format pdf
+  --output ../report.pdf` once a design is selected. Later runs without `--record` read
+  the same report back, and say so if the case has moved on since.
 - **To back a case up or move it**, run `uv run oak export --output ../backup` inside the
   case folder. To bring it back, run `uv run oak import ../backup --directory ../restored`.
 - **To update**, run `git pull && uv sync --frozen`. Export your cases first.

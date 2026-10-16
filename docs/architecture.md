@@ -55,6 +55,16 @@ and a stale `If-Match` surfaces as a visible conflict-recovery path. The additiv
 same repository port in both persistence adapters; neither read surface grants transition
 authority.
 
+The architecture report (Sprint 13) is composed by a pure function in
+`oak.application.report` from the case's own records, rendered to PDF by the
+`oak.adapters.report` adapter behind `ReportRendererPort`, and recorded by
+`ReportService` as immutable artifacts. Recording revises the case at its own status and
+appends a `report_recorded` event, and nothing in approval, dispatch or the runner reads
+what it writes. The workspace's Report screen reads the recorded document and offers its
+files through the same digest-checked artifact read; `recordReport` is the one mutation
+it adds. An opt-in model mode adds labelled notes through `ReportNarratorPort`, reached
+only when a user picks it for one recording.
+
 The local CLI calls shared `DesignCaseService` and `CandidatePlanningService` application operations. The interface maps arguments and output only; application services own orchestration through intake, catalogue, target-profile, and workspace ports. The deterministic compiler maps explicit facts, records inferences and unknowns with scalar provenance, validates catalogue eligibility, expands provider-neutral patterns, rejects hard-constraint failures and unknowns, estimates visible objective ranges, computes the Pareto frontier, evaluates the public fixture, and compiles a draft typed plan.
 
 The bounded MCP server (`oak.interfaces.mcp`) and the CLI's remote (`--server`) mode are additional transports onto the same `CommunityControlPlane`. MCP speaks newline-delimited JSON-RPC 2.0 over stdio with a size-bounded frame reader, exposes exactly the ten interface-contract tools plus a read-only `oak_operation_get` progress query with closed typed schemas that mirror the REST request bounds, and binds actor/tenant with the same denial semantics as REST. It has no generic command, file, secret, policy-override, approval, signing, revocation, or runner-dispatch tool, and a contract test pins the registry to the documented capability matrix. Remote CLI mode maps only commands that have a REST surface, digest-verifies every document it writes locally against the case's canonical references, and refuses every local-only command (init, serve, mcp serve, keys, models, sign, approve, revoke-approval, dispatch, ingest, observe, gitops, policy, render, extensions and validate) with `OAK-REMOTE-UNSUPPORTED`. `oak architecture` is not local-only: in remote mode it reads the case and its artifacts through the existing REST reads. `interface_origin` (`cli`, `api`, `mcp`, `web`, `portal`, `import`) is audit metadata and never authority; interface conformance is verified by running one fixture across file CLI, remote CLI, REST, and MCP and comparing canonical digests, denial codes, and audit lineage. See [interfaces.md](interfaces.md) and [compatibility.md](compatibility.md).
