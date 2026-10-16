@@ -1,0 +1,474 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://oak.example/schemas/architecture-report.schema.json",
+  "title": "ArchitectureReport",
+  "description": "A decision report about one design case, composed only from the case's own records by a deterministic template. Every number is a quantity with its unit, basis and source; every cell and fact names the record it came from; a section whose record does not exist yet says so. A report authorizes nothing: no approval, dispatch or runner check reads it. Notes a model proposed, when the user chose a model mode, are kept beside the template text under their own label and never replace it.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "id",
+    "version",
+    "case_ref",
+    "case_status",
+    "generated_at",
+    "generated_by",
+    "oak_version",
+    "composer_version",
+    "renderer",
+    "narrative",
+    "sections",
+    "inputs",
+    "extensions"
+  ],
+  "properties": {
+    "schema_version": {"const": "0.1.0"},
+    "id": {"$ref": "common.schema.json#/$defs/identifier"},
+    "version": {"$ref": "common.schema.json#/$defs/semver"},
+    "case_ref": {"$ref": "common.schema.json#/$defs/artifactRef"},
+    "case_status": {
+      "enum": [
+        "candidate_selected",
+        "assurance_planned",
+        "bundle_compiled",
+        "deployment_approved",
+        "deployed",
+        "observing"
+      ]
+    },
+    "generated_at": {"type": "string", "format": "date-time"},
+    "generated_by": {"type": "string", "minLength": 1, "maxLength": 160},
+    "oak_version": {"type": "string", "minLength": 1, "maxLength": 80},
+    "composer_version": {"type": "string", "minLength": 1, "maxLength": 80},
+    "renderer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version", "libraries"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1, "maxLength": 80},
+        "version": {"type": "string", "minLength": 1, "maxLength": 80},
+        "libraries": {
+          "type": "object",
+          "additionalProperties": {"type": "string", "minLength": 1, "maxLength": 80}
+        }
+      }
+    },
+    "narrative": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "narrative_ref", "label", "model"],
+      "properties": {
+        "mode": {"enum": ["deterministic", "online", "local"]},
+        "narrative_ref": {
+          "anyOf": [{"$ref": "common.schema.json#/$defs/artifactRef"}, {"type": "null"}]
+        },
+        "label": {"type": ["string", "null"], "maxLength": 80},
+        "model": {"type": ["string", "null"], "maxLength": 240}
+      }
+    },
+    "sections": {
+      "type": "array",
+      "minItems": 20,
+      "maxItems": 20,
+      "items": {"$ref": "#/$defs/section"}
+    },
+    "inputs": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/input"}
+    },
+    "extensions": {"$ref": "common.schema.json#/$defs/extensions"}
+  },
+  "$defs": {
+    "source": {
+      "description": "\"template\" for fixed report text, or \"<artifact id>@<version>#<JSON pointer>\" for a value read from a record.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 400,
+      "pattern": "^(template|[A-Za-z][A-Za-z0-9._:/-]*@[^#\\s]+#(/[^\\s]*)?)$"
+    },
+    "text": {"type": "string", "maxLength": 4000},
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "id", "version", "digest", "media_type"],
+      "properties": {
+        "kind": {"type": "string", "minLength": 1, "maxLength": 80},
+        "id": {"$ref": "common.schema.json#/$defs/identifier"},
+        "version": {"type": "string", "minLength": 1, "maxLength": 80},
+        "digest": {"$ref": "common.schema.json#/$defs/digest"},
+        "media_type": {"type": "string", "minLength": 1, "maxLength": 160}
+      }
+    },
+    "section": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "number",
+        "kind",
+        "title",
+        "subtitle",
+        "state",
+        "detail_in",
+        "blocks",
+        "note"
+      ],
+      "properties": {
+        "id": {
+          "enum": [
+            "cover",
+            "method",
+            "asked",
+            "options",
+            "risks",
+            "comparison",
+            "recommendation",
+            "cost",
+            "architecture",
+            "security",
+            "governance",
+            "evidence",
+            "sensitivity",
+            "next-steps",
+            "appendix-assumptions",
+            "appendix-candidates",
+            "appendix-controls",
+            "appendix-estimates",
+            "appendix-evidence",
+            "appendix-record"
+          ]
+        },
+        "number": {"enum": ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "A", "B", "C", "D", "E", "F"]},
+        "kind": {"enum": ["main", "appendix"]},
+        "title": {"type": "string", "minLength": 1, "maxLength": 200},
+        "subtitle": {"type": "string", "minLength": 1, "maxLength": 300},
+        "state": {"enum": ["ready", "partial", "not_yet"]},
+        "detail_in": {
+          "type": "array",
+          "items": {"enum": ["A", "B", "C", "D", "E", "F"]},
+          "uniqueItems": true
+        },
+        "blocks": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/block"}},
+        "note": {"anyOf": [{"$ref": "#/$defs/note"}, {"type": "null"}]}
+      }
+    },
+    "note": {
+      "description": "A note a model proposed for this slide, kept only after the checks the narrative record lists.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["text", "label", "model", "source"],
+      "properties": {
+        "text": {"type": "string", "minLength": 1, "maxLength": 280},
+        "label": {"const": "Proposed by model"},
+        "model": {"type": "string", "minLength": 1, "maxLength": 240},
+        "source": {"$ref": "#/$defs/source"}
+      }
+    },
+    "block": {
+      "oneOf": [
+        {"$ref": "#/$defs/factsBlock"},
+        {"$ref": "#/$defs/tableBlock"},
+        {"$ref": "#/$defs/quoteBlock"},
+        {"$ref": "#/$defs/calloutBlock"},
+        {"$ref": "#/$defs/paragraphBlock"},
+        {"$ref": "#/$defs/diagramBlock"},
+        {"$ref": "#/$defs/chartBlock"},
+        {"$ref": "#/$defs/commandsBlock"},
+        {"$ref": "#/$defs/notYetBlock"}
+      ]
+    },
+    "factsBlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "heading", "items"],
+      "properties": {
+        "kind": {"const": "facts"},
+        "heading": {"type": ["string", "null"], "maxLength": 200},
+        "items": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["label", "value", "source"],
+            "properties": {
+              "label": {"type": "string", "minLength": 1, "maxLength": 200},
+              "value": {"$ref": "#/$defs/value"},
+              "source": {"$ref": "#/$defs/source"}
+            }
+          }
+        }
+      }
+    },
+    "tableBlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "id", "heading", "caption", "columns", "rows"],
+      "properties": {
+        "kind": {"const": "table"},
+        "id": {"type": "string", "pattern": "^[a-z][a-z0-9-]{0,62}$"},
+        "heading": {"type": ["string", "null"], "maxLength": 200},
+        "caption": {"type": "string", "minLength": 1, "maxLength": 300},
+        "columns": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 9,
+          "items": {"type": "string", "minLength": 1, "maxLength": 80}
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["cells", "source"],
+            "properties": {
+              "cells": {"type": "array", "minItems": 1, "maxItems": 9, "items": {"$ref": "#/$defs/value"}},
+              "source": {"$ref": "#/$defs/source"}
+            }
+          }
+        }
+      }
+    },
+    "quoteBlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "label", "text", "attribution", "source"],
+      "properties": {
+        "kind": {"const": "quote"},
+        "label": {"type": "string", "minLength": 1, "maxLength": 120},
+        "text": {"$ref": "#/$defs/text"},
+        "attribution": {"type": "string", "minLength": 1, "maxLength": 300},
+        "source": {"$ref": "#/$defs/source"}
+      }
+    },
+    "calloutBlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "label", "text", "source"],
+      "properties": {
+        "kind": {"const": "callout"},
+        "label": {"type": "string", "minLength": 1, "maxLength": 120},
+        "text": {"$ref": "#/$defs/text"},
+        "source": {"$ref": "#/$defs/source"}
+      }
+    },
+    "paragraphBlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "text", "source"],
+      "properties": {
+        "kind": {"const": "paragraph"},
+        "text": {"$ref": "#/$defs/text"},
+        "source": {"$ref": "#/$defs/source"}
+      }
+    },
+    "diagramBlock": {
+      "description": "The candidate's topology laid out exactly as the web workspace lays it out. Coordinates are layout units, not report figures; the table named by table_id lists the same nodes and edges.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "heading", "description", "width", "height", "nodes", "edges", "table_id", "source"],
+      "properties": {
+        "kind": {"const": "diagram"},
+        "heading": {"type": ["string", "null"], "maxLength": 200},
+        "description": {"type": "string", "minLength": 1, "maxLength": 2000},
+        "width": {"type": "number", "minimum": 0},
+        "height": {"type": "number", "minimum": 0},
+        "nodes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "role", "component", "x", "y"],
+            "properties": {
+              "id": {"type": "string", "minLength": 1, "maxLength": 160},
+              "role": {"type": "string", "minLength": 1, "maxLength": 300},
+              "component": {"type": ["string", "null"], "maxLength": 300},
+              "x": {"type": "number"},
+              "y": {"type": "number"}
+            }
+          }
+        },
+        "edges": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["from", "to", "label", "x1", "y1", "x2", "y2"],
+            "properties": {
+              "from": {"type": "string", "minLength": 1, "maxLength": 160},
+              "to": {"type": "string", "minLength": 1, "maxLength": 160},
+              "label": {"type": "string", "maxLength": 300},
+              "x1": {"type": "number"},
+              "y1": {"type": "number"},
+              "x2": {"type": "number"},
+              "y2": {"type": "number"}
+            }
+          }
+        },
+        "table_id": {"type": "string", "pattern": "^[a-z][a-z0-9-]{0,62}$"},
+        "source": {"$ref": "#/$defs/source"}
+      }
+    },
+    "chartBlock": {
+      "description": "Range bars for one objective across candidates, on one shared scale. The table named by table_id carries the same numbers.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "heading", "description", "series", "table_id", "source"],
+      "properties": {
+        "kind": {"const": "chart"},
+        "heading": {"type": ["string", "null"], "maxLength": 200},
+        "description": {"type": "string", "minLength": 1, "maxLength": 2000},
+        "series": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["objective", "unit", "bars"],
+            "properties": {
+              "objective": {"type": "string", "minLength": 1, "maxLength": 120},
+              "unit": {"type": "string", "minLength": 1, "maxLength": 120},
+              "bars": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["label", "value"],
+                  "properties": {
+                    "label": {"type": "string", "minLength": 1, "maxLength": 120},
+                    "value": {"$ref": "#/$defs/quantity"}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "table_id": {"type": "string", "pattern": "^[a-z][a-z0-9-]{0,62}$"},
+        "source": {"$ref": "#/$defs/source"}
+      }
+    },
+    "commandsBlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "heading", "lines", "note", "source"],
+      "properties": {
+        "kind": {"const": "commands"},
+        "heading": {"type": ["string", "null"], "maxLength": 200},
+        "lines": {"type": "array", "items": {"type": "string", "minLength": 1, "maxLength": 300}},
+        "note": {"type": "string", "minLength": 1, "maxLength": 300},
+        "source": {"$ref": "#/$defs/source"}
+      }
+    },
+    "notYetBlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "what", "step", "hint", "source"],
+      "properties": {
+        "kind": {"const": "not_yet"},
+        "what": {"type": "string", "minLength": 1, "maxLength": 200},
+        "step": {"type": "string", "minLength": 1, "maxLength": 200},
+        "hint": {"description": "What a person runs next, shown as text; the report runs nothing.", "type": ["string", "null"], "maxLength": 300},
+        "source": {"$ref": "#/$defs/source"}
+      }
+    },
+    "value": {
+      "oneOf": [
+        {"$ref": "#/$defs/textValue"},
+        {"$ref": "#/$defs/quantity"},
+        {"$ref": "#/$defs/statusValue"},
+        {"$ref": "#/$defs/unknownValue"},
+        {"$ref": "#/$defs/listValue"}
+      ]
+    },
+    "mark": {
+      "description": "Where a value came from, as the provenance class the intent records, and whether a person confirmed it.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["class", "status", "word", "confidence"],
+      "properties": {
+        "class": {"enum": ["explicit", "inferred_from_brief", "domain_default", "policy", "measured", "unknown", "user_correction", "model_proposed"]},
+        "status": {"enum": ["confirmed", "stated", "assumed", "open"]},
+        "word": {"type": "string", "minLength": 1, "maxLength": 80},
+        "confidence": {"type": ["number", "null"], "minimum": 0, "maximum": 1}
+      }
+    },
+    "textValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "text", "mark"],
+      "properties": {
+        "type": {"const": "text"},
+        "text": {"$ref": "#/$defs/text"},
+        "mark": {"anyOf": [{"$ref": "#/$defs/mark"}, {"type": "null"}]}
+      }
+    },
+    "listValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "items", "mark"],
+      "properties": {
+        "type": {"const": "list"},
+        "items": {"type": "array", "items": {"type": "string", "maxLength": 1000}},
+        "mark": {"anyOf": [{"$ref": "#/$defs/mark"}, {"type": "null"}]}
+      }
+    },
+    "quantity": {
+      "description": "A number with its unit, range, basis and source. A fixture estimator's number is a synthetic estimate.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "value", "lower", "upper", "unit", "basis", "confidence", "estimator", "source", "text"],
+      "properties": {
+        "type": {"const": "quantity"},
+        "value": {"type": ["number", "null"]},
+        "lower": {"type": ["number", "null"]},
+        "upper": {"type": ["number", "null"]},
+        "unit": {"type": "string", "minLength": 1, "maxLength": 120},
+        "basis": {"enum": ["confirmed", "assumed", "estimated", "measured", "synthetic estimate", "counted", "declared"]},
+        "confidence": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+        "estimator": {"type": ["string", "null"], "maxLength": 160},
+        "source": {"$ref": "#/$defs/source"},
+        "text": {"type": "string", "minLength": 1, "maxLength": 300}
+      }
+    },
+    "statusValue": {
+      "description": "A status is a shape and a word, never a colour alone.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "status", "word", "reason"],
+      "properties": {
+        "type": {"const": "status"},
+        "status": {
+          "enum": [
+            "pass",
+            "fail",
+            "unknown",
+            "not_applicable",
+            "clear",
+            "blocked",
+            "required",
+            "satisfied",
+            "current",
+            "absent",
+            "expired",
+            "revoked",
+            "selected",
+            "frontier",
+            "dominated",
+            "infeasible"
+          ]
+        },
+        "word": {"type": "string", "minLength": 1, "maxLength": 80},
+        "reason": {"type": ["string", "null"], "maxLength": 1000}
+      }
+    },
+    "unknownValue": {
+      "description": "unknown stays unknown, with its reason.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "reason"],
+      "properties": {
+        "type": {"const": "unknown"},
+        "reason": {"type": "string", "minLength": 1, "maxLength": 1000}
+      }
+    }
+  }
+}

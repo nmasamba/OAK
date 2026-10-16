@@ -1,0 +1,432 @@
+# SPDX-License-Identifier: Apache-2.0
+# Illustrative architecture report: the structure of all twenty sections, with every block
+# kind once. The report OAK composes for the reference case is the golden file
+# tests/fixtures/report/public-manual-qa.report.json. Non-production example.
+case_ref:
+  digest: sha256:1111111111111111111111111111111111111111111111111111111111111111
+  id: design-case.example
+  media_type: application/vnd.oak.design-case+json
+  uri: null
+  version: 0.1.4
+case_status: candidate_selected
+composer_version: oak-report-composer-1.0.0
+extensions: {}
+generated_at: '2026-08-18T12:00:00Z'
+generated_by: local-user
+id: report.example.from-0.1.4
+inputs:
+- digest: sha256:1111111111111111111111111111111111111111111111111111111111111111
+  id: design-case.example
+  kind: design_case
+  media_type: application/vnd.oak.design-case+json
+  version: 0.1.4
+narrative:
+  label: null
+  mode: deterministic
+  model: null
+  narrative_ref: null
+oak_version: 0.9.0
+renderer:
+  libraries:
+    python-pptx: 1.0.2
+    reportlab: 4.4.4
+  name: oak-report-renderer
+  version: 1.0.0
+schema_version: 0.1.0
+sections:
+- blocks:
+  - heading: null
+    items:
+    - label: Prepared for
+      source: intent.example@0.1.1#/spec/stakeholders/end_users
+      value:
+        items:
+        - internal engineering users
+        mark:
+          class: explicit
+          confidence: 1.0
+          status: assumed
+          word: From the brief
+        type: list
+    - label: Prepared by
+      source: template
+      value:
+        mark: null
+        text: local-user
+        type: text
+    kind: facts
+  - kind: callout
+    label: Recommended
+    source: candidate-03@0.1.0#/id
+    text: Balanced (candidate-03)
+  - attribution: local-user, 2026-08-18
+    kind: quote
+    label: The owner's rationale
+    source: decision.candidate-03@0.1.0#/rationale
+    text: balanced
+  detail_in: []
+  id: cover
+  kind: main
+  note: null
+  number: '1'
+  state: ready
+  subtitle: Recommendation and the baseline beside it.
+  title: Balanced recommended for an example case
+- blocks:
+  - hint: oak report --record
+    kind: not_yet
+    source: template
+    step: Record a report from a real case
+    what: This part of the example
+  detail_in: []
+  id: method
+  kind: main
+  note: null
+  number: '2'
+  state: not_yet
+  subtitle: The example shows the structure only.
+  title: Not yet recorded in this example
+- blocks:
+  - hint: oak report --record
+    kind: not_yet
+    source: template
+    step: Record a report from a real case
+    what: This part of the example
+  detail_in: []
+  id: asked
+  kind: main
+  note: null
+  number: '3'
+  state: not_yet
+  subtitle: The example shows the structure only.
+  title: Not yet recorded in this example
+- blocks:
+  - hint: oak report --record
+    kind: not_yet
+    source: template
+    step: Record a report from a real case
+    what: This part of the example
+  detail_in: []
+  id: options
+  kind: main
+  note: null
+  number: '4'
+  state: not_yet
+  subtitle: The example shows the structure only.
+  title: Not yet recorded in this example
+- blocks:
+  - hint: oak report --record
+    kind: not_yet
+    source: template
+    step: Record a report from a real case
+    what: This part of the example
+  detail_in: []
+  id: risks
+  kind: main
+  note: null
+  number: '5'
+  state: not_yet
+  subtitle: The example shows the structure only.
+  title: Not yet recorded in this example
+- blocks:
+  - description: Monthly cost range for each option on one scale; the table lists the same numbers.
+    heading: null
+    kind: chart
+    series:
+    - bars:
+      - label: Balanced
+        value: &id001
+          basis: synthetic estimate
+          confidence: 0.7
+          estimator: fixture-cost-1.0.0
+          lower: 32.4
+          source: candidate-03@0.1.0#/objectives/0
+          text: 36 USD/month (32.4 to 39.6)
+          type: quantity
+          unit: USD/month
+          upper: 39.6
+          value: 36.0
+      objective: Monthly cost
+      unit: USD/month
+    source: candidate-03@0.1.0#/objectives
+    table_id: objectives
+  - caption: Objectives by option
+    columns:
+    - Option
+    - Monthly cost
+    - Frontier
+    heading: null
+    id: objectives
+    kind: table
+    rows:
+    - cells:
+      - mark: null
+        text: Balanced
+        type: text
+      - *id001
+      - reason: null
+        status: frontier
+        type: status
+        word: On the frontier
+      source: candidate-03@0.1.0#/objectives
+  detail_in:
+  - B
+  id: comparison
+  kind: main
+  note: null
+  number: '6'
+  state: ready
+  subtitle: Point, range, unit, estimator and confidence for each objective.
+  title: Balanced sits on the frontier beside the baseline
+- blocks:
+  - hint: oak report --record
+    kind: not_yet
+    source: template
+    step: Record a report from a real case
+    what: This part of the example
+  detail_in: []
+  id: recommendation
+  kind: main
+  note: null
+  number: '7'
+  state: not_yet
+  subtitle: The example shows the structure only.
+  title: Not yet recorded in this example
+- blocks:
+  - hint: oak report --record
+    kind: not_yet
+    source: template
+    step: Record a report from a real case
+    what: This part of the example
+  detail_in: []
+  id: cost
+  kind: main
+  note: null
+  number: '8'
+  state: not_yet
+  subtitle: The example shows the structure only.
+  title: Not yet recorded in this example
+- blocks:
+  - description: Deterministic cited passage retrieval feeds Bounded cited-answer drafting over Local
+      HTTP. The table lists the same.
+    edges:
+    - from: node.retrieval
+      label: Local HTTP
+      to: node.generation
+      x1: 224
+      x2: 320
+      y1: 60
+      y2: 60
+    heading: null
+    height: 120
+    kind: diagram
+    nodes:
+    - component: component.fixture-lexical-search@1.0.0
+      id: node.retrieval
+      role: Deterministic cited passage retrieval
+      x: 24
+      y: 24
+    - component: component.fixture-local-model@1.0.0
+      id: node.generation
+      role: Bounded cited-answer drafting
+      x: 320
+      y: 24
+    source: candidate-03@0.1.0#/topology
+    table_id: topology
+    width: 544
+  - caption: Nodes and edges
+    columns:
+    - From
+    - To
+    - Interface
+    heading: null
+    id: topology
+    kind: table
+    rows:
+    - cells:
+      - mark: null
+        text: node.retrieval
+        type: text
+      - mark: null
+        text: node.generation
+        type: text
+      - mark: null
+        text: Local HTTP
+        type: text
+      source: candidate-03@0.1.0#/topology/edges/0
+  - hint: oak plan candidate-03 --target <profile>
+    kind: not_yet
+    source: template
+    step: Compile the bundle
+    what: The compiled target
+  detail_in: []
+  id: architecture
+  kind: main
+  note: null
+  number: '9'
+  state: partial
+  subtitle: Nodes and edges drawn as in the workspace; the table lists the same.
+  title: Two local nodes, retrieval feeding drafting
+- blocks:
+  - hint: oak report --record
+    kind: not_yet
+    source: template
+    step: Record a report from a real case
+    what: This part of the example
+  detail_in: []
+  id: security
+  kind: main
+  note: null
+  number: '10'
+  state: not_yet
+  subtitle: The example shows the structure only.
+  title: Not yet recorded in this example
+- blocks:
+  - hint: oak report --record
+    kind: not_yet
+    source: template
+    step: Record a report from a real case
+    what: This part of the example
+  detail_in: []
+  id: governance
+  kind: main
+  note: null
+  number: '11'
+  state: not_yet
+  subtitle: The example shows the structure only.
+  title: Not yet recorded in this example
+- blocks:
+  - hint: oak report --record
+    kind: not_yet
+    source: template
+    step: Record a report from a real case
+    what: This part of the example
+  detail_in: []
+  id: evidence
+  kind: main
+  note: null
+  number: '12'
+  state: not_yet
+  subtitle: The example shows the structure only.
+  title: Not yet recorded in this example
+- blocks:
+  - hint: oak report --record
+    kind: not_yet
+    source: template
+    step: Record a report from a real case
+    what: This part of the example
+  detail_in: []
+  id: sensitivity
+  kind: main
+  note: null
+  number: '13'
+  state: not_yet
+  subtitle: The example shows the structure only.
+  title: Not yet recorded in this example
+- blocks:
+  - kind: paragraph
+    source: design-case.example@0.1.4#/status
+    text: The case is at candidate selected.
+  - heading: null
+    kind: commands
+    lines:
+    - oak assure candidate-03
+    - oak plan candidate-03 --target <profile>
+    note: Text only. The report runs nothing.
+    source: template
+  detail_in: []
+  id: next-steps
+  kind: main
+  note: null
+  number: '14'
+  state: ready
+  subtitle: Read from the case status; the commands run only in your terminal.
+  title: Assurance, a bundle and two approvals stand before installing
+- blocks:
+  - heading: null
+    items:
+    - label: /spec/domain/setting
+      source: intent.example@0.1.1#/provenance
+      value:
+        reason: The brief does not state it and no one confirmed a value.
+        type: unknown
+    kind: facts
+  detail_in: []
+  id: appendix-assumptions
+  kind: appendix
+  note: null
+  number: A
+  state: ready
+  subtitle: Field, value, class, status, who and when.
+  title: One value the brief did not state
+- blocks:
+  - hint: oak report --record
+    kind: not_yet
+    source: template
+    step: Record a report from a real case
+    what: This part of the example
+  detail_in: []
+  id: appendix-candidates
+  kind: appendix
+  note: null
+  number: B
+  state: not_yet
+  subtitle: The example shows the structure only.
+  title: Not yet recorded in this example
+- blocks:
+  - hint: oak report --record
+    kind: not_yet
+    source: template
+    step: Record a report from a real case
+    what: This part of the example
+  detail_in: []
+  id: appendix-controls
+  kind: appendix
+  note: null
+  number: C
+  state: not_yet
+  subtitle: The example shows the structure only.
+  title: Not yet recorded in this example
+- blocks:
+  - hint: oak report --record
+    kind: not_yet
+    source: template
+    step: Record a report from a real case
+    what: This part of the example
+  detail_in: []
+  id: appendix-estimates
+  kind: appendix
+  note: null
+  number: D
+  state: not_yet
+  subtitle: The example shows the structure only.
+  title: Not yet recorded in this example
+- blocks:
+  - hint: oak report --record
+    kind: not_yet
+    source: template
+    step: Record a report from a real case
+    what: This part of the example
+  detail_in: []
+  id: appendix-evidence
+  kind: appendix
+  note: null
+  number: E
+  state: not_yet
+  subtitle: The example shows the structure only.
+  title: Not yet recorded in this example
+- blocks:
+  - hint: oak report --record
+    kind: not_yet
+    source: template
+    step: Record a report from a real case
+    what: This part of the example
+  detail_in: []
+  id: appendix-record
+  kind: appendix
+  note: null
+  number: F
+  state: not_yet
+  subtitle: The example shows the structure only.
+  title: Not yet recorded in this example
+version: 0.1.0

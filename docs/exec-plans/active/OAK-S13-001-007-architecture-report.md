@@ -289,6 +289,7 @@ artifacts and an unknown extension behind; readers ignore both.
 - [x] 2026-10-16 M0: the six answers and the K3 follow-up recorded; Sprint 13 registered in
   `sprints.md` and both `STATUS.md` files; branch `sprint-13-architecture-report` from
   `6142270`; this plan.
+- [x] 2026-10-16 M1: `architecture-report` and `report-narrative` schemas `0.1.0` with examples, registered in `EXAMPLE_BY_SCHEMA` and `schemas/README.md`. The kinds `architecture_report` and `report_narrative` (JSON) and `report_rendering` (bytes, PPTX or PDF magic only) are registered in both adapters and the manifest enum, with `report_recorded` and the `oak.community/report` export-lineage check. `lxml`, `PIL`, `pptx` and `reportlab` are forbidden outside adapters. Tests: `tests/contract/test_report_contract.py` (9); `make validate`, all contract tests, the reference digests and mypy are green.
 
 ## Decisions
 
@@ -313,10 +314,14 @@ artifacts and an unknown extension behind; readers ignore both.
 
 (Each line: symptom → cause → fix, written before the fix.)
 
+- 2026-10-16 M1, spec pin. `test_no_committed_schema_permits_execution_fields` failed. Cause: the "Not yet" block named a field `command`, and no committed schema may name an execution field outside a denial. Fix: rename it `hint`. It is display text, and the name should not suggest otherwise.
+
 ## Self-review
 
 (Three answers per milestone: pinned names changed without their spec; numbers or
 sentences without a source; boundaries touched.)
+
+- **M1.** (1) No pinned name changed; no UI was touched. (2) The schema makes every number a `quantity` with a unit, basis and source, and every cell carry a source; a contract test proves a quantity without them is refused. (3) Boundaries were tightened only: the document libraries are now forbidden in the domain, compiler, ports, application and runner.
 
 ## Retro
 

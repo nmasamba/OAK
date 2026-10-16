@@ -15,6 +15,7 @@ from typing import Any
 from oak.contracts import SchemaRegistry, load_json_document
 from oak.domain import OAKError
 from oak.domain.artifacts import Artifact, ArtifactReference, canonical_json_bytes, content_digest
+from oak.domain.report import RENDERING_KIND, RENDERING_MAGIC, REPORT_EXTENSION
 from oak.ports.workspace import WorkspaceCommit, WorkspaceMutation
 
 OBJECT_DIGEST = re.compile(r"^sha256:([a-f0-9]{64})$")
@@ -43,6 +44,8 @@ KIND_SCHEMA = {
     "policy_pack": "policy-pack.schema.json",
     "policy_decision": "policy-decision.schema.json",
     "interpretation_proposal": "interpretation-proposal.schema.json",
+    "architecture_report": "architecture-report.schema.json",
+    "report_narrative": "report-narrative.schema.json",
 }
 JSON_MEDIA_KIND = {
     "application/vnd.oak.source-record+json": "source_record",
@@ -68,8 +71,27 @@ JSON_MEDIA_KIND = {
     "application/vnd.oak.policy-pack+json": "policy_pack",
     "application/vnd.oak.policy-decision+json": "policy_decision",
     "application/vnd.oak.interpretation-proposal+json": "interpretation_proposal",
+    "application/vnd.oak.architecture-report+json": "architecture_report",
+    "application/vnd.oak.report-narrative+json": "report_narrative",
 }
+# Kinds stored as opaque bytes: no schema, never parsed as JSON. The brief is kept as the
+# user supplied it; a report rendering is accepted only as a PPTX or PDF that starts with
+# its format's header.
+OPAQUE_KINDS = frozenset({"brief_source", RENDERING_KIND})
 ReplaceFile = Callable[[Path, Path], None]
+
+
+def validate_opaque_artifact(artifact: Artifact) -> None:
+    """Accept an artifact without a schema only if its kind is one stored as bytes."""
+
+    if artifact.kind not in OPAQUE_KINDS:
+        raise OAKError("OAK-ARTIFACT-KIND", "artifact kind is not supported")
+    if artifact.kind == RENDERING_KIND:
+        magic = RENDERING_MAGIC.get(artifact.media_type)
+        if magic is None or not artifact.content.startswith(magic):
+            raise OAKError(
+                "OAK-ARTIFACT-INVALID", "a report rendering must be a PPTX or a PDF document"
+            )
 
 
 def _replace_path(source: Path, destination: Path) -> None:
@@ -378,8 +400,7 @@ class FileWorkspaceRepository:
     def _validate_artifact(self, artifact: Artifact) -> None:
         schema_name = KIND_SCHEMA.get(artifact.kind)
         if schema_name is None:
-            if artifact.kind != "brief_source":
-                raise OAKError("OAK-ARTIFACT-KIND", "artifact kind is not supported")
+            validate_opaque_artifact(artifact)
             return
         try:
             document = json.loads(artifact.content)
@@ -635,6 +656,17 @@ class FileWorkspaceRepository:
             ):
                 for nested_reference in extension_refs.get(key, []):
                     self._require_indexed_reference(indexed, nested_reference, kind)
+            report = extension_refs.get(REPORT_EXTENSION)
+            if isinstance(report, dict):
+                for field, kind in (
+                    ("document_ref", "architecture_report"),
+                    ("pptx_ref", RENDERING_KIND),
+                    ("pdf_ref", RENDERING_KIND),
+                    ("narrative_ref", "report_narrative"),
+                ):
+                    nested_reference = report.get(field)
+                    if nested_reference is not None:
+                        self._require_indexed_reference(indexed, nested_reference, kind)
 
         for record in manifest["idempotency_records"]:
             event_reference = record["event_ref"]
