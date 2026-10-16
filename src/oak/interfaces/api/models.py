@@ -106,6 +106,15 @@ class AssuranceResponse(StrictResponse):
     duplicate: bool
 
 
+class ReportResponse(StrictResponse):
+    """The case revised with its report, the report's references, and the report itself."""
+
+    case: dict[str, Any]
+    report: dict[str, Any]
+    document: dict[str, Any]
+    duplicate: bool
+
+
 class OperationResponse(StrictResponse):
     operation_id: str
     workspace_id: str

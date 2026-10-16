@@ -9,6 +9,8 @@ changing the port.
 
 from typing import Any, Protocol
 
+from oak.ports.interpreter import ProposalLimits
+
 
 class ReportRendererPort(Protocol):
     def identity(self) -> dict[str, Any]:
@@ -20,3 +22,14 @@ class ReportRendererPort(Protocol):
         ...
 
     def render(self, document: dict[str, Any], media_type: str) -> bytes: ...
+
+
+class ReportNarratorPort(Protocol):
+    """One bounded request for notes on a report's main slides, in a model mode only.
+
+    It receives the slides' own words (`narrator_facts`) and returns
+    `{"notes": [{"section", "text"}], "extensions": {"oak.community/model": {...}}}`:
+    untrusted proposal data, which the application checks note by note before it keeps any.
+    """
+
+    def propose(self, facts: dict[str, Any], limits: ProposalLimits) -> dict[str, Any]: ...

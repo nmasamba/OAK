@@ -58,6 +58,26 @@ def build_reference_case(tmp_path: Path, stop: str = "bundle_compiled") -> Path:
     return workspace
 
 
+def build_case_with_candidates(tmp_path: Path) -> Path:
+    """The reference case at `candidates_ready`: one step too early for a report."""
+
+    stamp = FIXED_CLOCK
+    workspace = tmp_path / "workspace"
+    design = create_design_case_service(workspace)
+    design.initialize(workspace_id="workspace.fixture", tenant_id="local", created_at=stamp)
+    design.design(
+        ROOT / "examples/briefs/public-manual-qa.yaml",
+        _context(stamp, "harness-design-000001", None),
+    )
+    answers = load_yaml_document(
+        (ROOT / "examples/briefs/public-manual-qa-answers.yaml").read_text(encoding="utf-8")
+    )
+    design.confirm(answers, _context(stamp, "harness-confirm-000001", "0.1.1"))
+    planning = create_candidate_planning_service(workspace)
+    planning.candidates(_context(stamp, "harness-candidates-000001", "0.1.2"))
+    return workspace
+
+
 def compose_reference(workspace: Path, **overrides: Any) -> dict[str, Any]:
     """The report the composer makes from the workspace's current case."""
 

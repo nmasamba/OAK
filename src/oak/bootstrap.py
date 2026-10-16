@@ -44,6 +44,7 @@ from oak.application import (
     OperationWorker,
     PolicyService,
     ReleaseService,
+    ReportService,
     SystemInformationService,
 )
 from oak.application.design_case import ModelInterpreterFactory
@@ -59,6 +60,7 @@ from oak.domain.extension_sdk import (
 from oak.ports.interpreter import ModelInterpreterPort, ProposalLimits
 from oak.ports.policy import PolicyEnginePort
 from oak.ports.readiness import ReadinessProbe
+from oak.ports.report import ReportNarratorPort, ReportRendererPort
 
 SUPPORTED_SCHEMA_VERSIONS = ("0.3.0", "0.4.0")
 
@@ -394,13 +396,11 @@ class _VerdictRecordingInterpreter:
             raise
 
 
-def create_model_interpreter(mode: str) -> ModelInterpreterPort | None:
-    """The adapter for one model mode, or ``None`` when that mode has nothing to call.
+def _model_route(mode: str) -> tuple[ModelConfigurationService, str, str, str | None] | None:
+    """The configuration, family, model and provider route one model mode calls, or ``None``.
 
-    ``None`` makes the service refuse with ``OAK-MODEL-NOT-CONFIGURED`` and commit nothing.
-    ``online`` calls the Hugging Face pair the user pinned, else the preferred one discovery
-    recorded; ``local`` calls the model pinned for the loopback server. Nothing is imported
-    from the provider modules, and no socket is opened, until one of them is asked for.
+    ``online`` is the Hugging Face pair the user pinned, else the preferred one discovery
+    recorded; ``local`` is the model pinned for the loopback server.
     """
 
     if mode not in {"online", "local"}:
@@ -423,6 +423,21 @@ def create_model_interpreter(mode: str) -> ModelInterpreterPort | None:
             # reason, never called on the off chance: only structured-output routes are sent.
             raise OAKError("OAK-MODEL-ROUTE", str(pair["reason"]))
         family, model_id, route = "huggingface", str(pair["model_id"]), pair.get("provider_route")
+    return configuration, family, model_id, route
+
+
+def create_model_interpreter(mode: str) -> ModelInterpreterPort | None:
+    """The adapter for one model mode, or ``None`` when that mode has nothing to call.
+
+    ``None`` makes the service refuse with ``OAK-MODEL-NOT-CONFIGURED`` and commit nothing.
+    Nothing is imported from the provider modules, and no socket is opened, until one of
+    them is asked for.
+    """
+
+    chosen = _model_route(mode)
+    if chosen is None:
+        return None
+    configuration, family, model_id, route = chosen
     from oak.adapters.models.hosted_interpreter import HostedModelInterpreter, build_path_hints
     from oak.adapters.models.providers import profile_for
 
@@ -437,6 +452,50 @@ def create_model_interpreter(mode: str) -> ModelInterpreterPort | None:
         path_hints=build_path_hints(registry.schema("system-intent.schema.json")),
     )
     return _VerdictRecordingInterpreter(adapter, configuration, family)
+
+
+def create_report_narrator(mode: str) -> ReportNarratorPort | None:
+    """The note proposer for one model mode, or ``None`` when that mode has nothing to call.
+
+    The same model the user configured for interpretation, asked once per recording for
+    notes on the report's main slides. A deterministic recording never reaches here.
+    """
+
+    chosen = _model_route(mode)
+    if chosen is None:
+        return None
+    configuration, family, model_id, route = chosen
+    from oak.adapters.models.providers import profile_for
+    from oak.adapters.models.report_narrator import HostedReportNarrator
+
+    profile = profile_for(family, local_endpoint=os.getenv("OAK_MODEL_ENDPOINT_LOCAL"))
+    return HostedReportNarrator(
+        profile,
+        model_id,
+        provider_route=route,
+        credential_provider=lambda: configuration.credential_for(family),
+        transport=_model_transport(profile),
+    )
+
+
+def create_report_renderer() -> ReportRendererPort:
+    """The PDF renderer; imported here so a command that draws nothing never loads it."""
+
+    from oak.adapters.report import PdfReportRenderer
+
+    return PdfReportRenderer()
+
+
+def create_report_service(workspace: Path) -> ReportService:
+    registry = SchemaRegistry.from_directory(canonical_schema_directory())
+    return ReportService(
+        FileWorkspaceRepository(workspace, registry),
+        registry,
+        create_report_renderer(),
+        oak_version=__version__,
+        narrator_factory=create_report_narrator,
+        proposal_limits=model_proposal_limits(),
+    )
 
 
 def _choose_route(listed: dict[str, Any] | None, policy: str) -> str | None:
@@ -742,6 +801,9 @@ def create_persistent_control_plane() -> CommunityControlPlane:
         case_directory_factory,
         model_interpreter_factory=create_model_interpreter,
         proposal_limits=model_proposal_limits(),
+        report_renderer=create_report_renderer(),
+        report_narrator_factory=create_report_narrator,
+        oak_version=__version__,
     )
 
 

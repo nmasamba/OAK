@@ -85,9 +85,13 @@ ALLOWED_NETWORK_IMPORTERS = frozenset(
 # change to what OAK can send a brief to, so it is listed rather than globbed.
 DOCUMENTED_MODEL_ADAPTERS = (
     "fake_interpreter.py",
+    "fake_narrator.py",
     "hosted_interpreter.py",
     "huggingface_catalogue.py",
     "providers.py",
+    # Sprint 13: in a model mode chosen per recording, the report's main-slide text is
+    # sent to the same configured model for labelled notes (threat-coverage TM-13).
+    "report_narrator.py",
     "transport.py",
 )
 
@@ -99,6 +103,7 @@ HOSTED_MODEL_MODULES = (
     "oak.adapters.models.providers",
     "oak.adapters.models.hosted_interpreter",
     "oak.adapters.models.huggingface_catalogue",
+    "oak.adapters.models.report_narrator",
 )
 
 pytestmark = pytest.mark.integration
@@ -350,3 +355,47 @@ def test_the_deterministic_journey_never_imports_a_hosted_model_module() -> None
     for module in HOSTED_MODEL_MODULES:
         assert module not in loaded, f"the deterministic journey imported {module}"
     assert "interpretation_proposal" not in reported["kinds"]
+
+
+def test_a_deterministic_report_never_imports_a_hosted_model_module() -> None:
+    """Recording the report without a model mode loads no provider module at all.
+
+    The report's model mode is opt-in per recording; the default composes and renders
+    with no model. A fresh interpreter records the reference report and lists what it
+    loaded, as the deterministic journey's own check does.
+    """
+
+    program = "\n".join(
+        (
+            "import json, sys, tempfile, pathlib",
+            f"sys.path.insert(0, {str(ROOT)!r})",
+            "from tests.report_support import build_reference_case",
+            "from oak.application import CommandContext",
+            "from oak.bootstrap import create_report_service",
+            "with tempfile.TemporaryDirectory() as directory:",
+            "    workspace = build_reference_case(pathlib.Path(directory), 'bundle_compiled')",
+            "    context = CommandContext(actor='local-user', tenant_id='local',",
+            "        idempotency_key='offline-report-000001', expected_version='0.1.7',",
+            "        correlation_id='correlation-offline-report', interface_origin='cli',",
+            "        occurred_at='2026-08-18T13:00:00Z')",
+            "    create_report_service(workspace).record(context)",
+            "    manifest = json.loads(",
+            "        (workspace / '.oak' / 'manifest.json').read_text('utf-8')",
+            "    )",
+            "    kinds = sorted({entry['kind'] for entry in manifest['artifact_index']})",
+            "modules = sorted(n for n in sys.modules if n.startswith('oak.'))",
+            "print(json.dumps({'modules': modules, 'kinds': kinds}))",
+        )
+    )
+    completed = subprocess.run(
+        [sys.executable, "-c", program], capture_output=True, text=True, cwd=ROOT, check=False
+    )
+    assert completed.returncode == 0, completed.stderr[-3000:]
+    reported = json.loads(completed.stdout.splitlines()[-1])
+    loaded = set(reported["modules"])
+    assert {"architecture_report", "report_rendering"} <= set(reported["kinds"])
+    assert "report_narrative" not in reported["kinds"]
+    assert "oak.adapters.report.pdf" in loaded
+    assert "oak.adapters.models.fake_narrator" not in loaded
+    for module in HOSTED_MODEL_MODULES:
+        assert module not in loaded, f"a deterministic report imported {module}"

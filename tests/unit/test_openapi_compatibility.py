@@ -21,8 +21,15 @@ ROOT = Path(__file__).resolve().parents[2]
 # Sprint 12 (`OAK-S12-005`, 2026-10-15): the chosen architecture as one downloadable
 # document, read-only and composed at request time. Its `format` query parameter is an
 # enum, which FastAPI publishes as a component schema.
-UNRELEASED_OPERATIONS: frozenset[str] = frozenset({"GET /v1/design-cases/{case_id}/architecture"})
-UNRELEASED_SCHEMAS: frozenset[str] = frozenset({"ArchitectureFormat"})
+UNRELEASED_OPERATIONS: frozenset[str] = frozenset(
+    {
+        "GET /v1/design-cases/{case_id}/architecture",
+        "POST /v1/design-cases/{case_id}:record-report",
+    }
+)
+UNRELEASED_SCHEMAS: frozenset[str] = frozenset(
+    {"ArchitectureFormat", "NarrativeMode", "ReportResponse"}
+)
 
 # Operations that shipped after Sprint 3 and that the baseline did not guard until it was
 # refreshed from the `0.8.0` contract: the case list and the audit trail, published in
