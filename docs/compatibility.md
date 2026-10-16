@@ -116,6 +116,9 @@ mechanical migration; **breaking** otherwise.
   `GET /v1/models` returns `modes` and `selections` in place of `configured` and
   `selection`. They first shipped in `0.8.0` and carry compatibility debt from that release
   on, exactly as `oak models` does below.
+- Sprint 12 adds `GET /v1/design-cases/{case_id}/architecture` and its `ArchitectureFormat`
+  query enum. Both are listed as unreleased until the next release rewrites the baseline,
+  and carry no compatibility promise before then.
 - Until the baseline was refreshed after `0.9.0` was cut, it still held its Sprint 3
   contents. It did not guard the eight `/v1/models` operations. Nor did it guard two
   operations `0.7.1` published: the case list (`GET /v1/design-cases`) and the audit

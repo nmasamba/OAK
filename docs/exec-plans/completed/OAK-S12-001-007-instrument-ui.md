@@ -13,8 +13,8 @@ Execution is on branch `sprint-12-instrument-ui`, branched from `origin/main` at
 
 - Owner/agent: owner-directed coding agent
 - Started: 2026-10-15
-- Last updated: 2026-10-15 (M8: docs sweep, closing review, gate, PR)
-- State: complete (PR #34 open for the owner's merge)
+- Last updated: 2026-10-16 (merged as PR #34, `6142270`, on 2026-10-15; a documentation coherence pass followed on the merged tree)
+- State: complete
 - Claimed tasks: `OAK-S12-001`–`OAK-S12-007`
 
 One plan covers seven task IDs because every task changes the same web source tree and is

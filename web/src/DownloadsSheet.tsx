@@ -343,7 +343,7 @@ export function DownloadsSheet({
           <Keycap
             icon="download"
             onClick={onEverything}
-            title="The whole case, in the layout oak import reads"
+            title="The whole case as one JSON file, as the REST import reads it"
           >
             Everything
           </Keycap>

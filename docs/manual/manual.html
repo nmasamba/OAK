@@ -431,6 +431,29 @@ uv run oak import ../case-export --directory ../restored
   <figure><img src="assets/09-bundle.png" alt="The architecture with its topology and dock"><figcaption>The architecture: the topology drawn and tabled, prediction chips, and the dock with three install lights and <em>Copy install steps</em>, which copies commands and runs nothing. Plan, approval and apply stay separated, and apply is marked unavailable here: the web surface holds no runner execution authority.</figcaption></figure>
   <figure><img src="assets/10-timeline.png" alt="Audit timeline"><figcaption>The audit timeline: every recorded event from <em>case_created</em> to <em>bundle_compiled</em>, each with its sequence number, actor, interface origin, case version and timestamp — and downloadable as a canonical JSON export.</figcaption></figure>
 
+  <h2>Taking your files</h2>
+  <p>
+    Every case page has a <em>Take it</em> control in the panel beside the conversation.
+    It opens a sheet of the case's files: the brief as it was stored (normalised), the
+    interpreted intent, each design, the decision, the assurance plan, the chosen
+    architecture as YAML or JSON and, on the architecture page, the topology drawing as
+    SVG. A stored file is fetched exactly as stored, its SHA-256 is computed in the
+    browser and compared with the digest the server names, and the file is saved only
+    when they match; the tile then reads <em>digest matches</em>. The architecture
+    document is put together when you ask for it, from parts that each carry their own
+    digest, so it has none of its own; it and the drawing read <em>saved</em>.
+    <em>Everything</em> saves the whole case as one JSON document, the form the REST
+    import (<code>POST /v1/design-cases:import</code>) accepts; <code>oak export</code>
+    writes the same case as the directory <code>oak import</code> reads. A download
+    approves nothing.
+  </p>
+  <p>
+    The architecture page also offers <em>Copy install steps</em>. It copies the six
+    terminal commands that sign, approve, dispatch, run and ingest an install (chapter 6).
+    The browser runs none of them, and its three install lights only report what the
+    case already records.
+  </p>
+
   <h2>Optional: Online AI and Local AI</h2>
   <p>
     Everything above is deterministic, and it stays so unless you say otherwise for a brief.
@@ -1174,7 +1197,7 @@ pnpm --dir web exec node ../docs/manual/build_manual.mjs</code></pre>
     suites (<code>tests/integration/test_interface_conformance.py</code>,
     <code>tests/e2e/test_mcp_interface.py</code>), which need a PostgreSQL database and so
     run locally rather than in CI (<code>RR-019</code>). The screenshots were re-captured from
-    the <code>0.9.0</code> stack. The diagrams are inline SVG in the source. This manual
+    the Sprint 12 workspace, on a stack that still reports <code>0.9.0</code>. The diagrams are inline SVG in the source. This manual
     describes OAK Community 0.9.0 — a local-first developer release with no production
     or customer readiness claim; where this document and
     <code>docs/security/residual-risk.md</code> could ever disagree, the register wins.
