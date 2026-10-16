@@ -15,7 +15,7 @@ CI and container builds are the reproducible builder boundary. They pin `uv` 0.1
 | `make bootstrap` | Install locked Python and web dependencies |
 | `make lock` | Re-resolve both lockfiles. Prefer `uv lock --upgrade-package <name>` for a single Python dependency; this target also rewrites `pnpm-lock.yaml` |
 | `make toolchain-check` | Check local, CI, container, package, and documentation toolchain declarations for drift |
-| `make validate` | Validate canonical schemas, examples, generated files, and documentation policy |
+| `make validate` | Validate canonical schemas, examples, generated files and documentation policy, then run the web workspace's guards (`scripts/check_studio_ui.py`) and the architecture report's guards (`scripts/check_report.py`) |
 | `make format` | Apply deterministic Python and web formatting |
 | `make format-check` | Check formatting without changes |
 | `make lint` | Run Python lint, import boundaries, unsafe-execution checks, and repository hygiene checks |
@@ -171,6 +171,44 @@ take a database backup before future forward migrations. Supported recovery rest
 clean database and then runs `oak-db-migrate`; `alembic downgrade` is intentionally not
 an OAK recovery mechanism.
 
+## Web workspace conventions
+
+The workspace is drawn from design tokens in `web/src/tokens.css` and a small set of
+primitives in `web/src/ui/` (`Keycap`, `Chip`, `Tile`, `Card`, `Led`, `RangeBar`,
+`ProvenanceMark`, `CopyPlate`, `Icon`). `scripts/check_studio_ui.py`, which `make validate`
+runs, holds the rules review established:
+
+- **G1:** `web/src` renders no raw variant id outside `web/src/ui/variantLabel.ts`, no
+  "enterprise" and no Google Fonts URL.
+- **G2:** the generated client gains no non-GET call beyond its known mutations
+  (`recordReport`, which records the architecture report, is the one Sprint 13 added); no
+  button is named for approving,
+  signing, dispatching, installing or applying unless its name starts with "Copy"; the
+  copy control imports no client and makes no request.
+- **G3:** every `<svg>` is `aria-hidden` or `role="img"` with a name, and every icon-only
+  button has an `aria-label`.
+- **G4:** the bundle page keeps saying the web workspace holds no runner execution
+  authority.
+- **G5:** `styles.css` paints only tokens and sets no opacity between 0 and 1. An
+  accessibility scan samples an element mid-fade and fails contrast at random, so motion
+  moves position only.
+
+Each guard was mutation-checked with a planted violation. A pinned accessible name or
+visible text in `web/e2e` changes only with its spec, in the same commit.
+
+The architecture report has its own guards in `scripts/check_report.py`, which composes
+the reference report afresh at `candidate_selected`, `assurance_planned` and
+`bundle_compiled` rather than reading the golden:
+
+- **R1:** no assurance vocabulary, edition word or raw variant id in any string.
+- **R2:** every number is a quantity with a real unit and a source; no figure from a
+  fixture run is "measured" or "counted"; every `unknown` has a reason; template text has
+  no bare number.
+- **R3:** every picture has a table holding the same facts.
+- **R4:** every text pair in the print palette reaches 4.5:1.
+
+`tests/contract/test_report_guards.py` plants a violation for each rule.
+
 ## Browser end-to-end
 
 The Playwright suite drives the web workspace at `http://127.0.0.1:5173` and expects the
@@ -187,11 +225,13 @@ The suite covers the complete reference journey with automated axe accessibility
 every core screen, a denied stale-version transition with its recovery path, and an
 interrupted operation that is cancelled cooperatively; that last scenario stops and
 restarts the Compose `worker` service, so it requires Docker control and is skipped unless
-`OAK_E2E_DOCKER=1` (which `make web-e2e` sets). A fourth spec,
-`e2e/models.spec.ts`, covers the model settings page and the Deterministic / Online AI /
-Local AI chip end to end, and `e2e/hardening.spec.ts` checks the containers run
-unprivileged with an owner-only model-state volume. A fifth,
-`e2e/manual-screens.spec.ts`, re-captures the user manual's screenshots; it is collected
+`OAK_E2E_DOCKER=1` (which `make web-e2e` sets). `e2e/models.spec.ts` covers the Models
+screen and the Deterministic / Online AI / Local AI chips end to end;
+`e2e/downloads.spec.ts` saves a candidate through the **Take it** sheet and checks that
+the file on disk hashes to the digest the server named; `e2e/hardening.spec.ts` checks
+the containers run unprivileged with an owner-only model-state volume; and
+`e2e/compose-target.spec.ts` covers the Compose target check without Docker.
+`e2e/manual-screens.spec.ts` re-captures the user manual's screenshots; it is collected
 by every run but skips unless `OAK_MANUAL_SCREENS=1` (see `docs/manual/README.md`).
 Browser binaries download from the Playwright CDN, and the model-settings spec makes the
 `api` container ask `huggingface.co` once about the synthetic token it stores (one free

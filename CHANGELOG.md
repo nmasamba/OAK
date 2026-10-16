@@ -114,6 +114,14 @@ All notable changes to OAK Community are recorded here.
   - **Build tooling:** `source-map-js` is overridden to 1.2.2 (GHSA-68fv-2mgg-jv7q, a
     build-time transitive of Vite's PostCSS; nothing shipped changes), so `make audit`
     is green again.
+  - **Documentation and licences** (after the merge): the README, CONTRIBUTING, the
+    architecture, interfaces, development, compatibility, operations and dependency
+    docs, and the manual's browser chapter now describe the Studio workspace, its
+    downloads, the architecture route and the guards. The three bundled typefaces ship
+    with their SIL Open Font License texts under `/licenses/` in every built bundle. The
+    *Everything* tooltip no longer claims `oak import` reads the file it saves: it is
+    the single JSON document the REST import accepts, while `oak import` reads the
+    directory `oak export` writes.
 
 ### Fixed
 

@@ -78,8 +78,8 @@ answers questions from a set of public technical manuals and cites the passage i
    files that say exactly what to build and where). **Nothing gets deployed.** The plan
    is inert. Installing it takes a separate signing step, two approvals (one of the
    architecture, one of the install) and the runner's own checks, which is deliberately
-   hard to skip. If the design is all you want, `oak architecture` prints it, and you can
-   stop there.
+   hard to skip. If the design is all you want, `oak architecture` prints it (the browser's
+   **Take it** sheet downloads it as YAML or JSON), and you can stop there.
 7. **OAK writes it up.** Once a design is chosen, `oak report --record` (or **Record
    report** on the Report screen) composes the **architecture report**: a slide-by-slide
    decision document covering what was asked, the options and why each lost, the
@@ -336,6 +336,15 @@ Always include `--build`. If nothing has changed it only costs a few seconds. If
 pulled new code, it's the only way to actually run it. Without it, Docker quietly reuses
 the old image, which is why checking `/version` is a good habit.
 
+**Taking your files.** Every case page in the browser has **Take it**, in the panel beside
+the conversation. It offers the brief as it was stored, the interpreted intent, each
+design, the decision, the assurance plan, and the chosen architecture as YAML or JSON. A
+stored file is saved only when its fingerprint (its SHA-256 digest) matches the one the
+server names, and the tile then says *digest matches*. The architecture document and the
+topology drawing are put together when you ask, have no fingerprint of their own, and
+say *saved*. A download approves nothing. On the architecture page, **Copy install
+steps** copies the six terminal commands that install the design; it runs none of them.
+
 **Command line.** Each case is a folder. `cd` into it and carry on where you left off, for
 example with `uv run oak questions`. Two more things are worth making habits:
 
@@ -355,7 +364,7 @@ example, can't choose the design, and only the local CLI can sign or approve any
 
 | Way in | Good for | How to reach it |
 |---|---|---|
-| **Browser** | Reviewing and deciding, visually | <http://127.0.0.1:5173> |
+| **Browser** | Reviewing, deciding and taking the files, visually | <http://127.0.0.1:5173> |
 | **Local CLI** | Working offline on your own machine, and scripting | `uv run oak …` |
 | **REST API** | Connecting other tools, from anything that speaks HTTP | `curl http://127.0.0.1:8080/v1/…` |
 | **Remote CLI** | The same `oak` commands, working on the shared server's cases | `uv run oak --server http://127.0.0.1:8080 …` |
@@ -502,7 +511,9 @@ means:
   process. The remote CLI trusts whichever server you point it at, and refuses the
   local-only signing, approval, runner and `oak observe` commands; `oak architecture`
   works in both. OAK defines the signed webhook format and ships
-  a checker for it, but nothing that actually sends the notifications.
+  a checker for it, but nothing that actually sends the notifications. The browser
+  downloads files and copies the install commands, but it can't sign, approve or install
+  anything.
 - **Your Hugging Face token is stored like a setting, not locked away.** Other programs
   running as you can read it ([`RR-040`](docs/security/residual-risk.md)), nothing caps
   what model calls spend ([`RR-041`](docs/security/residual-risk.md)), and a stored check
@@ -531,8 +542,10 @@ Some ways in, from a first afternoon to a bigger project:
   Where it falls short is exactly what the project needs to know.
 - **Pin down a behaviour with a test.** [threat-coverage.md](docs/security/threat-coverage.md#named-gaps)
   lists scoped gaps nobody has tested yet.
-- **Improve the web app.** It has no unit tests yet (`RR-021`), and the trade-offs would be
-  easier to read as a chart than as a table.
+- **Improve the web app.** It has no unit tests yet (`RR-021`); its pure modules (the
+  topology layout, the download check and the variant labels) are the place to start.
+  Every colour is already a token, so a light theme is mostly one more block in
+  `web/src/tokens.css`, plus its own contrast and screenshot pass.
 - **Add a deployment backend or a pack.** A "renderer" turns OAK's plan into files for one
   particular deployment tool. Two ship today, plain local manifests and a Helm chart for
   Kubernetes. OpenTofu or Terraform, Crossplane, Ansible, and model-serving profiles such

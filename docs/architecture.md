@@ -55,6 +55,16 @@ and a stale `If-Match` surfaces as a visible conflict-recovery path. The additiv
 same repository port in both persistence adapters; neither read surface grants transition
 authority.
 
+Since Sprint 12 the workspace is drawn from design tokens (`web/src/tokens.css`) and a
+small set of primitives (`web/src/ui/`), and it hands files over without gaining any
+authority. A stored artifact is fetched raw through the existing artifact read, hashed in
+the browser, and saved only when its SHA-256 equals `X-OAK-Artifact-Digest`; parsed JSON
+is never re-serialised. The chosen architecture downloads through the read-only
+`GET /v1/design-cases/{case_id}/architecture`, which `CommunityControlPlane.architecture`
+delegates to the planning service's existing composition, the same one `oak architecture`
+prints; it writes no successor and no audit event. "Copy install steps" writes text to
+the clipboard and runs nothing.
+
 The architecture report (Sprint 13) is composed by a pure function in
 `oak.application.report` from the case's own records, rendered to PDF by the
 `oak.adapters.report` adapter behind `ReportRendererPort`, and recorded by

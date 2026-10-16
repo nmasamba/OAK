@@ -92,8 +92,9 @@ because it often needs an ADR (see [Governance](#governance)).
 
 **The web workspace**
 
-- Show the trade-offs between candidates as a chart as well as a table. Keep the table,
-  because it's the accessible representation.
+- A light theme. Every colour is a token in `web/src/tokens.css`, so it is a second block
+  of the same names, with its own contrast and screenshot pass. Keep every picture's
+  table, because it's the accessible representation.
 - Plain-language copy, and keyboard, focus and contrast passes. The browser end-to-end
   suite (`make web-e2e`) is where a flow gets pinned.
 
@@ -211,6 +212,14 @@ This is recorded as `RR-019`.
   `openapi/oak.compatibility-baseline.json`
   ([compatibility.md](docs/compatibility.md#rest-and-openapi)).
 - A new `OAK-*` code requires regenerating `docs/error-codes.md`.
+- In `web/src`, paint only the tokens in `web/src/tokens.css`, name a variant only through
+  `web/src/ui/variantLabel.ts`, and give every `<svg>` either `aria-hidden` or
+  `role="img"` with a name. `scripts/check_studio_ui.py` runs in `make validate` and fails
+  on a literal colour, a partial opacity, a raw variant id, an unnamed picture or icon-only
+  button, a button named for an authority the web lacks, or a new non-GET call in the
+  generated client ([development.md](docs/development.md#web-workspace-conventions)).
+- A pinned accessible name or visible text in `web/e2e` changes only with its spec, in the
+  same commit, and the replacement asserts the same fact about the same control.
 
 ## The module boundary
 
