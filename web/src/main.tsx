@@ -14,6 +14,7 @@ import { CasePage } from "./pages/CasePage";
 import { ConfirmPage } from "./pages/ConfirmPage";
 import { DecisionPage } from "./pages/DecisionPage";
 import { OperationPage } from "./pages/OperationPage";
+import { ReportPage } from "./pages/ReportPage";
 import { ReviewPage } from "./pages/ReviewPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { Link, RouterProvider, matchPath, useRouter } from "./router";
@@ -55,6 +56,10 @@ function Routes() {
   const decisionMatch = matchPath("/cases/:caseId/decision", path);
   if (decisionMatch?.["caseId"] !== undefined) {
     return <DecisionPage caseId={decisionMatch["caseId"]} />;
+  }
+  const reportMatch = matchPath("/cases/:caseId/report", path);
+  if (reportMatch?.["caseId"] !== undefined) {
+    return <ReportPage caseId={reportMatch["caseId"]} />;
   }
   const bundleMatch = matchPath("/cases/:caseId/bundle", path);
   if (bundleMatch?.["caseId"] !== undefined) {

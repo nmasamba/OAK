@@ -2397,3 +2397,261 @@ summary {
     grid-column: 1 / -1;
   }
 }
+
+/* ----- the architecture report (Sprint 13) ----------------------------------------- */
+
+.report-record {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.report-stale {
+  border-left: 3px solid var(--brass);
+  padding-left: 12px;
+}
+
+.report-files {
+  margin: 8px 0 16px;
+}
+
+.report-contents ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+}
+
+.report-contents-item {
+  min-height: var(--target);
+  max-width: 260px;
+  padding: 6px 12px;
+  border: 1px solid var(--hairline-control);
+  border-radius: var(--radius-control);
+  background: var(--surface-control);
+  color: var(--text-2);
+  font: inherit;
+  font-size: var(--size-small);
+  text-align: left;
+  cursor: pointer;
+}
+
+.report-contents-item[aria-current="step"] {
+  border-color: var(--brass);
+  background: var(--brass-surface);
+  color: var(--brass-text);
+}
+
+.report-contents-item:focus-visible,
+.slide:focus-visible,
+.slide-step:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
+.slide {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+  padding: 24px;
+}
+
+.slide-marker,
+.slide-detail {
+  margin: 0;
+  color: var(--text-faint);
+  font-size: var(--size-small);
+}
+
+.slide-detail {
+  color: var(--brass-text);
+}
+
+.slide-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 32px;
+  font-weight: 400;
+  line-height: 1.15;
+}
+
+.slide-subtitle {
+  margin: 0;
+  color: var(--text-2);
+}
+
+.slide-note {
+  padding: 12px 16px;
+  border: 1px solid var(--brass-border);
+  border-radius: var(--radius-tile);
+  background: var(--brass-surface);
+}
+
+.slide-note p {
+  margin: 0;
+}
+
+.report-label {
+  margin: 0 0 4px;
+  color: var(--brass-text);
+  font-size: var(--size-small);
+  font-weight: 600;
+}
+
+.report-facts {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.report-facts > div {
+  display: grid;
+  grid-template-columns: minmax(140px, 220px) 1fr;
+  gap: 12px;
+}
+
+.report-facts dt {
+  color: var(--text-3);
+  font-size: var(--size-small);
+  font-weight: 600;
+}
+
+.report-facts dd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 10px;
+  margin: 0;
+}
+
+.report-table th,
+.report-table td {
+  vertical-align: top;
+}
+
+.report-table caption {
+  caption-side: top;
+  padding-bottom: 6px;
+  color: var(--text-3);
+  font-size: var(--size-small);
+  text-align: left;
+}
+
+.report-list {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.report-mark,
+.report-basis,
+.report-reason {
+  display: block;
+  color: var(--text-3);
+  font-size: var(--size-small);
+}
+
+.report-basis {
+  font-style: italic;
+}
+
+.report-quote {
+  margin: 0;
+  padding-left: 14px;
+  border-left: 3px solid var(--brass);
+}
+
+.report-quote blockquote {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-style: italic;
+}
+
+.report-attribution {
+  margin: 4px 0 0;
+  color: var(--text-3);
+  font-size: var(--size-small);
+}
+
+.report-callout {
+  display: grid;
+  margin: 0;
+  padding-left: 14px;
+  border-left: 3px solid var(--brass);
+}
+
+.report-callout strong {
+  font-size: 20px;
+}
+
+.report-diagram,
+.report-chart {
+  margin: 0;
+  overflow-x: auto;
+}
+
+.report-diagram figcaption,
+.report-chart > figcaption {
+  margin-top: 6px;
+  color: var(--text-3);
+  font-size: var(--size-small);
+}
+
+.report-series {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.report-series-title {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--size-small);
+  font-weight: 600;
+}
+
+.report-not-yet {
+  display: grid;
+  gap: 4px;
+  padding: 12px 16px;
+  border: 1px dashed var(--hairline-strong);
+  border-radius: var(--radius-tile);
+}
+
+.report-not-yet p {
+  margin: 0;
+}
+
+.slide-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin: 12px 0;
+}
+
+.slide-nav p {
+  margin: 0;
+  color: var(--text-2);
+}
+
+.slide-step {
+  display: inline-grid;
+  place-items: center;
+  width: var(--target);
+  height: var(--target);
+  border: 1px solid var(--hairline-control);
+  border-radius: var(--radius-pill);
+  background: var(--surface-control);
+  color: var(--text-1);
+  cursor: pointer;
+}
+
+.slide-step:disabled {
+  color: var(--text-faint);
+  cursor: default;
+}

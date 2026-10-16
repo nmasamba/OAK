@@ -86,6 +86,8 @@ export function CaseRail({
       </div>
       {children}
       <p className="rail-links">
+        <Link to={`/cases/${encodeURIComponent(caseId)}/report`}>Report</Link>
+        {" · "}
         <Link to="/">Back to all cases</Link>
       </p>
       {sheetOpen ? (

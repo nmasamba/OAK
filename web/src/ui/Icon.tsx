@@ -41,9 +41,15 @@ export type IconName =
   | "pen"
   | "image"
   | "box"
-  | "coin";
+  | "coin"
+  | "slides"
+  | "prev"
+  | "next";
 
 const PATHS: Readonly<Record<IconName, readonly string[]>> = {
+  slides: ["M4 5h16v11H4z", "M8 9h8", "M8 12h5", "M12 16v4", "M8 20h8"],
+  prev: ["M15 6l-6 6 6 6"],
+  next: ["M9 6l6 6-6 6"],
   send: ["M4 12h14", "M12 6l6 6-6 6"],
   attach: ["M8 12.5l7.5-7.5a3.2 3.2 0 0 1 4.5 4.5L10 19.5a5 5 0 0 1-7-7l8-8"],
   close: ["M6 6l12 12", "M18 6L6 18"],
