@@ -16,6 +16,7 @@ from typing import Any
 from oak.adapters.catalogue import LocalCatalogue
 from oak.adapters.intake import LocalBriefIntake
 from oak.adapters.persistence import FileWorkspaceRepository
+from oak.adapters.report import PdfReportRenderer
 from oak.adapters.targets import LocalTargetProfile
 from oak.application import (
     CommunityControlPlane,
@@ -23,6 +24,7 @@ from oak.application import (
     OperationService,
     OperationWorker,
 )
+from oak.application.report.service import ReportNarratorFactory
 from oak.compiler import DeterministicBriefInterpreter
 from oak.contracts import SchemaRegistry
 from oak.domain import OAKError
@@ -272,6 +274,7 @@ def build_file_control_plane(
     tmp_path: Path,
     *,
     model_interpreter_factory: ModelInterpreterFactory | None = None,
+    report_narrator_factory: ReportNarratorFactory | None = None,
 ) -> tuple[CommunityControlPlane, MemoryOperationStore]:
     registry = SchemaRegistry.from_directory(ROOT / "schemas")
     workspaces = tmp_path / "workspaces"
@@ -295,6 +298,9 @@ def build_file_control_plane(
         LocalTargetProfile(registry),
         registry,
         model_interpreter_factory=model_interpreter_factory,
+        report_renderer=PdfReportRenderer(),
+        report_narrator_factory=report_narrator_factory,
+        oak_version="0.9.0",
     )
     return control_plane, store
 

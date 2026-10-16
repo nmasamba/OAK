@@ -170,6 +170,19 @@ test("capture the manual screenshots from the reference journey", async ({
   );
   await shoot(page, "10-timeline");
 
+  // Chapter 4's report figure: the architecture report recorded on this case, at its
+  // first slide, with the two downloads above it. Recording comes after the timeline
+  // figure, so that figure still ends at bundle_compiled.
+  await page.goto(`/cases/${caseId}/report`);
+  await page.getByRole("button", { name: "Record report" }).click();
+  await expect(page.getByText("Slide 1 of 20", { exact: true })).toBeVisible();
+  await page
+    .getByRole("list", { name: "Report files" })
+    .evaluate((element) =>
+      element.scrollIntoView({ block: "start", behavior: "instant" }),
+    );
+  await shoot(page, "12-report");
+
   // Chapter 4's model settings figure. Captured with the real capability token so the page
   // shows the family list and the key form rather than the token prompt; no key is stored,
   // so nothing about this capture changes the stack's configuration.

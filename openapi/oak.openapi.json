@@ -701,6 +701,15 @@
         "title": "ModelStatusResponse",
         "type": "object"
       },
+      "NarrativeMode": {
+        "enum": [
+          "deterministic",
+          "online",
+          "local"
+        ],
+        "title": "NarrativeMode",
+        "type": "string"
+      },
       "OperationResponse": {
         "additionalProperties": false,
         "properties": {
@@ -908,6 +917,39 @@
           "status"
         ],
         "title": "ReadinessResponse",
+        "type": "object"
+      },
+      "ReportResponse": {
+        "additionalProperties": false,
+        "description": "The case revised with its report, the report's references, and the report itself.",
+        "properties": {
+          "case": {
+            "additionalProperties": true,
+            "title": "Case",
+            "type": "object"
+          },
+          "document": {
+            "additionalProperties": true,
+            "title": "Document",
+            "type": "object"
+          },
+          "duplicate": {
+            "title": "Duplicate",
+            "type": "boolean"
+          },
+          "report": {
+            "additionalProperties": true,
+            "title": "Report",
+            "type": "object"
+          }
+        },
+        "required": [
+          "case",
+          "report",
+          "document",
+          "duplicate"
+        ],
+        "title": "ReportResponse",
         "type": "object"
       },
       "SelectCandidateRequest": {
@@ -2695,6 +2737,157 @@
           }
         },
         "summary": "Interpret Design Case",
+        "tags": [
+          "design-cases"
+        ]
+      }
+    },
+    "/v1/design-cases/{case_id}:record-report": {
+      "post": {
+        "description": "Record the architecture report beside the case, from candidate_selected onwards.\n\nStores the report document and its PDF as artifacts (read them through the artifact\nroute), revises the case at its own status and appends a report_recorded audit event.\nIt needs no signature and authorizes nothing.",
+        "operationId": "record_report_v1_design_cases__case_id__record_report_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "case_id",
+            "required": true,
+            "schema": {
+              "title": "Case Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "deterministic \u2014 the default, and what an absent parameter means \u2014 composes the report from the case's records with no model. online or local also asks the model this machine is set up for one note per main slide, labelled Proposed by model; it sends the slides' own words and requires the X-OAK-Model-Token header.",
+            "in": "query",
+            "name": "narrative",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/NarrativeMode"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "deterministic \u2014 the default, and what an absent parameter means \u2014 composes the report from the case's records with no model. online or local also asks the model this machine is set up for one note per main slide, labelled Proposed by model; it sends the slides' own words and requires the X-OAK-Model-Token header.",
+              "title": "Narrative"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 240,
+              "minLength": 16,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "maxLength": 90,
+              "minLength": 3,
+              "title": "If-Match",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 160,
+                  "minLength": 8,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Correlation-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-OAK-Model-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 256,
+                  "minLength": 16,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Oak-Model-Token"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-OAK-Actor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Oak-Actor"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-OAK-Tenant",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Oak-Tenant"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Record Report",
         "tags": [
           "design-cases"
         ]

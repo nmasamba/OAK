@@ -34,13 +34,16 @@ _PROVIDER_ROOTS = frozenset(
     }
 )
 _FRAMEWORK_ROOTS = frozenset({"fastapi", "sqlalchemy", "typer", "uvicorn"})
+# The report renderers are an adapter behind ReportRendererPort; nothing that composes a
+# report or decides anything may reach the document libraries themselves.
+_RENDERING_ROOTS = frozenset({"lxml", "PIL", "pptx", "reportlab"})
 
 THIRD_PARTY_FORBIDDEN: dict[str, frozenset[str]] = {
-    "domain": _FRAMEWORK_ROOTS | {"pydantic"} | _PROVIDER_ROOTS,
-    "compiler": _FRAMEWORK_ROOTS | _PROVIDER_ROOTS,
-    "ports": _FRAMEWORK_ROOTS | _PROVIDER_ROOTS,
-    "application": _FRAMEWORK_ROOTS | _PROVIDER_ROOTS,
-    "runner": _FRAMEWORK_ROOTS | _PROVIDER_ROOTS,
+    "domain": _FRAMEWORK_ROOTS | {"pydantic"} | _PROVIDER_ROOTS | _RENDERING_ROOTS,
+    "compiler": _FRAMEWORK_ROOTS | _PROVIDER_ROOTS | _RENDERING_ROOTS,
+    "ports": _FRAMEWORK_ROOTS | _PROVIDER_ROOTS | _RENDERING_ROOTS,
+    "application": _FRAMEWORK_ROOTS | _PROVIDER_ROOTS | _RENDERING_ROOTS,
+    "runner": _FRAMEWORK_ROOTS | _PROVIDER_ROOTS | _RENDERING_ROOTS,
 }
 
 

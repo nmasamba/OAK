@@ -436,7 +436,9 @@ export function BundlePage({ caseId }: { readonly caseId: string }) {
   const layout =
     candidate === null ? null : layoutTopology(candidate["topology"]);
   const dockItems = downloads.filter((item) =>
-    ["brief", "architecture-yaml", "decision", "assurance"].includes(item.key),
+    ["brief", "architecture-yaml", "decision", "assurance", "report"].includes(
+      item.key,
+    ),
   );
   const runTile = (item: (typeof downloads)[number]) => {
     setTileStates((current) => ({ ...current, [item.key]: "fetching" }));

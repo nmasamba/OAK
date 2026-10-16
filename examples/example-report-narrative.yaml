@@ -1,0 +1,24 @@
+# SPDX-License-Identifier: Apache-2.0
+# Illustrative notes a model proposed for one report; the identifiers and digests are
+# placeholders. Non-production example.
+case_id: design-case.example
+extensions:
+  oak.community/model:
+    attempts: 1
+    dropped_notes: 1
+    family: huggingface
+    model_id: example-org/example-model
+    prompt_digest: sha256:3333333333333333333333333333333333333333333333333333333333333333
+    provider_route: example-route
+    response_digest: sha256:4444444444444444444444444444444444444444444444444444444444444444
+    usage:
+      input_tokens: 1200
+      output_tokens: 80
+facts_digest: sha256:2222222222222222222222222222222222222222222222222222222222222222
+id: narrative.example.from-0.1.4
+mode: online
+notes:
+- section: '7'
+  text: The owner chose the balanced design over the baseline.
+schema_version: 0.1.0
+version: 0.1.0

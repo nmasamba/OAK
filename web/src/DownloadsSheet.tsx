@@ -15,6 +15,7 @@ import {
   type ArtifactReference,
   type JsonObject,
 } from "./generated/api";
+import { useRouter } from "./router";
 import { asArray, asObject, asReference, asString } from "./support";
 import { serialiseDiagram } from "./svgExport";
 import { Icon, Keycap, type IconName } from "./ui";
@@ -78,6 +79,7 @@ export function useDownloads(
       "oak.community/source_record_ref"
     ],
   );
+  const { navigate } = useRouter();
   const [briefName, setBriefName] = useState<string | null>(null);
   useEffect(() => {
     if (sourceRecord === null) {
@@ -148,6 +150,35 @@ export function useDownloads(
     );
   }
   const selected = asReference(caseDocument["selected_candidate_ref"]);
+  // The recorded report's PDF, checked like every stored file; before one is recorded,
+  // the tile opens the Report screen, where recording is a deliberate step.
+  const report = asObject(extensions["oak.community/report"]);
+  const reportPdf = report === null ? null : asReference(report["pdf_ref"]);
+  if (reportPdf !== null) {
+    items.push(
+      storedItem(
+        caseId,
+        "report",
+        "Report",
+        "slides",
+        reportPdf,
+        reportPdf.id,
+        "the recorded PDF",
+      ),
+    );
+  } else if (selected !== null) {
+    items.push({
+      key: "report",
+      word: "Report",
+      icon: "slides",
+      title: "No report is recorded yet · open the Report screen to record one",
+      suffix: "open",
+      run: () => {
+        navigate(`/cases/${encodeURIComponent(caseId)}/report`);
+        return Promise.resolve("idle");
+      },
+    });
+  }
   if (selected !== null) {
     for (const format of ["yaml", "json"] as const) {
       items.push({

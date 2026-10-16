@@ -29,6 +29,7 @@ from oak.application.design_case import (
     ModelInterpreterFactory,
 )
 from oak.application.operations import OperationService, OperationSubmission
+from oak.application.report.service import ReportNarratorFactory, ReportResult, ReportService
 from oak.compiler import DeterministicBriefInterpreter
 from oak.contracts import SchemaRegistry
 from oak.domain import ArtifactReference, OAKError, canonical_json_bytes, content_digest
@@ -42,6 +43,7 @@ from oak.ports import (
     TargetProfilePort,
     WorkspaceRepository,
 )
+from oak.ports.report import ReportRendererPort
 
 RepositoryFactory = Callable[[str, str], WorkspaceRepository]
 OperationServiceFactory = Callable[[str], OperationService]
@@ -75,6 +77,9 @@ class CommunityControlPlane:
         *,
         model_interpreter_factory: ModelInterpreterFactory | None = None,
         proposal_limits: ProposalLimits | None = None,
+        report_renderer: ReportRendererPort | None = None,
+        report_narrator_factory: ReportNarratorFactory | None = None,
+        oak_version: str = "unknown",
     ) -> None:
         self._repository_factory = repository_factory
         self._operation_service_factory = operation_service_factory
@@ -87,6 +92,9 @@ class CommunityControlPlane:
         self._case_directory_factory = case_directory_factory
         self._model_interpreter_factory = model_interpreter_factory
         self._proposal_limits = proposal_limits
+        self._report_renderer = report_renderer
+        self._report_narrator_factory = report_narrator_factory
+        self._oak_version = oak_version
 
     def create_design_case(
         self,
@@ -190,6 +198,26 @@ class CommunityControlPlane:
         planning = self._planning_for_case(case_id, tenant_id)
         self._verify_case(case_id, self.get_design_case(case_id, tenant_id=tenant_id).case)
         return planning.architecture(candidate_id, now=now)
+
+    @staticmethod
+    def resolve_narrative(narrative: str) -> str:
+        """The narrative mode a report request runs in; reads nothing."""
+
+        return ReportService.resolve_narrative(narrative)
+
+    def record_report(
+        self,
+        case_id: str,
+        context: CommandContext,
+        *,
+        narrative: str = "deterministic",
+    ) -> ReportResult:
+        """Record the architecture report beside the case; authorizes nothing."""
+
+        self._verify_case(case_id, self.get_design_case(case_id, tenant_id=context.tenant_id).case)
+        return self._report_service(self._workspace_id(case_id), context.tenant_id).record(
+            context, narrative=narrative
+        )
 
     def select_candidate(
         self,
@@ -520,6 +548,16 @@ class CommunityControlPlane:
             self._catalogue,
             self._target_profiles,
             self._registry,
+        )
+
+    def _report_service(self, workspace_id: str, tenant_id: str) -> ReportService:
+        return ReportService(
+            self._repository_factory(workspace_id, tenant_id),
+            self._registry,
+            self._report_renderer,
+            oak_version=self._oak_version,
+            narrator_factory=self._report_narrator_factory,
+            proposal_limits=self._proposal_limits,
         )
 
     @staticmethod

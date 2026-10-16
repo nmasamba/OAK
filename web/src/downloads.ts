@@ -61,6 +61,9 @@ export function extensionFor(mediaType: string): string {
   if (type === "image/svg+xml") {
     return "svg";
   }
+  if (type === "application/pdf") {
+    return "pdf";
+  }
   return "txt";
 }
 

@@ -15,7 +15,7 @@ CI and container builds are the reproducible builder boundary. They pin `uv` 0.1
 | `make bootstrap` | Install locked Python and web dependencies |
 | `make lock` | Re-resolve both lockfiles. Prefer `uv lock --upgrade-package <name>` for a single Python dependency; this target also rewrites `pnpm-lock.yaml` |
 | `make toolchain-check` | Check local, CI, container, package, and documentation toolchain declarations for drift |
-| `make validate` | Validate canonical schemas, examples, generated files and documentation policy, then run the web workspace's guards (`scripts/check_studio_ui.py`) |
+| `make validate` | Validate canonical schemas, examples, generated files and documentation policy, then run the web workspace's guards (`scripts/check_studio_ui.py`) and the architecture report's guards (`scripts/check_report.py`) |
 | `make format` | Apply deterministic Python and web formatting |
 | `make format-check` | Check formatting without changes |
 | `make lint` | Run Python lint, import boundaries, unsafe-execution checks, and repository hygiene checks |
@@ -180,7 +180,9 @@ runs, holds the rules review established:
 
 - **G1:** `web/src` renders no raw variant id outside `web/src/ui/variantLabel.ts`, no
   "enterprise" and no Google Fonts URL.
-- **G2:** the generated client gains no non-GET call; no button is named for approving,
+- **G2:** the generated client gains no non-GET call beyond its known mutations
+  (`recordReport`, which records the architecture report, is the one Sprint 13 added); no
+  button is named for approving,
   signing, dispatching, installing or applying unless its name starts with "Copy"; the
   copy control imports no client and makes no request.
 - **G3:** every `<svg>` is `aria-hidden` or `role="img"` with a name, and every icon-only
@@ -193,6 +195,19 @@ runs, holds the rules review established:
 
 Each guard was mutation-checked with a planted violation. A pinned accessible name or
 visible text in `web/e2e` changes only with its spec, in the same commit.
+
+The architecture report has its own guards in `scripts/check_report.py`, which composes
+the reference report afresh at `candidate_selected`, `assurance_planned` and
+`bundle_compiled` rather than reading the golden:
+
+- **R1:** no assurance vocabulary, edition word or raw variant id in any string.
+- **R2:** every number is a quantity with a real unit and a source; no figure from a
+  fixture run is "measured" or "counted"; every `unknown` has a reason; template text has
+  no bare number.
+- **R3:** every picture has a table holding the same facts.
+- **R4:** every text pair in the print palette reaches 4.5:1.
+
+`tests/contract/test_report_guards.py` plants a violation for each rule.
 
 ## Browser end-to-end
 

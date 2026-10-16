@@ -7,6 +7,8 @@ import sys
 from collections.abc import Iterable
 from pathlib import Path
 
+from oak.domain.vocabulary import ASSURANCE_PATTERNS
+
 ROOT = Path(__file__).resolve().parents[1]
 DOCUMENT_PATTERNS = (
     re.compile(r"\bOAK[\s-]+Enterprise\b", re.IGNORECASE),
@@ -20,20 +22,8 @@ DOCUMENT_PATTERNS = (
 # An occurrence can be permitted by putting `<!-- assurance-claim-reviewed: why -->` on the
 # same line or the line above. Use it for a sentence that *denies* the claim — the escape
 # exists so that documenting what OAK is not stays possible.
-ASSURANCE_PATTERNS = (
-    re.compile(r"\bproduction[\s-]ready\b", re.IGNORECASE),
-    re.compile(r"\benterprise[\s-]grade\b", re.IGNORECASE),
-    re.compile(r"\bbattle[\s-]tested\b", re.IGNORECASE),
-    re.compile(r"\b(?:bank|military)[\s-]grade\b", re.IGNORECASE),
-    re.compile(r"\bunhackable\b", re.IGNORECASE),
-    re.compile(r"\bsecure[\s-]by[\s-]default\b", re.IGNORECASE),
-    re.compile(r"\b(?:SOC[\s-]?2|ISO[\s-]?27001|FedRAMP|HIPAA[\s-]compliant)\b"),
-    re.compile(r"\bpenetration[\s-]test", re.IGNORECASE),
-    re.compile(r"\b(?:externally|independently|third[\s-]party)[\s-]audited\b", re.IGNORECASE),
-    re.compile(r"\bthird[\s-]party\s+(?:audit|assurance|review)\b", re.IGNORECASE),
-    re.compile(r"\bcertified\b", re.IGNORECASE),
-    re.compile(r"\bformally[\s-]verified\b", re.IGNORECASE),
-)
+# The patterns themselves live in `oak.domain.vocabulary`, so the report guard and the check
+# on a model's report notes refuse exactly what this repository check refuses.
 ASSURANCE_ESCAPE = "<!-- assurance-claim-reviewed:"
 
 # Provider API-key shapes are scanned too. The quantifiers are deliberately long enough
