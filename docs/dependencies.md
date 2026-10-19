@@ -26,6 +26,8 @@ substitute for those locks.
 | Instrument Serif (via @fontsource/instrument-serif) | Display typeface, bundled and served same-origin | web only | OFL-1.1 |
 | IBM Plex Sans and IBM Plex Mono (via @fontsource/ibm-plex-sans, @fontsource/ibm-plex-mono) | Interface and monospace typefaces, bundled and served same-origin | web only | OFL-1.1 |
 | keyring (optional extra `keychain`) | OS credential store for user-supplied model-provider keys | credentials adapter only; lazily imported; file store is the fallback | MIT (Linux pulls SecretStorage BSD-3-Clause and jeepney MIT; Windows pywin32-ctypes BSD-3-Clause) |
+| ReportLab | The architecture report as a PDF | report renderer adapter only (`oak.adapters.report`) | BSD-3-Clause |
+| Pillow (via ReportLab) | Required by ReportLab; OAK passes it no image | below the report renderer only | MIT-CMU (HPND) |
 
 The core domain and compiler packages do not import interface or persistence frameworks.
 Development-only format, lint, type, test, audit, and SBOM tools are locked but do not ship as
@@ -188,6 +190,47 @@ everything the wheel can install.
 available and is the only backend inside the Compose containers. **Rollback:** remove the
 extra from `pyproject.toml`, `uv lock`, and `KeychainCredentialStore` becomes permanently
 "unavailable"; no stored document changes.
+
+## Sprint 13 report renderer review
+
+The capability gap is a portable document a decision-maker can keep, print and project:
+the architecture report as a file. Writing PDF by hand is a format project of its own:
+cross-reference tables, font metrics, text encoding and stream compression. A browser-side
+library would leave the CLI without a report (kickoff decision K2). One dependency was
+adopted and one refused.
+
+**ReportLab 5.0.1 (BSD-3-Clause), adopted.** It is the long-established Python PDF
+library, released on 2026-08-20 and shipped as a pure-Python wheel (`py3-none-any`). OSV
+listed no known vulnerability on 2026-10-16. OAK uses its canvas, the standard Type 1 font
+metrics and nothing else:
+- no platypus layout, no embedded font, no image, no hyperlink;
+- invariant mode for a byte-stable file, with the document dates taken from the report's
+  own `generated_at` rather than the clock;
+- the two processes in `tests/unit/test_report_pdf.py` must produce the same bytes.
+
+Its closure adds **Pillow 12.3.0** (MIT-CMU/HPND, released 2026-07-01, OSV clean), which
+ReportLab requires at install time. OAK hands it no image, so its decoders see no input.
+Pillow is the one new native wheel: macOS arm64, `manylinux_2_27` x86_64 and aarch64, and
+`musllinux_1_2`. It raises the Linux x86_64 glibc floor from 2.24 to 2.27 and has no
+armv7l wheel ([platforms.md](platforms.md)). `charset-normalizer`, the other runtime
+requirement, was already locked.
+
+**python-pptx 1.0.2 (MIT), refused.** Its licence, vulnerability history and wheel are
+clean, but it fails maintenance:
+- its last commit and release were on 2024-08-07;
+- it has 541 open issues;
+- the repository shows no maintainer response since.
+
+Under the sprint's stop rule, the owner decided on 2026-10-16 to ship the PDF alone and to
+treat the PPTX as a follow-up that needs its own library decision. It is not in the lock,
+not even for tests.
+
+**Boundary and replacement seam:** `ReportRendererPort` (`oak.ports.report`). The adapter
+names the formats it writes, so a PPTX renderer can join without changing the port.
+`tools/check_boundaries.py` forbids `reportlab`, `PIL`, `pptx` and `lxml` in the domain,
+compiler, ports, application and runner, so only the adapter can reach them. **Rollback:**
+remove `reportlab` from `pyproject.toml` and `uv lock`. Recording a report then fails with
+`OAK-REPORT-RENDER`, and no stored document changes.
 
 ## Maintenance reviews
 

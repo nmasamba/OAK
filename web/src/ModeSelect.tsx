@@ -13,6 +13,14 @@ export const INTERPRET_MODES: readonly InterpretMode[] = [
   "local",
 ];
 
+/** What a model mode would send: the brief, or the report's slide text (Sprint 13, K3). */
+export type ModePurpose = "brief" | "report";
+
+const LEGENDS: Readonly<Record<ModePurpose, string>> = {
+  brief: "How should this brief be read?",
+  report: "Should a model add notes to the slides?",
+};
+
 export function isInterpretMode(value: unknown): value is InterpretMode {
   return value === "deterministic" || value === "online" || value === "local";
 }
@@ -50,13 +58,18 @@ export interface ModeSummary {
 export function summariseModes(
   status: ModelStatusResponse | null,
   tokenPresent: boolean,
+  purpose: ModePurpose = "brief",
 ): Record<InterpretMode, ModeSummary> {
+  const subject =
+    purpose === "brief" ? "this brief" : "the report's slide text";
   const deterministic: ModeSummary = {
     available: true,
     reason: null,
     label: "Deterministic — nothing leaves this machine",
     detail:
-      "Maps only what the brief states outright and asks about the rest. The default: no model, no token, and nothing leaves this machine.",
+      purpose === "brief"
+        ? "Maps only what the brief states outright and asks about the rest. The default: no model, no token, and nothing leaves this machine."
+        : "Composes the report from the case's records alone. The default: no model, no token, and nothing leaves this machine.",
   };
   if (!tokenPresent) {
     const needsToken =
@@ -100,7 +113,7 @@ export function summariseModes(
       : (asString(online["reason"]) ?? null);
   const verdictText = describeVerdict(verdict, checkedAt, stale);
   const onlineDetail = onlineAvailable
-    ? `Sends this brief to Hugging Face Inference Providers: ${model ?? "?"}${
+    ? `Sends ${subject} to Hugging Face Inference Providers: ${model ?? "?"}${
         route === null ? "" : ` via ${route}`
       }${price === null || price === undefined ? "" : ` at $${price}/M output tokens`}${
         source === "pinned" ? " (the pair you pinned)" : " (the preferred pair)"
@@ -128,7 +141,7 @@ export function summariseModes(
         ? `Local AI — ${localModel ?? "?"} on this machine`
         : "Local AI — not ready",
       detail: localAvailable
-        ? `Sends this brief to ${localModel ?? "?"} on ${endpoint ?? "the loopback server"}; nothing leaves this machine.`
+        ? `Sends ${subject} to ${localModel ?? "?"} on ${endpoint ?? "the loopback server"}; nothing leaves this machine.`
         : `Local AI is not ready: ${localReason ?? "unknown"}.`,
     },
   };
@@ -153,6 +166,7 @@ export function ModeChooser({
   status,
   tokenPresent,
   disabled,
+  purpose = "brief",
 }: {
   readonly id: string;
   readonly value: InterpretMode;
@@ -160,13 +174,12 @@ export function ModeChooser({
   readonly status: ModelStatusResponse | null;
   readonly tokenPresent: boolean;
   readonly disabled?: boolean | undefined;
+  readonly purpose?: ModePurpose;
 }) {
-  const summaries = summariseModes(status, tokenPresent);
+  const summaries = summariseModes(status, tokenPresent, purpose);
   return (
     <fieldset className="mode-group" disabled={disabled === true}>
-      <legend className="visually-hidden">
-        How should this brief be read?
-      </legend>
+      <legend className="visually-hidden">{LEGENDS[purpose]}</legend>
       {INTERPRET_MODES.map((mode) => {
         const summary = summaries[mode];
         const on = value === mode;
@@ -201,12 +214,14 @@ export function ModeDetail({
   value,
   status,
   tokenPresent,
+  purpose = "brief",
 }: {
   readonly value: InterpretMode;
   readonly status: ModelStatusResponse | null;
   readonly tokenPresent: boolean;
+  readonly purpose?: ModePurpose;
 }) {
-  const summary = summariseModes(status, tokenPresent)[value];
+  const summary = summariseModes(status, tokenPresent, purpose)[value];
   return (
     <p className="mode-detail" data-mode-detail={value} title={summary.detail}>
       {summary.label} · <Link to="/settings/models">Model settings</Link>

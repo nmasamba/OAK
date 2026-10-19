@@ -63,6 +63,7 @@ from oak.interfaces.api.models import (
     OutboxLagResponse,
     Problem,
     ReadinessResponse,
+    ReportResponse,
     SelectCandidateRequest,
     SelectionResponse,
     VersionResponse,
@@ -338,6 +339,25 @@ InterpreterQuery = Annotated[
             "local sends it to the model pinned on the loopback server. Both require the "
             "X-OAK-Model-Token header and are refused without it, before anything is "
             "committed."
+        ),
+    ),
+]
+
+
+class NarrativeMode(StrEnum):
+    DETERMINISTIC = "deterministic"
+    ONLINE = "online"
+    LOCAL = "local"
+
+
+NarrativeQuery = Annotated[
+    NarrativeMode | None,
+    Query(
+        description=(
+            "deterministic — the default, and what an absent parameter means — composes the "
+            "report from the case's records with no model. online or local also asks the "
+            "model this machine is set up for one note per main slide, labelled Proposed by "
+            "model; it sends the slides' own words and requires the X-OAK-Model-Token header."
         ),
     ),
 ]
@@ -925,6 +945,50 @@ def create_app(
         return AssuranceResponse(
             case=result.case,
             assurance_plan=result.assurance_plan,
+            duplicate=result.duplicate,
+        )
+
+    @api.post(
+        "/v1/design-cases/{case_id}:record-report",
+        response_model=ReportResponse,
+        tags=["design-cases"],
+    )
+    def record_report(
+        case_id: str,
+        response: Response,
+        request: Request,
+        idempotency_key: IdempotencyHeader,
+        expected: ExpectedVersionHeader,
+        auth: AuthorityDependency,
+        correlation_id: CorrelationHeader = None,
+        narrative: NarrativeQuery = None,
+        model_token: ModelTokenHeader = None,
+    ) -> ReportResponse:
+        """Record the architecture report beside the case, from candidate_selected onwards.
+
+        Stores the report document and its PDF as artifacts (read them through the artifact
+        route), revises the case at its own status and appends a report_recorded audit event.
+        It needs no signature and authorizes nothing.
+        """
+
+        context = command_context(
+            request,
+            auth,
+            idempotency_key=idempotency_key,
+            expected_version=_expected_version(expected),
+            correlation_id=correlation_id,
+        )
+        # Resolved first, so the capability token is demanded exactly when a model would be
+        # called and nothing is committed without it.
+        mode = plane().resolve_narrative((narrative or NarrativeMode.DETERMINISTIC).value)
+        if mode != NarrativeMode.DETERMINISTIC.value:
+            verify_model_token(model_token, token_provider())
+        result = plane().record_report(case_id, context, narrative=mode)
+        response.headers["ETag"] = _etag(str(result.case["version"]))
+        return ReportResponse(
+            case=result.case,
+            report=result.report,
+            document=result.document,
             duplicate=result.duplicate,
         )
 

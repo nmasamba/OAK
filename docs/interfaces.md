@@ -144,6 +144,8 @@ prohibition).
 | Create assurance plan | ● | ● | ● | ● | ● |
 | Compile bundle | ● | ● | ● | ● | ● |
 | Read the chosen architecture (`oak architecture`; `GET …/architecture`) | ○ | ○ | ○ | — | ○ |
+| Record the architecture report (`oak report --record`; `POST …:record-report`) | ● | ● | ● | — | ● |
+| Read the recorded report, as JSON or PDF (`oak report`; the artifact read) | ○ | ○ | ○ | — | ○ |
 | Read operation progress | — | — | ○ | ○ | ○ |
 | Cancel operation | — | — | ● | — | ● |
 | Export / import case | ● | ● | ● | — | ○ |
@@ -177,6 +179,15 @@ Notes:
   composed at request time with `Content-Disposition: attachment`, so the web
   workspace can hand it over as one file; it has no stable digest of its own and
   its parts carry theirs.
+- `oak report` is not local-only. `--record` records the architecture report, which
+  REST exposes as `POST /v1/design-cases/{case_id}:record-report` (Sprint 13). It
+  stores the report document and its PDF as artifacts, revises the case at its own
+  status, appends `report_recorded` and authorizes nothing. Without `--record` it
+  reads the latest recorded report through the artifact read and writes `--output`
+  only after checking the bytes against the digest the case names. A model mode
+  (`--narrative online|local`, `?narrative=`) adds one labelled note per main slide
+  and needs the capability token like a model-mode interpretation. MCP has no report
+  tool (kickoff decision K6).
 - The MCP tool set is exactly the ten interface-contract tools plus the
   read-only `oak_operation_get` progress query. A contract test pins this set;
   a new tool cannot appear without failing it.

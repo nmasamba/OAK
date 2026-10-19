@@ -21,7 +21,9 @@ from oak.adapters.persistence.file_workspace import (
     KIND_SCHEMA,
     MAXIMUM_ARTIFACT_BYTES,
     OBJECT_DIGEST,
+    OPAQUE_KINDS,
     FileWorkspaceRepository,
+    validate_opaque_artifact,
 )
 from oak.adapters.persistence.models import (
     artifact_versions,
@@ -424,7 +426,7 @@ class PostgreSQLWorkspaceRepository:
                 )
                 for _entry, artifact in artifacts:
                     document = None
-                    if artifact.kind != "brief_source":
+                    if artifact.kind not in OPAQUE_KINDS:
                         document = _json_object(artifact.content, "canonical artifact")
                     connection.execute(
                         insert(artifact_versions).values(
@@ -662,7 +664,7 @@ class PostgreSQLWorkspaceRepository:
                     )
                 continue
             document = None
-            if artifact.kind != "brief_source":
+            if artifact.kind not in OPAQUE_KINDS:
                 document = _json_object(artifact.content, "canonical artifact")
             connection.execute(
                 insert(artifact_versions).values(
@@ -835,8 +837,7 @@ class PostgreSQLWorkspaceRepository:
             raise OAKError("OAK-ARTIFACT-SIZE", "artifact exceeds the local size limit")
         schema_name = KIND_SCHEMA.get(artifact.kind)
         if schema_name is None:
-            if artifact.kind != "brief_source":
-                raise OAKError("OAK-ARTIFACT-KIND", "artifact kind is not supported")
+            validate_opaque_artifact(artifact)
             return
         document = _json_object(artifact.content, "canonical artifact")
         self._registry.validate(schema_name, document)

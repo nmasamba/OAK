@@ -44,23 +44,26 @@ CI provisions no database and never starts Compose, so nothing has ever run that
 |---|---|---|---|---|---|
 | macOS 11+ | arm64 (Apple silicon) | Verified | Verified | Verified | The development and rehearsal platform. All three paths exercised by `make check` and the release rehearsal |
 | macOS | x86_64 (Intel) | **Not supported** | **Not supported** | **Not supported** | `cryptography` ≥ 49 publishes no macOS x86_64 wheel and there is no vendored Rust toolchain, so dependency installation fails outright. This includes a Rosetta interpreter on Apple silicon |
-| Linux (glibc) | x86_64 | Verified | Expected | Expected | **glibc ≥ 2.24**, set by `greenlet` (`manylinux_2_24_x86_64`), which SQLAlchemy requires on this architecture; `cryptography` and `psycopg-binary` would allow 2.17. CI runs `make check` on `ubuntu-latest`, and the rehearsal ran the reference CLI journey inside the `linux/amd64` image (Debian 13, glibc 2.41). The control-plane row is *not* verified here: CI provisions no database and never starts Compose (`RR-014`, `RR-019`) |
-| Linux (glibc) | aarch64 | Verified | Verified | Expected | **glibc ≥ 2.27**, set by `psycopg-binary` (`manylinux_2_27_aarch64`); `greenlet` allows 2.24. The Compose stack — API, worker, migrations, web — runs as Linux aarch64 containers on the rehearsal machine and was exercised end to end, including a backup and restore of both state stores. The control-plane row therefore has a higher glibc floor than x86_64 |
-| Linux (musl, e.g. Alpine) | x86_64, aarch64 | Expected | Expected | Expected | musl 1.2 wheels exist for both native dependencies |
-| Linux (glibc) | armv7l (32-bit ARM) | Expected | **Not supported** | Expected | `cryptography` publishes a `manylinux_2_31_armv7l` wheel but `psycopg-binary` publishes no armv7l wheel **and no sdist**, so there is no server path at any build cost |
+| Linux (glibc) | x86_64 | Verified | Expected | Expected | **glibc ≥ 2.27**, set by `Pillow` (`manylinux_2_27_x86_64`), which ReportLab requires for the architecture report (Sprint 13); before that the floor was 2.24, set by `greenlet`, and `cryptography` and `psycopg-binary` would allow 2.17. CI runs `make check` on `ubuntu-latest`, and the rehearsal ran the reference CLI journey inside the `linux/amd64` image (Debian 13, glibc 2.41). The control-plane row is *not* verified here: CI provisions no database and never starts Compose (`RR-014`, `RR-019`) |
+| Linux (glibc) | aarch64 | Verified | Verified | Expected | **glibc ≥ 2.27**, set by `psycopg-binary` and `Pillow` (both `manylinux_2_27_aarch64`); `greenlet` allows 2.24. The Compose stack — API, worker, migrations, web — runs as Linux aarch64 containers on the rehearsal machine and was exercised end to end, including a backup and restore of both state stores. The control-plane row therefore has a higher glibc floor than x86_64 |
+| Linux (musl, e.g. Alpine) | x86_64, aarch64 | Expected | Expected | Expected | musl 1.2 wheels exist for every native dependency, `Pillow` included |
+| Linux (glibc) | armv7l (32-bit ARM) | **Not supported** | **Not supported** | **Not supported** | `cryptography` publishes a `manylinux_2_31_armv7l` wheel but `psycopg-binary` publishes no armv7l wheel **and no sdist**, so there is no server path at any build cost. Since Sprint 13 `Pillow`, which ReportLab requires, publishes no armv7l wheel either. It does ship an sdist, so the CLI and the runner may build with a C toolchain and the image libraries, but that is unsupported |
 | Windows | any | **Not supported** | **Not supported** | **Not supported** | `src/oak/adapters/persistence/file_workspace.py` imports `fcntl` at module scope for workspace locking. The import fails on Windows before anything else runs. WSL2 is Linux and follows the Linux rows |
 
 The glibc floors above are not guesses: they are read from the wheel tags in `uv.lock`,
 which is the file that actually decides what installs. They are **wheel-availability**
 floors — the point below which a supported install stops being a download.
 
-Two of the native dependencies behave very differently below their floor:
+Three of the native dependencies behave very differently below their floor:
 
 - `greenlet` 3.5.5 ships an sdist, so an older glibc can still work if you have a C
   toolchain. Slow, unsupported, but possible.
 - `psycopg-binary` 3.3.4 ships **no source distribution at all**. Below its floor, or on
   an architecture it does not publish for, there is no server path at any build cost.
   That is why 32-bit ARM has no control-plane row rather than a slow one.
+- `Pillow` 12.3.0 ships an sdist, so below its floor, or on 32-bit ARM, it builds with a C
+  toolchain and the development headers for zlib and libjpeg. That is unsupported. OAK never
+  hands it an image; it is installed only because ReportLab requires it.
 
 ## Prerequisites
 

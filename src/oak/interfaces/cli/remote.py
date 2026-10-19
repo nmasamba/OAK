@@ -176,6 +176,64 @@ class RemoteClient:
         verify_document_digest(document, reference, name=str(reference.get("id")))
         return document
 
+    def get_artifact_bytes(self, case_id: str, reference: dict[str, Any]) -> bytes:
+        """One artifact's raw bytes, refused unless they hash to the reference's digest."""
+
+        identifier = urllib.parse.quote(str(reference.get("id", "")), safe="")
+        query = urllib.parse.urlencode(
+            {
+                "version": str(reference.get("version", "")),
+                "digest": str(reference.get("digest", "")),
+            }
+        )
+        headers: dict[str, str] = {"Accept": "*/*"}
+        if self._actor:
+            headers["X-OAK-Actor"] = self._actor
+        request = urllib.request.Request(
+            self._base_url
+            + f"/v1/design-cases/{urllib.parse.quote(case_id, safe='')}/artifacts/{identifier}"
+            + f"?{query}",
+            headers=headers,
+            method="GET",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=self._timeout) as response:
+                content = bytes(response.read(MAXIMUM_RESPONSE_BYTES + 1))
+        except urllib.error.HTTPError as error:
+            raise self._problem(error) from error
+        except (urllib.error.URLError, TimeoutError, OSError) as error:
+            raise OAKError(
+                "OAK-REMOTE-UNAVAILABLE",
+                "the remote control plane could not be reached",
+                retriable=True,
+            ) from error
+        if len(content) > MAXIMUM_RESPONSE_BYTES:
+            raise OAKError("OAK-REMOTE-SIZE", "remote response exceeds the size limit")
+        if content_digest(content) != reference.get("digest"):
+            raise OAKError(
+                "OAK-REMOTE-DIGEST", f"remote {reference.get('id')} does not match its digest"
+            )
+        return content
+
+    def record_report(
+        self,
+        case_id: str,
+        *,
+        expected_version: str,
+        idempotency_key: str,
+        narrative: str = "deterministic",
+    ) -> dict[str, Any]:
+        model_mode = narrative != "deterministic"
+        query = "" if not model_mode else f"?narrative={narrative}"
+        return self._request(
+            "POST",
+            f"/v1/design-cases/{case_id}:record-report{query}",
+            idempotency_key=idempotency_key,
+            expected_version=expected_version,
+            # Offered only when a model would be called, as for interpretation.
+            model_token=model_mode,
+        )
+
     def create_design_case(
         self, *, original_name: str, content: str, idempotency_key: str
     ) -> dict[str, Any]:

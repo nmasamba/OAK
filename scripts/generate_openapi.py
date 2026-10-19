@@ -47,6 +47,13 @@ export interface DesignCaseResponse {
   readonly duplicate: boolean;
 }
 
+export interface ReportResponse {
+  readonly case: JsonObject;
+  readonly report: JsonObject;
+  readonly document: JsonObject;
+  readonly duplicate: boolean;
+}
+
 export interface DesignCaseListResponse {
   readonly items: readonly JsonObject[];
   readonly next_cursor: string | null;
@@ -130,6 +137,7 @@ export interface CommandOptions {
 }
 
 export type InterpreterMode = "deterministic" | "online" | "local";
+export type NarrativeMode = "deterministic" | "online" | "local";
 
 export class OakApiError extends Error {
   constructor(readonly problem: Problem) {
@@ -418,6 +426,23 @@ export async function interpretDesignCase(
       : `?interpreter=${encodeURIComponent(interpreter)}`;
   return requestJson<DesignCaseResponse>(
     `/v1/design-cases/${encodeURIComponent(caseId)}:interpret${query}`,
+    { method: "POST", headers: commandHeaders(options) },
+    options.baseUrl,
+  );
+}
+
+/** Records the architecture report beside the case; the one report mutation the web has. */
+export async function recordReport(
+  caseId: string,
+  options: CommandOptions,
+  narrative?: NarrativeMode,
+): Promise<ReportResponse> {
+  const query =
+    narrative === undefined
+      ? ""
+      : `?narrative=${encodeURIComponent(narrative)}`;
+  return requestJson<ReportResponse>(
+    `/v1/design-cases/${encodeURIComponent(caseId)}:record-report${query}`,
     { method: "POST", headers: commandHeaders(options) },
     options.baseUrl,
   );

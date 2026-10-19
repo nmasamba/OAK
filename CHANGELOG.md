@@ -8,6 +8,68 @@ All notable changes to OAK Community are recorded here.
 
 ### Added
 
+- **The architecture report** (Sprint 13, `OAK-S13-001`–`007`, authorized 2026-10-16): a
+  decision deck about one design case, recorded beside the case, read on a Report screen
+  and downloaded as a PDF, composed only from the case's records.
+  - **Contract** (`OAK-S13-002`). `architecture-report` and `report-narrative` schemas
+    (`0.1.0`) with examples. The kinds `architecture_report`, `report_narrative` and
+    `report_rendering` (bytes; accepted only as a PDF that starts with the PDF header), the
+    `report_recorded` audit event and the case extension `oak.community/report`. Recording
+    adds no lifecycle transition.
+  - **Composer** (`OAK-S13-002`). `oak.application.report.report_document` is pure. It has
+    fourteen main sections (cover, method, what was asked, options, where each could fail,
+    comparison, recommendation, cost, target architecture, security and data, governance,
+    evidence, what would change this, next steps) and six appendices (assumptions, candidate
+    cards, controls and the decision record, how the estimates were made, evidence, the
+    record). Every number is a quantity with its unit, basis and source; a number without
+    a unit stays `unknown`. Fixture estimates, offline evaluation results and fixture
+    components' figures say "synthetic estimate". Record text longer than the report holds
+    is shortened with a visible marker. A record that does not exist yet becomes "Not yet"
+    with the step that makes it, so a report can be recorded from `candidate_selected`.
+    Variant labels, provenance words, the topology layout and the number format mirror the
+    web's, held equal by contract tests (the layout through Vite in Node).
+  - **Guards** (`scripts/check_report.py`, run by `make validate`). R1: no assurance
+    vocabulary, edition word or raw variant id in any string. R2: every number has a real
+    unit and a source, no figure from a fixture run is "measured" or "counted", every
+    `unknown` has a reason, and template text has no bare number. R3: every picture has
+    its table. R4: every print-palette text pair reaches 4.5:1. Each is
+    mutation-checked with planted violations and live composer mutations. The assurance
+    patterns moved to `oak.domain.vocabulary` so the repository check shares them.
+  - **Rendering** (`OAK-S13-003`). A 16:9 PDF from `oak.adapters.report` behind
+    `ReportRendererPort`, using `reportlab` 5.0.1 (BSD-3-Clause) and its dependency `Pillow`
+    12.3.0. It has the print palette, the standard Helvetica and Courier (none embedded),
+    statuses as shapes with words, the workspace's provenance shapes, and continuation pages
+    that repeat their table headers; text taller than a page continues in pieces, and the
+    page count stays on the page however long the case title. It runs in invariant mode
+    with the document dates taken from the report, so two processes write the same bytes.
+    The PPTX was deferred by the owner after `python-pptx` failed the maintenance review.
+  - **Record and interfaces** (`OAK-S13-004`).
+    - REST: `POST /v1/design-cases/{case_id}:record-report` (unreleased) with
+      `Idempotency-Key` and `If-Match`. Before `candidate_selected` it answers `409
+      OAK-REPORT-STATE`, naming the missing step.
+    - CLI: `oak report [--record] [--narrative] [--format json|pdf] [--output]`, locally and
+      with `--server`, writing files only after checking their digest.
+    - An opt-in model mode adds one checked note per main slide, labelled "Proposed by
+      model" and stored as a `report_narrative`. A note must stay inside its slide: no
+      control or format character, no claim of approval, clearance, safety or security, no
+      benefit, no address or host the slide does not hold, and no number, in digits or
+      words, that the slide does not hold beside the same unit. The capability token is
+      required, and the default makes no model call.
+  - **Workspace** (`OAK-S13-005`). `/cases/:caseId/report`: slides with keyboard paging and
+    a contents list, the record keycap with the notes chooser, a notice when the case has
+    moved on, and PDF and JSON downloads that read "digest matches". A Report link sits in
+    the case rail, with a Report tile in the Take it sheet and the Architecture dock.
+    `recordReport` is the web's one new mutation.
+  - **Docs** (`OAK-S13-006`). A manual section and a twelfth figure, the README, interfaces,
+    architecture, dependencies, platforms (Linux x86_64 glibc ≥ 2.27, armv7l unsupported),
+    threat coverage (TM-13), and residual risks `RR-044` to `RR-047`.
+  - **Closing review** (`OAK-S13-007`). Three finders and a refute-by-default skeptic raised
+    21 findings; 14 survived and are fixed with tests: the note checks above, the synthetic
+    and unit labels, slide 3 counting values the brief does not state, the PDF's page
+    overflow, footer and wrapping cost, a rationale over 4,000 characters that blocked
+    recording, the slide keys inside scrolling tables, a focusable diagram scroller, and
+    `oak report --output` writing through an unpredictable temporary file.
+
 - **OAK Studio, direction A ("Instrument"): the web workspace rebuilt** (Sprint 12,
   `OAK-S12-001`–`007`, authorized 2026-10-15). Conversation first, symbols over text,
   tactile, with one-tap downloads; no boundary moved.

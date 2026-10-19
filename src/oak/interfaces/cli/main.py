@@ -27,6 +27,7 @@ from oak.application import (
     DesignCaseService,
     ModelInterpreterFactory,
     ReleaseService,
+    ReportService,
 )
 from oak.bootstrap import (
     create_candidate_planning_service,
@@ -49,6 +50,11 @@ class InterpreterChoice(StrEnum):
     DETERMINISTIC = "deterministic"
     ONLINE = "online"
     LOCAL = "local"
+
+
+class ReportFormat(StrEnum):
+    JSON = "json"
+    PDF = "pdf"
 
 
 STRUCTURED_BRIEF_SUFFIXES = frozenset({".yaml", ".yml", ".json"})
@@ -1307,6 +1313,144 @@ def architecture(
 
 
 @app.command()
+def report(
+    design_case: Annotated[
+        str | None,
+        typer.Option("--case", help="Design-case identifier; required in remote mode."),
+    ] = None,
+    record: Annotated[
+        bool,
+        typer.Option("--record", help="Record a new report from the case as it is now."),
+    ] = False,
+    narrative: Annotated[
+        InterpreterChoice,
+        typer.Option(
+            "--narrative",
+            help=(
+                "With --record: deterministic (the default) composes the report with no "
+                "model; online or local also asks your configured model for one labelled note "
+                "per main slide, sending it the slides' own words."
+            ),
+        ),
+    ] = InterpreterChoice.DETERMINISTIC,
+    document_format: Annotated[
+        ReportFormat,
+        typer.Option("--format", help="json, the report document, or pdf."),
+    ] = ReportFormat.JSON,
+    output_file: Annotated[
+        Path | None,
+        typer.Option("--output", help="Write the file here, after checking its digest."),
+    ] = None,
+    idempotency_key: Annotated[
+        str | None,
+        typer.Option("--idempotency-key", help="Stable retry key for --record."),
+    ] = None,
+) -> None:
+    """Record or read the architecture report; recording authorizes nothing."""
+
+    try:
+        if document_format is ReportFormat.PDF and output_file is None:
+            raise OAKError("OAK-REPORT-OUTPUT", "a PDF needs --output <file>")
+        field = "document_ref" if document_format is ReportFormat.JSON else "pdf_ref"
+        remote = _remote()
+        if remote is not None:
+            from oak.interfaces.cli import remote as remote_mode
+
+            case_id = _remote_case_id(design_case)
+            if record:
+                version = remote.current_case_version(case_id)
+                key = idempotency_key or remote_mode.derived_key(
+                    "record-report", f"{case_id}@{version}:{narrative.value}"
+                )
+                recorded = remote.record_report(
+                    case_id,
+                    expected_version=version,
+                    idempotency_key=key,
+                    narrative=narrative.value,
+                )
+                _report_recorded_line(
+                    remote_mode.require_field(recorded, "report"), bool(recorded.get("duplicate"))
+                )
+            case = remote_mode.require_field(remote.get_case(case_id), "case")
+            entry = _report_entry(case)
+            reference = entry[field]
+            content = remote.get_artifact_bytes(case_id, reference)
+        else:
+            service = _report_service()
+            if record:
+                current = _workspace_service().current().case
+                if design_case is not None and design_case != current["id"]:
+                    raise OAKError("OAK-CASE-NOT-FOUND", "requested design case is not current")
+                result = service.record(
+                    _context(
+                        idempotency_key=idempotency_key,
+                        expected_version=str(current["version"]),
+                    ),
+                    narrative=narrative.value,
+                )
+                _report_recorded_line(result.report, result.duplicate)
+            case, _ = service.latest()
+            if design_case is not None and design_case != case["id"]:
+                raise OAKError("OAK-CASE-NOT-FOUND", "requested design case is not current")
+            entry = _report_entry(case)
+            reference = entry[field]
+            content = service.artifact_bytes(reference)
+        if str(case.get("version")) != str(entry.get("recorded_case_version")):
+            typer.echo(
+                f"The case moved on since this report: it was made from version "
+                f"{entry.get('made_from_case_version')} and the case is now at "
+                f"{case.get('version')}. Record again with --record.",
+                err=True,
+            )
+        if output_file is None:
+            typer.echo(content.decode("utf-8"))
+            return
+        _write_report_file(output_file, content)
+        typer.echo(f"Wrote {output_file} ({reference['digest']}, digest matches)")
+    except (OAKError, ContractValidationError, OSError, RuntimeError, ValueError) as error:
+        _abort(error)
+
+
+def _report_entry(case: dict[str, Any]) -> dict[str, Any]:
+    entry = (case.get("extensions") or {}).get("oak.community/report")
+    if not isinstance(entry, dict) or not isinstance(entry.get("document_ref"), dict):
+        raise OAKError(
+            "OAK-REPORT-MISSING",
+            "no report is recorded for this case; run `oak report --record` first",
+        )
+    return entry
+
+
+def _report_recorded_line(entry: dict[str, Any], duplicate: bool) -> None:
+    typer.echo(
+        f"Recorded the report from case version {entry.get('made_from_case_version')}; the "
+        f"case is now at {entry.get('recorded_case_version')}, its status unchanged"
+        + (" (idempotent retry)" if duplicate else ""),
+        err=True,
+    )
+
+
+def _write_report_file(path: Path, content: bytes) -> None:
+    """Write beside the target, then replace it, so a failed write leaves no half file."""
+
+    target = path.expanduser().resolve()
+    # A fresh, unpredictable name created exclusively: nothing already at a guessable path
+    # (a link planted beside the target) can be written through or truncated.
+    descriptor, name = tempfile.mkstemp(
+        dir=target.parent, prefix=f".{target.name}.", suffix=".oak-tmp"
+    )
+    temporary = Path(name)
+    try:
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(content)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, target)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+@app.command()
 def observe(
     output: Annotated[
         OutputFormat, typer.Option("--output", help="Output format.")
@@ -1930,6 +2074,12 @@ def _discovery_text(family: str, snapshot: dict[str, Any]) -> str:
     if any(model["providers"] for model in snapshot["models"]):
         lines.append("  * supports structured output; only such routes are ever called")
     return "\n".join(lines)
+
+
+def _report_service() -> ReportService:
+    from oak.bootstrap import create_report_service
+
+    return create_report_service(FileWorkspaceRoot.discover(Path.cwd()))
 
 
 def _release_service() -> ReleaseService:

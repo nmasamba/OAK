@@ -63,6 +63,10 @@ KNOWN_MUTATIONS = frozenset(
         "compileBundle",
         "cancelOperation",
         "importDesignCase",
+        # Sprint 13 (kickoff decision K1): recording the architecture report is the one
+        # mutation the Report screen adds. It revises the case at its own status and
+        # authorizes nothing.
+        "recordReport",
     }
 )
 

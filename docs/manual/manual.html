@@ -380,6 +380,34 @@ uv run oak assure candidate-03 --output ./assurance
     worth signing. Chapter 5 shows the server producing the same fingerprint as this
     chapter.
   </div>
+  <h2>6 · Record the architecture report</h2>
+  <pre><code>uv run oak report --record --format pdf --output ../report.pdf
+<span class="out">Recorded the report from case version 0.1.7; the case is now at 0.1.8, its status unchanged
+Wrote ../report.pdf (sha256:…, digest matches)</span>
+uv run oak report --output ../report.json</code></pre>
+  <p>
+    The report is the document a decision-maker reads: what was asked, the options and
+    why each lost, where each could fail, how they compare, the recommendation with your
+    own rationale quoted, cost beside the simpler baseline, the target architecture,
+    security and data, governance and gates, the evidence so far, what would change the
+    decision and the next steps, with six appendices behind them. Every figure carries its
+    unit, its range, where it came from and how sure the record is, and a fixture's number
+    says <em>synthetic estimate</em>. A section whose record does not exist yet says
+    <em>Not yet</em> and names the step that makes it, so a report can be recorded as soon
+    as a design is selected.
+  </p>
+  <p>
+    <code>--record</code> keeps the report document and its PDF in the case and appends a
+    <code>report_recorded</code> event; it changes no status and authorizes nothing. Without
+    it, <code>oak report</code> reads the latest report and writes the file only after
+    checking its bytes against the digest the case names, and it says so when the case has
+    moved on since. By default no model is involved. <code>--narrative online</code> or
+    <code>local</code> also asks the model you configured for one short note per main slide,
+    which the report prints under <em>Proposed by model</em> beside its own words; OAK drops
+    any note that claims an approval or holds a number its slide does not hold. The PDF uses
+    the standard Helvetica and Courier, so a character they lack prints as <code>?</code>; the
+    JSON document keeps every character.
+  </p>
   <h2>Export and import</h2>
   <pre><code>uv run oak export --output ../case-export
 <span class="out">Exported design-case.public-manual-qa@0.1.7 to ../case-export</span>
@@ -429,6 +457,7 @@ uv run oak import ../case-export --directory ../restored
   <figure><img src="assets/07-candidates.png" alt="Design cards with an infeasible candidate"><figcaption>Designs as cards: a topology glyph and three range bars on one shared scale per card, with a table view a toggle away. The infeasible candidate stays visible, dashed, with its constraint failure — rejection reasons are first-class.</figcaption></figure>
   <figure><img src="assets/08-decision-assurance.png" alt="Decision and assurance plan"><figcaption>The immutable decision: the selected candidate with its recorded rationale and decider, every alternative with the reason it was not selected (<code>candidate-04</code> carries its unconfirmed hardware constraint), and the evaluation evidence beneath. The assurance plan’s controls and gate blockers follow further down the same screen.</figcaption></figure>
   <figure><img src="assets/09-bundle.png" alt="The architecture with its topology and dock"><figcaption>The architecture: the topology drawn and tabled, prediction chips, and the dock with three install lights and <em>Copy install steps</em>, which copies commands and runs nothing. Plan, approval and apply stay separated, and apply is marked unavailable here: the web surface holds no runner execution authority.</figcaption></figure>
+  <figure><img src="assets/12-report.png" alt="The Report screen with a recorded report"><figcaption>The architecture report, recorded by one keycap and read one slide at a time with the arrow keys or the contents list. Each status is a shape and a word, each figure carries its unit and source, and the topology sits beside its tables. The PDF and the report document download through the same digest check as every other file. When the case moves on, the screen says so and offers <em>Record again</em>; it never re-renders a report silently.</figcaption></figure>
   <figure><img src="assets/10-timeline.png" alt="Audit timeline"><figcaption>The audit timeline: every recorded event from <em>case_created</em> to <em>bundle_compiled</em>, each with its sequence number, actor, interface origin, case version and timestamp — and downloadable as a canonical JSON export.</figcaption></figure>
 
   <h2>Taking your files</h2>
