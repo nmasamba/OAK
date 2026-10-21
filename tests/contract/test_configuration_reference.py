@@ -67,7 +67,7 @@ def test_the_reference_documents_nothing_the_source_does_not_read() -> None:
 
 
 def test_the_safety_relevant_variables_are_marked_as_such() -> None:
-    """These six are the ones that move a trust boundary if changed."""
+    """These seven are the ones that move a trust boundary if changed."""
 
     text = REFERENCE.read_text(encoding="utf-8")
     for name in (
@@ -77,6 +77,7 @@ def test_the_safety_relevant_variables_are_marked_as_such() -> None:
         "OAK_RUNNER_TRUST_ANCHORS",
         "OAK_DATABASE_URL",
         "OAK_CREDENTIALS_DIRECTORY",
+        "OAK_RESEARCH_FIXTURES",
     ):
         row = next(line for line in text.splitlines() if line.startswith(f"| `{name}`"))
         assert row.rstrip().endswith("| Yes |"), f"{name} must be marked safety-relevant"

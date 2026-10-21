@@ -75,10 +75,9 @@
             "github": {
               "type": "object",
               "additionalProperties": false,
-              "required": ["topics", "licences", "archived", "pushed_within_days"],
+              "required": ["topics", "archived", "pushed_within_days"],
               "properties": {
                 "topics": {"type": "object", "propertyNames": {"pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"}, "additionalProperties": {"$ref": "#/$defs/tokens"}},
-                "licences": {"$ref": "#/$defs/tokens"},
                 "archived": {"const": false},
                 "pushed_within_days": {"type": "integer", "minimum": 1, "maximum": 365}
               }
@@ -88,11 +87,12 @@
         "local": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["capabilities", "hardware_class", "licence_ids", "hub_licence_tags", "freshness_window_days"],
+          "required": ["capabilities", "hardware_class", "licence_ids", "licence_keywords", "hub_licence_tags", "freshness_window_days"],
           "properties": {
             "capabilities": {"$ref": "#/$defs/tokens"},
             "hardware_class": {"$ref": "#/$defs/token"},
             "licence_ids": {"type": "array", "items": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9.+-]{0,63}$"}, "uniqueItems": true, "maxItems": 64},
+            "licence_keywords": {"$ref": "#/$defs/tokens"},
             "hub_licence_tags": {"$ref": "#/$defs/tokens"},
             "freshness_window_days": {"type": "integer", "minimum": 1, "maximum": 365}
           }

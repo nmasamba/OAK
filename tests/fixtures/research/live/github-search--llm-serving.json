@@ -1,0 +1,24 @@
+{
+  "total_count": 1,
+  "incomplete_results": false,
+  "items": [
+    {
+      "id": 900000001,
+      "full_name": "fixture-forge/fixturelm-serve",
+      "name": "fixturelm-serve",
+      "owner": {"login": "fixture-forge", "type": "Organization"},
+      "html_url": "https://github.com/fixture-forge/fixturelm-serve",
+      "description": "Synthetic serving runtime fixture for OAK tests.",
+      "fork": false,
+      "archived": false,
+      "disabled": false,
+      "license": {"key": "apache-2.0", "name": "Apache License 2.0", "spdx_id": "Apache-2.0"},
+      "topics": ["llm-serving", "inference"],
+      "created_at": "2024-01-15T00:00:00Z",
+      "updated_at": "2026-10-13T08:00:00Z",
+      "pushed_at": "2026-10-13T08:00:00Z",
+      "stargazers_count": 12,
+      "default_branch": "main"
+    }
+  ]
+}

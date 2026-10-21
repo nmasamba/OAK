@@ -478,6 +478,31 @@ def create_report_narrator(mode: str) -> ReportNarratorPort | None:
     )
 
 
+def create_research_source(*, occurred_at: str) -> tuple[Any, str, frozenset[str]]:
+    """`(fetch, source_mode, hosts)` for one research run (Sprint 14, ADR-0018).
+
+    The fixture source is selected only by ``OAK_RESEARCH_FIXTURES`` (safety-relevant,
+    ``RR-052``); otherwise the one transport, scoped to exactly the three research hosts.
+    Both are imported lazily, so a deterministic generation never loads either.
+    """
+
+    directory = os.getenv("OAK_RESEARCH_FIXTURES", "").strip()
+    if directory:
+        from oak.adapters.models.research_fixture import FixtureResearchSource
+
+        source = FixtureResearchSource(Path(directory), occurred_at=occurred_at)
+        return source.fetch, "fixture", frozenset()
+    from oak.adapters.models.research_sources import MAXIMUM_RESPONSE_BYTES, RESEARCH_HOSTS
+    from oak.adapters.models.transport import ModelTransport
+
+    transport = ModelTransport(
+        allowed_hosts=RESEARCH_HOSTS,
+        deadline_seconds=INTERPRETATION_CEILING_SECONDS,
+        maximum_response_bytes=MAXIMUM_RESPONSE_BYTES,
+    )
+    return transport.send, "live", RESEARCH_HOSTS
+
+
 def create_report_renderer() -> ReportRendererPort:
     """The PDF renderer; imported here so a command that draws nothing never loads it."""
 

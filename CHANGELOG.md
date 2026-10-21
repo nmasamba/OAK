@@ -45,6 +45,25 @@ All notable changes to OAK Community are recorded here.
     twenty or twenty-one sections (appendix G, research), the basis words "published by
     source" and "measured by source", and a unit on an unknown. The four reference
     digests, the curated candidates and the report golden are unchanged.
+  - **The research adapter** (`OAK-S14-003`). `oak.adapters.models.research_sources`
+    reads the Hugging Face Hub's model listing, the router's live routes and GitHub's
+    repository search, releases and tag commits through the one transport, anonymously,
+    within 30 requests under one 60-second deadline with a size cap on every answer and a
+    24-hour in-memory cache keyed by the terms digest; a redirect, an oversized answer, a
+    rate limit, an outage or an exhausted budget is a stable, non-retriable refusal, and
+    no refusal is cached. `oak.domain.research_rules` normalises every string by allowlist
+    (NFKC, no category C character, an ASCII identifier shape, bounded lengths, forbidden
+    words), pairs a harness with a model only when its release notes name the model's
+    family token as a whole identifier, estimates a weight floor from the published dtypes,
+    and runs the gates `community-research-gates-1.0.0`; a passing or reviewable item gets
+    a `component-manifest` stored `quarantined` with every honest value, its commit id in
+    `oak.community/research` and never in a sha256 field, and a refused item is listed by
+    digest with its reason alone. The curated eligibility rules moved to
+    `oak.domain.catalogue_rules` unchanged. The transport's redirect refusal carries its
+    status as a typed field. The in-process fixture source, selected only by
+    `OAK_RESEARCH_FIXTURES` (safety-relevant, `RR-052`), answers the same requests from
+    recorded JSON with offset dates. `scripts/check_research.py` (S1–S5) joins
+    `make validate`; `tests/live/test_research_live.py` is the hand-run live check.
 
 - **The architecture report** (Sprint 13, `OAK-S13-001`–`007`, authorized 2026-10-16): a
   decision deck about one design case, recorded beside the case, read on a Report screen

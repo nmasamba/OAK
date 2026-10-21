@@ -92,6 +92,12 @@ DOCUMENTED_MODEL_ADAPTERS = (
     # Sprint 13: in a model mode chosen per recording, the report's main-slide text is
     # sent to the same configured model for labelled notes (threat-coverage TM-13).
     "report_narrator.py",
+    # Sprint 14 (ADR-0018): the in-process research source selected only by
+    # OAK_RESEARCH_FIXTURES; it reads recorded JSON and imports no transport (RR-052).
+    "research_fixture.py",
+    # Sprint 14 (ADR-0018): the three research readers (the Hub, its router, GitHub's REST
+    # API), anonymous, through the one transport, after the user's consent (TM-13).
+    "research_sources.py",
     "transport.py",
 )
 
@@ -104,6 +110,10 @@ HOSTED_MODEL_MODULES = (
     "oak.adapters.models.hosted_interpreter",
     "oak.adapters.models.huggingface_catalogue",
     "oak.adapters.models.report_narrator",
+    # Sprint 14: a deterministic generation compiles the curated catalogue and must never
+    # load the research readers or the fixture source.
+    "oak.adapters.models.research_sources",
+    "oak.adapters.models.research_fixture",
 )
 
 pytestmark = pytest.mark.integration
@@ -399,3 +409,43 @@ def test_a_deterministic_report_never_imports_a_hosted_model_module() -> None:
     assert "oak.adapters.models.fake_narrator" not in loaded
     for module in HOSTED_MODEL_MODULES:
         assert module not in loaded, f"a deterministic report imported {module}"
+
+
+def test_a_deterministic_generation_never_imports_a_research_module() -> None:
+    """Generating candidates without a research snapshot loads no research module at all.
+
+    Research is opt-in per run (ADR-0018); the default generation compiles the curated
+    catalogue. A fresh interpreter generates the reference candidates and lists what it
+    loaded, as the deterministic journey's own check does.
+    """
+
+    program = "\n".join(
+        (
+            "import json, sys, tempfile, pathlib",
+            f"sys.path.insert(0, {str(ROOT)!r})",
+            "from tests.report_support import build_case_with_candidates",
+            "with tempfile.TemporaryDirectory() as directory:",
+            "    workspace = build_case_with_candidates(pathlib.Path(directory))",
+            "    manifest = json.loads(",
+            "        (workspace / '.oak' / 'manifest.json').read_text('utf-8')",
+            "    )",
+            "    kinds = sorted({entry['kind'] for entry in manifest['artifact_index']})",
+            "modules = sorted(n for n in sys.modules if n.startswith('oak.'))",
+            "print(json.dumps({'modules': modules, 'kinds': kinds}))",
+        )
+    )
+    completed = subprocess.run(
+        [sys.executable, "-c", program], capture_output=True, text=True, cwd=ROOT, check=False
+    )
+    assert completed.returncode == 0, completed.stderr[-3000:]
+    reported = json.loads(completed.stdout.splitlines()[-1])
+    loaded = set(reported["modules"])
+    assert "architecture_candidate" in reported["kinds"]
+    assert "research_snapshot" not in reported["kinds"]
+    assert "oak.compiler.candidates" in loaded
+    for module in (
+        "oak.adapters.models.research_sources",
+        "oak.adapters.models.research_fixture",
+        "oak.adapters.models.transport",
+    ):
+        assert module not in loaded, f"a deterministic generation loaded {module}"

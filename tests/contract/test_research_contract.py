@@ -176,7 +176,7 @@ def test_the_report_schema_admits_appendix_g_and_nothing_beyond_it() -> None:
 
 
 def test_an_unresearched_export_carries_nothing_new_and_imports_unchanged(tmp_path: Path) -> None:
-    """A pre-change export: the reference journey records no research, so a `0.9.0` reader validates it."""
+    """A pre-change export: the reference journey records no research, so `0.9.0` validates it."""
 
     workspace = build_reference_case(tmp_path / "source", "bundle_compiled")
     source = FileWorkspaceRepository(workspace, REGISTRY)

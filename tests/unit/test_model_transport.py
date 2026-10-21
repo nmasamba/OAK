@@ -489,3 +489,21 @@ def test_a_header_value_a_request_cannot_carry_is_refused_without_echoing_it(
     assert value.strip() not in refused.value.message
     assert "oak-test-key" not in refused.value.message
     assert server.seen == [], "nothing was sent"
+
+
+def test_a_redirect_refusal_carries_its_status_as_a_typed_field(server: _Server) -> None:
+    """Sprint 14: research names a redirect without reading a message; nothing else moves."""
+
+    from oak.adapters.models.transport import RedirectRefusedError
+
+    server.mode = "redirect"
+    server.redirect_to = "http://127.0.0.1:9/nowhere"
+    with pytest.raises(RedirectRefusedError) as refused:
+        _transport().send(TransportRequest(method="GET", url=f"{server.url}/models"))
+    assert refused.value.status == 302
+    assert refused.value.code == "OAK-INTERPRETER-UNAVAILABLE"
+    assert (
+        refused.value.message == "the provider answered with a redirect, which OAK does not follow"
+    )
+    assert refused.value.retriable is False
+    assert isinstance(refused.value, OAKError)

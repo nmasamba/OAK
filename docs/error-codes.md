@@ -41,7 +41,7 @@ documented flow uses it.
 
 ## Full index
 
-326 codes across 17 families.
+347 codes across 17 families.
 
 ### Workspace, artifacts and import/export (22)
 
@@ -135,25 +135,40 @@ documented flow uses it.
 | `OAK-TARGET-PATH` | target profile must be a regular file | `src/oak/adapters/targets/local_profile.py:24` |
 | `OAK-TARGET-TENANT` | target tenant does not match the command authority | `src/oak/application/candidate_planning.py:454` |
 
-### Catalogue (15)
+### Catalogue (30)
 
 | Code | Meaning | First raise site |
 |---|---|---|
-| `OAK-CAT-AVAILABILITY-BLOCKED` | *reason or mapping code; carries no fixed message* | `src/oak/compiler/catalogue.py:136` |
-| `OAK-CAT-EVIDENCE-FUTURE` | *reason or mapping code; carries no fixed message* | `src/oak/compiler/catalogue.py:153` |
-| `OAK-CAT-EVIDENCE-STALE` | *reason or mapping code; carries no fixed message* | `src/oak/compiler/catalogue.py:138` |
-| `OAK-CAT-EVIDENCE-UNDIGESTED` | *reason or mapping code; carries no fixed message* | `src/oak/compiler/catalogue.py:151` |
-| `OAK-CAT-KNOWN-VULNERABILITY` | *reason or mapping code; carries no fixed message* | `src/oak/compiler/catalogue.py:140` |
-| `OAK-CAT-STATUS-NOT-ELIGIBLE` | *reason or mapping code; carries no fixed message* | `src/oak/compiler/catalogue.py:134` |
-| `OAK-CAT-TRANSITIVE-LICENCE-UNRESOLVED` | *reason or mapping code; carries no fixed message* | `src/oak/compiler/catalogue.py:142` |
+| `OAK-CAT-AVAILABILITY-BLOCKED` | *reason or mapping code; carries no fixed message* | `src/oak/domain/catalogue_rules.py:31` |
+| `OAK-CAT-EVIDENCE-FUTURE` | *reason or mapping code; carries no fixed message* | `src/oak/domain/catalogue_rules.py:48` |
+| `OAK-CAT-EVIDENCE-STALE` | *reason or mapping code; carries no fixed message* | `src/oak/domain/catalogue_rules.py:33` |
+| `OAK-CAT-EVIDENCE-UNDIGESTED` | *reason or mapping code; carries no fixed message* | `src/oak/domain/catalogue_rules.py:46` |
+| `OAK-CAT-KNOWN-VULNERABILITY` | *reason or mapping code; carries no fixed message* | `src/oak/domain/catalogue_rules.py:35` |
+| `OAK-CAT-RESEARCH-ARCHIVED` | *reason or mapping code; carries no fixed message* | `src/oak/domain/research_rules.py:68` |
+| `OAK-CAT-RESEARCH-CAPABILITY` | *reason or mapping code; carries no fixed message* | `src/oak/domain/research_rules.py:74` |
+| `OAK-CAT-RESEARCH-DISABLED` | *reason or mapping code; carries no fixed message* | `src/oak/domain/research_rules.py:69` |
+| `OAK-CAT-RESEARCH-FORBIDDEN-WORD` | *reason or mapping code; carries no fixed message* | `src/oak/domain/research_rules.py:77` |
+| `OAK-CAT-RESEARCH-FUTURE` | *reason or mapping code; carries no fixed message* | `src/oak/domain/research_rules.py:72` |
+| `OAK-CAT-RESEARCH-GATED` | *reason or mapping code; carries no fixed message* | `src/oak/domain/research_rules.py:67` |
+| `OAK-CAT-RESEARCH-LICENCE-BLOCKED` | *reason or mapping code; carries no fixed message* | `src/oak/domain/research_rules.py:66` |
+| `OAK-CAT-RESEARCH-LICENCE-UNLISTED` | *reason or mapping code; carries no fixed message* | `src/oak/domain/research_rules.py:65` |
+| `OAK-CAT-RESEARCH-MALFORMED` | *reason or mapping code; carries no fixed message* | `src/oak/domain/research_rules.py:78` |
+| `OAK-CAT-RESEARCH-REJECTED` | *reason or mapping code; carries no fixed message* | `src/oak/domain/research_rules.py:76` |
+| `OAK-CAT-RESEARCH-STALE` | *reason or mapping code; carries no fixed message* | `src/oak/domain/research_rules.py:71` |
+| `OAK-CAT-RESEARCH-UNDATED` | *reason or mapping code; carries no fixed message* | `src/oak/domain/research_rules.py:70` |
+| `OAK-CAT-RESEARCH-UNDIGESTED` | *reason or mapping code; carries no fixed message* | `src/oak/domain/research_rules.py:73` |
+| `OAK-CAT-RESEARCH-UNREACHABLE` | *reason or mapping code; carries no fixed message* | `src/oak/domain/research_rules.py:79` |
+| `OAK-CAT-RESEARCH-UNVETTED` | *reason or mapping code; carries no fixed message* | `src/oak/domain/research_rules.py:75` |
+| `OAK-CAT-STATUS-NOT-ELIGIBLE` | *reason or mapping code; carries no fixed message* | `src/oak/domain/catalogue_rules.py:29` |
+| `OAK-CAT-TRANSITIVE-LICENCE-UNRESOLVED` | *reason or mapping code; carries no fixed message* | `src/oak/domain/catalogue_rules.py:37` |
 | `OAK-CATALOGUE-COUNT` | catalogue contains too many documents | `src/oak/adapters/catalogue/local_catalogue.py:37` |
 | `OAK-CATALOGUE-DUPLICATE` | architecture pattern ID is duplicated; architecture pattern variant is duplicated; catalogue identities must be unique; and 1 more | `src/oak/adapters/catalogue/local_catalogue.py:53` |
 | `OAK-CATALOGUE-EMPTY` | catalogue requires manifests and patterns | `src/oak/adapters/catalogue/local_catalogue.py:28` |
-| `OAK-CATALOGUE-INELIGIBLE` | catalogue has no eligible manifests | `src/oak/compiler/catalogue.py:94` |
+| `OAK-CATALOGUE-INELIGIBLE` | catalogue has no eligible manifests | `src/oak/compiler/catalogue.py:96` |
 | `OAK-CATALOGUE-INVALID` | catalogue document failed bounded validation | `src/oak/adapters/catalogue/local_catalogue.py:62` |
 | `OAK-CATALOGUE-PATH` | catalogue directory is unsafe or missing; catalogue documents must be regular files | `src/oak/adapters/catalogue/local_catalogue.py:34` |
-| `OAK-CATALOGUE-PATTERN` | architecture edge references an unknown role; architecture pattern references a missing component manifest; architecture pattern roles are duplicated; and 2 more | `src/oak/compiler/catalogue.py:160` |
-| `OAK-CATALOGUE-TIME` | catalogue timestamp is invalid | `src/oak/compiler/catalogue.py:198` |
+| `OAK-CATALOGUE-PATTERN` | architecture edge references an unknown role; architecture pattern references a missing component manifest; architecture pattern roles are duplicated; and 2 more | `src/oak/compiler/catalogue.py:136` |
+| `OAK-CATALOGUE-TIME` | catalogue timestamp is invalid | `src/oak/domain/catalogue_rules.py:23` |
 
 ### Policy (17)
 
@@ -342,19 +357,19 @@ documented flow uses it.
 | `OAK-INTERPRETER-MODE` | interpreter must be deterministic, online or local | `src/oak/application/design_case.py:264` |
 | `OAK-INTERPRETER-OUTPUT-LIMIT` | proposal output exceeds its limit; provider response exceeds its size limit; the model's answer was truncated | `src/oak/adapters/models/huggingface_catalogue.py:122` |
 | `OAK-INTERPRETER-SOURCE` | optional proposal is not bound to the requested source record; the source record carries no artifact reference | `src/oak/adapters/models/hosted_interpreter.py:201` |
-| `OAK-INTERPRETER-UNAVAILABLE` | optional interpretation provider is unavailable; the TLS handshake with the provider failed; the provider answered with a redirect, which OAK does not follow; and 3 more (some dynamic) | `src/oak/adapters/models/fake_interpreter.py:30` |
+| `OAK-INTERPRETER-UNAVAILABLE` | optional interpretation provider is unavailable; the TLS handshake with the provider failed; the provider could not be reached or answered with an unusable response; and 2 more (some dynamic) | `src/oak/adapters/models/fake_interpreter.py:30` |
 | `OAK-MODEL-` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/cli/main.py:210` |
 | `OAK-MODEL-ACTION` | models action is not recognized | `src/oak/interfaces/cli/main.py:1848` |
 | `OAK-MODEL-CONFIGURATION-FILE` | *reason or mapping code; carries no fixed message* | `src/oak/adapters/credentials/configuration_store.py:17` |
 | `OAK-MODEL-CREDENTIAL-SOURCE` | --store must be auto, keychain, file, or env; the credential source must be keychain, file, or env; this family has no documented environment variable; store the key in the keychain or file backend instead (some dynamic) | `src/oak/adapters/credentials/environment_reference.py:24` |
 | `OAK-MODEL-DISCOVERY-UNAVAILABLE` | model discovery is not available in this build; select a model identifier directly; the Hugging Face catalogue did not answer within its deadline; the provider's model list could not be read (some dynamic) | `src/oak/adapters/models/huggingface_catalogue.py:123` |
-| `OAK-MODEL-EGRESS-DENIED` | only https is spoken to a provider (plain http only to a loopback address); the request destination is not on the provider's fixed host allowlist | `src/oak/adapters/models/transport.py:185` |
+| `OAK-MODEL-EGRESS-DENIED` | only https is spoken to a provider (plain http only to a loopback address); the request destination is not on the provider's fixed host allowlist | `src/oak/adapters/models/research_sources.py:211` |
 | `OAK-MODEL-ENDPOINT-INVALID` | OAK_MODEL_ENDPOINT_LOCAL is not a usable URL; OAK_MODEL_ENDPOINT_LOCAL must be an http(s) URL on a loopback address (for example http://127.0.0.1:11434/v1) with no credentials in it | `src/oak/adapters/models/providers.py:229` |
 | `OAK-MODEL-FAMILY-REQUIRED` | *dynamic message* | `src/oak/interfaces/cli/main.py:1850` |
 | `OAK-MODEL-FAMILY-UNKNOWN` | *dynamic message* | `src/oak/adapters/models/providers.py:271` |
 | `OAK-MODEL-ID` | a Hugging Face model identifier carries no `:` suffix; pin the provider route with --provider instead; a model identifier must be 1 to 256 characters; models select requires a model identifier | `src/oak/application/model_configuration.py:593` |
 | `OAK-MODEL-KEY-INPUT` | a provider key must be printable ASCII with no spaces or control characters; no terminal to prompt on; pipe the key with --stdin (it is never accepted as an argument); read no usable key from standard input (some dynamic) | `src/oak/adapters/credentials/environment_reference.py:42` |
-| `OAK-MODEL-KEY-INVALID` | *dynamic message* | `src/oak/adapters/models/transport.py:220` |
+| `OAK-MODEL-KEY-INVALID` | *dynamic message* | `src/oak/adapters/models/transport.py:232` |
 | `OAK-MODEL-KEY-MISSING` | *dynamic message* | `src/oak/adapters/credentials/environment_reference.py:36` |
 | `OAK-MODEL-KEY-PERMISSIONS` | *reason or mapping code; carries no fixed message* | `src/oak/adapters/credentials/file_store.py:18` |
 | `OAK-MODEL-KEY-REJECTED` | *dynamic message* | `src/oak/adapters/models/providers.py:695` |
@@ -405,7 +420,7 @@ documented flow uses it.
 | `OAK-DATABASE-CONFIG` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/migrations.py:25` |
 | `OAK-DATABASE-MIGRATION` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/migrations.py:36` |
 
-### Everything else (44)
+### Everything else (50)
 
 | Code | Meaning | First raise site |
 |---|---|---|
@@ -446,6 +461,12 @@ documented flow uses it.
 | `OAK-REPORT-RENDER` | no PDF report renderer is configured; the report document could not be drawn; this renderer writes PDF only | `src/oak/adapters/report/pdf.py:1127` |
 | `OAK-REPORT-SIZE` | the rendered report exceeds 4 MiB | `src/oak/adapters/report/pdf.py:1133` |
 | `OAK-REPORT-STATE` | *dynamic message* | `src/oak/application/report/service.py:156` |
+| `OAK-RESEARCH-BUDGET` | *reason or mapping code; carries no fixed message* | `src/oak/adapters/models/research_sources.py:160` |
+| `OAK-RESEARCH-FIXTURE` | a research fixture exceeds its size limit; a research fixture is not a regular file | `src/oak/adapters/models/research_fixture.py:103` |
+| `OAK-RESEARCH-OVERSIZED` | *reason or mapping code; carries no fixed message* | `src/oak/adapters/models/research_sources.py:207` |
+| `OAK-RESEARCH-RATE-LIMITED` | *reason or mapping code; carries no fixed message* | `src/oak/adapters/models/research_sources.py:223` |
+| `OAK-RESEARCH-REDIRECTED` | *reason or mapping code; carries no fixed message* | `src/oak/adapters/models/research_sources.py:201` |
+| `OAK-RESEARCH-UNREACHABLE` | *reason or mapping code; carries no fixed message* | `src/oak/adapters/models/research_sources.py:182` |
 | `OAK-RESEARCH-VOCABULARY` | freshness window must be 1 to 365 days; hardware classes have no fallback; no research binding yields a capability; and 7 more (some dynamic) | `src/oak/adapters/catalogue/research_vocabulary.py:50` |
 | `OAK-REVOCATION-REASON` | revocation requires a reason | `src/oak/application/release.py:285` |
 | `OAK-SAFE-BIND` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/api/server.py:103` |

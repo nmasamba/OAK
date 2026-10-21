@@ -45,7 +45,7 @@ the extension. Curated candidates never carry the extension, so their bytes do n
 
 - Owner/agent: owner-directed coding agent
 - Started: 2026-10-21
-- Last updated: 2026-10-21 (M2)
+- Last updated: 2026-10-21 (M3)
 - State: in-progress
 - Claimed tasks: `OAK-S14-001`–`OAK-S14-007`
 
@@ -423,7 +423,36 @@ Each milestone ends with one commit, its exit check green and a line under Progr
   candidate-compiler tests including the K4 and compare-only cases, 8 contract tests in
   `test_research_contract.py` (a pre-change export imports unchanged), and the composer
   test for an unknown objective's reason. `docs/compatibility.md` classifies the change.
-- [ ] M3 — research adapter; live check recorded.
+- [x] 2026-10-21 M3: `oak.domain.research_rules` (normalisation by allowlist, the
+  family-token rule, the weight floor, the research gates with their `OAK-CAT-RESEARCH-*`
+  reasons, the honest manifest), the curated eligibility rules moved into
+  `oak.domain.catalogue_rules` and shared; `oak.adapters.models.research_sources` (the Hub,
+  router and GitHub readers through the one transport, 30 requests under one 60-second
+  deadline with per-kind size caps, the 24-hour in-memory cache keyed by the terms digest,
+  stable refusals `OAK-RESEARCH-REDIRECTED|OVERSIZED|RATE-LIMITED|UNREACHABLE|BUDGET`,
+  claims with evidence classes, pairings by family token, manifests and the snapshot);
+  the transport's `RedirectRefusedError` carrying the 3xx status; the in-process
+  `FixtureResearchSource` selected only by `OAK_RESEARCH_FIXTURES` (documented as
+  safety-relevant) with offset dates; `create_research_source` in bootstrap, imported
+  lazily; the recorded synthetic fixtures under `tests/fixtures/research/live` (absolute
+  dates) and `e2e` (offsets); `scripts/check_research.py` (S1–S5) in `make validate`,
+  mutation-checked; the adapter lists in `test_offline_boundary.py` and the test that a
+  deterministic generation imports no research module. Proof: the acceptance case on
+  fixtures with the clock at `2026-10-20T12:00:00Z` reports found 2, passed 1, needs
+  review 1, pairs the model and the harness with four claim classes, and gives the same
+  bytes twice; poisoned, lookalike, oversized, redirected and rate-limited inputs are
+  refused with stable codes and a refused item is listed by digest only; a timed-out or
+  refused run records one attempt and the fake transport's log shows no second request.
+- [x] 2026-10-21 M3 live check (real egress, by hand, `OAK_LIVE_RESEARCH_TESTS=1`): the
+  reference brief's derived terms went anonymously to `huggingface.co`,
+  `router.huggingface.co` and `api.github.com`. The first run was refused after 6.9 s
+  with `OAK-RESEARCH-OVERSIZED` (a GitHub release page; see Discoveries). After the
+  recalibration (one release per repository, a 512 KiB cap on that answer) the second run
+  passed in 7.1 s: the snapshot and every manifest validated, every request host was one
+  of the three, and the run stayed inside 30 requests and 60 seconds. The printed summary
+  of found, passed and unvetted counts was not kept (the console tail cut it); the M8
+  run saves its summary to a file. A two-request size probe (the Hub listing: 66 384
+  bytes for 50 entries; the router: 91 473 bytes for 138 routes) preceded the fix.
 - [ ] M4 — operation and interfaces; PostgreSQL counts recorded.
 - [ ] M5 — workspace.
 - [ ] M6 — report and docs.
@@ -472,13 +501,43 @@ Each milestone ends with one commit, its exit check green and a line under Progr
   so every objective of a design that holds it is `unknown` with the manifest named, and
   the router's price and throughput are shown as claims with their class, never as a
   monthly cost or a p95.
+- 2026-10-21 M3, a licence is never sent. GitHub's `license:` qualifier takes one keyword,
+  and combining three needs `OR` operators whose precedence beside other qualifiers is
+  undocumented, while the search answer already carries each repository's detected
+  licence. So the licence list is checked on this machine, the terms carry it under
+  `local`, and `sent.github` holds topics, the archived flag and the freshness window only.
+- 2026-10-21 M3, one search per kind and topic. A GitHub search `q` with `OR` between
+  topics beside `pushed:` and `archived:` qualifiers has an undocumented precedence, so each
+  topic is its own request (nine for three kinds of three topics), and each kind keeps its
+  three most recently pushed hits. With one Hub tag the plan is at most 2 + 9 + 9 + 9 = 29
+  requests, inside the budget by construction; a run that would need more is refused with
+  `OAK-RESEARCH-BUDGET`, a fifth stable code beside the four the prompt names.
+- 2026-10-21 M3, which refusal fails the run. A refused Hub listing, router read or search
+  fails the run with its code and nothing else is sent; a refused release or commit read
+  fails that one harness with `OAK-CAT-RESEARCH-UNREACHABLE` and the run goes on, so one
+  repository's outage does not hide the rest. Nothing is retried, and no refusal is cached.
+- 2026-10-21 M3, a refused item is listed by digest. An item refused for a forbidden word
+  or a malformed id keeps its response digest and its reason and nothing else: no claim,
+  no id and no family token, since those strings are what the refusal is about.
+- 2026-10-21 M3, the gates and the manifest live in the domain. Adapters may not import the
+  compiler, and the merged snapshot (M4) must apply the same gates, so the rules are pure
+  domain functions both import; the curated eligibility rules moved beside them with
+  byte-identical output (the four reference digests hold).
 - 2026-10-21 M0, the throwaway override. Written with the ports only; the worker's
   `OAK_RESEARCH_FIXTURES` and the fixture volume are added at M3 once the directory exists,
   so Docker does not create an empty directory in the tree.
 
 ## Discoveries and follow-ups
 
-- (none yet)
+- 2026-10-21 M3, live. Symptom: the first live run was refused with
+  `OAK-RESEARCH-OVERSIZED` after 6.9 s. Cause: a GitHub release page for a large runtime
+  carries release notes well over the 128 KiB cap the prompt's "about 60 KB each"
+  measurement suggested, and `per_page=2` doubled it. Fix: read one release per repository
+  (the newest published one is all that is read) under a 512 KiB cap, and name the source
+  kind in every refusal message so the next refusal needs no probe. The refusal itself
+  behaved as designed: nothing was retried and no snapshot was written.
+- 2026-10-21 M3, process. The live test prints its summary and the console tail dropped
+  it. Lesson: pipe a hand-run live check to a log file in the scratchpad and read the file.
 
 ## Self-review
 
@@ -501,3 +560,11 @@ determinism?
   claim exists yet. (3) Determinism: the new code paths run only for a manifest that
   carries the research extension, and a test shows the designs without one are unchanged.
   No egress and no authority change; `select` is untouched and still refuses `infeasible`.
+- **M3.** (1) No pinned name changed; the transport's redirect refusal keeps its code and
+  message and only gains a typed status. (2) Every claim carries a class from the closed
+  enum (S4 proves it live), and every gap in a manifest is the schema's honest value or
+  the one sentence saying the source did not publish it; a refused item carries only a
+  digest and a reason. (3) Egress now exists as code but nothing calls it yet: the live
+  transport is built only by `create_research_source`, scoped to the three hosts (S1), and
+  a deterministic generation imports neither reader. What leaves is unchanged from M1,
+  minus the licence keywords, which are now local.

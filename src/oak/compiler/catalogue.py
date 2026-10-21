@@ -7,12 +7,14 @@ from typing import Any
 
 from oak.contracts import SchemaRegistry
 from oak.domain import Artifact, OAKError, json_artifact
+from oak.domain.catalogue_rules import (
+    catalogue_timestamp,
+    eligibility_reasons,
+)
 
 MANIFEST_MEDIA_TYPE = "application/vnd.oak.component-manifest+json"
 PATTERN_MEDIA_TYPE = "application/vnd.oak.architecture-pattern+json"
 SNAPSHOT_MEDIA_TYPE = "application/vnd.oak.catalogue-snapshot+json"
-ALLOWED_AVAILABILITY = frozenset({"osi_open_source_software", "osi_open_source_ai"})
-DISALLOWED_LICENCE_CLASSES = frozenset({"restricted", "source_available", "proprietary", "unknown"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,7 +51,7 @@ def compile_catalogue(
             media_type=MANIFEST_MEDIA_TYPE,
             document=document,
         )
-        reasons = _eligibility_reasons(document, valid_at)
+        reasons = eligibility_reasons(document, valid_at)
         eligible = not reasons
         evidence_checked_at = max(str(item["checked_at"]) for item in document["evidence"])
         entries.append(
@@ -128,32 +130,6 @@ def compile_catalogue(
     )
 
 
-def _eligibility_reasons(document: dict[str, Any], valid_at: datetime) -> tuple[str, ...]:
-    reasons: list[str] = []
-    if document["status"] not in {"eligible", "approved_for_context"}:
-        reasons.append("OAK-CAT-STATUS-NOT-ELIGIBLE")
-    if document["availability_class"] not in ALLOWED_AVAILABILITY:
-        reasons.append("OAK-CAT-AVAILABILITY-BLOCKED")
-    if _timestamp(str(document["next_review_at"])) <= valid_at:
-        reasons.append("OAK-CAT-EVIDENCE-STALE")
-    if document["security"]["known_vulnerabilities"]:
-        reasons.append("OAK-CAT-KNOWN-VULNERABILITY")
-    if document["licensing"]["transitive_review"] != "passed":
-        reasons.append("OAK-CAT-TRANSITIVE-LICENCE-UNRESOLVED")
-    for domain in ("software", "model", "data"):
-        licence = document["licensing"][domain]
-        if licence["classification"] in DISALLOWED_LICENCE_CLASSES:
-            reasons.append(f"OAK-CAT-{domain.upper()}-LICENCE-BLOCKED")
-        if licence["review_status"] not in {"passed", "not_applicable"}:
-            reasons.append(f"OAK-CAT-{domain.upper()}-LICENCE-UNREVIEWED")
-    for evidence in document["evidence"]:
-        if evidence["content_digest"] is None:
-            reasons.append("OAK-CAT-EVIDENCE-UNDIGESTED")
-        if _timestamp(str(evidence["checked_at"])) > valid_at:
-            reasons.append("OAK-CAT-EVIDENCE-FUTURE")
-    return tuple(sorted(set(reasons)))
-
-
 def _validate_pattern(pattern: dict[str, Any], manifests: dict[str, dict[str, Any]]) -> None:
     roles = {str(role["id"]): role for role in pattern["roles"]}
     if len(roles) != len(pattern["roles"]):
@@ -192,7 +168,4 @@ def _validate_pattern(pattern: dict[str, Any], manifests: dict[str, dict[str, An
 
 
 def _timestamp(value: str) -> datetime:
-    try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except ValueError as error:
-        raise OAKError("OAK-CATALOGUE-TIME", "catalogue timestamp is invalid") from error
+    return catalogue_timestamp(value)

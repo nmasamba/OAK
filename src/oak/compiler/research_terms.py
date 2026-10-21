@@ -3,9 +3,13 @@
 
 ``derive_research_terms`` is pure. It reads the intent's hardware section and the closed
 vocabularies, and nothing else: no brief text, no identifier, no credential. Every string in
-the ``sent`` block is a value from the capability map or the licence list; the ``local``
-block is used on this machine only. The consent card shows this document verbatim and the
-audit event records its digest, so what the user agreed to and what was sent are one object.
+the ``sent`` block is a value from the capability map; the ``local`` block (the licence
+list, the hardware class, the capabilities) is used on this machine only. A licence is
+never sent: GitHub's ``license:`` qualifier takes one keyword, combining several needs
+``OR`` operators whose precedence beside other qualifiers is undocumented, and the search
+answer already carries each repository's detected licence. The consent card shows this
+document verbatim and the audit event records its digest, so what the user agreed to and
+what was sent are one object.
 """
 
 import hashlib
@@ -62,7 +66,6 @@ def derive_research_terms(
             },
             "github": {
                 "topics": topics,
-                "licences": [keyword for _spdx, keyword, _tag in licences],
                 "archived": False,
                 "pushed_within_days": freshness_window_days,
             },
@@ -71,6 +74,7 @@ def derive_research_terms(
             "capabilities": capabilities,
             "hardware_class": classify_hardware(intent, vocabulary),
             "licence_ids": [spdx for spdx, _keyword, _tag in licences],
+            "licence_keywords": [keyword for _spdx, keyword, _tag in licences],
             "hub_licence_tags": [tag for _spdx, _keyword, tag in licences],
             "freshness_window_days": freshness_window_days,
         },

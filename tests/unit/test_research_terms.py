@@ -84,7 +84,6 @@ def _sent_vocabulary(vocabulary: ResearchVocabulary) -> set[str]:
         allowed.update(entry["hub_filters"])
     for kind in vocabulary.capabilities["harness_kinds"].values():
         allowed.update(kind["github_topics"])
-    allowed.update(str(entry["github_keyword"]) for entry in vocabulary.licences["licences"])
     return allowed
 
 
@@ -93,6 +92,7 @@ def _local_vocabulary(vocabulary: ResearchVocabulary) -> set[str]:
     allowed.update(str(entry["id"]) for entry in vocabulary.hardware_classes["classes"])
     for entry in vocabulary.licences["licences"]:
         allowed.add(str(entry["spdx_id"]))
+        allowed.add(str(entry["github_keyword"]))
         allowed.add(str(entry["hub_tag"]))
     return allowed
 
@@ -143,7 +143,8 @@ def test_the_terms_are_deterministic_and_their_digest_is_stable() -> None:
     assert first["version"] == "community-research-terms-1.0.0"
     assert first["local"]["capabilities"] == ["citation_drafting", "independent_verification"]
     assert first["sent"]["hub"]["pipeline_tags"] == ["text-generation"]
-    assert first["sent"]["github"]["licences"] == ["apache-2.0", "bsd-3-clause", "mit"]
+    assert "licences" not in first["sent"]["github"]
+    assert first["local"]["licence_keywords"] == ["apache-2.0", "bsd-3-clause", "mit"]
     assert first["sent"]["github"]["pushed_within_days"] == 180
     assert "serving_runtime" in first["sent"]["github"]["topics"]
 

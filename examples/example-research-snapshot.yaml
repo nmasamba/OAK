@@ -26,13 +26,13 @@ terms:
         agent_framework: [agent-framework, ai-agents, llm-agents]
         retrieval_engine: [retrieval-augmented-generation, vector-database, vector-search]
         serving_runtime: [llm-inference, llm-serving, model-serving]
-      licences: [apache-2.0, bsd-3-clause, mit]
       archived: false
       pushed_within_days: 180
   local:
     capabilities: [citation_drafting, independent_verification]
     hardware_class: cpu-medium
     licence_ids: [Apache-2.0, BSD-3-Clause, MIT]
+    licence_keywords: [apache-2.0, bsd-3-clause, mit]
     hub_licence_tags: [apache-2.0, bsd-3-clause, mit]
     freshness_window_days: 180
   vocabulary:
