@@ -157,9 +157,12 @@ def architecture_human(document: dict[str, Any]) -> str:
             if objective.get("lower") is not None and objective.get("upper") is not None
             else ""
         )
-        lines.append(
-            f"  {objective['name']:<24} {objective['value']}{interval} {objective['unit']}"
-        )
+        value = objective.get("value")
+        if value is None:
+            reason = objective.get("unknown_reason") or "no figure is recorded"
+            lines.append(f"  {objective['name']:<24} unknown ({reason}) {objective['unit']}")
+        else:
+            lines.append(f"  {objective['name']:<24} {value}{interval} {objective['unit']}")
     installation = architecture.get("installation")
     if installation and installation.get("superseded"):
         lines += ["", f"The plan for {installation['target_id']} was {installation['note']}."]

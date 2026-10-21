@@ -46,6 +46,8 @@ KIND_SCHEMA = {
     "interpretation_proposal": "interpretation-proposal.schema.json",
     "architecture_report": "architecture-report.schema.json",
     "report_narrative": "report-narrative.schema.json",
+    "research_snapshot": "research-snapshot.schema.json",
+    "research_review": "research-review.schema.json",
 }
 JSON_MEDIA_KIND = {
     "application/vnd.oak.source-record+json": "source_record",
@@ -73,6 +75,8 @@ JSON_MEDIA_KIND = {
     "application/vnd.oak.interpretation-proposal+json": "interpretation_proposal",
     "application/vnd.oak.architecture-report+json": "architecture_report",
     "application/vnd.oak.report-narrative+json": "report_narrative",
+    "application/vnd.oak.research-snapshot+json": "research_snapshot",
+    "application/vnd.oak.research-review+json": "research_review",
 }
 # Kinds stored as opaque bytes: no schema, never parsed as JSON. The brief is kept as the
 # user supplied it; a report rendering is accepted only as a PDF that starts with the PDF
@@ -642,6 +646,7 @@ class FileWorkspaceRepository:
                 ("oak.community/catalogue_snapshot_ref", "catalogue_snapshot"),
                 ("oak.community/selection_decision_ref", "architecture_decision"),
                 ("oak.community/semantic_manifest_ref", "review_artifact"),
+                ("oak.community/research_snapshot_ref", "research_snapshot"),
             ):
                 nested_reference = extension_refs.get(key)
                 if nested_reference is not None:
@@ -651,6 +656,7 @@ class FileWorkspaceRepository:
                 ("oak.community/evaluation_refs", "evaluation_result"),
                 ("oak.community/policy_pack_refs", "policy_pack"),
                 ("oak.community/policy_decision_refs", "policy_decision"),
+                ("oak.community/research_review_refs", "research_review"),
             ):
                 for nested_reference in extension_refs.get(key, []):
                     self._require_indexed_reference(indexed, nested_reference, kind)

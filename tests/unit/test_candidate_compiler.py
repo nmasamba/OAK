@@ -266,3 +266,240 @@ def test_reference_evaluation_exposes_pass_fail_and_blocked_states() -> None:
     assert json.loads(passing.content)["status"] == "pass"
     assert json.loads(failing.content)["status"] == "fail"
     assert json.loads(blocked.content)["status"] == "blocked"
+
+
+# ----- Sprint 14, K4 and the compare-only rule (ADR-0018) -------------------------------
+
+
+def _objective(name: str, direction: str, value: float | None) -> dict[str, object]:
+    objective: dict[str, object] = {
+        "name": name,
+        "direction": direction,
+        "value": value,
+        "lower": value,
+        "upper": value,
+        "unit": "USD/month" if name == "monthly_cost" else "normalized_fixture_score",
+        "weight": 0.2,
+        "confidence": 0.7 if value is not None else 0.0,
+        "estimator_ref": f"fixture-{name}-1.0.0",
+    }
+    if value is None:
+        objective["unknown_reason"] = f"No {name} figure is published for component.research.x."
+    return objective
+
+
+def _synthetic_candidate(
+    identifier: str,
+    status: str,
+    cost: float | None,
+    quality: float | None,
+    *,
+    comparable: bool | None = None,
+) -> dict[str, object]:
+    extensions: dict[str, object] = {}
+    if comparable is not None:
+        extensions["oak.community/comparison"] = {
+            "rule": "community-compare-only-1.0.0",
+            "comparable": comparable,
+            "pending_review": ["constraint.licence"],
+            "unknown_value": ["constraint.hardware"],
+            "failed": [],
+            "uncompared_objectives": [],
+        }
+    return {
+        "id": identifier,
+        "status": status,
+        "objectives": [
+            _objective("monthly_cost", "minimize", cost),
+            _objective("quality", "maximize", quality),
+        ],
+        "pareto": {
+            "frontier_member": False,
+            "dominated_by": [],
+            "preference_weights_ref": "community-fixture-weights-1.0.0",
+            "sensitivity_summary": "Not compared until feasibility is established.",
+        },
+        "extensions": extensions,
+    }
+
+
+def test_an_unknown_objective_never_dominates_and_is_never_dominated() -> None:
+    from oak.compiler.candidates import _apply_pareto
+
+    better = _synthetic_candidate("candidate-a", "feasible", 10.0, 0.9)
+    worse = _synthetic_candidate("candidate-b", "feasible", 20.0, 0.8)
+    # Cheaper than both and feasible, but its quality is unknown: it can neither dominate
+    # nor be dominated, and the frontier says which objective it could not compare.
+    partial = _synthetic_candidate("candidate-c", "feasible", 5.0, None)
+    documents = [worse, partial, better]
+
+    _apply_pareto(documents)
+
+    assert worse["pareto"]["dominated_by"] == ["candidate-a"]
+    assert better["pareto"] == {
+        "frontier_member": True,
+        "dominated_by": [],
+        "preference_weights_ref": "community-fixture-weights-1.0.0",
+        "sensitivity_summary": (
+            "Frontier membership is stable; preference changes choose between simplicity, "
+            "quality, operability, cost and energy."
+        ),
+    }
+    assert partial["pareto"]["frontier_member"] is True
+    assert partial["pareto"]["dominated_by"] == []
+    assert "not compared on quality" in partial["pareto"]["sensitivity_summary"]
+    assert (
+        "unknown never dominates and is never dominated" in partial["pareto"]["sensitivity_summary"]
+    )
+
+
+def test_a_comparable_researched_design_joins_the_comparison_but_stays_infeasible() -> None:
+    from oak.compiler.candidates import _apply_pareto
+
+    curated = _synthetic_candidate("candidate-03", "feasible", 20.0, 0.8)
+    # The compare-only rule: infeasible only through a pending review and an unknown value,
+    # with both objectives published, so it can dominate a curated design on the numbers.
+    researched = _synthetic_candidate("candidate-05", "infeasible", 10.0, 0.9, comparable=True)
+    excluded = _synthetic_candidate("candidate-06", "infeasible", 1.0, 1.0, comparable=False)
+    documents = [curated, researched, excluded]
+
+    _apply_pareto(documents)
+
+    assert researched["status"] == "infeasible"
+    assert researched["pareto"]["frontier_member"] is True
+    assert researched["pareto"]["dominated_by"] == []
+    assert researched["extensions"]["oak.community/comparison"]["uncompared_objectives"] == []
+    assert curated["pareto"]["dominated_by"] == ["candidate-05"]
+    assert excluded["pareto"]["frontier_member"] is False
+    assert excluded["pareto"]["sensitivity_summary"] == (
+        "Excluded because at least one hard constraint failed or remained unknown."
+    )
+    assert "candidate-06" not in curated["pareto"]["dominated_by"]
+
+
+def _researched(manifest: dict[str, object], **licence: str) -> dict[str, object]:
+    document = copy.deepcopy(manifest)
+    document["extensions"]["oak.community/research"] = {  # type: ignore[index]
+        "source": "fixture",
+        "source_id": "HuggingFaceTB/Fixturelm-4B",
+        "tier": "trusted",
+        "commit_id": "0123456789abcdef0123456789abcdef01234567",
+        "digest_covers": "source listing",
+    }
+    licensing = document["licensing"]
+    assert isinstance(licensing, dict)
+    licensing["transitive_review"] = licence.get("transitive", "pending")
+    licensing["model"]["review_status"] = licence.get("review", "pending")
+    document["availability_class"] = licence.get("availability", "unknown")
+    return document
+
+
+def _constraint(identifier: str, result: str) -> dict[str, object]:
+    return {"id": identifier, "kind": "hard", "expression": "x", "result": result, "reason": "r"}
+
+
+def test_the_compare_only_rule_classifies_pending_reviews_and_unknowns_only() -> None:
+    from oak.compiler.candidates import classify_comparison
+
+    documents = _documents()
+    model = next(
+        item for item in documents.manifests if item["id"] == "component.fixture-local-model"
+    )
+    constraints = [
+        _constraint("constraint.catalogue-eligibility", "pass"),
+        _constraint("constraint.hardware", "unknown"),
+        _constraint("constraint.licence", "fail"),
+        _constraint("constraint.security", "pass"),
+    ]
+
+    pending = classify_comparison(constraints, [_researched(model)])
+    assert pending == {
+        "rule": "community-compare-only-1.0.0",
+        "comparable": True,
+        "pending_review": ["constraint.licence"],
+        "unknown_value": ["constraint.hardware"],
+        "failed": [],
+        "uncompared_objectives": [],
+    }
+
+    failed_review = classify_comparison(constraints, [_researched(model, review="failed")])
+    assert failed_review["comparable"] is False
+    assert failed_review["failed"] == ["constraint.licence"]
+
+    restricted = classify_comparison(
+        constraints, [_researched(model, availability="open_weight_restricted")]
+    )
+    assert restricted["comparable"] is False
+
+    real_failure = classify_comparison(
+        [*constraints, _constraint("constraint.security", "fail")], [_researched(model)]
+    )
+    assert real_failure["failed"] == ["constraint.security"]
+    assert real_failure["comparable"] is False
+
+    curated_only = classify_comparison(constraints, [model])
+    assert curated_only["comparable"] is False
+    assert curated_only["pending_review"] == []
+    assert curated_only["failed"] == ["constraint.licence"]
+
+
+def test_every_curated_manifest_declares_its_minimums_so_the_curated_bytes_hold() -> None:
+    for manifest in _documents().manifests:
+        minimums = manifest["targets"]["minimum_resources"]
+        assert isinstance(minimums.get("ram_gib"), (int, float)), manifest["id"]
+        assert isinstance(minimums.get("storage_gib"), (int, float)), manifest["id"]
+        objectives = manifest["extensions"]["oak.community/objectives"]
+        assert set(objectives) == {
+            "monthly_cost_usd",
+            "latency_p95_ms",
+            "quality_score",
+            "operability_score",
+            "energy_wh",
+        }, manifest["id"]
+        assert "oak.community/research" not in manifest["extensions"], manifest["id"]
+
+
+def test_a_researched_component_with_nothing_published_yields_unknowns_never_zero() -> None:
+    documents = _documents()
+    manifests = [copy.deepcopy(item) for item in documents.manifests]
+    model = next(item for item in manifests if item["id"] == "component.fixture-local-model")
+    researched = _researched(model)
+    researched["extensions"]["oak.community/objectives"] = {}  # type: ignore[index]
+    researched["targets"]["minimum_resources"] = {}  # type: ignore[index]
+    researched["targets"]["operating_systems"] = []  # type: ignore[index]
+    researched["targets"]["cpu_architectures"] = []  # type: ignore[index]
+    researched["deployment"]["modes"] = []  # type: ignore[index]
+    manifests[manifests.index(model)] = researched
+    poisoned = CatalogueDocuments(manifests=tuple(manifests), patterns=documents.patterns)
+
+    by_id = {str(c["id"]): c for c in _candidate_documents(poisoned)}
+    balanced = by_id["candidate-03"]
+
+    assert balanced["status"] == "infeasible"
+    constraints = {str(c["id"]): c for c in balanced["hard_constraints"]}
+    assert constraints["constraint.hardware"]["result"] == "unknown"
+    assert (
+        "not published for component.fixture-local-model"
+        in constraints["constraint.hardware"]["reason"]
+    )
+    assert constraints["constraint.compatibility"]["result"] == "unknown"
+    assert constraints["constraint.deployment"]["result"] == "unknown"
+    assert constraints["constraint.licence"]["result"] == "fail"
+    assert (
+        constraints["constraint.licence"]["reason"]
+        == "A component licence or transitive review is pending."
+    )
+    requirements = balanced["extensions"]["oak.community/target_requirements"]
+    assert requirements["minimum_resources"]["ram_gib"] is None
+    assert requirements["minimum_resources"]["storage_gib"] is None
+    assert "not published" in requirements["minimum_resources"]["unknown_reason"]
+    for objective in balanced["objectives"]:
+        assert objective["value"] is None and objective["lower"] is None
+        assert objective["confidence"] == 0.0
+        assert objective["estimator_ref"].startswith("fixture-")
+        assert "component.fixture-local-model" in objective["unknown_reason"]
+    # The designs that do not hold the researched component are exactly as before.
+    reference = {str(c["id"]): c for c in _candidate_documents(documents)}
+    for identifier in ("candidate-00", "candidate-01", "candidate-04"):
+        assert by_id[identifier]["objectives"] == reference[identifier]["objectives"]
+        assert by_id[identifier]["hard_constraints"] == reference[identifier]["hard_constraints"]

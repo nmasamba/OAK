@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: Apache-2.0
+# A recorded review of one unvetted research item (synthetic, non-production). An accept
+# makes the item eligible under the research gates for comparison only.
+schema_version: 0.1.0
+id: research-review.public-manual-qa.fixture-forge.fixturelm-serve
+version: 0.1.0
+case_id: design-case.public-manual-qa
+snapshot_ref:
+  id: research.public-manual-qa
+  version: 0.1.0
+  digest: sha256:9999999999999999999999999999999999999999999999999999999999999999
+item_id: research.item.github.fixture-forge.fixturelm-serve
+item_response_digest: sha256:5555555555555555555555555555555555555555555555555555555555555555
+decision: accept
+rationale: The release notes name the model family and the licence is listed; reviewed the repository by hand before accepting it for comparison.
+actor: local-user
+recorded_at: 2026-10-20T12:05:00Z
+extensions: {}

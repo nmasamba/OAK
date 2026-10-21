@@ -45,7 +45,7 @@ the extension. Curated candidates never carry the extension, so their bytes do n
 
 - Owner/agent: owner-directed coding agent
 - Started: 2026-10-21
-- Last updated: 2026-10-21 (M1)
+- Last updated: 2026-10-21 (M2)
 - State: in-progress
 - Claimed tasks: `OAK-S14-001`–`OAK-S14-007`
 
@@ -403,7 +403,26 @@ Each milestone ends with one commit, its exit check green and a line under Progr
   with `terms_digest` and `classify_hardware`; `tests/unit/test_research_terms.py` (35) over
   the reference brief's intent, the example intent and four synthetic intents; `make
   validate`, the unit and contract suites and governance validation green.
-- [ ] M2 — contract and unknown estimates.
+- [x] 2026-10-21 M2: `research-snapshot` and `research-review` schemas (`0.1.0`) with
+  examples, registered in `EXAMPLE_BY_SCHEMA`, `schemas/README.md`, both kind tables, the
+  workspace-manifest enum and the export-lineage check (`oak.community/research_snapshot_ref`,
+  `oak.community/research_review_refs`); `research_completed` and `research_item_reviewed`
+  in the audit-event enum; the evidence-class enum and its `source_type` map in
+  `oak.domain.research`, held equal to the schema by a contract test; an objective's
+  `value` nullable with `unknown_reason` required exactly when null (`common.schema.json`
+  `if`/`then`); the compiler writes `unknown` with a reason for an unpublished figure,
+  never zero (objectives, hardware minimums, compatibility, deployment, target
+  requirements), and only when a manifest carries `oak.community/research`; `_dominates`
+  returns false whenever either value is unknown; `_apply_pareto` includes comparable
+  candidates, names the uncompared objectives and records them on the comparison
+  extension; `classify_comparison` is the typed compare-only rule; the report composer
+  shows an objective's own reason with its unit and `oak architecture` prints `unknown`
+  with the reason; the report schema takes 20 or 21 sections with appendix G, the two
+  basis words and a unit on an unknown. Proof: `test_reference_digests.py` green (the
+  four digests and the case digest unchanged), the report golden byte-identical, 16
+  candidate-compiler tests including the K4 and compare-only cases, 8 contract tests in
+  `test_research_contract.py` (a pre-change export imports unchanged), and the composer
+  test for an unknown objective's reason. `docs/compatibility.md` classifies the change.
 - [ ] M3 — research adapter; live check recorded.
 - [ ] M4 — operation and interfaces; PostgreSQL counts recorded.
 - [ ] M5 — workspace.
@@ -439,6 +458,20 @@ Each milestone ends with one commit, its exit check green and a line under Progr
 - 2026-10-21 M1, test citations in `threat-coverage.md` wait for the tests. The rows cite
   only tests that exist, so the research tests join `TM-02`, `TM-04`, `TM-13`, `TM-14` and
   `TM-17` at M6; the gap table and "What changed" are mapped now.
+- 2026-10-21 M2, where a pending licence review counts. `classify_comparison` calls a
+  failed licence constraint "pending" only when a researched manifest is in the design and
+  every shortfall is a `pending` review or an `unknown` availability class; a curated
+  manifest never stands on a pending review, and a `failed` review, a restricted class or a
+  blocked licence is a real failure. The classification is computed from the manifests
+  and the typed constraint results, never from a reason string.
+- 2026-10-21 M2, commit ids and honest values (as ADR-0018 says). A researched manifest's
+  `artifact.digest` holds a published asset digest or the digest of the source's own
+  listing, with `extensions["oak.community/research"].digest_covers` saying which; the
+  git commit id is `commit_id` in the same extension; no sha256 field ever holds one. A
+  researched manifest publishes no `oak.community/objectives` figure it cannot stand on,
+  so every objective of a design that holds it is `unknown` with the manifest named, and
+  the router's price and throughput are shown as claims with their class, never as a
+  monthly cost or a p95.
 - 2026-10-21 M0, the throwaway override. Written with the ports only; the worker's
   `OAK_RESEARCH_FIXTURES` and the fixture volume are added at M3 once the directory exists,
   so Docker does not create an empty directory in the tree.
@@ -462,3 +495,9 @@ determinism?
   pure function, and nothing can send it yet: no transport call exists. The egress rule in
   both governance files was widened on purpose, and the deterministic path imports nothing
   new.
+- **M2.** (1) No pinned name changed: the four reference digests, the case digest and the
+  report golden are byte-identical, and every curated reason, label and id is as before.
+  (2) Every `unknown` the compiler now writes carries a reason that names the manifest; no
+  claim exists yet. (3) Determinism: the new code paths run only for a manifest that
+  carries the research extension, and a test shows the designs without one are unchanged.
+  No egress and no authority change; `select` is untouched and still refuses `infeasible`.

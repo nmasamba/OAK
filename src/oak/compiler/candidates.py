@@ -6,6 +6,9 @@ from typing import Any
 from oak.compiler.catalogue import CompiledCatalogue
 from oak.contracts import SchemaRegistry
 from oak.domain import (
+    COMPARISON_EXTENSION,
+    COMPARISON_RULE_VERSION,
+    RESEARCH_EXTENSION,
     Artifact,
     ArtifactReference,
     canonical_json_bytes,
@@ -302,6 +305,7 @@ def _constraint(
 def _hardware_constraint(
     hardware: dict[str, Any], manifests: list[dict[str, Any]]
 ) -> dict[str, Any]:
+    unpublished = _unpublished_minimums(manifests)
     required_ram = max(
         float(item["targets"]["minimum_resources"].get("ram_gib", 0)) for item in manifests
     )
@@ -314,7 +318,12 @@ def _hardware_constraint(
     ram = hardware.get("ram_gib")
     storage = hardware.get("storage_gib")
     accelerators = hardware.get("accelerators")
-    if not isinstance(ram, (int, float)) or not isinstance(storage, (int, float)):
+    if unpublished:
+        result, reason = (
+            "unknown",
+            f"Minimum resources are not published for {', '.join(unpublished)}.",
+        )
+    elif not isinstance(ram, (int, float)) or not isinstance(storage, (int, float)):
         result, reason = "unknown", "Target RAM or storage is unknown."
     elif float(ram) < required_ram or float(storage) < required_storage:
         result, reason = (
@@ -344,6 +353,19 @@ def _deployment_constraint(
         result, reason = "unknown", "Deployment mode is unknown."
     elif "local" not in modes:
         result, reason = "fail", "The fixture supports only the confirmed local deployment mode."
+    elif any(not item["deployment"]["modes"] and _is_researched(item) for item in manifests):
+        result, reason = (
+            "unknown",
+            "Deployment modes are not published for "
+            + ", ".join(
+                sorted(
+                    str(item["id"])
+                    for item in manifests
+                    if not item["deployment"]["modes"] and _is_researched(item)
+                )
+            )
+            + ".",
+        )
     elif any(not item["deployment"]["modes"] for item in manifests):
         result, reason = "fail", "A component declares no supported deployment mode."
     else:
@@ -369,12 +391,16 @@ def _licence_constraint(manifests: list[dict[str, Any]]) -> dict[str, Any]:
         and item["licensing"]["transitive_review"] == "passed"
         for item in manifests
     )
+    if allowed:
+        reason = "All component and transitive licence reviews passed."
+    elif _licence_reviews_pending(manifests):
+        reason = "A component licence or transitive review is pending."
+    else:
+        reason = "A component licence or transitive review is not eligible."
     return _constraint(
         "constraint.licence",
         "pass" if allowed else "fail",
-        "All component and transitive licence reviews passed."
-        if allowed
-        else "A component licence or transitive review is not eligible.",
+        reason,
         ["OAK-FR-CAT-002", "OAK-FR-CAT-003"],
     )
 
@@ -399,14 +425,124 @@ def _compatibility_constraint(manifests: list[dict[str, Any]]) -> dict[str, Any]
         and requirements["operating_systems"]
         and requirements["cpu_architectures"]
     )
-    return _constraint(
-        "constraint.compatibility",
-        "pass" if compatible else "fail",
-        "Every component exposes a versioned interface."
-        if compatible
-        else "A component has no compatible interface.",
-        ["OAK-FR-ARC-007"],
+    unpublished = sorted(
+        str(item["id"])
+        for item in manifests
+        if _is_researched(item)
+        and (
+            not item["interfaces"]
+            or not item["targets"]["operating_systems"]
+            or not item["targets"]["cpu_architectures"]
+        )
     )
+    if compatible:
+        result, reason = "pass", "Every component exposes a versioned interface."
+    elif unpublished:
+        result, reason = (
+            "unknown",
+            "Interfaces, operating systems or CPU architectures are not published for "
+            f"{', '.join(unpublished)}.",
+        )
+    else:
+        result, reason = "fail", "A component has no compatible interface."
+    return _constraint("constraint.compatibility", result, reason, ["OAK-FR-ARC-007"])
+
+
+def _is_researched(manifest: dict[str, Any]) -> bool:
+    return RESEARCH_EXTENSION in (manifest.get("extensions") or {})
+
+
+def _unpublished_minimums(manifests: list[dict[str, Any]]) -> list[str]:
+    """Researched manifests that publish no RAM or storage minimum; a curated one declares both."""
+
+    return sorted(
+        str(item["id"])
+        for item in manifests
+        if _is_researched(item)
+        and (
+            item["targets"]["minimum_resources"].get("ram_gib") is None
+            or item["targets"]["minimum_resources"].get("storage_gib") is None
+        )
+    )
+
+
+def _licence_reviews_pending(manifests: list[dict[str, Any]]) -> bool:
+    """True when every licence shortfall is a review that has not happened yet.
+
+    A failed review, a restricted class or a blocked licence is a real failure; a pending
+    review or an unknown availability class is the honest state of a researched manifest
+    nobody has reviewed, which the compare-only rule treats as pending (ADR-0018).
+    """
+
+    shortfall = False
+    for item in manifests:
+        licensing = item["licensing"]
+        if item["availability_class"] not in {
+            "osi_open_source_software",
+            "osi_open_source_ai",
+            "unknown",
+        }:
+            return False
+        if licensing["transitive_review"] not in {"passed", "pending"}:
+            return False
+        for domain in ("software", "model", "data"):
+            if licensing[domain]["review_status"] not in {"passed", "pending", "not_applicable"}:
+                return False
+            if licensing[domain]["classification"] in {
+                "restricted",
+                "source_available",
+                "proprietary",
+            }:
+                return False
+            if licensing[domain]["review_status"] == "pending":
+                shortfall = True
+        if licensing["transitive_review"] == "pending" or item["availability_class"] == "unknown":
+            shortfall = True
+        if shortfall and not _is_researched(item):
+            # Only a researched manifest may stand on a pending review; a curated one
+            # passes the curated rules or is ineligible.
+            return False
+    return shortfall
+
+
+def classify_comparison(
+    constraints: list[dict[str, Any]], manifests: list[dict[str, Any]]
+) -> dict[str, Any]:
+    """The compare-only rule's typed classification of a researched candidate (ADR-0018).
+
+    A candidate whose hard-constraint results are each a pass, a pending review or an
+    unpublished value is *comparable*: `_apply_pareto` includes it. It stays `infeasible`
+    and `select` refuses it. Only a candidate that holds a researched component is ever
+    classified; the classification is written to the candidate, never parsed from a reason.
+    """
+
+    pending: list[str] = []
+    unknown: list[str] = []
+    failed: list[str] = []
+    researched = any(_is_researched(item) for item in manifests)
+    for constraint in constraints:
+        result = str(constraint["result"])
+        identifier = str(constraint["id"])
+        if result in {"pass", "not_applicable"}:
+            continue
+        if result == "unknown":
+            unknown.append(identifier)
+        elif (
+            identifier == "constraint.licence"
+            and researched
+            and _licence_reviews_pending(manifests)
+        ):
+            pending.append(identifier)
+        else:
+            failed.append(identifier)
+    return {
+        "rule": COMPARISON_RULE_VERSION,
+        "comparable": researched and not failed,
+        "pending_review": sorted(pending),
+        "unknown_value": sorted(unknown),
+        "failed": sorted(failed),
+        "uncompared_objectives": [],
+    }
 
 
 def _target_requirements(manifests: list[dict[str, Any]]) -> dict[str, Any]:
@@ -422,15 +558,25 @@ def _target_requirements(manifests: list[dict[str, Any]]) -> dict[str, Any]:
             {value for item in manifests for value in item["targets"]["accelerators"]}
         ),
         "drivers": sorted({value for item in manifests for value in item["targets"]["drivers"]}),
-        "minimum_resources": {
-            "ram_gib": max(
-                float(item["targets"]["minimum_resources"].get("ram_gib", 0)) for item in manifests
-            ),
-            "storage_gib": sum(
-                float(item["targets"]["minimum_resources"].get("storage_gib", 0))
-                for item in manifests
-            ),
-        },
+        "minimum_resources": _minimum_resources(manifests),
+    }
+
+
+def _minimum_resources(manifests: list[dict[str, Any]]) -> dict[str, Any]:
+    unpublished = _unpublished_minimums(manifests)
+    if unpublished:
+        return {
+            "ram_gib": None,
+            "storage_gib": None,
+            "unknown_reason": f"Minimum resources are not published for {', '.join(unpublished)}.",
+        }
+    return {
+        "ram_gib": max(
+            float(item["targets"]["minimum_resources"].get("ram_gib", 0)) for item in manifests
+        ),
+        "storage_gib": sum(
+            float(item["targets"]["minimum_resources"].get("storage_gib", 0)) for item in manifests
+        ),
     }
 
 
@@ -469,56 +615,68 @@ def _topology(
 def _objectives(
     components: list[tuple[dict[str, Any], Artifact, dict[str, Any]]],
 ) -> list[dict[str, Any]]:
-    values = [manifest["extensions"]["oak.community/objectives"] for _r, _a, manifest in components]
+    manifests = [manifest for _r, _a, manifest in components]
+    values = [
+        manifest["extensions"].get("oak.community/objectives") or {} for manifest in manifests
+    ]
     definitions = (
-        (
-            "monthly_cost",
-            "minimize",
-            sum(float(item["monthly_cost_usd"]) for item in values),
-            "USD/month",
-            0.2,
-            0.10,
-            "fixture-cost-1.0.0",
-        ),
-        (
-            "latency_p95",
-            "minimize",
-            max(float(item["latency_p95_ms"]) for item in values),
-            "milliseconds",
-            0.2,
-            0.25,
-            "fixture-latency-1.0.0",
-        ),
+        ("monthly_cost", "minimize", "monthly_cost_usd", sum, "USD/month", 0.2, 0.10, "cost"),
+        ("latency_p95", "minimize", "latency_p95_ms", max, "milliseconds", 0.2, 0.25, "latency"),
         (
             "quality",
             "maximize",
-            max(float(item["quality_score"]) for item in values),
+            "quality_score",
+            max,
             "normalized_fixture_score",
             0.3,
             0.05,
-            "fixture-quality-1.0.0",
+            "quality",
         ),
         (
             "operability",
             "maximize",
-            min(float(item["operability_score"]) for item in values),
+            "operability_score",
+            min,
             "normalized_fixture_score",
             0.2,
             0.08,
-            "fixture-operability-1.0.0",
+            "operability",
         ),
-        (
-            "energy",
-            "minimize",
-            sum(float(item["energy_wh"]) for item in values),
-            "Wh/request",
-            0.1,
-            0.30,
-            "fixture-energy-1.0.0",
-        ),
+        ("energy", "minimize", "energy_wh", sum, "Wh/request", 0.1, 0.30, "energy"),
     )
     objectives: list[dict[str, Any]] = []
-    for name, direction, value, unit, weight, uncertainty, estimator in definitions:
+    for name, direction, key, aggregate, unit, weight, uncertainty, short in definitions:
+        estimator = f"fixture-{short}-1.0.0"
+        published: list[float] = []
+        unpublished: list[str] = []
+        for manifest, item in zip(manifests, values, strict=True):
+            raw = item.get(key)
+            if isinstance(raw, (int, float)) and not isinstance(raw, bool):
+                published.append(float(raw))
+            else:
+                unpublished.append(str(manifest["id"]))
+        if unpublished:
+            # K4: never a fallback number. The aggregate keeps its fixture estimator, since
+            # every fixture input stays a synthetic estimate, and says who published nothing.
+            objectives.append(
+                {
+                    "name": name,
+                    "direction": direction,
+                    "value": None,
+                    "lower": None,
+                    "upper": None,
+                    "unit": unit,
+                    "weight": weight,
+                    "confidence": 0.0,
+                    "estimator_ref": estimator,
+                    "unknown_reason": (
+                        f"No {name.replace('_', ' ')} figure is published for "
+                        f"{', '.join(sorted(unpublished))}."
+                    ),
+                }
+            )
+            continue
+        value = aggregate(published)
         if direction == "maximize":
             lower, upper = max(0.0, value - uncertainty), min(1.0, value + uncertainty)
         else:
@@ -540,29 +698,54 @@ def _objectives(
 
 
 def _apply_pareto(documents: list[dict[str, Any]]) -> None:
-    feasible = [document for document in documents if document["status"] == "feasible"]
+    compared = [
+        document
+        for document in documents
+        if document["status"] == "feasible" or _is_comparable(document)
+    ]
     for document in documents:
-        if document["status"] != "feasible":
+        if document not in compared:
             document["pareto"]["sensitivity_summary"] = (
                 "Excluded because at least one hard constraint failed or remained unknown."
             )
             continue
         dominated_by = sorted(
             str(other["id"])
-            for other in feasible
+            for other in compared
             if other is not document and _dominates(other, document)
         )
+        uncompared = sorted(
+            str(objective["name"])
+            for objective in document["objectives"]
+            if objective.get("value") is None
+        )
+        if dominated_by:
+            summary = f"Dominated under every declared objective by {', '.join(dominated_by)}."
+        elif uncompared:
+            summary = (
+                "Not dominated, and not compared on "
+                f"{', '.join(name.replace('_', ' ') for name in uncompared)}, whose values "
+                "are unknown; an unknown never dominates and is never dominated."
+            )
+        else:
+            summary = (
+                "Frontier membership is stable; preference changes choose between simplicity, "
+                "quality, operability, cost and energy."
+            )
         document["pareto"] = {
             "frontier_member": not dominated_by,
             "dominated_by": dominated_by,
             "preference_weights_ref": "community-fixture-weights-1.0.0",
-            "sensitivity_summary": (
-                "Frontier membership is stable; preference changes choose between simplicity, "
-                "quality, operability, cost and energy."
-                if not dominated_by
-                else f"Dominated under every declared objective by {', '.join(dominated_by)}."
-            ),
+            "sensitivity_summary": summary,
         }
+        comparison = document["extensions"].get(COMPARISON_EXTENSION)
+        if isinstance(comparison, dict):
+            comparison["uncompared_objectives"] = uncompared
+
+
+def _is_comparable(document: dict[str, Any]) -> bool:
+    comparison = document["extensions"].get(COMPARISON_EXTENSION)
+    return isinstance(comparison, dict) and comparison.get("comparable") is True
 
 
 def _dominates(left: dict[str, Any], right: dict[str, Any]) -> bool:
@@ -571,6 +754,9 @@ def _dominates(left: dict[str, Any], right: dict[str, Any]) -> bool:
     strictly_better = False
     for objective in left["objectives"]:
         other = right_by_name[str(objective["name"])]
+        if objective.get("value") is None or other.get("value") is None:
+            # K4: an unknown never dominates and is never dominated.
+            return False
         if objective["direction"] == "minimize":
             weakly_better &= float(objective["value"]) <= float(other["value"])
             strictly_better |= float(objective["value"]) < float(other["value"])

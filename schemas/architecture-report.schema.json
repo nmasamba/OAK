@@ -69,7 +69,7 @@
     "sections": {
       "type": "array",
       "minItems": 20,
-      "maxItems": 20,
+      "maxItems": 21,
       "items": {"$ref": "#/$defs/section"}
     },
     "inputs": {
@@ -135,17 +135,18 @@
             "appendix-controls",
             "appendix-estimates",
             "appendix-evidence",
-            "appendix-record"
+            "appendix-record",
+            "appendix-research"
           ]
         },
-        "number": {"enum": ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "A", "B", "C", "D", "E", "F"]},
+        "number": {"enum": ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "A", "B", "C", "D", "E", "F", "G"]},
         "kind": {"enum": ["main", "appendix"]},
         "title": {"type": "string", "minLength": 1, "maxLength": 200},
         "subtitle": {"type": "string", "minLength": 1, "maxLength": 300},
         "state": {"enum": ["ready", "partial", "not_yet"]},
         "detail_in": {
           "type": "array",
-          "items": {"enum": ["A", "B", "C", "D", "E", "F"]},
+          "items": {"enum": ["A", "B", "C", "D", "E", "F", "G"]},
           "uniqueItems": true
         },
         "blocks": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/block"}},
@@ -423,7 +424,7 @@
         "lower": {"type": ["number", "null"]},
         "upper": {"type": ["number", "null"]},
         "unit": {"type": "string", "minLength": 1, "maxLength": 120},
-        "basis": {"enum": ["confirmed", "assumed", "estimated", "measured", "synthetic estimate", "counted", "declared"]},
+        "basis": {"enum": ["confirmed", "assumed", "estimated", "measured", "synthetic estimate", "counted", "declared", "published by source", "measured by source"]},
         "confidence": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
         "estimator": {"type": ["string", "null"], "maxLength": 160},
         "source": {"$ref": "#/$defs/source"},
@@ -469,7 +470,8 @@
       "required": ["type", "reason"],
       "properties": {
         "type": {"const": "unknown"},
-        "reason": {"type": "string", "minLength": 1, "maxLength": 1000}
+        "reason": {"type": "string", "minLength": 1, "maxLength": 1000},
+        "unit": {"type": ["string", "null"], "maxLength": 120}
       }
     }
   }

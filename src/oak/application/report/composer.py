@@ -225,8 +225,11 @@ def _status(status: str, word: str, reason: str | None = None) -> dict[str, Any]
     }
 
 
-def _unknown(reason: str) -> dict[str, Any]:
-    return {"type": "unknown", "reason": _clip(reason, MAXIMUM_LIST_ITEM)}
+def _unknown(reason: str, *, unit: str | None = None) -> dict[str, Any]:
+    value: dict[str, Any] = {"type": "unknown", "reason": _clip(reason, MAXIMUM_LIST_ITEM)}
+    if unit:
+        value["unit"] = unit
+    return value
 
 
 def _quantity(
@@ -459,6 +462,11 @@ class _Context:
         if found is None:
             return _unknown(f"{self.name(candidate)} records no {humanise(name).lower()} estimate.")
         index, objective = found
+        if objective.get("value") is None and objective.get("unknown_reason"):
+            # K4: the objective's own reason, with its recorded unit, never the generic one.
+            return _unknown(
+                str(objective["unknown_reason"]), unit=_recorded_unit(objective.get("unit"))
+            )
         return _quantity(
             objective.get("value"),
             _recorded_unit(objective.get("unit")),

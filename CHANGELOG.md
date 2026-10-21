@@ -27,6 +27,24 @@ All notable changes to OAK Community are recorded here.
     emit only vocabulary terms. Residual risks `RR-048`–`RR-053`; threat-coverage gap rows
     for `RR-044`–`RR-053`; the README, `STATUS.md` safety boundary and threat coverage now
     disclose the report-note egress Sprint 13 added.
+  - **Contract and unknown estimates** (`OAK-S14-002`). `research-snapshot` and
+    `research-review` schemas (`0.1.0`) with examples; the kinds `research_snapshot` and
+    `research_review`; the audit events `research_completed` and `research_item_reviewed`;
+    the case extensions `oak.community/research_snapshot_ref` and
+    `oak.community/research_review_refs`, both in the export-lineage check; the closed
+    evidence-class enum mapped onto `evidenceRef.source_type`. An objective's `value` may
+    now be null with its `unknown_reason` (K4): the compiler writes an unknown, never a
+    zero or a fallback, for a figure a researched component does not publish, and only
+    for a design that holds one; an unknown never dominates and is never dominated, and
+    the frontier names the objectives it could not compare. The compare-only rule
+    (kickoff Q4, ADR-0018): a researched design whose only failures are pending reviews
+    or unpublished values joins the Pareto comparison, typed on the candidate as
+    `oak.community/comparison`, and stays `infeasible` and unselectable. The report's
+    comparison shows an unknown objective's own reason with its unit, and `oak
+    architecture` prints `unknown` with the reason; the unreleased report schema takes
+    twenty or twenty-one sections (appendix G, research), the basis words "published by
+    source" and "measured by source", and a unit on an unknown. The four reference
+    digests, the curated candidates and the report golden are unchanged.
 
 - **The architecture report** (Sprint 13, `OAK-S13-001`–`007`, authorized 2026-10-16): a
   decision deck about one design case, recorded beside the case, read on a Report screen

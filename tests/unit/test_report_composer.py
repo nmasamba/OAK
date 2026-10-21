@@ -779,3 +779,42 @@ def test_the_topology_port_lays_out_the_reference_candidate() -> None:
     )
     assert len(cycle["edges"]) == 2
     assert layout_topology({})["description"] == "No nodes."
+
+
+# ----- Sprint 14, K4: an unknown objective shows its own reason ---------------------------
+
+
+def _unknown_cells(value: Any, found: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    if isinstance(value, dict):
+        if value.get("type") == "unknown":
+            found.append(value)
+        for child in value.values():
+            _unknown_cells(child, found)
+    elif isinstance(value, list):
+        for child in value:
+            _unknown_cells(child, found)
+    return found
+
+
+def test_an_unknown_objective_shows_its_own_reason_with_its_unit(
+    reference: dict[str, ReportRecords],
+) -> None:
+    records = reference["bundle_compiled"]
+    candidates = copy.deepcopy(records.candidates)
+    target = next(candidate for candidate in candidates if candidate["id"] == "candidate-04")
+    objective = next(item for item in target["objectives"] if item["name"] == "energy")
+    reason = "No energy figure is published for component.research.fixture."
+    objective.update(
+        {"value": None, "lower": None, "upper": None, "confidence": 0.0, "unknown_reason": reason}
+    )
+
+    document = compose(replace(records, candidates=tuple(candidates)))
+
+    unknowns = [cell for cell in _unknown_cells(document, []) if cell["reason"] == reason]
+    assert unknowns, "the objective's own reason never reached the report"
+    assert all(cell["unit"] == "Wh/request" for cell in unknowns)
+    assert NO_UNIT not in {cell["reason"] for cell in unknowns}
+    chart = next(block for block in blocks(document, "comparison", "chart"))
+    energy = next(series for series in chart["series"] if series["objective"] == "Energy")
+    assert "High assurance" not in {bar["label"] for bar in energy["bars"]}
+    assert len(energy["bars"]) == len(candidates) - 1

@@ -38,6 +38,8 @@ EXAMPLE_BY_SCHEMA = {
     "regulatory-nexus.schema.json": "example-regulatory-nexus.yaml",
     "regulatory-profile.schema.json": "example-eu-regulatory-profile.yaml",
     "report-narrative.schema.json": "example-report-narrative.yaml",
+    "research-snapshot.schema.json": "example-research-snapshot.yaml",
+    "research-review.schema.json": "example-research-review.yaml",
     "revocation-manifest.schema.json": "example-revocation-manifest.yaml",
     "revocation.schema.json": "example-revocation.yaml",
     "runner-envelope.schema.json": "example-runner-envelope.yaml",
