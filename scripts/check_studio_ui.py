@@ -67,6 +67,9 @@ KNOWN_MUTATIONS = frozenset(
         # mutation the Report screen adds. It revises the case at its own status and
         # authorizes nothing.
         "recordReport",
+        # Sprint 14 (ADR-0018): the two research mutations; a plan read is a GET.
+        "researchCatalogue",
+        "reviewResearchItem",
     }
 )
 

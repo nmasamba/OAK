@@ -181,8 +181,8 @@ def test_the_acceptance_case_surfaces_the_model_and_the_harness_together() -> No
     assert harness_classes["licence"] == "published_by_source"
     # Both have honest manifests; the harness's waits for a review before it is used.
     assert {artifact.id for artifact in run.manifests} == {
-        "component.research.hub.huggingfacetb.fixturelm-4b",
-        "component.research.github.fixture-forge.fixturelm-serve",
+        "component.research.hub.huggingfacetb.fixturelm-4b.run-1",
+        "component.research.github.fixture-forge.fixturelm-serve.run-1",
     }
     for artifact in run.manifests:
         document = json.loads(artifact.content)
@@ -338,9 +338,7 @@ def test_a_stale_release_fails_and_a_source_only_release_reads_the_tag_commit(
     assert commit["value"] == "89abcdef0123456789abcdef0123456789abcdef"
     assert commit["evidence_class"] == "published_release"
     assert any("/commits/v0.9.0" in url for url in fetch.log)
-    manifest = next(
-        json.loads(a.content) for a in run.manifests if a.id.endswith("fixturelm-serve")
-    )
+    manifest = next(json.loads(a.content) for a in run.manifests if "fixturelm-serve" in a.id)
     research = manifest["extensions"]["oak.community/research"]
     assert research["commit_id"] == "89abcdef0123456789abcdef0123456789abcdef"
     assert research["digest_covers"] == "the source's release listing, not the code"

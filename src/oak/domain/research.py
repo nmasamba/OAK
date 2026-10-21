@@ -71,4 +71,34 @@ COMPARISON_EXTENSION = "oak.community/comparison"
 RESEARCH_SNAPSHOT_REF = "oak.community/research_snapshot_ref"
 RESEARCH_REVIEW_REFS = "oak.community/research_review_refs"
 RESEARCH_SNAPSHOT_MEDIA_TYPE = "application/vnd.oak.research-snapshot+json"
+# The three hosts research may read, and nothing else (ADR-0018, guard S1).
+RESEARCH_HOSTS: frozenset[str] = frozenset(
+    {"huggingface.co", "router.huggingface.co", "api.github.com"}
+)
+# Organisations that publish open weights under their own name. Read against the Hub's
+# trending list on the date below; a namespace outside this set is never offered by Online
+# AI and is unvetted for research, however high it trends, because a card is
+# author-controlled and a fine-tune can carry any name. Never widened silently.
+TRUSTED_NAMESPACES_AS_OF = "2026-09-21"
+TRUSTED_NAMESPACES: frozenset[str] = frozenset(
+    {
+        "openai",
+        "Qwen",
+        "mistralai",
+        "google",
+        "deepseek-ai",
+        "zai-org",
+        "moonshotai",
+        "meta-llama",
+        "MiniMaxAI",
+        "inclusionAI",
+        "tencent",
+        "thinkingmachines",
+        "ibm-granite",
+        "microsoft",
+        "nvidia",
+        "allenai",
+        "HuggingFaceTB",
+    }
+)
 RESEARCH_REVIEW_MEDIA_TYPE = "application/vnd.oak.research-review+json"

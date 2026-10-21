@@ -4,6 +4,7 @@
 from typing import Any
 
 from oak.compiler.catalogue import CompiledCatalogue
+from oak.compiler.research_designs import ResearchedDesign
 from oak.contracts import SchemaRegistry
 from oak.domain import (
     COMPARISON_EXTENSION,
@@ -135,13 +136,25 @@ def generate_candidates(
     registry: SchemaRegistry,
     *,
     generated_at: str,
+    research_designs: tuple[ResearchedDesign, ...] = (),
 ) -> tuple[Artifact, ...]:
     documents: list[dict[str, Any]] = []
     manifest_artifacts = {artifact.id: artifact for artifact in catalogue.manifests}
     pattern_artifacts = {artifact.id: artifact for artifact in catalogue.patterns}
-    for pattern_id, pattern in sorted(
-        catalogue.pattern_documents.items(), key=lambda item: CANDIDATE_IDS[str(item[1]["variant"])]
-    ):
+    plan: list[tuple[str, dict[str, Any], str, dict[str, Any] | None]] = [
+        (pattern_id, pattern, CANDIDATE_IDS[str(pattern["variant"])], None)
+        for pattern_id, pattern in sorted(
+            catalogue.pattern_documents.items(),
+            key=lambda item: CANDIDATE_IDS[str(item[1]["variant"])],
+        )
+    ]
+    # Researched designs (ADR-0018): the curated pattern with a binding applied, numbered
+    # from candidate-05 in pattern-id order, each carrying its research extension.
+    plan.extend(
+        (design.pattern_id, design.pattern, design.candidate_id, design.research)
+        for design in research_designs
+    )
+    for pattern_id, pattern, candidate_id, research in plan:
         variant = str(pattern["variant"])
         components: list[tuple[dict[str, Any], Artifact, dict[str, Any]]] = []
         for requirement in pattern["component_requirements"]:
@@ -161,7 +174,6 @@ def generate_candidates(
             if item["result"] in {"fail", "unknown"}
         ]
         pattern_ref = pattern_artifacts[pattern_id].reference
-        candidate_id = CANDIDATE_IDS[variant]
         document: dict[str, Any] = {
             "schema_version": "0.3.0",
             "id": candidate_id,
@@ -199,7 +211,7 @@ def generate_candidates(
                 if variant == "simpler_baseline"
                 else []
             ),
-            "risks": _risks(variant, feasible),
+            "risks": _risks(variant, feasible, researched=research is not None),
             "operational_requirements": [
                 "Operate without runtime egress and retain the public source digest."
             ],
@@ -221,6 +233,12 @@ def generate_candidates(
                 ),
             },
         }
+        if research is not None:
+            manifests = [manifest for _requirement, _artifact, manifest in components]
+            document["extensions"][RESEARCH_EXTENSION] = research
+            document["extensions"][COMPARISON_EXTENSION] = classify_comparison(
+                constraints, manifests
+            )
         documents.append(document)
 
     _apply_pareto(documents)
@@ -766,7 +784,12 @@ def _dominates(left: dict[str, Any], right: dict[str, Any]) -> bool:
     return weakly_better and strictly_better
 
 
-def _risks(variant: str, feasible: bool) -> list[str]:
+def _risks(variant: str, feasible: bool, *, researched: bool = False) -> list[str]:
+    if researched:
+        return [
+            "This design is researched: its licence reviews are pending and the figures its "
+            "sources do not publish are unknown, so it is compared but cannot be selected."
+        ]
     if not feasible:
         return ["The candidate is blocked and cannot be selected or compiled."]
     if variant == "simpler_baseline":

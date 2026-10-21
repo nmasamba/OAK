@@ -64,6 +64,20 @@ All notable changes to OAK Community are recorded here.
     `OAK_RESEARCH_FIXTURES` (safety-relevant, `RR-052`), answers the same requests from
     recorded JSON with offset dates. `scripts/check_research.py` (S1–S5) joins
     `make validate`; `tests/live/test_research_live.py` is the hand-run live check.
+  - **Operation and interfaces** (`OAK-S14-004`). `ResearchService`: the plan (a read), the
+    consented run, and the review; the `research_catalogue` operation, submitted with one
+    attempt so a timed-out run never sends its terms twice; the merged catalogue snapshot
+    `catalogue.research.<case>` recorded under both rule sets with curated reasons kept as
+    review items; at most two researched designs from `candidate-05`, the newest passing
+    model per model-bearing pattern and the paired harness in a serving role only a
+    research binding adds, each carrying `oak.community/research` and the compare-only
+    classification. REST (unreleased): `GET /v1/design-cases/{case_id}/research-plan`,
+    `POST /v1/design-cases/{case_id}:research` (`X-OAK-Model-Token` before the body, then
+    consent, then `Idempotency-Key` and `If-Match`, then status; `202`) and
+    `POST /v1/design-cases/{case_id}:review-research-item`. CLI: `oak research --plan`,
+    `oak research --consent <digest>` and `oak research review <item> --accept|--reject
+    --rationale-file <file>`, locally and with `--server`. MCP is unchanged. Each run's
+    manifests carry the run's ordinal in their ids, so a later run keeps its own record.
 
 - **The architecture report** (Sprint 13, `OAK-S13-001`–`007`, authorized 2026-10-16): a
   decision deck about one design case, recorded beside the case, read on a Report screen

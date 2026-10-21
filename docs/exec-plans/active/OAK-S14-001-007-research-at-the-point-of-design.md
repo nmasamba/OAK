@@ -45,7 +45,7 @@ the extension. Curated candidates never carry the extension, so their bytes do n
 
 - Owner/agent: owner-directed coding agent
 - Started: 2026-10-21
-- Last updated: 2026-10-21 (M3)
+- Last updated: 2026-10-21 (M4)
 - State: in-progress
 - Claimed tasks: `OAK-S14-001`–`OAK-S14-007`
 
@@ -453,7 +453,42 @@ Each milestone ends with one commit, its exit check green and a line under Progr
   of found, passed and unvetted counts was not kept (the console tail cut it); the M8
   run saves its summary to a file. A two-request size probe (the Hub listing: 66 384
   bytes for 50 entries; the router: 91 473 bytes for 138 routes) preceded the fix.
-- [ ] M4 — operation and interfaces; PostgreSQL counts recorded.
+- [x] 2026-10-21 M4: `oak.application.research.ResearchService` (`plan`, `run`, `review`,
+  `latest`), revising the case at `ready_for_candidates` with `research_completed` and
+  `research_item_reviewed`; `oak.compiler.research_designs` (effective verdicts after the
+  reviews; at most one design per binding, newest passing model, the paired harness in the
+  serving role) and `compile_catalogue(..., research=)` (the merged snapshot
+  `catalogue.research.<case>` under both rule sets, curated reasons kept as review items,
+  blocking reasons still blocking); `generate_candidates(..., research_designs=)` numbering
+  from `candidate-05` with the research and comparison extensions; the
+  `research_catalogue` operation kind in all four places, submitted with one attempt; the
+  control plane's `research_plan`, `submit_research` (token, consent, idempotency and
+  `If-Match`, status, in that order) and `review_research_item`; the runner, the source
+  factory and the vocabulary injected through `oak.ports.research`, so the application
+  imports no adapter; `GET …/research-plan`, `POST …:research` (202) and
+  `POST …:review-research-item`, listed as unreleased with their five schemas; the
+  generated client's `researchPlan`, `researchCatalogue` and `reviewResearchItem` (the two
+  mutations in G2); `oak research --plan | --consent <digest>` and `oak research review
+  <item> --accept|--reject --rationale-file`, locally and with `--server` (the token from
+  `OAK_MODEL_TOKEN`); interface rows in both repositories. Proof: 19 service tests (a
+  wrong consent, a stale version and a repeated request send nothing, counted at the
+  source; research from `candidates_ready` is refused; a second run keeps the first
+  snapshot; reviews bound to digests; generation with and without the accept; the same
+  snapshot and reviews give the same bytes in a fresh interpreter; an unresearched case
+  still gives four candidates), 4 API tests (the token before the body, consent then
+  version then status, one attempt, an idempotent retry, the review, `select` refusing
+  `candidate-05` with `OAK-SELECT-INFEASIBLE`), 2 CLI tests (local and `--server`), and
+  the PostgreSQL journey on the throwaway database (the worker runs the research once
+  under its lease, a tampered research index entry is refused on import). PostgreSQL
+  pass and skip counts are in the M4 integration line below.
+- [x] 2026-10-22 M4 integration run with `OAK_TEST_DATABASE_URL` on the throwaway database
+  (port 15433): 365 passed, 4 skipped, 0 failed. The four skips are the file backend's
+  parametrisations of the PostgreSQL-only assertions in
+  `tests/integration/test_workspace_repository_contract.py`; no research test skipped.
+  (The first full run showed the PostgreSQL research journey failing on a tampered
+  import answered 500; the `OAK-IMPORT-INVALID` mapping fixed it and the module was
+  re-run twice, green both times.) `make format-check`, `make lint` and
+  `make typecheck` were green at the commit.
 - [ ] M5 — workspace.
 - [ ] M6 — report and docs.
 - [ ] M7 — browser suite, screenshots, manual.
@@ -523,6 +558,24 @@ Each milestone ends with one commit, its exit check green and a line under Progr
   compiler, and the merged snapshot (M4) must apply the same gates, so the rules are pure
   domain functions both import; the curated eligibility rules moved beside them with
   byte-identical output (the four reference digests hold).
+- 2026-10-21 M4, a manifest per run. A researched manifest's artifact version is its
+  release version (the workspace's identity rule for `component_manifest`), and its content
+  carries the time it was checked, so a second run of the same source would collide with an
+  immutable artifact. Each run's manifests therefore carry the run's ordinal in their id
+  (`…fixturelm-4b.run-1`): a later run is a later observation and keeps its own record.
+- 2026-10-21 M4, the fixture clock. A fixture run measures no time: `elapsed_seconds` is
+  `0.0` and the cache is not used, so two workspaces produce the same snapshot bytes and
+  the acceptance golden (M6) is stable. A live run keeps its monotonic clock.
+- 2026-10-21 M4, the fixture dates in service, API and CLI tests. Those tests run the worker
+  on the support module's fixed clock (`2026-08-21`) or the real one, so they use the e2e
+  fixture set with offset dates; the unit tests keep the absolute dates with the clock at
+  `2026-10-20T12:00:00Z`, as the prompt's acceptance case states it.
+- 2026-10-21 M4, the runner is a port. `tools/check_boundaries.py` forbids the application
+  from importing an adapter even lazily, so `run_research`, the source factory and the
+  source mode are injected through `oak.ports.research`; bootstrap wires the real ones.
+- 2026-10-21 M4, reviews re-evaluate nothing. A review changes one verdict (`needs_review`
+  to `passed` on accept, anything to `failed` on reject); the gates are not re-run at
+  generation, so the snapshot stays the record of what the gates said at run time.
 - 2026-10-21 M0, the throwaway override. Written with the ports only; the worker's
   `OAK_RESEARCH_FIXTURES` and the fixture volume are added at M3 once the directory exists,
   so Docker does not create an empty directory in the tree.
@@ -568,3 +621,12 @@ determinism?
   transport is built only by `create_research_source`, scoped to the three hosts (S1), and
   a deterministic generation imports neither reader. What leaves is unchanged from M1,
   minus the licence keywords, which are now local.
+- **M4.** (1) No pinned name changed: the curated ids `00`, `01`, `03`, `04` and their
+  bytes hold, an unresearched case gives four candidates, and the reference digests pass.
+  (2) Every researched design names its snapshot, item, source, date, tier and evidence
+  classes in `oak.community/research`; the comparison extension names every pending and
+  unknown constraint and the objectives it could not compare. (3) Egress exists now and is
+  gated in order: the capability token as a dependency, the consent against the recomputed
+  plan, the idempotency key and version, the status, and the worker's own state check
+  before the first request; one attempt, never retried. Authority: `select` is unchanged
+  and refuses a researched design; a review admits an item to comparison only.

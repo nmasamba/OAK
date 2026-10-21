@@ -12,7 +12,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
-from oak.contracts import SchemaRegistry, load_json_document
+from oak.contracts import ContractValidationError, SchemaRegistry, load_json_document
 from oak.domain import OAKError
 from oak.domain.artifacts import Artifact, ArtifactReference, canonical_json_bytes, content_digest
 from oak.domain.report import RENDERING_KIND, RENDERING_MAGIC, REPORT_EXTENSION
@@ -317,7 +317,16 @@ class FileWorkspaceRepository:
                     raise OAKError("OAK-IMPORT-DIGEST", "an imported object digest does not match")
                 self._write_new_file(imported_objects / self._digest_hex(digest), content)
             self._write_new_file(temporary / "manifest.json", canonical_json_bytes(manifest))
-            self._validate_export_tree(temporary, manifest)
+            try:
+                self._validate_export_tree(temporary, manifest)
+            except OAKError:
+                raise
+            except (ContractValidationError, ValueError) as error:
+                # A tampered index entry (a kind that does not fit its object) is a refusal,
+                # never an unhandled error (found by the Sprint 14 PostgreSQL journey).
+                raise OAKError(
+                    "OAK-IMPORT-INVALID", "an imported artifact does not fit its indexed kind"
+                ) from error
             self._replace_file(temporary, self.control)
             self._fsync_directory(self.root)
         finally:

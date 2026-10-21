@@ -30,7 +30,7 @@ from oak.adapters.models.providers import (
     profile_for,
 )
 from oak.adapters.models.transport import TransportRequest, TransportResponse
-from oak.domain import OAKError
+from oak.domain import TRUSTED_NAMESPACES, TRUSTED_NAMESPACES_AS_OF, OAKError
 
 Fetch = Callable[..., TransportResponse]
 
@@ -41,31 +41,6 @@ HUB_MODELS_URL = (
     "&expand[]=cardData&expand[]=gated&expand[]=inferenceProviderMapping"
 )
 PERMISSIVE_LICENCES = frozenset({"apache-2.0", "mit", "bsd-3-clause"})
-# Organisations that publish open weights under their own name. Read against the Hub's
-# trending list on the date below; a namespace outside this set is never offered, however
-# high it trends, because a card is author-controlled and a fine-tune can carry any name.
-TRUSTED_NAMESPACES_AS_OF = "2026-09-21"
-TRUSTED_NAMESPACES = frozenset(
-    {
-        "openai",
-        "Qwen",
-        "mistralai",
-        "google",
-        "deepseek-ai",
-        "zai-org",
-        "moonshotai",
-        "meta-llama",
-        "MiniMaxAI",
-        "inclusionAI",
-        "tencent",
-        "thinkingmachines",
-        "ibm-granite",
-        "microsoft",
-        "nvidia",
-        "allenai",
-        "HuggingFaceTB",
-    }
-)
 PINNED_AS_OF = "2026-09-21"
 # The fallback chain: the top trending, ungated, permissively licensed models with live
 # structured-output routes on the date above, with those routes' published output prices
@@ -307,3 +282,17 @@ def _rank(descriptors: list[ModelDescriptor], hub_order: list[str]) -> list[Mode
         )
 
     return sorted(descriptors, key=key)
+
+
+__all__ = [
+    "HUB_MODELS_URL",
+    "PINNED_AS_OF",
+    "PINNED_BY_ID",
+    "PINNED_MODELS",
+    "ROUTER_MODELS_URL",
+    "TRUSTED_NAMESPACES",
+    "TRUSTED_NAMESPACES_AS_OF",
+    "UNREACHABLE_CODES",
+    "discover_huggingface",
+    "pinned_snapshot",
+]

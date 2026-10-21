@@ -101,9 +101,10 @@ items:
       - {field: price_input, value: 0.1, unit: USD per million tokens, evidence_class: published_by_source, checked_at: 2026-10-20T12:00:00Z, source_pointer: /data/0/providers/0/pricing/input}
       - {field: throughput, value: 120, unit: tokens per second, evidence_class: measured_by_source, checked_at: 2026-10-20T12:00:00Z, source_pointer: /data/0/providers/0/throughput}
     manifest_ref:
-      id: component.research.hub.huggingfacetb.fixturelm-4b
-      version: 0.1.0
+      id: component.research.hub.huggingfacetb.fixturelm-4b.run-1
+      version: 0123456789ab
       digest: sha256:6666666666666666666666666666666666666666666666666666666666666666
+      media_type: application/vnd.oak.component-manifest+json
     verdict: passed
     reasons: []
     review_items: [OAK-CAT-STATUS-NOT-ELIGIBLE, OAK-CAT-LICENCE-UNREVIEWED, OAK-CAT-TRANSITIVE-LICENCE-UNRESOLVED]
@@ -125,9 +126,10 @@ items:
       - {field: release_digest, value: "sha256:7777777777777777777777777777777777777777777777777777777777777777", unit: null, evidence_class: published_release, checked_at: 2026-10-20T12:00:00Z, source_pointer: /0/assets/0/digest}
       - {field: names_family, value: Fixturelm, unit: null, evidence_class: claimed_by_release_notes, checked_at: 2026-10-20T12:00:00Z, source_pointer: /0/body}
     manifest_ref:
-      id: component.research.github.fixture-forge.fixturelm-serve
-      version: 0.1.0
+      id: component.research.github.fixture-forge.fixturelm-serve.run-1
+      version: v0.9.0
       digest: sha256:8888888888888888888888888888888888888888888888888888888888888888
+      media_type: application/vnd.oak.component-manifest+json
     verdict: needs_review
     reasons: [OAK-CAT-RESEARCH-UNVETTED]
     review_items: [OAK-CAT-STATUS-NOT-ELIGIBLE, OAK-CAT-LICENCE-UNREVIEWED, OAK-CAT-TRANSITIVE-LICENCE-UNRESOLVED]

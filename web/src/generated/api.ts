@@ -41,6 +41,35 @@ export interface ReportResponse {
   readonly duplicate: boolean;
 }
 
+export interface ResearchConsent {
+  hosts: string[];
+  terms_digest: string;
+}
+
+/** What a research run would send; the consent card shows it verbatim. */
+export interface ResearchPlanResponse {
+  case_id: string;
+  case_version: string;
+  status: string;
+  allowed: boolean;
+  source_mode: string;
+  hosts: string[];
+  terms: JsonObject;
+  terms_digest: string;
+}
+
+export interface ResearchReviewRequest {
+  item_id: string;
+  decision: "accept" | "reject";
+  rationale: string;
+}
+
+export interface ResearchReviewResponse {
+  case: JsonObject;
+  review: JsonObject;
+  duplicate: boolean;
+}
+
 export interface DesignCaseListResponse {
   readonly items: readonly JsonObject[];
   readonly next_cursor: string | null;
@@ -431,6 +460,53 @@ export async function recordReport(
   return requestJson<ReportResponse>(
     `/v1/design-cases/${encodeURIComponent(caseId)}:record-report${query}`,
     { method: "POST", headers: commandHeaders(options) },
+    options.baseUrl,
+  );
+}
+
+/** What a research run would send; a read, so the consent card can show it verbatim. */
+export async function researchPlan(
+  caseId: string,
+  baseUrl = "",
+): Promise<ResearchPlanResponse> {
+  return requestJson<ResearchPlanResponse>(
+    `/v1/design-cases/${encodeURIComponent(caseId)}/research-plan`,
+    {},
+    baseUrl,
+  );
+}
+
+/** Starts one consented research run; needs the capability token (it is egress). */
+export async function researchCatalogue(
+  caseId: string,
+  consent: ResearchConsent,
+  modelToken: string,
+  options: CommandOptions,
+): Promise<OperationResponse> {
+  return requestJson<OperationResponse>(
+    `/v1/design-cases/${encodeURIComponent(caseId)}:research`,
+    {
+      method: "POST",
+      headers: { ...commandHeaders(options), ...modelHeaders(modelToken) },
+      body: JSON.stringify({ consent }),
+    },
+    options.baseUrl,
+  );
+}
+
+/** Records a review of one unvetted research item: a decision with a rationale. */
+export async function reviewResearchItem(
+  caseId: string,
+  review: ResearchReviewRequest,
+  options: CommandOptions,
+): Promise<ResearchReviewResponse> {
+  return requestJson<ResearchReviewResponse>(
+    `/v1/design-cases/${encodeURIComponent(caseId)}:review-research-item`,
+    {
+      method: "POST",
+      headers: commandHeaders(options),
+      body: JSON.stringify(review),
+    },
     options.baseUrl,
   );
 }

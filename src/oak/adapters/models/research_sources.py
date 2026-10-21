@@ -30,6 +30,7 @@ from oak.adapters.models.transport import (
 from oak.domain import (
     CURATED_RULES_VERSION,
     RESEARCH_GATES_VERSION,
+    RESEARCH_HOSTS,
     Artifact,
     OAKError,
     ResearchVocabulary,
@@ -61,7 +62,6 @@ from oak.domain.research_rules import (
 
 Fetch = Callable[..., TransportResponse]
 
-RESEARCH_HOSTS = frozenset({"huggingface.co", "router.huggingface.co", "api.github.com"})
 HUB_HOST = "huggingface.co"
 ROUTER_HOST = "router.huggingface.co"
 GITHUB_HOST = "api.github.com"
@@ -360,6 +360,7 @@ def run_research(
         reviews=reviews,
         occurred_at=occurred_at,
         freshness=freshness,
+        run=_run_number(snapshot_version),
     )
 
     # 1. The Hub, one list per pipeline tag, then the router for live routes.
@@ -404,9 +405,11 @@ def run_research(
     for item, manifest in [*model_items, *harness_items]:
         items.append(item)
         if manifest is not None:
+            # A manifest's artifact version is its release version, as the curated loader
+            # and the workspace's identity check read it.
             artifact = json_artifact(
                 artifact_id=str(manifest["id"]),
-                version="0.1.0",
+                version=str(manifest["release"]["version"]),
                 kind="component_manifest",
                 media_type=MANIFEST_MEDIA_TYPE,
                 document=manifest,
@@ -454,6 +457,17 @@ class _GateContext:
     reviews: dict[str, str]
     occurred_at: str
     freshness: int
+    run: int = 1
+
+
+def _run_number(snapshot_version: str) -> int:
+    """The run's ordinal from its snapshot version (`0.2.0` is the second run)."""
+
+    parts = snapshot_version.split(".")
+    try:
+        return max(1, int(parts[1])) if len(parts) == 3 else 1
+    except ValueError:
+        return 1
 
 
 def _reference(artifact: Artifact) -> dict[str, Any]:
@@ -461,6 +475,7 @@ def _reference(artifact: Artifact) -> dict[str, Any]:
         "id": artifact.reference.id,
         "version": artifact.reference.version,
         "digest": artifact.reference.digest,
+        "media_type": artifact.reference.media_type,
     }
 
 
@@ -899,7 +914,9 @@ def _model_item(
         for evidence_class in classes
     ]
     manifest = research_manifest(
-        manifest_id=f"component.research.hub.{slug}",
+        # Each run's manifests carry the run's ordinal: a later run observes the same
+        # source again at a later time, and an immutable artifact never changes content.
+        manifest_id=f"component.research.hub.{slug}.run-{context.run}",
         name=source_id,
         category="model",
         kind="model",
@@ -1080,7 +1097,7 @@ def _harness_item(
         for evidence_class in classes
     ]
     manifest = research_manifest(
-        manifest_id=f"component.research.github.{slug}",
+        manifest_id=f"component.research.github.{slug}.run-{context.run}",
         name=source_id,
         category="software",
         kind=kind,
