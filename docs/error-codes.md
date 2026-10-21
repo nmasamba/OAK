@@ -41,7 +41,7 @@ documented flow uses it.
 
 ## Full index
 
-325 codes across 17 families.
+326 codes across 17 families.
 
 ### Workspace, artifacts and import/export (22)
 
@@ -150,7 +150,7 @@ documented flow uses it.
 | `OAK-CATALOGUE-DUPLICATE` | architecture pattern ID is duplicated; architecture pattern variant is duplicated; catalogue identities must be unique; and 1 more | `src/oak/adapters/catalogue/local_catalogue.py:53` |
 | `OAK-CATALOGUE-EMPTY` | catalogue requires manifests and patterns | `src/oak/adapters/catalogue/local_catalogue.py:28` |
 | `OAK-CATALOGUE-INELIGIBLE` | catalogue has no eligible manifests | `src/oak/compiler/catalogue.py:94` |
-| `OAK-CATALOGUE-INVALID` | catalogue document failed bounded validation | `src/oak/adapters/catalogue/local_catalogue.py:86` |
+| `OAK-CATALOGUE-INVALID` | catalogue document failed bounded validation | `src/oak/adapters/catalogue/local_catalogue.py:62` |
 | `OAK-CATALOGUE-PATH` | catalogue directory is unsafe or missing; catalogue documents must be regular files | `src/oak/adapters/catalogue/local_catalogue.py:34` |
 | `OAK-CATALOGUE-PATTERN` | architecture edge references an unknown role; architecture pattern references a missing component manifest; architecture pattern roles are duplicated; and 2 more | `src/oak/compiler/catalogue.py:160` |
 | `OAK-CATALOGUE-TIME` | catalogue timestamp is invalid | `src/oak/compiler/catalogue.py:198` |
@@ -405,7 +405,7 @@ documented flow uses it.
 | `OAK-DATABASE-CONFIG` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/migrations.py:25` |
 | `OAK-DATABASE-MIGRATION` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/migrations.py:36` |
 
-### Everything else (43)
+### Everything else (44)
 
 | Code | Meaning | First raise site |
 |---|---|---|
@@ -446,6 +446,7 @@ documented flow uses it.
 | `OAK-REPORT-RENDER` | no PDF report renderer is configured; the report document could not be drawn; this renderer writes PDF only | `src/oak/adapters/report/pdf.py:1127` |
 | `OAK-REPORT-SIZE` | the rendered report exceeds 4 MiB | `src/oak/adapters/report/pdf.py:1133` |
 | `OAK-REPORT-STATE` | *dynamic message* | `src/oak/application/report/service.py:156` |
+| `OAK-RESEARCH-VOCABULARY` | freshness window must be 1 to 365 days; hardware classes have no fallback; no research binding yields a capability; and 7 more (some dynamic) | `src/oak/adapters/catalogue/research_vocabulary.py:51` |
 | `OAK-REVOCATION-REASON` | revocation requires a reason | `src/oak/application/release.py:285` |
 | `OAK-SAFE-BIND` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/api/server.py:103` |
 | `OAK-SIGNING-KEY-INVALID` | signing key length is invalid; signing key must be a regular file | `src/oak/adapters/signing/local_ed25519.py:75` |

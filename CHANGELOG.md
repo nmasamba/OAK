@@ -8,6 +8,26 @@ All notable changes to OAK Community are recorded here.
 
 ### Added
 
+- **Research at the point of design** (Sprint 14, `OAK-S14-001`–`007`, authorized
+  2026-10-21): on the user's consent, for one case before its candidates are generated, OAK
+  reads a fixed set of public sources for open models and harnesses that fit the confirmed
+  intent and shows what passes deterministic gates as alternative designs, each with its
+  source, its date and how each claim is backed; the default path stays deterministic and
+  offline.
+  - **Decision record** (`OAK-S14-001`). ADR-0018 (mirrored under `docs/adr/architecture/`):
+    three sources through the one egress module, anonymously, after a consent that names
+    every host and term; two tiers; normalisation by allowlist; honest manifests under a
+    second named rule set; a closed evidence-class enum; the family-token pairing rule;
+    unknown estimates and the compare-only rule. The research vocabularies as data under
+    `catalogue/research/` (the capability map, the hardware classes, a draft licence list
+    and a draft owner-reviewed harness list awaiting the owner's review, and the research
+    bindings), read by `ResearchVocabularyLoader` with closed shapes, and the pure
+    `oak.compiler.derive_research_terms` with its digest, proven over every committed
+    brief's intent and the synthetic intents under `tests/fixtures/research/intents/` to
+    emit only vocabulary terms. Residual risks `RR-048`–`RR-053`; threat-coverage gap rows
+    for `RR-044`–`RR-053`; the README, `STATUS.md` safety boundary and threat coverage now
+    disclose the report-note egress Sprint 13 added.
+
 - **The architecture report** (Sprint 13, `OAK-S13-001`–`007`, authorized 2026-10-16): a
   decision deck about one design case, recorded beside the case, read on a Report screen
   and downloaded as a PDF, composed only from the case's records.

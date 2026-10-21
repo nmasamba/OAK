@@ -13,19 +13,23 @@ from oak.compiler.interpretation import (
     verify_intent_provenance,
 )
 from oak.compiler.planning import CompiledReviewPlan, compile_review_plan
+from oak.compiler.research_terms import classify_hardware, derive_research_terms, terms_digest
 
 __all__ = [
     "CompiledCatalogue",
     "CompiledReviewPlan",
     "DeterministicBriefInterpreter",
     "InterpretationResult",
+    "classify_hardware",
     "compile_catalogue",
     "compile_review_plan",
     "create_assurance_plan",
     "create_evaluation_contract",
     "create_selection_decision",
+    "derive_research_terms",
     "evaluate_candidate",
     "generate_candidates",
+    "terms_digest",
     "validate_interpretation_proposal",
     "verify_intent_provenance",
 ]

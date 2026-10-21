@@ -45,7 +45,7 @@ the extension. Curated candidates never carry the extension, so their bytes do n
 
 - Owner/agent: owner-directed coding agent
 - Started: 2026-10-21
-- Last updated: 2026-10-21
+- Last updated: 2026-10-21 (M1)
 - State: in-progress
 - Claimed tasks: `OAK-S14-001`–`OAK-S14-007`
 
@@ -392,7 +392,17 @@ Each milestone ends with one commit, its exit check green and a line under Progr
   `0.4.0-draft.14`; branch `sprint-14-research`; this plan; tasks claimed; the throwaway
   stack `oak-s14` healthy on 18080/15174; `pnpm --dir web build` green.
 - [x] 2026-10-21 M0 exit: `journey.spec.ts` green on the throwaway stack (1 passed, 16.7 s).
-- [ ] M1 — decision record.
+- [x] 2026-10-21 M1: ADR-0018 in the governance tree and mirrored (both indexes, the
+  traceability row); the egress rule in `AGENTS.md` and `security-invariants.md` now covers
+  research sources; `TM-02`, `TM-04`, `TM-13` (rewritten), `TM-14` and `TM-17` extended in
+  place, line numbers unchanged; `RR-048`–`RR-053` (register at 53, quoted in both `STATUS.md`
+  files); Sprint 13's disclosure gaps closed (README report notes and limits, `STATUS.md`
+  safety boundary, threat-coverage gap rows and "What changed" for `RR-044`–`RR-047`);
+  `catalogue/research/` (capabilities, hardware classes, draft licences, draft harness list,
+  two bindings) read by `ResearchVocabularyLoader`; `oak.compiler.derive_research_terms`
+  with `terms_digest` and `classify_hardware`; `tests/unit/test_research_terms.py` (35) over
+  the reference brief's intent, the example intent and four synthetic intents; `make
+  validate`, the unit and contract suites and governance validation green.
 - [ ] M2 — contract and unknown estimates.
 - [ ] M3 — research adapter; live check recorded.
 - [ ] M4 — operation and interfaces; PostgreSQL counts recorded.
@@ -416,6 +426,19 @@ Each milestone ends with one commit, its exit check green and a line under Progr
   candidates with unknown-aware dominance; `select` is unchanged. Alternatives: a new
   `status` value (a closed enum in the schema and the web; a conditionally compatible
   change for no gain) or a parsed reason string (refused by the Normalisation rules).
+- 2026-10-21 M1, the hardware class. An intent that declares no accelerator list at all is
+  `unknown`, not CPU-only: `absent` matches only a declared empty list. Alternative: treat a
+  missing list as none, which would size a weight floor against hardware nobody declared.
+- 2026-10-21 M1, the vocabularies are shape-checked in code, not by a JSON schema. They are
+  internal data, not a contract any other reader consumes; the loader holds every value to a
+  closed ASCII token shape and `test_research_terms.py` mutates each rule. A schema can be
+  added if a second reader appears.
+- 2026-10-21 M1, the hardware class is never sent. Neither source has a hardware qualifier,
+  so the class is recorded under `local` in the terms and used only to compare a weight
+  floor; the consent card shows it as used on this machine.
+- 2026-10-21 M1, test citations in `threat-coverage.md` wait for the tests. The rows cite
+  only tests that exist, so the research tests join `TM-02`, `TM-04`, `TM-13`, `TM-14` and
+  `TM-17` at M6; the gap table and "What changed" are mapped now.
 - 2026-10-21 M0, the throwaway override. Written with the ports only; the worker's
   `OAK_RESEARCH_FIXTURES` and the fixture volume are added at M3 once the directory exists,
   so Docker does not create an empty directory in the tree.
@@ -433,3 +456,9 @@ determinism?
 
 - **M0.** (1) No. (2) None appeared; no code yet. (3) No egress: the stack build pulled
   pinned base images only, and no research request exists yet.
+- **M1.** (1) No pinned name changed; `LocalCatalogue` keeps its behaviour and shares its
+  bounded reader. (2) No claim exists yet; the hardware class `unknown` carries its meaning
+  in the ADR and the docstring. (3) What leaves the machine is now defined, as data and a
+  pure function, and nothing can send it yet: no transport call exists. The egress rule in
+  both governance files was widened on purpose, and the deterministic path imports nothing
+  new.

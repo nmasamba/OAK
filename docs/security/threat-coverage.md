@@ -106,18 +106,30 @@ register with an id.
 |---|---|---|
 | TM-02 | No signature, provenance or SBOM gate on catalogue component manifests | `RR-025` |
 | TM-02 | An acknowledged image's own code runs on the operator's machine when a profile acknowledges starting; the hardening flags bound it, the shared kernel does not | `RR-043` |
+| TM-02 | A harness outside the trusted tiers enters a research design on a recorded user review the gates cannot verify; a researched component's identity is a commit id, not a digest of what would run | `RR-051`, `RR-053` |
+| TM-04 | A researched claim is labelled with its evidence class, not checked | `RR-049` |
 | TM-05 | No test tampers with an objective weight, and no sensitivity test exists. The predicted-versus-observed record is tested, but with no workload every observed value is `unknown`, so no prediction has been compared with a measurement | — |
 | TM-07 | No test asserts the runner holds no control-plane credential; no workspace zeroization | `RR-027` |
 | TM-10 | Single local tenant; not multi-tenant evidence | `RR-026` |
 | TM-12 | No restricted-writer or separation-of-duties control exists, so none is tested | — |
-| TM-14 | No per-job budget, tenant quota or rate limiter, including for provider spend | `RR-024`, `RR-041` |
+| TM-13 | An opt-in model note sends the report's main-slide words to the configured provider; a consented research run sends search terms from closed vocabularies to the Hub, its router and GitHub, which reveal the shape of what is being designed | `RR-045`, `RR-048` |
+| TM-14 | No per-job budget, tenant quota or rate limiter, including for provider spend; the anonymous research budget is per address and shared | `RR-024`, `RR-041`, `RR-050` |
+| TM-15 | Pillow ships in every install's runtime closure although nothing feeds it an image | `RR-047` |
 | TM-15 | Catalogue vulnerability and licence gate reasons are untested (image SBOM/provenance generation is now pinned by contract tests) | `RR-025` |
-| TM-17 | Stale-pack refusal is an `OAKError`, not a `review_required` decision; no legal-source fetch exists to fail | — |
+| TM-17 | Stale-pack refusal is an `OAKError`, not a `review_required` decision; no legal-source fetch exists to fail. A cached research result inside its 24-hour window may be a day old, and its `checked_at` says so | `RR-050` |
 | TM-19 | Nothing asserts a rendered system contains no runtime reference to OAK; the containers `apply` installs carry `oak.*` labels and `oak-fixture-` names by design, as ownership metadata | — |
 | TM-20 | A same-user process can read the stored key; nothing defends against one | `RR-040` |
 | TM-20 | A stored verification verdict is a claim about the past, not proof the token is still accepted or billable | `RR-042` |
 
 ## What changed in this release
+
+Sprint 13 added four register entries that this index had not mapped: `RR-044` (a recorded
+report reads like a recommendation; an honesty residual with no threat row), `RR-045` (an
+opt-in model note sends the slides' text; `TM-13`), `RR-046` (the PDF prints only
+Windows-1252 text and is untagged; no threat row) and `RR-047` (Pillow in the runtime
+closure; `TM-15`). Sprint 14 adds `RR-048` to `RR-053` for research at the point of design
+(ADR-0018), each mapped in the gap table above; the research tests join the rows of
+`TM-02`, `TM-04`, `TM-13`, `TM-14` and `TM-17` as they land.
 
 `TM-10` (tenant data through logs) had a live instance, now fixed: canonical documents are
 bound as SQLAlchemy statement parameters, and the default `hide_parameters=False` put brief

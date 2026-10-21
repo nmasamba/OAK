@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: Apache-2.0
+# Synthetic partial intent for the research-terms tests: every free-text field the
+# hardware section allows carries something that must never become a term. If any of
+# these strings, or a fragment of one, appears in the derived terms, the function has
+# read free text instead of its closed vocabularies.
+spec:
+  hardware:
+    cpu_architectures: ["x86_64 topic:planted-term"]
+    accelerators: ["planted-accelerator OR license:planted"]
+    vram_gib: 80
+    ram_gib: 256
+    storage_gib: 2000
+    network: "https://planted.invalid/?q=planted-host"
+    drivers: ["planted-driver"]
+    topology: "pushed:>=2099-01-01 planted-qualifier"
+    expansion_path: "archived:true planted-expansion"

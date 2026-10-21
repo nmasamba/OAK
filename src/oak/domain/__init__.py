@@ -19,6 +19,7 @@ from oak.domain.model_families import (
     FAMILY_IDS,
     FamilyDescriptor,
 )
+from oak.domain.research import ResearchVocabulary
 from oak.domain.secrets import REDACTED, SecretValue
 from oak.domain.system_information import Readiness, SystemInformation
 
@@ -40,6 +41,7 @@ __all__ = [
     "IngestedBrief",
     "OAKError",
     "Readiness",
+    "ResearchVocabulary",
     "SecretValue",
     "SystemInformation",
     "canonical_json_bytes",

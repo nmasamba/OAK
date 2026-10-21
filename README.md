@@ -458,6 +458,19 @@ uv run oak models discover                                  # see which model wo
 uv run oak design my-brief.md --interpreter online          # this brief only
 ```
 
+Two later steps can also send something, and each one only when you ask:
+
+- **Report notes.** Recording the architecture report in Online AI or Local AI mode sends
+  the report's main-slide text (titles, facts and table cells; never the brief document or
+  a digest) to the same model, for one labelled note per slide
+  ([`RR-045`](docs/security/residual-risk.md)). The default records no note and sends
+  nothing.
+- **Research.** Before OAK generates the designs, you can ask it to look for newer open
+  models and harnesses. It shows you the exact search terms and the three hosts first (the
+  Hugging Face Hub, its router and GitHub's API, read anonymously, with no token) and
+  sends nothing until you say yes. The terms come from fixed lists and never include your
+  brief ([`RR-048`](docs/security/residual-risk.md)).
+
 In the browser, the choice is the three "How should this brief be read?" chips under the
 composer (Deterministic, Online AI, Local AI), and **Models** (the sliders glyph in the
 masthead) is where you set up Online AI. Some things worth knowing:
@@ -519,6 +532,22 @@ means:
   what model calls spend ([`RR-041`](docs/security/residual-risk.md)), and a stored check
   of the token describes the moment it was made, not now
   ([`RR-042`](docs/security/residual-risk.md)).
+- **The report is a record, not an approval, and its PDF is plain.** The architecture
+  report is composed only from the case's records, and a reader may still take it for
+  more than it is ([`RR-044`](docs/security/residual-risk.md)). An opt-in model note is
+  checked against its slide but can still mislead within those checks
+  ([`RR-045`](docs/security/residual-risk.md)). The PDF prints only Windows-1252 text and
+  carries no accessibility tags ([`RR-046`](docs/security/residual-risk.md)); the JSON
+  keeps every character.
+- **Research finds; it doesn't vouch.** A newer model or harness that research surfaces
+  is shown with its source, its date and how each claim is backed, and nothing more: OAK
+  quotes what the Hub, the router and GitHub publish and never checks it
+  ([`RR-049`](docs/security/residual-risk.md)). A researched design is compared with the
+  others but can't be chosen, and nothing installs it
+  ([`RR-053`](docs/security/residual-risk.md)). A harness outside the owner-reviewed list
+  needs your recorded review, and that review is your judgement, not OAK's
+  ([`RR-051`](docs/security/residual-risk.md)). The search is anonymous and shares a public
+  rate limit, so it can fail on a busy address ([`RR-050`](docs/security/residual-risk.md)).
 
 The complete, numbered list of what isn't defended is
 [security/residual-risk.md](docs/security/residual-risk.md), and progress is tracked in
