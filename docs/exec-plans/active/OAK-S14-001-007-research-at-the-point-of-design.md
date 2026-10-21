@@ -1,0 +1,435 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
+# OAK-S14-001–007: Research at the point of design
+
+**Authorized by the owner on 2026-10-21** by launching `SPRINT-14-PROMPT.md` (governance
+root) and answering its four kickoff questions, plus one follow-up on Q4. The prompt is
+the specification; this plan records the owner's answers, the design choices the prompt
+left open, and the proof for each milestone.
+
+Execution is on branch `sprint-14-research`, branched from `origin/main` at `671d4a4`
+(the merge of PR #36, Sprint 13). `0.9.0` is the latest published release; nothing here
+is a release.
+
+## Owner's answers, and what they settle
+
+| # | Question | Answer (2026-10-21) | Effect on this plan |
+|---|---|---|---|
+| Q1 | Sources (K1, K6) | **Hugging Face and GitHub, anonymous**, within a 30-request budget and a 24-hour cache | The adapter's allowlist is exactly `huggingface.co`, `router.huggingface.co` and `api.github.com`. No token is stored; GitHub's anonymous 60-an-hour core bucket is the budget's ceiling. |
+| Q2 | New repositories (K2) | **Two tiers** | The Hub's `TRUSTED_NAMESPACES` and the owner-reviewed `harness-repositories.yaml` pass the tier gate on their own. Anything else a bounded search finds is *unvetted* and enters a design only after `:review-research-item` records an accept with a rationale. The harness list is drafted here and goes to the owner in the PR; until reviewed, only the trusted namespaces form the trusted tier. |
+| Q3 | When (K3, K7) | **Per run, at `ready_for_candidates` only**, behind a consent card; off by default | `research_catalogue` is refused from `candidates_ready` on (`OAK-RESEARCH-STATE`, 409). The consent is `{hosts, terms_digest}` recomputed from the current intent. A recorded report can never go stale through research. |
+| Q4 | Designs (K4, K5) | First **"selectable once reviewed"**; on the follow-up, **the compare-only rule now, selection next sprint** | Unknown estimates in the compiler (`value: null` with `unknown_reason`); one researched design per pattern with a model role (at most two), `candidate-05` upward, labelled "Balanced, new" / "High assurance, new"; listed `infeasible` with every reason and its estimates, refused by `select`; and the compare-only rule (below), recorded in ADR-0018. Sprint 15 (selection) is registered in the governance `sprints.md` with its prerequisites. |
+
+**The Q4 follow-up.** "Selectable once reviewed" conflicts with the prompt's §7 ("a
+researched design is shown with its reasons and never selected") and needs an evaluation
+path for non-curated ids, which does not exist (offline evaluation is `FIXTURE_RESULTS`,
+keyed by the four curated ids). The owner was asked how to reconcile it and chose the
+middle option. The acceptance line "the researched designs are `infeasible`, and that is
+the expected result" therefore reads: they are `infeasible` and unselectable, **and they
+are compared**.
+
+**The compare-only rule (K5, as decided).** A researched candidate whose hard-constraint
+results are each `pass`, or a non-pass whose cause is a pending review or an unpublished
+value, is *comparable*: `_apply_pareto` includes it in dominance, so its `pareto` block
+carries a real `frontier_member` and `dominated_by`, and a curated candidate's
+`dominated_by` may name it. Its `status` stays `infeasible` (feasible still means every
+hard constraint `pass`), `select` still refuses it with `OAK-SELECT-INFEASIBLE`, and its
+`rejection_reasons` keep every reason. The classification is typed, never parsed from a
+reason string: it is written to the candidate's `extensions["oak.community/comparison"]`
+as `{rule, comparable, pending_review: [constraint ids], unknown_value: [constraint ids]}`.
+Under K4, an objective whose value is unknown never dominates and is never dominated, so
+the comparison names the objectives it could not compare in `sensitivity_summary` and in
+the extension. Curated candidates never carry the extension, so their bytes do not move.
+
+## Status
+
+- Owner/agent: owner-directed coding agent
+- Started: 2026-10-21
+- Last updated: 2026-10-21
+- State: in-progress
+- Claimed tasks: `OAK-S14-001`–`OAK-S14-007`
+
+One plan covers seven task IDs because they build one vertical feature, from the decision
+record and the egress adapter to the screen and the report appendix, judged by one set of
+guards, one acceptance case and one browser spec.
+
+## Recipes and requirements
+
+From the governance `skills.md`: **Model provider integration** (the egress, the one
+transport, what leaves the machine; read first: ADR-0009, ADR-0016,
+`docs/adr/0003-optional-model-provider-credentials.md`, TM-13, TM-20, `RR-042`,
+`tests/integration/test_offline_boundary.py`); **Governed pack** (untrusted component
+metadata, quarantine, poisoned and stale fixtures; "popularity as approval" and
+"unreviewed live web content" are its Avoid list, and ADR-0018 says how research meets the
+second: a researched entry reaches comparison, never approval); **Compiler stage**
+(unknown estimates, Pareto, no silent defaulting); and **Contract change**, **Domain use
+case**, **Persistence/migration**, **Interface adapter**, **Workspace UI**,
+**Evaluation/evidence** and **Security review**.
+
+Requirements cited in tests and the change record: `OAK-FR-CAT-001`–`005` and
+`OAK-NFR-SEC-003` (untrusted manifests never select tools or grant permissions).
+
+## Outcome
+
+Today OAK designs only from a pinned catalogue of three synthetic components, so a model
+released yesterday can never appear.
+
+After this plan, from a case at `ready_for_candidates`:
+
+1. `oak research --plan` (or the case page's "Look for newer options?" card) shows the
+   hosts and the exact terms that would be sent, with their digest. Nothing has left the
+   machine.
+2. `oak research --consent <terms_digest>` (or **Run research**) sends those terms,
+   anonymously, to the Hugging Face Hub, the router and GitHub's REST API, within 30
+   requests and 60 seconds, and records a `research_snapshot`: the terms, hosts, request
+   URLs, response digests, normalised manifests and every verdict. The case page shows
+   chips: found, passed, need your review.
+3. `oak research review <item-id> --accept --rationale-file f` (or the review flow)
+   records a `research_review` for an unvetted item, bound to the snapshot and the item's
+   response digest.
+4. **Generate** compiles the merged catalogue snapshot (curated plus passing researched
+   entries) and adds at most two researched designs, `candidate-05` upward, each marked
+   New with its source, its date and the evidence class of every claim, listed
+   `infeasible` with every reason, compared on the frontier, and refused by `select`.
+5. The architecture report gains appendix G, "Research", present only when the case holds
+   a research snapshot.
+
+With the fixed clock `2026-10-20T12:00:00Z` and the owner's acceptance fixtures (a model
+created on the Hub on `2026-10-19` and a harness released on `2026-10-13` whose notes name
+the model's family), the run reports found 2, passed 1, need review 1; generating without a
+review gives the model alone in each researched design; generating after the user accepts
+the harness puts it in the serving role; and the same snapshot and reviews give the same
+candidate bytes in a fresh interpreter.
+
+## Context and invariants
+
+- **The egress surface, pinned.** `ModelTransport` (`src/oak/adapters/models/transport.py`)
+  is the one module that opens a connection. The research source readers live in one new
+  file under `src/oak/adapters/models/`, parse with pure functions, import no network
+  module, and are added to `ALLOWED_NETWORK_IMPORTERS`-adjacent lists
+  (`DOCUMENTED_MODEL_ADAPTERS`, `HOSTED_MODEL_MODULES`) on purpose. A deterministic
+  generation imports no research module (new test beside the deterministic-report test).
+- **What leaves the machine.** Only search terms from a pure function of the confirmed
+  intent, from closed vocabularies defined as data (`catalogue/research/capabilities.yaml`,
+  the hardware classes, `catalogue/research/licences.yaml`). No brief text, no case id, no
+  credential. The consent card shows the terms verbatim; the audit event records their
+  digest.
+- **Untrusted in, typed out.** Hub, router and GitHub text is author-controlled and
+  hostile. Strings are NFKC-normalised and refused on any category C character;
+  identifiers match an ASCII pattern and are refused when NFKC changes them; kept values
+  are closed enum values or bounded strings from a fixed character class; forbidden words
+  refuse the item; a gap is `unknown` with an `unknown_reason`, never a placeholder.
+- **Nothing is approved by research.** A researched manifest is stored `quarantined`;
+  `eligible` in the merged snapshot is decided by `community-research-gates-1.0.0` alone;
+  nothing becomes `approved_for_context` here.
+- **Deterministic given the snapshot.** Same snapshot and reviews, same candidate bytes.
+  Without research, every byte is as today: the four reference digests, the curated
+  candidates of an unresearched case, the reference report golden (apart from the two
+  declared follow-ups) and the OpenAPI baseline do not move.
+- **The web stays a REST client,** adding exactly two non-GET calls, `researchCatalogue`
+  and `reviewResearchItem`, listed in G2's `KNOWN_MUTATIONS`.
+- **Honest claims.** Every claim shows its evidence class; `unknown` stays `unknown` with
+  its reason; nothing is "best" or "works well"; a third-party figure never reads as
+  measured or declared by OAK; a model's date is "created on the Hub".
+- **Requirements and decisions:** `OAK-FR-CAT-001`–`005`, `OAK-NFR-SEC-003`, ADR-0009,
+  ADR-0011 (scoped for researched entries by ADR-0018), ADR-0016, ADR-0018 (new).
+
+## Scope
+
+### In
+
+- ADR-0018 in both repositories with its mirror; the egress line in `AGENTS.md` and
+  `docs/build/security-invariants.md`; threat rows TM-02, TM-04, TM-13 (rewritten), TM-14,
+  TM-17; residual risks from `RR-048`; Sprint 13's disclosure gaps (README, `STATUS.md`
+  safety boundary, threat-coverage gap table).
+- Data: `catalogue/research/capabilities.yaml`, `licences.yaml`,
+  `harness-repositories.yaml`, `bindings/`; the derived-terms function.
+- Contract: `research-snapshot` and `research-review` schemas, kinds and examples; the
+  `oak.community/research_snapshot_ref` extension and export-lineage check; the
+  evidence-class enum; nullable objective values with `unknown_reason` in every reader;
+  the compare-only rule; the report schema's appendix G and basis words.
+- The research adapter: the three sources through the one transport, allowlist
+  normalisation, the research gates, the in-process fixture source selected by
+  `OAK_RESEARCH_FIXTURES`, recorded synthetic fixtures, a live test file.
+- The `research_catalogue` operation, the plan read, `:research`,
+  `:review-research-item`, the CLI, the audit events, the merged snapshot and generation
+  against it with stable ids.
+- The workspace: the Research moment, consent card, results chips, review flow, New chips
+  and labels, evidence words, source and release-date columns, the Take it sheet entry.
+- The report: appendix G, the unknown and basis rules, unique labels, the baseline rule,
+  the six-option maximum, `gather_records`, the two declared golden moves, a second golden
+  for the acceptance case, `check_report.py` composing it live (R5, R2 additions).
+- `scripts/check_research.py` (S1–S5) in `make validate`; docs, manual, screenshots, PDF.
+
+### Out
+
+- Package registries and leaderboards as sources (K1); a GitHub token (K6).
+- Research after candidates exist (K7); selecting a researched design (Sprint 15).
+- Researched retrieval engines filling a retrieval role (found and listed only).
+- Research or report tools over MCP; the PPTX rendering; hardware scanning; native
+  installation; any release.
+
+## Contract and data changes
+
+- **`schemas/research-snapshot.schema.json` (0.1.0).** `{schema_version, id, version,
+  case_id, intent_ref, occurred_at, source_mode: live|fixture, terms, terms_digest,
+  hosts[], budget {requests_max, requests_used, deadline_seconds, elapsed_seconds},
+  freshness_window_days, rule_sets[], requests[{host, path_digest, status, response_digest,
+  checked_at, refusal_code|null}], items[{id, kind: model|harness|retrieval_engine,
+  source, source_id, tier: trusted|unvetted, created_or_released_at, claims[{field, value,
+  evidence_class, checked_at, source_pointer}], manifest_ref|null, verdict:
+  passed|needs_review|failed, reasons[], response_digest}], pairings[{model_item_id,
+  harness_item_id, claim_classes[]}], extensions}`. No field named `command`, `shell`,
+  `executable` or `argv`; install text, where kept at all, is `hint`.
+- **`schemas/research-review.schema.json` (0.1.0).** `{schema_version, id, version,
+  case_id, snapshot_ref {id, version, digest}, item_id, item_response_digest, decision:
+  accept|reject, rationale, actor, recorded_at, extensions}`.
+- **Kinds** (three registration points each): `research_snapshot` and `research_review`
+  (JSON). **Audit events:** `research_completed`, `research_item_reviewed`. **Case
+  extensions:** `oak.community/research_snapshot_ref` and
+  `oak.community/research_review_refs`, both in the export-lineage check.
+- **`common.schema.json` objective:** `value` becomes `number|null` with an optional
+  `unknown_reason` (required when `value` is null). Additive: every stored document still
+  validates; a reader that assumes a number breaks only on a researched candidate.
+  Classified in `docs/compatibility.md`; a pre-change export is shown to import.
+- **Candidate extensions:** `oak.community/comparison` (the compare-only classification),
+  `oak.community/research` (source, created/released date, tier, review state, evidence
+  classes) on researched candidates only.
+- **Component manifest (0.3.0):** honest values for researched manifests; a `commit_id`
+  field in a namespaced `extensions["oak.community/research"]` for Hub revisions and
+  GitHub tag commits (never in a sha256 field); weight-size estimate labelled with its
+  estimator. Decided in M2.
+- **`catalogue-snapshot`:** a second rule set `community-research-gates-1.0.0` beside
+  `community-open-components-1.0.0`; a merged snapshot has its own id/version.
+- **`architecture-report` (unreleased 0.1.0):** `sections` 20 or 21, `appendix-research`
+  / `G` added to the ids, numbers and `detail_in`; `basis` gains "published by source"
+  and "measured by source"; `source_type` printed through a closed label map (golden move
+  1); `FIXED_RENDERER` drops `python-pptx` (golden move 2).
+- **REST (unreleased):** `GET /v1/design-cases/{case_id}/research-plan`;
+  `POST /v1/design-cases/{case_id}:research` (202, operation) requiring
+  `X-OAK-Model-Token`, then consent, then `Idempotency-Key`/`If-Match`, then status;
+  `POST /v1/design-cases/{case_id}:review-research-item`. Listed in
+  `UNRELEASED_OPERATIONS` and `UNRELEASED_SCHEMAS` with dated comments.
+- **Operation kind:** `research_catalogue`, submitted with `max_attempts=1`.
+- **CLI:** `oak research --plan`, `oak research --consent <digest>`, `oak research review
+  <item-id> --accept|--reject --rationale-file <file>`, local and `--server`.
+- **Errors:** `OAK-RESEARCH-STATE` (409), `OAK-RESEARCH-CONSENT` (409),
+  `OAK-RESEARCH-REDIRECTED`, `-OVERSIZED`, `-RATE-LIMITED`, `-UNREACHABLE` (none
+  retriable), `OAK-RESEARCH-ITEM-UNKNOWN`, `OAK-RESEARCH-REVIEW-STATE`, and `OAK-CAT-*`
+  gate reasons. The transport's 3xx refusal carries the status as a typed field.
+- **Configuration:** `OAK_RESEARCH_FIXTURES` (safety-relevant; selects the in-process
+  fixture source).
+- **Compatibility:** additive everywhere. No migration. The reference journey records no
+  research, so its digests hold.
+
+## Milestones
+
+Each milestone ends with one commit, its exit check green and a line under Progress.
+
+### Milestone 0 — Kickoff (`OAK-S14-001`)
+
+- Work: the ground check, the truth pass (Sprint 13 merged), the answers, Sprint 14
+  registered in governance, the branch, this plan, tasks claimed, the throwaway stack
+  `oak-s14` on 18080/15174.
+- Proof: `pnpm --dir web build` green; `journey.spec.ts` green on the throwaway stack.
+- Rollback: delete the branch; the governance edits are plain text.
+
+### Milestone 1 — The decision record (`OAK-S14-001`)
+
+- Work: ADR-0018 "Research at the point of design" in both repositories (mirror with SPDX
+  line and the mirrored-from comment; rows in both indexes); the egress line in
+  `AGENTS.md` and `docs/build/security-invariants.md`; TM-02/04/13/14/17 extended and
+  `threat-coverage.md` rows; `RR-048` onward with the count updated in `STATUS.md`,
+  `CHANGELOG.md`, the register and the governance `STATUS.md`; Sprint 13's disclosure
+  gaps; `capabilities.yaml`, the hardware classes, `bindings/`, the draft `licences.yaml`
+  (seeded from `PERMISSIVE_LICENCES`) and `harness-repositories.yaml`; the derived-terms
+  function (`oak.compiler.research_terms` or similar, pure) with tests over every
+  committed brief's intent and `tests/fixtures/research/intents/`.
+- Proof: governance validation green; the terms function emits only vocabulary terms over
+  every intent (the S2 check).
+- Rollback: revert the commit.
+
+### Milestone 2 — Contract and unknown estimates (`OAK-S14-002`)
+
+- Work: the two schemas, kinds, examples, `EXAMPLE_BY_SCHEMA`, `schemas/README.md`; the
+  extensions and the export-lineage check; the evidence-class enum; nullable objective
+  values with `unknown_reason` in `candidates.py` (`_objectives`, `_dominates`),
+  `planning.py`, `observation.py`, `architecture.py`, the report composer and the web
+  pages; the compare-only rule; `_hardware_constraint`/`_target_requirements` treating an
+  unpublished minimum as `unknown` for researched manifests only; honest manifest values
+  and the commit-id decision; the report schema's appendix G and basis words.
+- Proof: the four reference digests, the curated candidates' bytes and the reference
+  report golden unchanged; Pareto tests: an unknown never dominates and is never
+  dominated, and the frontier names the objective it could not compare; a report for a
+  case with an unknown objective shows its reason.
+- Rollback: revert the commit; no stored data changes.
+
+### Milestone 3 — The research adapter (`OAK-S14-003`)
+
+- Work: `src/oak/adapters/models/research_sources.py` (Hub, router, GitHub readers through
+  `ModelTransport`, pure parsers, the request budget and one monotonic deadline, the
+  24-hour cache keyed by terms digest, the per-response size caps); the normalisation by
+  allowlist; the research gates `community-research-gates-1.0.0`; the fixture source
+  selected only by `OAK_RESEARCH_FIXTURES`; recorded synthetic fixtures under
+  `tests/fixtures/research/`; `tests/live/test_research_live.py`.
+- Proof: the acceptance case passes on fixtures with the fixed clock; poisoned, lookalike,
+  oversized and redirected responses are refused with stable codes; the adapter lists in
+  `test_offline_boundary.py` are updated; a deterministic generation imports no research
+  module; the live check ran once and is recorded below.
+- Rollback: revert the commit.
+
+### Milestone 4 — Operation and interfaces (`OAK-S14-004`)
+
+- Work: `research_catalogue` registered in the four places; `ResearchService` (plan, run,
+  review) in the application layer; the merged snapshot and generation against it with
+  stable ids; the plan read, `:research`, `:review-research-item`; the CLI; the audit
+  events; OpenAPI, the generated client, the error reference, interface tables.
+- Proof: integration tests in the prompt's order (token, consent, idempotency and
+  `If-Match`, then egress); a stale `If-Match`, a missing consent and a retry send no
+  request (fake transport log); offline gives a clean refusal and the curated catalogue;
+  research from `candidates_ready` is refused; the same snapshot and reviews give the same
+  bytes; the CLI locally and with `--server`; the PostgreSQL path on the throwaway
+  database with pass and skip counts recorded.
+- Rollback: revert the commit.
+
+### Milestone 5 — The workspace (`OAK-S14-005`)
+
+- Work: the Research moment, consent card, results chips, review flow, New chips and
+  labels, evidence words, source and release-date columns, the sheet entry; the label and
+  evidence-word mirrors with their agreement tests; `KNOWN_MUTATIONS`.
+- Proof: `research.spec.ts` on the throwaway stack with the fixture source: plan, consent,
+  run, review the unvetted harness, generate, see the new design and why it cannot be
+  selected; zero axe violations; `journey.spec.ts` and `report.spec.ts` unchanged.
+- Rollback: revert the commit.
+
+### Milestone 6 — Report and docs (`OAK-S14-006`)
+
+- Work: appendix G, the K4 and basis rules, unique labels, the baseline rule, the
+  six-option maximum, `gather_records`, the two declared golden moves, a second golden for
+  the acceptance case, `check_report.py` composing it live (R5, R2 additions); docs
+  (manual, README, interfaces, compatibility, threat coverage, risks, configuration,
+  CHANGELOG, both `STATUS.md` files).
+- Proof: a report records, validates and renders for the acceptance case at six options;
+  no researched free text in `narrator_facts`; R1–R5 green over both cases; the README's
+  "What OAK doesn't do (yet)" names research's limits.
+- Rollback: revert the commit.
+
+### Milestone 7 — Browser suite, screenshots, manual (`OAK-S14-006`)
+
+- Work: `make web-e2e` on a fresh throwaway stack; the manual's screenshots after exactly
+  one suite run, with a thirteenth shot for the research section; the manual PDF.
+- Proof: `make web-e2e` green; the shot count matches the manual's figures.
+- Rollback: revert the commit.
+
+### Milestone 8 — Review and close (`OAK-S14-007`)
+
+- Work: the closing review (one workflow: three finders, one skeptic); survivors fixed
+  with tests; `make check` with the test database and `make audit` once each; the live
+  check once more; merge `origin/main` if it moved; a PR; the plan moved to `completed/`.
+- Proof: zero `make: ***` lines; CI green; the PR names the draft harness list as awaiting
+  the owner's review and the §10 follow-ups closed.
+- Rollback: the PR is the owner's to merge or close.
+
+## Verification
+
+- Unit: the terms function, the normalisation rules (fullwidth, zero-width,
+  right-to-left-override, forbidden words, bounds), the parsers on recorded and poisoned
+  fixtures, the gates with each reason code, the family-token rule with ADR-0018's cases,
+  the weight estimate per dtype, the Pareto rules with unknowns, the compare-only rule.
+- Contract: schema conformance and examples; the mirrors (labels, evidence words); the
+  ADR mirror; the configuration reference; the residual-risk count; the OpenAPI baseline
+  with the unreleased lists; the export-lineage check.
+- Integration: the service order (token, consent, idempotency, `If-Match`, status, egress)
+  with the fake transport's request log; refusals from `candidates_ready`; the merged
+  snapshot's determinism in a fresh interpreter; the worker path on PostgreSQL;
+  `max_attempts=1`.
+- End to end: `research.spec.ts` on the throwaway stack with the fixture source; the
+  reference journey unchanged.
+- Guards in `make validate`: S1–S5, R5 and the R2 additions, each mutation-checked.
+- Live, by hand, once at M3 and once at M8 (`OAK_LIVE_RESEARCH_TESTS=1`), recorded under
+  Progress as evidence, never as a gate.
+
+## Security, privacy and authority review
+
+- **Egress.** Real egress exists only after the user's recorded consent for one run: the
+  derived terms, anonymously, to the three K1 hosts, within 30 requests and 60 seconds.
+  The REST route checks the capability token first, then consent, then idempotency and
+  version, then status, so a stale or repeated request sends nothing. The local CLI needs
+  no token, as `oak report --narrative` does not.
+- **The live checks in this plan are real egress.** `tests/live/test_research_live.py`
+  sends the reference brief's derived terms, anonymously, to `huggingface.co`,
+  `router.huggingface.co` and `api.github.com` within the budget. It runs only by hand
+  with `OAK_LIVE_RESEARCH_TESTS=1`, never under `make check`.
+- **Input trust.** Every source byte is hostile metadata. It is bounded on read,
+  normalised by allowlist, validated against a closed schema, and re-validated before it
+  enters canonical state. Install text is data OAK never runs. No source text reaches an
+  `OAKError` message, a log, a main slide or a model.
+- **Authority.** Research proposes; the gates decide eligibility for comparison only; a
+  human review records a decision bound to digests; nothing approves a component for a
+  context, nothing selects, signs, dispatches or installs. MCP cannot research.
+- **Failure state.** A refused or timed-out run records one attempt and no snapshot; an
+  outage shows as an outage (no cached substitute); an expired cache entry is never used.
+- **Audit.** `research_completed` carries the terms digest, the hosts and the snapshot
+  reference; `research_item_reviewed` carries the review reference.
+
+## Operational and rollback plan
+
+- No migration: two new JSON kinds, two events and two extensions, all additive.
+- The fixture source is selected only by `OAK_RESEARCH_FIXTURES` (documented as
+  safety-relevant); the throwaway override sets it, the shipped Compose file does not.
+- Rollback of any milestone is a revert; a case that holds a research snapshot keeps it in
+  its index and audit trail, and generation without the feature reads the curated
+  catalogue as today.
+- Bounded failure surface: a local workspace or database; nothing outside the machine
+  changes.
+
+## Progress
+
+- [x] 2026-10-21 M0: ground check (origin/main `671d4a4`, no open PR, `0.9.0` latest, CI
+  green on `main`, ports free, Docker 29.8.1); truth pass on `STATUS.md` and the Sprint 13
+  plan; the four answers and the Q4 follow-up; Sprint 14 registered in the governance
+  `sprints.md` with its authorization paragraph and Sprint 15 listed; governance at
+  `0.4.0-draft.14`; branch `sprint-14-research`; this plan; tasks claimed; the throwaway
+  stack `oak-s14` healthy on 18080/15174; `pnpm --dir web build` green.
+- [x] 2026-10-21 M0 exit: `journey.spec.ts` green on the throwaway stack (1 passed, 16.7 s).
+- [ ] M1 — decision record.
+- [ ] M2 — contract and unknown estimates.
+- [ ] M3 — research adapter; live check recorded.
+- [ ] M4 — operation and interfaces; PostgreSQL counts recorded.
+- [ ] M5 — workspace.
+- [ ] M6 — report and docs.
+- [ ] M7 — browser suite, screenshots, manual.
+- [ ] M8 — closing review, gates, PR.
+
+## Decisions
+
+- 2026-10-21 M0, Q4. The owner's first answer, "selectable once reviewed", conflicts with
+  §7 and needs an evaluation path that does not exist. One follow-up question offered:
+  shown now and selectable next sprint; the compare-only rule now and selectable next; or
+  selectable this sprint with the acceptance case rewritten. The owner chose the
+  compare-only rule now and selection as Sprint 15, which is registered in the governance
+  `sprints.md` with its prerequisites (a declarations review, an evaluation path for
+  non-curated ids, installation image mapping, what `approved_for_context` requires).
+- 2026-10-21 M0, the compare-only rule's shape (to be recorded in ADR-0018 at M1 and built
+  at M2): `status` stays `infeasible`; the classification is typed in
+  `extensions["oak.community/comparison"]`; `_apply_pareto` compares comparable
+  candidates with unknown-aware dominance; `select` is unchanged. Alternatives: a new
+  `status` value (a closed enum in the schema and the web; a conditionally compatible
+  change for no gain) or a parsed reason string (refused by the Normalisation rules).
+- 2026-10-21 M0, the throwaway override. Written with the ports only; the worker's
+  `OAK_RESEARCH_FIXTURES` and the fixture volume are added at M3 once the directory exists,
+  so Docker does not create an empty directory in the tree.
+
+## Discoveries and follow-ups
+
+- (none yet)
+
+## Self-review
+
+Answered at the end of each milestone: (1) did any pinned name change without its spec;
+(2) did any claim appear without its evidence class, or any `unknown` without its reason;
+(3) did anything touch a §7 boundary: egress, what leaves the machine, authority or
+determinism?
+
+- **M0.** (1) No. (2) None appeared; no code yet. (3) No egress: the stack build pulled
+  pinned base images only, and no research request exists yet.

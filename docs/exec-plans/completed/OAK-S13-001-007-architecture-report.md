@@ -15,8 +15,8 @@ a release.
 
 - Owner/agent: owner-directed coding agent
 - Started: 2026-10-16
-- Last updated: 2026-10-16
-- State: complete (PR #36 open for the owner's merge)
+- Last updated: 2026-10-21
+- State: complete (merged by the owner as PR #36, `671d4a4`, on 2026-10-19)
 - Claimed tasks: `OAK-S13-001`–`OAK-S13-007`
 
 One plan covers seven task IDs because they build one vertical feature, from the schema to
@@ -59,6 +59,10 @@ scope), so a follow-up question asked how it should fit. The answer:
   `recordReport`. A model mode needs the capability token, as interpretation does.
 
 ## Outcome
+
+The Outcome and Contract sections are the plan as first written, so they still describe a
+PPTX rendering; the M3 dependency review narrowed the renderings to PDF only (see
+Decisions, 2026-10-16 M3), and the PPTX items below are deferred, not delivered.
 
 Today a user can see a design case on screens and take its records as JSON or YAML, but
 nothing gives a decision-maker one document that explains the decision.
