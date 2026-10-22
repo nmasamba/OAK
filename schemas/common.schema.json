@@ -89,14 +89,18 @@
       "properties": {
         "name": {"type": "string", "minLength": 1},
         "direction": {"enum": ["minimize", "maximize"]},
-        "value": {"type": "number"},
+        "value": {"type": ["number", "null"]},
         "lower": {"type": ["number", "null"]},
         "upper": {"type": ["number", "null"]},
         "unit": {"type": "string", "minLength": 1},
         "weight": {"type": "number", "minimum": 0},
         "confidence": {"type": "number", "minimum": 0, "maximum": 1},
-        "estimator_ref": {"type": ["string", "null"]}
-      }
+        "estimator_ref": {"type": ["string", "null"]},
+        "unknown_reason": {"type": "string", "minLength": 1, "maxLength": 300}
+      },
+      "if": {"properties": {"value": {"type": "null"}}},
+      "then": {"required": ["unknown_reason"]},
+      "else": {"not": {"required": ["unknown_reason"]}}
     },
     "approval": {
       "type": "object",

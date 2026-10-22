@@ -19,7 +19,9 @@ from oak.ports import (
     OutboxStore,
 )
 
-ALLOWED_OPERATION_KINDS = frozenset({"generate_candidates", "evaluate_candidate", "compile_bundle"})
+ALLOWED_OPERATION_KINDS = frozenset(
+    {"generate_candidates", "evaluate_candidate", "compile_bundle", "research_catalogue"}
+)
 FORBIDDEN_OPERATION_FIELDS = frozenset({"argv", "command", "executable", "shell", "shell_command"})
 OperationHandler = Callable[[dict[str, Any]], dict[str, Any]]
 

@@ -1,0 +1,28 @@
+# SPDX-License-Identifier: Apache-2.0
+# The closed list of hardware classes (Sprint 14, ADR-0018). A class is derived from
+# `intent.spec.hardware` by the first rule that matches, top to bottom. It is recorded in
+# the research terms and used on this machine to compare a researched model's estimated
+# weight floor with what the intent declares. No class name is sent to any host: neither
+# the Hub nor GitHub has a hardware qualifier.
+schema_version: 0.1.0
+id: research.hardware-classes
+version: 0.1.0
+as_of: "2026-10-21"
+classes:
+  - id: accelerator-large
+    accelerators: present
+    vram_gib_at_least: 48
+  - id: accelerator-medium
+    accelerators: present
+    vram_gib_at_least: 16
+  - id: accelerator-small
+    accelerators: present
+  - id: cpu-large
+    accelerators: absent
+    ram_gib_at_least: 64
+  - id: cpu-medium
+    accelerators: absent
+    ram_gib_at_least: 16
+  - id: cpu-small
+    accelerators: absent
+  - id: unknown

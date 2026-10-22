@@ -208,7 +208,8 @@ metrics and nothing else:
   own `generated_at` rather than the clock;
 - the two processes in `tests/unit/test_report_pdf.py` must produce the same bytes.
 
-Its closure adds **Pillow 12.3.0** (MIT-CMU/HPND, released 2026-07-01, OSV clean), which
+Its closure adds **Pillow 13.0.0** (MIT-CMU/HPND; 12.3.0 was pinned at Sprint 13 and lifted on
+2026-10-22 when `pip-audit` named seven advisories against it, all fixed in 13.0.0), which
 ReportLab requires at install time. OAK hands it no image, so its decoders see no input.
 Pillow is the one new native wheel: macOS arm64, `manylinux_2_27` x86_64 and aarch64, and
 `musllinux_1_2`. It raises the Linux x86_64 glibc floor from 2.24 to 2.27 and has no
@@ -239,7 +240,8 @@ remove `reportlab` from `pyproject.toml` and `uv lock`. Recording a report then 
 `pnpm audit --audit-level=high` began failing on GHSA-68fv-2mgg-jv7q, an event-loop
 denial of service through indexed source-map section offsets in `source-map-js` below
 1.2.2. The package reaches the workspace only through `vite` → `postcss`, at build time;
-it ships in no runtime artifact or image. Vite 7.3.6 and PostCSS 8.5.26 still pin the
+it ships in no runtime artifact or image. Vite 7.3.7 (7.3.6 was lifted on 2026-10-22 for
+GHSA-587h-7wmj-h5pm in its `launch-editor` dependency) and PostCSS 8.5.26 still pin the
 vulnerable range, so `pnpm-workspace.yaml` carries an `overrides` entry forcing
 `source-map-js` to 1.2.2 (BSD-3-Clause, unchanged) until an upstream PostCSS release
 lifts it, at which point the override can go. The web build and the browser suite were

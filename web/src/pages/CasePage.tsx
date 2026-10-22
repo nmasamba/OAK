@@ -20,6 +20,7 @@ import { recallInterpretMode, rememberInterpretMode } from "../interpretMode";
 import { ModeChooser, ModeDetail, type InterpretMode } from "../ModeSelect";
 import { currentModelToken } from "../modelToken";
 import { ProblemAlert, toActionFailure, type ActionFailure } from "../problems";
+import { ResearchMoment } from "../ResearchMoment";
 import { Link, useRouter } from "../router";
 import {
   asArray,
@@ -167,6 +168,23 @@ export function CasePage({ caseId }: { readonly caseId: string }) {
   };
 
   useEffect(load, [caseId]);
+
+  // A refresh in place: what the server now says, without passing through the loading
+  // state (Sprint 13's refuted A-2 and A-4), so focus and the reader's place survive.
+  const refresh = () => {
+    setFailure(null);
+    return getDesignCase(caseId)
+      .then((response) => {
+        setState({ kind: "ready", caseDocument: response.case });
+        return Promise.all([
+          listAuditEvents(caseId).then((trail) => setAuditEvents(trail.items)),
+          listCandidates(caseId)
+            .then((listed) => setCandidates(listed.items))
+            .catch(() => setCandidates(null)),
+        ]);
+      })
+      .catch((error: unknown) => setFailure(toActionFailure(error)));
+  };
 
   if (state.kind === "loading") {
     return (
@@ -343,6 +361,13 @@ export function CasePage({ caseId }: { readonly caseId: string }) {
           </Moment>
         )}
 
+        <ResearchMoment
+          caseId={caseId}
+          caseDocument={caseDocument}
+          disabled={pendingAction !== null}
+          onChanged={refresh}
+        />
+
         {status === "ready_for_candidates" && (
           <Moment fresh>
             <p>Ready to design.</p>
@@ -466,7 +491,11 @@ export function CasePage({ caseId }: { readonly caseId: string }) {
           <Keycap tone="quiet" icon="download" onClick={onExport}>
             Download the canonical export
           </Keycap>
-          <Keycap tone="quiet" onClick={load} disabled={pendingAction !== null}>
+          <Keycap
+            tone="quiet"
+            onClick={() => void refresh()}
+            disabled={pendingAction !== null}
+          >
             Refresh
           </Keycap>
         </div>

@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from oak import __version__
-from oak.adapters.catalogue import LocalCatalogue
+from oak.adapters.catalogue import LocalCatalogue, ResearchVocabularyLoader
 from oak.adapters.credentials import (
     EnvironmentCredentialReference,
     FileCredentialStore,
@@ -45,6 +45,7 @@ from oak.application import (
     PolicyService,
     ReleaseService,
     ReportService,
+    ResearchService,
     SystemInformationService,
 )
 from oak.application.design_case import ModelInterpreterFactory
@@ -52,7 +53,7 @@ from oak.application.gitops import GitOpsRenderer
 from oak.application.rendering import DeploymentRenderService
 from oak.compiler import DeterministicBriefInterpreter
 from oak.contracts import SchemaRegistry
-from oak.domain import OAKError, SystemInformation
+from oak.domain import RESEARCH_HOSTS, OAKError, SystemInformation
 from oak.domain.extension_sdk import (
     HELM_KUBERNETES_RENDERER_ID,
     LOCAL_MANIFEST_RENDERER_ID,
@@ -478,6 +479,80 @@ def create_report_narrator(mode: str) -> ReportNarratorPort | None:
     )
 
 
+def research_source_mode() -> tuple[str, frozenset[str]]:
+    """`(source_mode, hosts)` without building a transport: what a plan read shows."""
+
+    if os.getenv("OAK_RESEARCH_FIXTURES", "").strip():
+        return "fixture", frozenset()
+    return "live", RESEARCH_HOSTS
+
+
+_RESEARCH_CACHE: Any = None
+
+
+def research_cache() -> Any:
+    """The worker's in-memory research cache, created on first use (24 hours, by terms).
+
+    Handed to the services as a factory: the reader it imports loads on the first
+    consented live run, never when the API or the worker starts (ADR-0018).
+    """
+
+    global _RESEARCH_CACHE
+    if _RESEARCH_CACHE is None:
+        from oak.adapters.models.research_sources import ResearchCache
+
+        _RESEARCH_CACHE = ResearchCache()
+    return _RESEARCH_CACHE
+
+
+def research_runner(*arguments: Any, **keywords: Any) -> Any:
+    """The adapter's `run_research`, imported at the moment of use (never on the default path)."""
+
+    from oak.adapters.models.research_sources import run_research
+
+    return run_research(*arguments, **keywords)
+
+
+def create_research_service(workspace: Path) -> ResearchService:
+    registry = SchemaRegistry.from_directory(canonical_schema_directory())
+    catalogue_directory = canonical_catalogue_directory()
+    return ResearchService(
+        FileWorkspaceRepository(workspace, registry),
+        registry,
+        LocalCatalogue(catalogue_directory, registry),
+        ResearchVocabularyLoader(catalogue_directory),
+        source_factory=lambda occurred_at: create_research_source(occurred_at=occurred_at),
+        source_mode=research_source_mode,
+        runner=research_runner,
+        cache=research_cache,
+    )
+
+
+def create_research_source(*, occurred_at: str) -> tuple[Any, str, frozenset[str]]:
+    """`(fetch, source_mode, hosts)` for one research run (Sprint 14, ADR-0018).
+
+    The fixture source is selected only by ``OAK_RESEARCH_FIXTURES`` (safety-relevant,
+    ``RR-052``); otherwise the one transport, scoped to exactly the three research hosts.
+    Both are imported lazily, so a deterministic generation never loads either.
+    """
+
+    directory = os.getenv("OAK_RESEARCH_FIXTURES", "").strip()
+    if directory:
+        from oak.adapters.models.research_fixture import FixtureResearchSource
+
+        source = FixtureResearchSource(Path(directory), occurred_at=occurred_at)
+        return source.fetch, "fixture", frozenset()
+    from oak.adapters.models.research_sources import MAXIMUM_RESPONSE_BYTES
+    from oak.adapters.models.transport import ModelTransport
+
+    transport = ModelTransport(
+        allowed_hosts=RESEARCH_HOSTS,
+        deadline_seconds=INTERPRETATION_CEILING_SECONDS,
+        maximum_response_bytes=MAXIMUM_RESPONSE_BYTES,
+    )
+    return transport.send, "live", RESEARCH_HOSTS
+
+
 def create_report_renderer() -> ReportRendererPort:
     """The PDF renderer; imported here so a command that draws nothing never loads it."""
 
@@ -534,6 +609,7 @@ def create_candidate_planning_service(workspace: Path) -> CandidatePlanningServi
         LocalCatalogue(canonical_catalogue_directory(), registry),
         LocalTargetProfile(registry),
         registry,
+        research_vocabulary=ResearchVocabularyLoader(canonical_catalogue_directory()),
     )
 
 
@@ -804,6 +880,11 @@ def create_persistent_control_plane() -> CommunityControlPlane:
         report_renderer=create_report_renderer(),
         report_narrator_factory=create_report_narrator,
         oak_version=__version__,
+        research_vocabulary=ResearchVocabularyLoader(canonical_catalogue_directory()),
+        research_source_factory=lambda occurred_at: create_research_source(occurred_at=occurred_at),
+        research_source_mode=research_source_mode,
+        research_runner=research_runner,
+        research_cache=research_cache,
     )
 
 
@@ -828,6 +909,7 @@ def create_persistent_worker(*, worker_id: str) -> CommunityWorker:
             "generate_candidates": control_plane.execute_operation,
             "evaluate_candidate": control_plane.execute_operation,
             "compile_bundle": control_plane.execute_operation,
+            "research_catalogue": control_plane.execute_operation,
         },
     )
     return CommunityWorker(

@@ -111,6 +111,18 @@ class TransportResponse:
         return self.headers.get(name.lower())
 
 
+@dataclass(slots=True)
+class RedirectRefusedError(OAKError):
+    """The refusal a 3xx answer raises, carrying the status as a typed field.
+
+    Sprint 14: research tells a redirect apart from an outage (a renamed repository or a
+    re-cased model id is a typosquat signal) without reading a message. The code and the
+    message are exactly what interpretation has always received, so nothing else changes.
+    """
+
+    status: int = 0
+
+
 def _is_sendable_header(value: str) -> bool:
     """Whether `http.client` can put this value on the wire without raising."""
 
@@ -302,9 +314,10 @@ class ModelTransport:
             status = int(response.status)
             if 300 <= status < 400:
                 # Never read Location, never follow.
-                raise OAKError(
+                raise RedirectRefusedError(
                     "OAK-INTERPRETER-UNAVAILABLE",
                     "the provider answered with a redirect, which OAK does not follow",
+                    status=status,
                 )
             body = self._read_bounded(connection, response, deadline)
         except OAKError:

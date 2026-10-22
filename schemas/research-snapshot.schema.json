@@ -1,0 +1,180 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://oak.example/schemas/research-snapshot.schema.json",
+  "title": "ResearchSnapshot",
+  "description": "What one research run (Sprint 14, ADR-0018) sent, received and decided: the terms, the hosts, every request with its response digest, each normalised item with its claims and their evidence classes, every verdict with its reasons, and the pairings. It is recorded beside the case and authorizes nothing: a researched entry reaches comparison, never approval, and a snapshot never holds a response body, a brief, a case secret or a credential.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "id", "version", "case_id", "intent_ref", "occurred_at", "source_mode", "terms", "terms_digest", "hosts", "budget", "freshness_window_days", "rule_sets", "requests", "items", "pairings", "summary", "extensions"],
+  "properties": {
+    "schema_version": {"const": "0.1.0"},
+    "id": {"$ref": "common.schema.json#/$defs/identifier"},
+    "version": {"$ref": "common.schema.json#/$defs/semver"},
+    "case_id": {"$ref": "common.schema.json#/$defs/identifier"},
+    "intent_ref": {"$ref": "common.schema.json#/$defs/artifactRef"},
+    "occurred_at": {"type": "string", "format": "date-time"},
+    "source_mode": {"enum": ["live", "fixture"]},
+    "terms": {"$ref": "#/$defs/terms"},
+    "terms_digest": {"$ref": "common.schema.json#/$defs/digest"},
+    "hosts": {"type": "array", "items": {"type": "string", "pattern": "^[a-z0-9][a-z0-9.-]{0,79}$"}, "uniqueItems": true, "maxItems": 8},
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requests_max", "requests_used", "deadline_seconds", "elapsed_seconds"],
+      "properties": {
+        "requests_max": {"type": "integer", "minimum": 1, "maximum": 30},
+        "requests_used": {"type": "integer", "minimum": 0, "maximum": 30},
+        "deadline_seconds": {"type": "number", "minimum": 1, "maximum": 60},
+        "elapsed_seconds": {"type": "number", "minimum": 0}
+      }
+    },
+    "freshness_window_days": {"type": "integer", "minimum": 1, "maximum": 365},
+    "rule_sets": {"type": "array", "items": {"type": "string", "minLength": 1, "maxLength": 80}, "minItems": 1, "uniqueItems": true},
+    "requests": {"type": "array", "maxItems": 30, "items": {"$ref": "#/$defs/request"}},
+    "items": {"type": "array", "maxItems": 64, "items": {"$ref": "#/$defs/item"}},
+    "pairings": {"type": "array", "maxItems": 64, "items": {"$ref": "#/$defs/pairing"}},
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["found", "passed", "needs_review", "failed"],
+      "properties": {
+        "found": {"type": "integer", "minimum": 0},
+        "passed": {"type": "integer", "minimum": 0},
+        "needs_review": {"type": "integer", "minimum": 0},
+        "failed": {"type": "integer", "minimum": 0}
+      }
+    },
+    "extensions": {"$ref": "common.schema.json#/$defs/extensions"}
+  },
+  "$defs": {
+    "token": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"},
+    "tokens": {"type": "array", "items": {"$ref": "#/$defs/token"}, "uniqueItems": true, "maxItems": 64},
+    "terms": {
+      "description": "The derived terms, verbatim: what the consent showed and what was sent. Every string under `sent` is a value from the research vocabularies; `local` is used on this machine only.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "sent", "local", "vocabulary"],
+      "properties": {
+        "version": {"type": "string", "pattern": "^community-research-terms-[0-9]+\\.[0-9]+\\.[0-9]+$"},
+        "sent": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["hub", "github"],
+          "properties": {
+            "hub": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["pipeline_tags", "filters", "sort", "inference_provider"],
+              "properties": {
+                "pipeline_tags": {"$ref": "#/$defs/tokens"},
+                "filters": {"$ref": "#/$defs/tokens"},
+                "sort": {"enum": ["createdAt"]},
+                "inference_provider": {"enum": ["all"]}
+              }
+            },
+            "github": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["topics", "archived", "pushed_within_days"],
+              "properties": {
+                "topics": {"type": "object", "propertyNames": {"pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"}, "additionalProperties": {"$ref": "#/$defs/tokens"}},
+                "archived": {"const": false},
+                "pushed_within_days": {"type": "integer", "minimum": 1, "maximum": 365}
+              }
+            }
+          }
+        },
+        "local": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["capabilities", "hardware_class", "licence_ids", "licence_keywords", "hub_licence_tags", "freshness_window_days"],
+          "properties": {
+            "capabilities": {"$ref": "#/$defs/tokens"},
+            "hardware_class": {"$ref": "#/$defs/token"},
+            "licence_ids": {"type": "array", "items": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9.+-]{0,63}$"}, "uniqueItems": true, "maxItems": 64},
+            "licence_keywords": {"$ref": "#/$defs/tokens"},
+            "hub_licence_tags": {"$ref": "#/$defs/tokens"},
+            "freshness_window_days": {"type": "integer", "minimum": 1, "maximum": 365}
+          }
+        },
+        "vocabulary": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["capabilities", "hardware_classes", "licences", "harness_repositories", "bindings"],
+          "properties": {
+            "capabilities": {"$ref": "#/$defs/identity"},
+            "hardware_classes": {"$ref": "#/$defs/identity"},
+            "licences": {"$ref": "#/$defs/identity"},
+            "harness_repositories": {"$ref": "#/$defs/identity"},
+            "bindings": {"type": "array", "items": {"$ref": "#/$defs/identity"}, "uniqueItems": true, "maxItems": 16}
+          }
+        }
+      }
+    },
+    "identity": {"type": "string", "pattern": "^[a-z][a-z0-9.-]{0,79}@[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "request": {
+      "description": "One request the run made, or one cache hit it reused. The path carries no secret, because no request ever does; the body is never stored, only its digest.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sequence", "host", "path", "status", "response_digest", "checked_at", "refusal_code", "cached"],
+      "properties": {
+        "sequence": {"type": "integer", "minimum": 1, "maximum": 30},
+        "host": {"type": "string", "pattern": "^[a-z0-9][a-z0-9.-]{0,79}$"},
+        "path": {"type": "string", "pattern": "^/[A-Za-z0-9._~!$&'()*+,;=:@/%?\\[\\]-]{0,511}$"},
+        "status": {"type": ["integer", "null"], "minimum": 100, "maximum": 599},
+        "response_digest": {"anyOf": [{"$ref": "common.schema.json#/$defs/digest"}, {"type": "null"}]},
+        "checked_at": {"type": "string", "format": "date-time"},
+        "refusal_code": {"type": ["string", "null"], "pattern": "^OAK-[A-Z0-9-]+$"},
+        "cached": {"type": "boolean"}
+      }
+    },
+    "claim": {
+      "description": "One thing a source said, with the class of evidence behind it. A claim is quoted, never asserted; `unverified` means nothing backs it.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["field", "value", "unit", "evidence_class", "checked_at", "source_pointer"],
+      "properties": {
+        "field": {"$ref": "#/$defs/token"},
+        "value": {"type": ["string", "number", "boolean", "null"], "maxLength": 160},
+        "unit": {"type": ["string", "null"], "maxLength": 80},
+        "evidence_class": {"enum": ["served_by_live_route", "published_release", "published_by_source", "measured_by_source", "claimed_by_model_card", "claimed_by_release_notes", "unverified"]},
+        "checked_at": {"type": "string", "format": "date-time"},
+        "source_pointer": {"type": "string", "minLength": 1, "maxLength": 200}
+      }
+    },
+    "item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "source", "source_id", "tier", "created_or_released_at", "family_token", "claims", "manifest_ref", "verdict", "reasons", "review_items", "response_digest", "checked_at", "cached"],
+      "properties": {
+        "id": {"$ref": "common.schema.json#/$defs/identifier"},
+        "kind": {"enum": ["model", "serving_runtime", "agent_framework", "retrieval_engine"]},
+        "source": {"enum": ["huggingface_hub", "huggingface_router", "github", "fixture"]},
+        "source_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,99}/[A-Za-z0-9][A-Za-z0-9._-]{0,99}$"},
+        "tier": {"enum": ["trusted", "unvetted"]},
+        "created_or_released_at": {"type": ["string", "null"], "format": "date-time"},
+        "family_token": {"type": ["string", "null"], "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$"},
+        "claims": {"type": "array", "maxItems": 32, "items": {"$ref": "#/$defs/claim"}},
+        "manifest_ref": {"anyOf": [{"$ref": "common.schema.json#/$defs/artifactRef"}, {"type": "null"}]},
+        "verdict": {"enum": ["passed", "needs_review", "failed"]},
+        "reasons": {"type": "array", "items": {"type": "string", "pattern": "^OAK-CAT-[A-Z0-9-]+$"}, "uniqueItems": true, "maxItems": 32},
+        "review_items": {"type": "array", "items": {"type": "string", "pattern": "^OAK-CAT-[A-Z0-9-]+$"}, "uniqueItems": true, "maxItems": 32},
+        "response_digest": {"$ref": "common.schema.json#/$defs/digest"},
+        "checked_at": {"type": "string", "format": "date-time"},
+        "cached": {"type": "boolean"}
+      }
+    },
+    "pairing": {
+      "description": "A harness and a model are paired only when a claim names the pair; the pairing shows the class of every claim it rests on.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["model_item_id", "harness_item_id", "family_token", "claim_classes"],
+      "properties": {
+        "model_item_id": {"$ref": "common.schema.json#/$defs/identifier"},
+        "harness_item_id": {"$ref": "common.schema.json#/$defs/identifier"},
+        "family_token": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$"},
+        "claim_classes": {"type": "array", "minItems": 1, "items": {"enum": ["served_by_live_route", "published_release", "published_by_source", "measured_by_source", "claimed_by_model_card", "claimed_by_release_notes", "unverified"]}, "uniqueItems": true}
+      }
+    }
+  }
+}

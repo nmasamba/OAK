@@ -1,0 +1,52 @@
+# SPDX-License-Identifier: Apache-2.0
+# The closed vocabulary a research run may send as search terms (Sprint 14, ADR-0018).
+# Every term that leaves the machine is a value from this file or from licences.yaml;
+# hardware-classes.yaml is used on this machine only. Nothing from a brief, an intent's
+# free text, a case id or a credential is ever a term.
+schema_version: 0.1.0
+id: research.capabilities
+version: 0.1.0
+as_of: "2026-10-21"
+# A pattern role's `required_capability`, mapped to what each source may be asked for.
+# A model capability maps to Hub pipeline tags and filters; a software capability maps to
+# the listed-only retrieval kind below, because no researched component fills a retrieval
+# role this sprint.
+capabilities:
+  citation_drafting:
+    component_category: model
+    hub_pipeline_tags: [text-generation]
+    hub_filters: [conversational]
+    harness_kind: null
+  independent_verification:
+    component_category: model
+    hub_pipeline_tags: [text-generation]
+    hub_filters: [conversational]
+    harness_kind: null
+  bounded_generation:
+    component_category: model
+    hub_pipeline_tags: [text-generation]
+    hub_filters: [conversational]
+    harness_kind: null
+  lexical_retrieval:
+    component_category: software
+    hub_pipeline_tags: []
+    hub_filters: []
+    harness_kind: retrieval_engine
+  citation_passages:
+    component_category: software
+    hub_pipeline_tags: []
+    hub_filters: []
+    harness_kind: retrieval_engine
+# Harness kinds, mapped to GitHub topics. `role: serving` means a researched harness of
+# this kind may fill the added serving role of a research binding; `role: null` means it is
+# found and listed only.
+harness_kinds:
+  serving_runtime:
+    role: serving
+    github_topics: [llm-serving, llm-inference, model-serving]
+  agent_framework:
+    role: null
+    github_topics: [llm-agents, ai-agents, agent-framework]
+  retrieval_engine:
+    role: null
+    github_topics: [vector-database, vector-search, retrieval-augmented-generation]

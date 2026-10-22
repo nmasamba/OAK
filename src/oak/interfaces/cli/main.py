@@ -1411,6 +1411,223 @@ def report(
         _abort(error)
 
 
+research_app = typer.Typer(
+    help=(
+        "Research at the point of design: look for newer open models and harnesses before "
+        "the designs are generated. Nothing leaves the machine until you consent to the "
+        "exact hosts and terms the plan shows."
+    ),
+    invoke_without_command=True,
+    no_args_is_help=False,
+)
+app.add_typer(research_app, name="research")
+
+
+@research_app.callback()
+def research(
+    context: typer.Context,
+    design_case: Annotated[
+        str | None,
+        typer.Option("--case", help="Design-case identifier; required in remote mode."),
+    ] = None,
+    plan: Annotated[
+        bool,
+        typer.Option("--plan", help="Print the hosts and terms a run would send; sends nothing."),
+    ] = False,
+    consent: Annotated[
+        str | None,
+        typer.Option(
+            "--consent",
+            help=(
+                "Run research after consenting to the plan's terms digest (sha256:...). The "
+                "terms go anonymously to the plan's hosts."
+            ),
+        ),
+    ] = None,
+    idempotency_key: Annotated[
+        str | None,
+        typer.Option("--idempotency-key", help="Stable retry key for --consent."),
+    ] = None,
+    output: Annotated[
+        OutputFormat, typer.Option("--output", help="Output format.")
+    ] = OutputFormat.HUMAN,
+) -> None:
+    """Plan or run research for the current case; `oak research review` records a review."""
+
+    if context.invoked_subcommand is not None:
+        return
+    try:
+        if plan == (consent is not None):
+            raise OAKError("OAK-RESEARCH-USAGE", "use exactly one of --plan or --consent <digest>")
+        remote = _remote()
+        if remote is not None:
+            from oak.interfaces.cli import remote as remote_mode
+
+            case_id = _remote_case_id(design_case)
+            plan_document = remote.research_plan(case_id)
+            if plan:
+                _emit(plan_document, output, human="\n".join(_research_plan_lines(plan_document)))
+                return
+            version = remote.current_case_version(case_id)
+            key = idempotency_key or remote_mode.derived_key(
+                "research", f"{case_id}@{version}:{consent}"
+            )
+            submission = remote.research(
+                case_id,
+                consent={"hosts": list(plan_document.get("hosts") or []), "terms_digest": consent},
+                expected_version=version,
+                idempotency_key=key,
+            )
+            operation = remote.wait_for_operation(
+                str(remote_mode.require_field(submission, "operation_id"))
+            )
+            result = operation.get("result")
+            if not isinstance(result, dict) or not isinstance(result.get("snapshot"), dict):
+                raise OAKError("OAK-REMOTE-PROTOCOL", "remote research result is invalid")
+            _emit(result, output, human="\n".join(_research_result_lines(result["snapshot"])))
+            return
+        service = _research_service()
+        plan_document = service.plan().to_document()
+        if plan:
+            _emit(plan_document, output, human="\n".join(_research_plan_lines(plan_document)))
+            return
+        current = _workspace_service().current().case
+        if design_case is not None and design_case != current["id"]:
+            raise OAKError("OAK-CASE-NOT-FOUND", "requested design case is not current")
+        result = service.run(
+            _context(idempotency_key=idempotency_key, expected_version=str(current["version"])),
+            consent={"hosts": list(plan_document["hosts"]), "terms_digest": consent},
+        )
+        _emit(
+            result.to_document(), output, human="\n".join(_research_result_lines(result.snapshot))
+        )
+    except (OAKError, ContractValidationError, OSError, RuntimeError, ValueError) as error:
+        _abort(error)
+
+
+@research_app.command("review")
+def research_review(
+    item_id: Annotated[str, typer.Argument(help="The research item id from the snapshot.")],
+    accept: Annotated[
+        bool, typer.Option("--accept", help="Accept the item for comparison.")
+    ] = False,
+    reject: Annotated[bool, typer.Option("--reject", help="Reject the item.")] = False,
+    rationale_file: Annotated[
+        Path | None,
+        typer.Option("--rationale-file", help="A file holding your rationale (required)."),
+    ] = None,
+    design_case: Annotated[
+        str | None,
+        typer.Option("--case", help="Design-case identifier; required in remote mode."),
+    ] = None,
+    idempotency_key: Annotated[
+        str | None, typer.Option("--idempotency-key", help="Stable retry key.")
+    ] = None,
+    output: Annotated[
+        OutputFormat, typer.Option("--output", help="Output format.")
+    ] = OutputFormat.HUMAN,
+) -> None:
+    """Record a review of an unvetted research item: a decision with a rationale, never a toggle."""
+
+    try:
+        if accept == reject:
+            raise OAKError("OAK-RESEARCH-USAGE", "use exactly one of --accept or --reject")
+        if rationale_file is None:
+            raise OAKError("OAK-RESEARCH-USAGE", "a review needs --rationale-file <file>")
+        rationale = rationale_file.read_text(encoding="utf-8").strip()
+        decision = "accept" if accept else "reject"
+        remote = _remote()
+        if remote is not None:
+            from oak.interfaces.cli import remote as remote_mode
+
+            case_id = _remote_case_id(design_case)
+            version = remote.current_case_version(case_id)
+            key = idempotency_key or remote_mode.derived_key(
+                "review-research", f"{case_id}@{version}:{item_id}:{decision}"
+            )
+            reviewed = remote.review_research_item(
+                case_id,
+                item_id=item_id,
+                decision=decision,
+                rationale=rationale,
+                expected_version=version,
+                idempotency_key=key,
+            )
+            _emit(
+                reviewed,
+                output,
+                human=(
+                    f"Recorded {decision} for {item_id}; the case is now at "
+                    f"{remote_mode.require_field(reviewed, 'case', 'version')}"
+                ),
+            )
+            return
+        current = _workspace_service().current().case
+        if design_case is not None and design_case != current["id"]:
+            raise OAKError("OAK-CASE-NOT-FOUND", "requested design case is not current")
+        result = _research_service().review(
+            _context(idempotency_key=idempotency_key, expected_version=str(current["version"])),
+            item_id=item_id,
+            decision=decision,
+            rationale=rationale,
+        )
+        _emit(
+            {"case": result.case, "review": result.review, "duplicate": result.duplicate},
+            output,
+            human=(
+                f"Recorded {decision} for {item_id}; the case is now at {result.case['version']}"
+                + (" (idempotent retry)" if result.duplicate else "")
+            ),
+        )
+    except (OAKError, ContractValidationError, OSError, RuntimeError, ValueError) as error:
+        _abort(error)
+
+
+def _research_service() -> Any:
+    from oak.bootstrap import create_research_service
+
+    return create_research_service(FileWorkspaceRoot.discover(Path.cwd()))
+
+
+def _research_plan_lines(plan: dict[str, Any]) -> list[str]:
+    hosts = plan.get("hosts") or []
+    allowed = "allowed now" if plan.get("allowed") else "not allowed at this status"
+    host_words = ", ".join(hosts) if hosts else "none (fixture)"
+    lines = [
+        f"Research plan for {plan.get('case_id')}@{plan.get('case_version')} "
+        f"({plan.get('status')}; {allowed})",
+        f"Source: {plan.get('source_mode')}; hosts: {host_words}",
+        f"Terms digest: {plan.get('terms_digest')}",
+        "Sent terms (verbatim):",
+        json.dumps(plan.get("terms", {}).get("sent", {}), indent=2, sort_keys=True),
+        "Used on this machine only:",
+        json.dumps(plan.get("terms", {}).get("local", {}), indent=2, sort_keys=True),
+        f"To run: oak research --consent {plan.get('terms_digest')}",
+    ]
+    return lines
+
+
+def _research_result_lines(snapshot: dict[str, Any]) -> list[str]:
+    summary = snapshot.get("summary") or {}
+    lines = [
+        f"Research {snapshot.get('id')}@{snapshot.get('version')} ({snapshot.get('source_mode')}): "
+        f"found {summary.get('found')}, passed {summary.get('passed')}, "
+        f"need review {summary.get('needs_review')}, failed {summary.get('failed')}"
+    ]
+    for item in snapshot.get("items") or []:
+        reasons = ", ".join(item.get("reasons") or []) or "-"
+        lines.append(
+            f"  {item.get('verdict'):<12} {item.get('kind'):<16} {item.get('source_id')} "
+            f"[{item.get('tier')}] {reasons}  ({item.get('id')})"
+        )
+    for pairing in snapshot.get("pairings") or []:
+        lines.append(
+            f"  pairing: {pairing.get('model_item_id')} + {pairing.get('harness_item_id')} "
+            f"on {pairing.get('family_token')}: {', '.join(pairing.get('claim_classes') or [])}"
+        )
+    return lines
+
+
 def _report_entry(case: dict[str, Any]) -> dict[str, Any]:
     entry = (case.get("extensions") or {}).get("oak.community/report")
     if not isinstance(entry, dict) or not isinstance(entry.get("document_ref"), dict):

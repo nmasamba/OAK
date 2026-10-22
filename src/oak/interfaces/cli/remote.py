@@ -234,6 +234,45 @@ class RemoteClient:
             model_token=model_mode,
         )
 
+    def research_plan(self, case_id: str) -> dict[str, Any]:
+        return self._request("GET", f"/v1/design-cases/{case_id}/research-plan")
+
+    def research(
+        self,
+        case_id: str,
+        *,
+        consent: dict[str, Any],
+        expected_version: str,
+        idempotency_key: str,
+    ) -> dict[str, Any]:
+        # Research is egress, so the capability token is always offered.
+        return self._request(
+            "POST",
+            f"/v1/design-cases/{case_id}:research",
+            body={"consent": consent},
+            idempotency_key=idempotency_key,
+            expected_version=expected_version,
+            model_token=True,
+        )
+
+    def review_research_item(
+        self,
+        case_id: str,
+        *,
+        item_id: str,
+        decision: str,
+        rationale: str,
+        expected_version: str,
+        idempotency_key: str,
+    ) -> dict[str, Any]:
+        return self._request(
+            "POST",
+            f"/v1/design-cases/{case_id}:review-research-item",
+            body={"item_id": item_id, "decision": decision, "rationale": rationale},
+            idempotency_key=idempotency_key,
+            expected_version=expected_version,
+        )
+
     def create_design_case(
         self, *, original_name: str, content: str, idempotency_key: str
     ) -> dict[str, Any]:

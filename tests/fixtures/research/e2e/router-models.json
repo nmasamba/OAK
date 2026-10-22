@@ -1,0 +1,23 @@
+{
+  "object": "list",
+  "data": [
+    {
+      "id": "HuggingFaceTB/Fixturelm-4B",
+      "object": "model",
+      "created": 1792400400,
+      "owned_by": "HuggingFaceTB",
+      "providers": [
+        {
+          "provider": "fixture-provider",
+          "status": "live",
+          "context_length": 32768,
+          "pricing": {"input": 0.1, "output": 0.4},
+          "throughput": 120,
+          "first_token_latency_ms": 350,
+          "supports_tools": true,
+          "supports_structured_output": true
+        }
+      ]
+    }
+  ]
+}

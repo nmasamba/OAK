@@ -8,6 +8,140 @@ All notable changes to OAK Community are recorded here.
 
 ### Added
 
+- **Research at the point of design** (Sprint 14, `OAK-S14-001`–`007`, authorized
+  2026-10-21): on the user's consent, for one case before its candidates are generated, OAK
+  reads a fixed set of public sources for open models and harnesses that fit the confirmed
+  intent and shows what passes deterministic gates as alternative designs, each with its
+  source, its date and how each claim is backed; the default path stays deterministic and
+  offline.
+  - **Decision record** (`OAK-S14-001`). ADR-0018 (mirrored under `docs/adr/architecture/`):
+    three sources through the one egress module, anonymously, after a consent that names
+    every host and term; two tiers; normalisation by allowlist; honest manifests under a
+    second named rule set; a closed evidence-class enum; the family-token pairing rule;
+    unknown estimates and the compare-only rule. The research vocabularies as data under
+    `catalogue/research/` (the capability map, the hardware classes, a draft licence list
+    and a draft owner-reviewed harness list awaiting the owner's review, and the research
+    bindings), read by `ResearchVocabularyLoader` with closed shapes, and the pure
+    `oak.compiler.derive_research_terms` with its digest, proven over every committed
+    brief's intent and the synthetic intents under `tests/fixtures/research/intents/` to
+    emit only vocabulary terms. Residual risks `RR-048`–`RR-053`; threat-coverage gap rows
+    for `RR-044`–`RR-053`; the README, `STATUS.md` safety boundary and threat coverage now
+    disclose the report-note egress Sprint 13 added.
+  - **Contract and unknown estimates** (`OAK-S14-002`). `research-snapshot` and
+    `research-review` schemas (`0.1.0`) with examples; the kinds `research_snapshot` and
+    `research_review`; the audit events `research_completed` and `research_item_reviewed`;
+    the case extensions `oak.community/research_snapshot_ref` and
+    `oak.community/research_review_refs`, both in the export-lineage check; the closed
+    evidence-class enum mapped onto `evidenceRef.source_type`. An objective's `value` may
+    now be null with its `unknown_reason` (K4): the compiler writes an unknown, never a
+    zero or a fallback, for a figure a researched component does not publish, and only
+    for a design that holds one; an unknown never dominates and is never dominated, and
+    the frontier names the objectives it could not compare. The compare-only rule
+    (kickoff Q4, ADR-0018): a researched design whose only failures are pending reviews
+    or unpublished values joins the Pareto comparison, typed on the candidate as
+    `oak.community/comparison`, and stays `infeasible` and unselectable. The report's
+    comparison shows an unknown objective's own reason with its unit, and `oak
+    architecture` prints `unknown` with the reason; the unreleased report schema takes
+    twenty or twenty-one sections (appendix G, research), the basis words "published by
+    source" and "measured by source", and a unit on an unknown. The four reference
+    digests, the curated candidates and the report golden are unchanged.
+  - **The research adapter** (`OAK-S14-003`). `oak.adapters.models.research_sources`
+    reads the Hugging Face Hub's model listing, the router's live routes and GitHub's
+    repository search, releases and tag commits through the one transport, anonymously,
+    within 30 requests under one 60-second deadline with a size cap on every answer and a
+    24-hour in-memory cache keyed by the terms digest; a redirect, an oversized answer, a
+    rate limit, an outage or an exhausted budget is a stable, non-retriable refusal, and
+    no refusal is cached. `oak.domain.research_rules` normalises every string by allowlist
+    (NFKC, no category C character, an ASCII identifier shape, bounded lengths, forbidden
+    words), pairs a harness with a model only when its release notes name the model's
+    family token as a whole identifier, estimates a weight floor from the published dtypes,
+    and runs the gates `community-research-gates-1.0.0`; a passing or reviewable item gets
+    a `component-manifest` stored `quarantined` with every honest value, its commit id in
+    `oak.community/research` and never in a sha256 field, and a refused item is listed by
+    digest with its reason alone. The curated eligibility rules moved to
+    `oak.domain.catalogue_rules` unchanged. The transport's redirect refusal carries its
+    status as a typed field. The in-process fixture source, selected only by
+    `OAK_RESEARCH_FIXTURES` (safety-relevant, `RR-052`), answers the same requests from
+    recorded JSON with offset dates. `scripts/check_research.py` (S1–S5) joins
+    `make validate`; `tests/live/test_research_live.py` is the hand-run live check.
+  - **Operation and interfaces** (`OAK-S14-004`). `ResearchService`: the plan (a read), the
+    consented run, and the review; the `research_catalogue` operation, submitted with one
+    attempt so a timed-out run never sends its terms twice; the merged catalogue snapshot
+    `catalogue.research.<case>` recorded under both rule sets with curated reasons kept as
+    review items; at most two researched designs from `candidate-05`, the newest passing
+    model per model-bearing pattern and the paired harness in a serving role only a
+    research binding adds, each carrying `oak.community/research` and the compare-only
+    classification. REST (unreleased): `GET /v1/design-cases/{case_id}/research-plan`,
+    `POST /v1/design-cases/{case_id}:research` (`X-OAK-Model-Token` before the body, then
+    consent, then `Idempotency-Key` and `If-Match`, then status; `202`) and
+    `POST /v1/design-cases/{case_id}:review-research-item`. CLI: `oak research --plan`,
+    `oak research --consent <digest>` and `oak research review <item> --accept|--reject
+    --rationale-file <file>`, locally and with `--server`. MCP is unchanged. Each run's
+    manifests carry the run's ordinal in their ids, so a later run keeps its own record.
+  - **The workspace** (`OAK-S14-005`). At `ready_for_candidates` the case page asks "Look
+    for newer options?" and shows, verbatim, what one research run would send and to whom
+    (the hosts, the terms, their digest); **Run research** needs the capability token and
+    consents to exactly that, the run is watched in place, and the result rises on the
+    same page with focus moved to it. The results are chips (found, passed, needing your
+    review) and a list of items, each with its source, tier, date and verdict and every
+    claim beside its evidence word; an unvetted item is reviewed by a recorded decision
+    with a rationale (**Accept for comparison** or **Reject**), never a toggle. Once the
+    case holds a snapshot the keycap is gone. On Designs a researched design carries a
+    **New** chip and the label "Balanced, new" (the suffix is one closed word in
+    `web/src/ui/variantLabel.ts` and `oak.application.report.labels`, held equal by an
+    agreement test, as are the evidence words), its evidence chips, an unknown estimate's
+    own reason, the Source and Release date table columns, and the plain reason it cannot
+    be selected this sprint; a researched design is never the baseline. The Take it sheet
+    offers the research snapshot. `web/e2e/research.spec.ts` proves the journey on the
+    fixture source with zero accessibility violations.
+  - **The report** (`OAK-S14-006`). Appendix G, "What research found, and what each source
+    claims", is the twenty-first section of a report for a case that holds a research
+    snapshot: the run (date, source, hosts, terms digest, rule sets, budget in words,
+    requests used and time taken as figures), every item with its kind, tier, date, the
+    verdict of the gates and any recorded review, every claim beside its evidence word with
+    a pointer into the snapshot by array index, the items that passed but were not
+    designed and those that did not pass, the pairings, and every request made. A figure
+    from a fixture snapshot reads "synthetic estimate"; one from a live snapshot reads
+    "published by source" or "measured by source", never "measured", "declared" or
+    "confirmed" (R2). Slide 2 names the research run and both rule sets; appendix E lists
+    the researched evidence by its untrusted source type and names the research snapshot;
+    appendix F binds the snapshot, every researched manifest and every review by digest,
+    read through the catalogue snapshot the selected design names, never the case's
+    latest. A researched option carries "…, new" on slides 4–6 and appendix B with its
+    flag, which names the compare-only rule and the objectives no source published; the
+    chart's text names each option that has no bar and why; best and worst are skipped on
+    an objective any feasible option leaves unknown; a unit that differs per objective
+    makes the value unknown; a researched option is never the baseline, even listed
+    first; a report refuses more than six options or two options with one label; appendix
+    D prints "none recorded" for a missing estimator. The two declared golden moves:
+    appendix E prints `source_type` through a closed label map, with a fixture component's
+    evidence as "Synthetic declaration" rather than "measured", and the fixed renderer
+    record names `reportlab` alone (the refused `python-pptx` is gone from the golden,
+    the example and the package docstring). `check_notes` and the narrator's rules also
+    refuse "best", "works well" and other superlatives. The PDF fits a long component
+    identifier in the diagram with an ellipsis instead of cutting it. A second golden,
+    `tests/fixtures/report/public-manual-qa-research.report.json`, pins the acceptance
+    case at six options; `scripts/check_report.py` composes it live and adds guard R5.
+    Docs: `docs/research.md`, the README's limits and documentation table, the manual's
+    section on looking for newer options, threat-coverage rows with the Sprint 14 tests.
+  - **The closing review** (`OAK-S14-007`). Four agents (three finders, one
+    refute-by-default skeptic) over the branch: fifteen confirmed findings, each fixed with
+    a test. A refused release or tag-commit read fails that harness alone and the run goes
+    on; every fact keeps the fetch time of the answer it came from and says when it was
+    cached; the API and the worker load no research reader at start; the research route
+    checks the consent, then the replay and the version, then the status; displayable text
+    is ASCII, so a confusable letter cannot slip past the forbidden words; one recorded
+    review per item per run, the first bound review governing in the compiler, the
+    workspace and the report alike; a parameter count beyond 10^15 gives no floor; two
+    source ids that fold to one manifest id give one manifest, the later listed by digest;
+    a fixture run names `fixture.invalid`, never a real host; a weight floor above the
+    declared memory fails the hardware constraint; the floor reads as OAK's estimate with
+    its estimator; absent evidence is unknown, never a pass, for security and data
+    locality; an excluded researched design never says it is compared; the licence-pending
+    rule ignores manifest order; the documents say what is sent and that research runs
+    before candidates exist, on each consent. `make audit` lifted Pillow to 13.0.0, certifi
+    to 2026.10.19 and vite to 7.3.7 with no new dependency.
+
 - **The architecture report** (Sprint 13, `OAK-S13-001`–`007`, authorized 2026-10-16): a
   decision deck about one design case, recorded beside the case, read on a Report screen
   and downloaded as a PDF, composed only from the case's records.

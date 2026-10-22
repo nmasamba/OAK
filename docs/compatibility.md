@@ -91,6 +91,25 @@ mechanical migration; **breaking** otherwise.
   validate, and an export that holds a report cannot be imported by `0.9.0`.
   `report_rendering` is the second kind stored as bytes, beside `brief_source`, and is
   accepted only as a PDF.
+- Sprint 14 (unreleased, ADR-0018) made an objective's `value` in `common.schema.json`
+  nullable, with `unknown_reason` required exactly when it is null. Every stored document
+  still validates, because the compiler writes a null only for a candidate that holds a
+  researched component, and no released build can produce one. A reader that assumes a
+  number (the published `0.9.0` readers do) breaks only on such a researched candidate;
+  an export from a workspace that never researched imports into `0.9.0` unchanged, which
+  `tests/contract/test_research_contract.py` shows with a pre-change export. The same
+  sprint added the `research_snapshot` and `research_review` artifact kinds in
+  `workspace-manifest.schema.json`, the `research_completed` and `research_item_reviewed`
+  audit events, the case extensions `oak.community/research_snapshot_ref` and
+  `oak.community/research_review_refs` (both in the export-lineage check), the candidate
+  extensions `oak.community/research` and `oak.community/comparison`, and the new
+  `research-snapshot.schema.json` and `research-review.schema.json` at `0.1.0`. The
+  unreleased `architecture-report.schema.json` (`0.1.0`) changed in place, as
+  `model-configuration` did in Sprint 10: a report holds twenty or twenty-one sections,
+  the twenty-first being appendix G `appendix-research`, present only when the case holds
+  a research snapshot; `basis` gains "published by source" and "measured by source"; and
+  an unknown value may carry its recorded unit. A report for an unresearched case is
+  byte-identical to the one Sprint 13 produced.
 - `model-configuration.schema.json` (Sprint 9) has never been published, so Sprint 10
   changed it in place at `0.1.0`: the `family` enum shrank to `huggingface` and `local`,
   `selection` became one entry per family, `verification` was added, and provider routes

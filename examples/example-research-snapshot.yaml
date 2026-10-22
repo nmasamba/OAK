@@ -1,0 +1,149 @@
+# SPDX-License-Identifier: Apache-2.0
+# A research snapshot from the fixture source (synthetic, non-production). It lists no real
+# address: the hosts are empty and every request names the fixture. The model family
+# "Fixturelm" is fictional; the namespace is one of the Hub's trusted namespaces only so the
+# tier gate is exercised, and nothing here is a claim about a real model.
+schema_version: 0.1.0
+id: research.public-manual-qa
+version: 0.1.0
+case_id: design-case.public-manual-qa
+intent_ref:
+  id: intent.public-manual-qa
+  version: 0.1.1
+  digest: sha256:d296166aef0f7df81a2e7b65fc99f8bd33a3582c948f0bc692566e65b0480f9f
+occurred_at: 2026-10-20T12:00:00Z
+source_mode: fixture
+terms:
+  version: community-research-terms-1.0.0
+  sent:
+    hub:
+      pipeline_tags: [text-generation]
+      filters: [conversational]
+      sort: createdAt
+      inference_provider: all
+    github:
+      topics:
+        agent_framework: [agent-framework, ai-agents, llm-agents]
+        retrieval_engine: [retrieval-augmented-generation, vector-database, vector-search]
+        serving_runtime: [llm-inference, llm-serving, model-serving]
+      archived: false
+      pushed_within_days: 180
+  local:
+    capabilities: [citation_drafting, independent_verification]
+    hardware_class: cpu-medium
+    licence_ids: [Apache-2.0, BSD-3-Clause, MIT]
+    licence_keywords: [apache-2.0, bsd-3-clause, mit]
+    hub_licence_tags: [apache-2.0, bsd-3-clause, mit]
+    freshness_window_days: 180
+  vocabulary:
+    capabilities: research.capabilities@0.1.0
+    hardware_classes: research.hardware-classes@0.1.0
+    licences: research.licences@0.1.0
+    harness_repositories: research.harness-repositories@0.1.0
+    bindings: [research.binding.balanced@0.1.0, research.binding.high-assurance@0.1.0]
+terms_digest: sha256:1111111111111111111111111111111111111111111111111111111111111111
+hosts: []
+budget:
+  requests_max: 30
+  requests_used: 4
+  deadline_seconds: 60
+  elapsed_seconds: 0.02
+freshness_window_days: 180
+rule_sets: [community-open-components-1.0.0, community-research-gates-1.0.0]
+requests:
+  - sequence: 1
+    host: fixture
+    path: /api/models
+    status: 200
+    response_digest: sha256:2222222222222222222222222222222222222222222222222222222222222222
+    checked_at: 2026-10-20T12:00:00Z
+    refusal_code: null
+    cached: false
+  - sequence: 2
+    host: fixture
+    path: /v1/models
+    status: 200
+    response_digest: sha256:3333333333333333333333333333333333333333333333333333333333333333
+    checked_at: 2026-10-20T12:00:00Z
+    refusal_code: null
+    cached: false
+  - sequence: 3
+    host: fixture
+    path: /search/repositories
+    status: 200
+    response_digest: sha256:4444444444444444444444444444444444444444444444444444444444444444
+    checked_at: 2026-10-20T12:00:00Z
+    refusal_code: null
+    cached: false
+  - sequence: 4
+    host: fixture
+    path: /repos/fixture-forge/fixturelm-serve/releases
+    status: 200
+    response_digest: sha256:5555555555555555555555555555555555555555555555555555555555555555
+    checked_at: 2026-10-20T12:00:00Z
+    refusal_code: null
+    cached: false
+items:
+  - id: research.item.hub.HuggingFaceTB.Fixturelm-4B
+    kind: model
+    source: fixture
+    source_id: HuggingFaceTB/Fixturelm-4B
+    tier: trusted
+    created_or_released_at: 2026-10-19T09:00:00Z
+    family_token: Fixturelm
+    claims:
+      - {field: created_at, value: "2026-10-19T09:00:00Z", unit: null, evidence_class: published_by_source, checked_at: 2026-10-20T12:00:00Z, source_pointer: /createdAt}
+      - {field: licence, value: apache-2.0, unit: null, evidence_class: claimed_by_model_card, checked_at: 2026-10-20T12:00:00Z, source_pointer: /cardData/license}
+      - {field: gated, value: false, unit: null, evidence_class: published_by_source, checked_at: 2026-10-20T12:00:00Z, source_pointer: /gated}
+      - {field: revision, value: 0123456789abcdef0123456789abcdef01234567, unit: null, evidence_class: published_by_source, checked_at: 2026-10-20T12:00:00Z, source_pointer: /sha}
+      - {field: parameters, value: 4000000000, unit: parameters, evidence_class: published_by_source, checked_at: 2026-10-20T12:00:00Z, source_pointer: /safetensors/parameters}
+      - {field: live_route, value: fixture-provider, unit: null, evidence_class: served_by_live_route, checked_at: 2026-10-20T12:00:00Z, source_pointer: /data/0/providers/0/status}
+      - {field: price_input, value: 0.1, unit: USD per million tokens, evidence_class: published_by_source, checked_at: 2026-10-20T12:00:00Z, source_pointer: /data/0/providers/0/pricing/input}
+      - {field: throughput, value: 120, unit: tokens per second, evidence_class: measured_by_source, checked_at: 2026-10-20T12:00:00Z, source_pointer: /data/0/providers/0/throughput}
+    manifest_ref:
+      id: component.research.hub.huggingfacetb.fixturelm-4b.run-1
+      version: 0123456789ab
+      digest: sha256:6666666666666666666666666666666666666666666666666666666666666666
+      media_type: application/vnd.oak.component-manifest+json
+    verdict: passed
+    reasons: []
+    review_items: [OAK-CAT-STATUS-NOT-ELIGIBLE, OAK-CAT-LICENCE-UNREVIEWED, OAK-CAT-TRANSITIVE-LICENCE-UNRESOLVED]
+    response_digest: sha256:2222222222222222222222222222222222222222222222222222222222222222
+    checked_at: 2026-10-20T12:00:00Z
+    cached: false
+  - id: research.item.github.fixture-forge.fixturelm-serve
+    kind: serving_runtime
+    source: fixture
+    source_id: fixture-forge/fixturelm-serve
+    tier: unvetted
+    created_or_released_at: 2026-10-13T08:30:00Z
+    family_token: null
+    claims:
+      - {field: licence, value: Apache-2.0, unit: null, evidence_class: published_by_source, checked_at: 2026-10-20T12:00:00Z, source_pointer: /license/spdx_id}
+      - {field: archived, value: false, unit: null, evidence_class: published_by_source, checked_at: 2026-10-20T12:00:00Z, source_pointer: /archived}
+      - {field: release_tag, value: v0.9.0, unit: null, evidence_class: published_release, checked_at: 2026-10-20T12:00:00Z, source_pointer: /0/tag_name}
+      - {field: release_published_at, value: "2026-10-13T08:30:00Z", unit: null, evidence_class: published_release, checked_at: 2026-10-20T12:00:00Z, source_pointer: /0/published_at}
+      - {field: release_digest, value: "sha256:7777777777777777777777777777777777777777777777777777777777777777", unit: null, evidence_class: published_release, checked_at: 2026-10-20T12:00:00Z, source_pointer: /0/assets/0/digest}
+      - {field: names_family, value: Fixturelm, unit: null, evidence_class: claimed_by_release_notes, checked_at: 2026-10-20T12:00:00Z, source_pointer: /0/body}
+    manifest_ref:
+      id: component.research.github.fixture-forge.fixturelm-serve.run-1
+      version: v0.9.0
+      digest: sha256:8888888888888888888888888888888888888888888888888888888888888888
+      media_type: application/vnd.oak.component-manifest+json
+    verdict: needs_review
+    reasons: [OAK-CAT-RESEARCH-UNVETTED]
+    review_items: [OAK-CAT-STATUS-NOT-ELIGIBLE, OAK-CAT-LICENCE-UNREVIEWED, OAK-CAT-TRANSITIVE-LICENCE-UNRESOLVED]
+    response_digest: sha256:5555555555555555555555555555555555555555555555555555555555555555
+    checked_at: 2026-10-20T12:00:00Z
+    cached: false
+pairings:
+  - model_item_id: research.item.hub.HuggingFaceTB.Fixturelm-4B
+    harness_item_id: research.item.github.fixture-forge.fixturelm-serve
+    family_token: Fixturelm
+    claim_classes: [served_by_live_route, published_release, published_by_source, claimed_by_release_notes]
+summary:
+  found: 2
+  passed: 1
+  needs_review: 1
+  failed: 0
+extensions: {}

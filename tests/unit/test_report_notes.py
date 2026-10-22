@@ -67,6 +67,10 @@ def test_a_plain_sourced_note_is_kept_with_its_whitespace_tidied() -> None:
         {"section": "8", "text": "Balanced saves money against the baseline."},
         {"section": "8", "text": "Balanced pays for itself within a year."},
         {"section": "8", "text": "Balanced has a quick payback."},
+        # Superlatives: OAK says what each record states, never that something is the best.
+        {"section": "8", "text": "Balanced, new is the best option and works well."},
+        {"section": "8", "text": "Balanced is the optimal choice."},
+        {"section": "8", "text": "Balanced works fine for this corpus."},
         {"section": "8", "text": 36},
         "not an object",
     ),

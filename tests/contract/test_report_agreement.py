@@ -10,8 +10,24 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import pytest
+
 from oak.application.report.composer import INSTALL_STEPS
-from oak.application.report.labels import PROVENANCE_WORDS, VARIANT_LABELS, variant_label
+from oak.application.report.labels import (
+    KIND_WORDS,
+    PROVENANCE_WORDS,
+    RESEARCHED_SUFFIX,
+    SOURCE_WORDS,
+    TIER_WORDS,
+    VARIANT_LABELS,
+    VERDICT_WORDS,
+    candidate_label,
+    is_baseline,
+    number_words,
+    variant_label,
+)
+from oak.compiler.research_designs import LABEL_SUFFIX
+from oak.domain import EVIDENCE_WORDS
 
 ROOT = Path(__file__).resolve().parents[2]
 WEB = ROOT / "web" / "src"
@@ -46,3 +62,77 @@ def test_the_install_steps_match_the_copy_plate() -> None:
     start = source.index("const INSTALL_STEPS = [")
     body = source[start : source.index("].join", start)]
     assert tuple(re.findall(r'"([^"]+)"', body)) == INSTALL_STEPS
+
+
+def test_the_evidence_words_match_the_workspace() -> None:
+    """ADR-0018: one closed map of evidence words, in Python and in the web."""
+
+    source = (WEB / "research.ts").read_text(encoding="utf-8")
+    assert _object_literal(source, "export const EVIDENCE_WORDS") == EVIDENCE_WORDS
+
+
+@pytest.mark.parametrize(
+    ("name", "expected"),
+    [
+        ("SOURCE_WORDS", SOURCE_WORDS),
+        ("KIND_WORDS", KIND_WORDS),
+        ("TIER_WORDS", TIER_WORDS),
+        ("VERDICT_WORDS", VERDICT_WORDS),
+    ],
+)
+def test_the_research_words_match_the_workspace(name: str, expected: dict[str, str]) -> None:
+    source = (WEB / "research.ts").read_text(encoding="utf-8")
+    assert _object_literal(source, f"export const {name}") == expected
+
+
+def test_budget_figures_have_words() -> None:
+    assert [number_words(n) for n in (0, 1, 12, 13, 19, 20, 30, 42, 60, 99, 100, 180, 1000)] == [
+        "no",
+        "one",
+        "twelve",
+        "thirteen",
+        "nineteen",
+        "twenty",
+        "thirty",
+        "forty-two",
+        "sixty",
+        "ninety-nine",
+        "one hundred",
+        "one hundred and eighty",
+        "many",
+    ]
+
+
+def test_the_researched_suffix_matches_the_workspace_and_the_compiler() -> None:
+    """ "Balanced, new": the pattern label plus the one closed suffix, never a model name."""
+
+    source = (WEB / "ui" / "variantLabel.ts").read_text(encoding="utf-8")
+    match = re.search(r'export const RESEARCHED_SUFFIX = "([^"]+)";', source)
+    assert match is not None
+    assert match.group(1) == RESEARCHED_SUFFIX == LABEL_SUFFIX
+    researched = {
+        "extensions": {
+            "oak.community/pattern_variant": "balanced_enterprise",
+            "oak.community/research": {
+                "label_suffix": LABEL_SUFFIX,
+                "model_source_id": "HuggingFaceTB/Fixturelm-4B",
+            },
+        }
+    }
+    assert candidate_label(researched) == "Balanced, new"
+    assert "Fixturelm" not in candidate_label(researched)
+    assert " (" not in candidate_label(researched)
+    assert candidate_label(
+        {"extensions": {"oak.community/pattern_variant": "balanced_enterprise"}}
+    ) == ("Balanced")
+
+
+def test_a_researched_design_is_never_the_baseline() -> None:
+    researched = {
+        "extensions": {
+            "oak.community/pattern_variant": "simpler_baseline",
+            "oak.community/research": {"label_suffix": LABEL_SUFFIX},
+        }
+    }
+    assert not is_baseline(researched)
+    assert is_baseline({"extensions": {"oak.community/pattern_variant": "simpler_baseline"}})

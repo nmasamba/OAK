@@ -8,8 +8,10 @@ from pathlib import Path
 import httpx
 import pytest
 
-from oak.adapters.catalogue import LocalCatalogue
+from oak.adapters.catalogue import LocalCatalogue, ResearchVocabularyLoader
 from oak.adapters.intake import LocalBriefIntake
+from oak.adapters.models.research_fixture import FixtureResearchSource
+from oak.adapters.models.research_sources import run_research
 from oak.adapters.persistence import (
     FileWorkspaceRepository,
     PostgreSQLOperationStore,
@@ -33,6 +35,8 @@ from oak.interfaces.api.app import PROBLEM_MEDIA_TYPE, create_app
 
 ROOT = Path(__file__).resolve().parents[2]
 NOW = "2026-08-17T12:00:00Z"
+RESEARCH_FIXTURES = ROOT / "tests/fixtures/research/e2e"
+RESEARCH_TOKEN = "persistent-research-token-0123"
 pytestmark = [pytest.mark.integration, pytest.mark.anyio]
 
 
@@ -89,6 +93,14 @@ def persistent_control_plane(
             tenant_id=tenant_id,
             environment_id=environment_id,
         ),
+        research_vocabulary=ResearchVocabularyLoader(ROOT / "catalogue"),
+        research_source_factory=lambda occurred_at: (
+            FixtureResearchSource(RESEARCH_FIXTURES, occurred_at=occurred_at).fetch,
+            "fixture",
+            frozenset(),
+        ),
+        research_source_mode=lambda: ("fixture", frozenset()),
+        research_runner=run_research,
     )
     store = operation_service_factory("local")._store  # type: ignore[attr-defined]
     assert isinstance(store, PostgreSQLOperationStore)
@@ -201,6 +213,7 @@ async def test_rest_worker_reference_journey_is_durable_idempotent_and_tenant_sa
             "generate_candidates": control_plane.execute_operation,
             "evaluate_candidate": control_plane.execute_operation,
             "compile_bundle": control_plane.execute_operation,
+            "research_catalogue": control_plane.execute_operation,
         },
     )
 
@@ -428,3 +441,145 @@ async def test_rest_cancellation_records_full_command_context(
     assert record.cancel_idempotency_key == "api-cancel-operation-public-qa-0001"
     assert record.cancel_correlation_id == "correlation-api-cancel-operation-public-qa-0001"
     assert record.cancel_requested_at == NOW
+
+
+async def test_rest_worker_research_runs_once_reviews_generates_and_round_trips(
+    persistent_control_plane: tuple[CommunityControlPlane, PostgreSQLOperationStore],
+) -> None:
+    """OAK-S14-004: the research path on PostgreSQL, which CI never runs (prompt §5).
+
+    The worker executes `research_catalogue` once under its lease (one attempt), the
+    review and the generation land through REST, the researched artifacts export and
+    import with the lineage check, and a tampered research index entry is refused.
+    """
+
+    control_plane, operation_store = persistent_control_plane
+    application = create_app(
+        control_plane=control_plane, clock=lambda: NOW, model_token=RESEARCH_TOKEN
+    )
+    transport = httpx.ASGITransport(app=application, raise_app_exceptions=False)
+    brief = (ROOT / "examples/briefs/public-manual-qa.yaml").read_text(encoding="utf-8")
+    answers = load_yaml_document(
+        (ROOT / "examples/briefs/public-manual-qa-answers.yaml").read_text(encoding="utf-8")
+    )
+    worker = OperationWorker(
+        operation_store,
+        {
+            "generate_candidates": control_plane.execute_operation,
+            "research_catalogue": control_plane.execute_operation,
+        },
+    )
+    case_id = "design-case.public-manual-qa"
+    token = {"X-OAK-Model-Token": RESEARCH_TOKEN}
+
+    async with httpx.AsyncClient(transport=transport, base_url="http://127.0.0.1") as client:
+        created = await client.post(
+            "/v1/design-cases",
+            headers=_headers("pg-research-create-0001"),
+            json={"original_name": "public-manual-qa.yaml", "content": brief},
+        )
+        assert created.status_code == 201, created.text
+        interpreted = await client.post(
+            f"/v1/design-cases/{case_id}:interpret",
+            headers=_headers("pg-research-interpret-01", "0.1.0"),
+        )
+        assert interpreted.status_code == 200, interpreted.text
+        confirmed = await client.post(
+            f"/v1/design-cases/{case_id}:confirm",
+            headers=_headers("pg-research-confirm-001", "0.1.1"),
+            json={"answers": answers},
+        )
+        assert confirmed.status_code == 200, confirmed.text
+
+        plan = (await client.get(f"/v1/design-cases/{case_id}/research-plan")).json()
+        assert plan["allowed"] is True
+        consent = {"hosts": plan["hosts"], "terms_digest": plan["terms_digest"]}
+        submitted = await client.post(
+            f"/v1/design-cases/{case_id}:research",
+            headers={**_headers("pg-research-run-00000001", "0.1.2"), **token},
+            json={"consent": consent},
+        )
+        assert submitted.status_code == 202, submitted.text
+        operation_id = submitted.json()["operation_id"]
+        assert submitted.json()["max_attempts"] == 1
+        completed = worker.run_once(
+            worker_id="pg-research-worker",
+            now="2026-08-17T12:00:01Z",
+            lease_expires_at="2026-08-17T12:01:01Z",
+        )
+        assert completed is not None and completed.state == "succeeded", completed
+        assert completed.attempt_count == 1
+        status = (await client.get(f"/v1/operations/{operation_id}")).json()
+        assert status["state"] == "succeeded"
+        assert status["result"]["snapshot"]["summary"] == {
+            "found": 2,
+            "passed": 1,
+            "needs_review": 1,
+            "failed": 0,
+        }
+        assert (
+            worker.run_once(
+                worker_id="pg-research-worker",
+                now="2026-08-17T12:00:02Z",
+                lease_expires_at="2026-08-17T12:01:02Z",
+            )
+            is None
+        )  # nothing is retried and nothing else was queued
+
+        case = (await client.get(f"/v1/design-cases/{case_id}")).json()["case"]
+        assert case["version"] == "0.1.3"
+        snapshot_ref = case["extensions"]["oak.community/research_snapshot_ref"]
+        reviewed = await client.post(
+            f"/v1/design-cases/{case_id}:review-research-item",
+            headers=_headers("pg-research-review-0001", "0.1.3"),
+            json={
+                "item_id": "research.item.github.fixture-forge.fixturelm-serve",
+                "decision": "accept",
+                "rationale": "Reviewed on the throwaway database.",
+            },
+        )
+        assert reviewed.status_code == 200, reviewed.text
+        generated = await client.post(
+            f"/v1/design-cases/{case_id}:generate-candidates",
+            headers=_headers("pg-research-generate-01", "0.1.4"),
+        )
+        assert generated.status_code == 202, generated.text
+        completed = worker.run_once(
+            worker_id="pg-research-worker",
+            now="2026-08-17T12:00:03Z",
+            lease_expires_at="2026-08-17T12:01:03Z",
+        )
+        assert completed is not None and completed.state == "succeeded", completed
+        listed = (await client.get(f"/v1/design-cases/{case_id}/candidates")).json()["items"]
+        assert [item["id"] for item in listed][-2:] == ["candidate-05", "candidate-06"]
+        design = next(item for item in listed if item["id"] == "candidate-05")
+        assert design["extensions"]["oak.community/research"]["harness_item_id"] == (
+            "research.item.github.fixture-forge.fixturelm-serve"
+        )
+
+        exported = await client.get(f"/v1/design-cases/{case_id}/export")
+        assert exported.status_code == 200, exported.text
+        document = exported.json()
+        kinds = {entry["kind"] for entry in document["manifest"]["artifact_index"]}
+        assert {"research_snapshot", "research_review"} <= kinds
+        imported = await client.post(
+            "/v1/design-cases:import",
+            headers=_headers("pg-research-import-0001"),
+            json=document,
+        )
+        assert imported.status_code == 201, imported.text
+        assert imported.json()["case"]["extensions"]["oak.community/research_snapshot_ref"] == (
+            snapshot_ref
+        )
+
+        tampered = exported.json()
+        for entry in tampered["manifest"]["artifact_index"]:
+            if entry["kind"] == "research_snapshot":
+                entry["kind"] = "catalogue_snapshot"
+        refused = await client.post(
+            "/v1/design-cases:import",
+            headers=_headers("pg-research-import-tamper-01"),
+            json=tampered,
+        )
+        assert refused.status_code == 422, refused.text
+        assert refused.json()["code"] in {"OAK-AUDIT-LINEAGE", "OAK-IMPORT-INVALID"}

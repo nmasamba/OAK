@@ -9,7 +9,10 @@ export { ProvenanceMark } from "./ProvenanceMark";
 export { RangeBar, formatQuantity } from "./RangeBar";
 export { Tile } from "./Tile";
 export {
+  RESEARCHED_SUFFIX,
   candidateLabel,
   candidateVariantId,
+  isBaseline,
+  isResearched,
   variantLabel,
 } from "./variantLabel";

@@ -32,6 +32,7 @@ justification a reader cannot resolve is worse than no citation.
 | [0015](architecture/0015-typed-runner-operations.md) | Typed runner operations | The runner authority model behind [signed-runner.md](../signed-runner.md) |
 | [0016](architecture/0016-user-supplied-model-provider-credentials.md) | User-supplied model-provider credentials | Why a user's own provider key is machine-local configuration rather than control-plane state, and how it differs from a target secret |
 | [0017](architecture/0017-acknowledged-local-installation.md) | Install the chosen architecture only after two approvals, and start it only where the operator acknowledges it | Why an install needs an `architecture` approval as well as an `apply` approval, and why a target profile may start containers only from images it acknowledges, under the runner's fixed hardening flags ([signed-runner.md](../signed-runner.md), `RR-043`) |
+| [0018](architecture/0018-research-at-the-point-of-design.md) | Research at the point of design reaches comparison, never approval | Why a researched model or harness is shown with its evidence class and compared, but never approved or selected; which three hosts research may read and what leaves the machine; the two tiers, the research gates and the fixture source (`RR-048`–`RR-053`); the user-facing account is [docs/research.md](../research.md) |
 
 **Do not edit the mirrored copies.** Change the governance repository and re-mirror. They
 carry a header saying so. A contract test

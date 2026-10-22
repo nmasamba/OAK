@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: Apache-2.0
+# Synthetic partial intent for the research-terms tests: only the sections the terms
+# function reads. An accelerator with 24 GiB of memory gives the class accelerator-medium.
+spec:
+  hardware:
+    cpu_architectures: [x86_64]
+    accelerators: [synthetic-accelerator]
+    vram_gib: 24
+    ram_gib: 64
+    storage_gib: 500
+    drivers: []

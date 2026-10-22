@@ -324,13 +324,63 @@ question.data-volume: What document volume and update cadence must the design su
     Confirmation creates immutable successors for the affected claims — the original
     interpretation is never edited, and the audit trail records who decided what.
   </p>
+  <h2>2b · Look for newer options (optional, on your consent)</h2>
+  <p>
+    At <em>ready_for_candidates</em>, and only then, OAK can look for newer open models
+    and harnesses that fit the confirmed intent and show them beside the curated designs.
+    Nothing leaves the machine until you consent. The plan is a read, and it prints
+    exactly what one run would send and to whom:
+  </p>
+  <pre><code>uv run oak research --plan
+<span class="out">Research plan for design-case.public-manual-qa@0.1.2 (ready_for_candidates; allowed now)
+Source: live; hosts: huggingface.co, router.huggingface.co, api.github.com
+Terms digest: sha256:9a6f8c4866de0a7afb924092820c257bb3f370d0fadb1971493702e67123d51e
+Sent terms (verbatim):
+{ "github": { "archived": false, "pushed_within_days": 180, "topics": { … } },
+  "hub": { "filters": ["conversational"], "inference_provider": "all",
+           "pipeline_tags": ["text-generation"], "sort": "createdAt" } }
+Used on this machine only:
+{ "capabilities": [ … ], "hardware_class": "cpu-medium", "licence_ids": [ … ], … }</span></code></pre>
+  <p>
+    The sent terms come from closed vocabularies, never from the brief's own words; the
+    rest is applied locally. A run consents to the hosts and the digest it just read, needs
+    the model-configuration token the API prints at start, and is bounded: thirty
+    anonymous requests within sixty seconds, a size cap on every answer, no retry of a
+    refusal. In this manual's edition the run reads the recorded fixture source instead
+    of the three hosts, so its plan says <code>Source: fixture; hosts: none</code> and
+    everything it finds is synthetic:
+  </p>
+  <pre><code>uv run oak research --consent sha256:9a6f8c4866de0a7afb924092820c257bb3f370d0fadb1971493702e67123d51e
+<span class="out">Research research.public-manual-qa@0.1.0 (fixture): found 2, passed 1, need review 1, failed 0
+  passed       model            HuggingFaceTB/Fixturelm-4B [trusted] -  (research.item.hub.HuggingFaceTB.Fixturelm-4B)
+  needs_review serving_runtime  fixture-forge/fixturelm-serve [unvetted] OAK-CAT-RESEARCH-UNVETTED  (research.item.github.fixture-forge.fixturelm-serve)
+  pairing: research.item.hub.HuggingFaceTB.Fixturelm-4B + research.item.github.fixture-forge.fixturelm-serve on Fixturelm: claimed_by_release_notes, published_by_source, published_release, served_by_live_route</span></code></pre>
+  <p>
+    Each item carries its source, its tier and the class of evidence behind every claim —
+    what the source published, what it measured, what its author merely claims. A model
+    from a trusted namespace passes the tier gate on its own; a harness outside the
+    owner-reviewed list is <em>unvetted</em> and needs your recorded review before it can
+    enter a design. The review is a decision with a rationale, never a quiet toggle:
+  </p>
+  <pre><code>uv run oak research review research.item.github.fixture-forge.fixturelm-serve --accept --rationale-file rationale.txt
+<span class="out">Recorded accept for research.item.github.fixture-forge.fixturelm-serve; the case is now at 0.1.4</span></code></pre>
+  <p>
+    Research runs only before candidates exist, each time you consent: a plan read after
+    they do says <em>not allowed at this status</em>. In the browser the same moment is the card
+    "Look for newer options?" with a <em>Run research</em> keycap, the results as chips,
+    and <em>Accept for comparison</em> or <em>Reject</em> beside the item that needs you
+    (figure 13). What research does and does not do is set out in
+    <code>docs/research.md</code>.
+  </p>
   <h2>3 · Generate and compare candidates</h2>
   <pre><code>uv run oak candidates
 <span class="out">ID            VARIANT                    STATUS      FRONTIER  REJECTIONS
 candidate-00  simpler_baseline           feasible    true      0
 candidate-01  minimum_sufficient         feasible    true      0
 candidate-03  balanced_enterprise        feasible    true      0
-candidate-04  high_assurance_sovereign   infeasible  false     1</span></code></pre>
+candidate-04  high_assurance_sovereign   infeasible  false     1
+candidate-05  balanced_enterprise        infeasible  true      4
+candidate-06  high_assurance_sovereign   infeasible  true      4</span></code></pre>
   <p>
     Four provider-neutral candidate architectures are generated from a bundled synthetic
     catalogue, checked against hard constraints, and scored with transparent estimator
@@ -338,7 +388,13 @@ candidate-04  high_assurance_sovereign   infeasible  false     1</span></code></
     visible with their rejection reasons — in the reference case,
     <code>candidate-04</code>'s accelerator requirement is unconfirmed, and an unknown
     hard constraint never passes, so it stays visible as infeasible with exactly that
-    reason.
+    reason. If you ran research, at most two <strong>researched designs</strong> follow
+    from <code>candidate-05</code>, labelled like "Balanced, new": the newest passing model
+    per pattern with the harness your review admitted. Each is <em>infeasible</em> with
+    every reason — its licence review is pending and the figures its sources do not
+    publish are unknown, never guessed — yet it joins the comparison (<em>FRONTIER
+    true</em>) so you can see it beside the curated designs. It cannot be selected this
+    sprint, and the workspace, the CLI and the report all say so plainly.
   </p>
   <h2>4 · Evaluate, select, assure</h2>
   <pre><code>uv run oak evaluate candidate-03
@@ -454,7 +510,8 @@ uv run oak import ../case-export --directory ../restored
   <figure><img src="assets/04-brief-review.png" alt="Interpreted claims with provenance marks"><figcaption>Claim review: every value carries a shape and a word for where it came from — a fact from the brief, an inference, or a domain default — with the unknowns listed beneath. A value a model proposed is marked too, and carries the confidence and reason it gave.</figcaption></figure>
   <figure><img src="assets/05-questions.png" alt="The five ranked questions as chip cards"><figcaption>The five ranked questions as chip cards: the current value as chips beside its origin mark, four decision chips (confirm, correct with a value, reject, accept the risk), each with a recorded rationale.</figcaption></figure>
   <figure><img src="assets/06-operation.png" alt="A durable operation in progress"><figcaption>Long stages run as durable operations: a light with its state word, the attempt count, and a cancel keycap while it runs. They survive restarts, can be cancelled cooperatively, and record their outcome.</figcaption></figure>
-  <figure><img src="assets/07-candidates.png" alt="Design cards with an infeasible candidate"><figcaption>Designs as cards: a topology glyph and three range bars on one shared scale per card, with a table view a toggle away. The infeasible candidate stays visible, dashed, with its constraint failure — rejection reasons are first-class.</figcaption></figure>
+  <figure><img src="assets/13-research.png" alt="The Research moment with the results of a run on the fixture source"><figcaption>The Research moment after one run on the fixture source: the results as chips (found, passed, needing your review), each item with its source, tier, date and the evidence class beside every claim, and the review form — a rationale with <em>Accept for comparison</em> or <em>Reject</em> — beside the unvetted harness. Before the run, the same card shows the hosts and the verbatim terms the consent names; after it, there is no keycap to run again.</figcaption></figure>
+  <figure><img src="assets/07-candidates.png" alt="Design cards with an infeasible candidate"><figcaption>Designs as cards: a topology glyph and three range bars on one shared scale per card, with a table view a toggle away. The infeasible candidate stays visible, dashed, with its constraint failure — rejection reasons are first-class. A researched design carries a <em>New</em> chip, its evidence words, the Source and Release date columns in the table view, and the plain reason it cannot be selected.</figcaption></figure>
   <figure><img src="assets/08-decision-assurance.png" alt="Decision and assurance plan"><figcaption>The immutable decision: the selected candidate with its recorded rationale and decider, every alternative with the reason it was not selected (<code>candidate-04</code> carries its unconfirmed hardware constraint), and the evaluation evidence beneath. The assurance plan’s controls and gate blockers follow further down the same screen.</figcaption></figure>
   <figure><img src="assets/09-bundle.png" alt="The architecture with its topology and dock"><figcaption>The architecture: the topology drawn and tabled, prediction chips, and the dock with three install lights and <em>Copy install steps</em>, which copies commands and runs nothing. Plan, approval and apply stay separated, and apply is marked unavailable here: the web surface holds no runner execution authority.</figcaption></figure>
   <figure><img src="assets/12-report.png" alt="The Report screen with a recorded report"><figcaption>The architecture report, recorded by one keycap and read one slide at a time with the arrow keys or the contents list. Each status is a shape and a word, each figure carries its unit and source, and the topology sits beside its tables. The PDF and the report document download through the same digest check as every other file. When the case moves on, the screen says so and offers <em>Record again</em>; it never re-renders a report silently.</figcaption></figure>

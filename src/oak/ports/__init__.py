@@ -1,7 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
 """Ports used by application services."""
 
-from oak.ports.catalogue import CatalogueDocuments, CataloguePort
+from oak.ports.catalogue import (
+    CatalogueDocuments,
+    CataloguePort,
+    ResearchVocabulary,
+    ResearchVocabularyPort,
+)
 from oak.ports.directory import CaseDirectoryPort
 from oak.ports.dispatch import DispatchTransport
 from oak.ports.events import OutboxLag, OutboxMessage, OutboxStore
@@ -55,6 +60,8 @@ __all__ = [
     "PolicyPackStorePort",
     "ProposalLimits",
     "ReadinessProbe",
+    "ResearchVocabulary",
+    "ResearchVocabularyPort",
     "SignerIdentity",
     "SigningPort",
     "TargetProfilePort",

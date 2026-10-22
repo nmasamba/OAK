@@ -4,6 +4,8 @@
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+from oak.domain import ResearchVocabulary
+
 
 @dataclass(frozen=True, slots=True)
 class CatalogueDocuments:
@@ -13,3 +15,15 @@ class CatalogueDocuments:
 
 class CataloguePort(Protocol):
     def load(self) -> CatalogueDocuments: ...
+
+
+class ResearchVocabularyPort(Protocol):
+    def load(self) -> ResearchVocabulary: ...
+
+
+__all__ = [
+    "CatalogueDocuments",
+    "CataloguePort",
+    "ResearchVocabulary",
+    "ResearchVocabularyPort",
+]

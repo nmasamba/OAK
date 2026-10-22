@@ -8,7 +8,14 @@ import { fileURLToPath } from "node:url";
 
 import { expect, test, type Page } from "@playwright/test";
 
-import { LOCAL_FIXTURE_TARGET, briefFor, compose } from "./support";
+import {
+  API_BASE,
+  LOCAL_FIXTURE_TARGET,
+  apiPost,
+  briefFor,
+  compose,
+  referenceAnswers,
+} from "./support";
 
 const ASSETS = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -193,4 +200,67 @@ test("capture the manual screenshots from the reference journey", async ({
   ).toBeVisible();
   await expect(page.getByLabel("Hugging Face token")).toBeVisible();
   await shoot(page, "11-models");
+});
+
+// The research figure (chapter 3, section 2b): the Research moment after one run on the
+// fixture source, with the unvetted harness's claims open and its review form showing.
+// The stack must serve the fixture source (OAK_RESEARCH_FIXTURES on api and worker, as
+// the Sprint 14 throwaway override sets it); otherwise this test skips and the figure
+// keeps its previous capture, so a live run is never made for a screenshot.
+test("capture the research figure on the fixture source", async ({
+  page,
+  request,
+}) => {
+  test.skip(
+    process.env["OAK_MANUAL_SCREENS"] !== "1",
+    "manual screenshot capture only (set OAK_MANUAL_SCREENS=1)",
+  );
+  test.setTimeout(240_000);
+  await page.setViewportSize({ width: 1200, height: 800 });
+  const token = compose("exec -T api oak models token").trim();
+
+  const slug = `getting-started-research-${Date.now()}`;
+  const caseId = `design-case.${slug}`;
+  await apiPost(request, "/v1/design-cases", "create", {
+    body: { original_name: `${slug}.yaml`, content: briefFor(slug) },
+  });
+  await apiPost(request, `/v1/design-cases/${caseId}:interpret`, "interpret", {
+    etag: "0.1.0",
+  });
+  await apiPost(request, `/v1/design-cases/${caseId}:confirm`, "confirm", {
+    etag: "0.1.1",
+    body: {
+      answers: {
+        answers_version: "0.1.0",
+        design_case_id: caseId,
+        answers: referenceAnswers(),
+      },
+    },
+  });
+  const plan = (await (
+    await request.get(`${API_BASE}/v1/design-cases/${caseId}/research-plan`)
+  ).json()) as { source_mode: string };
+  test.skip(
+    plan.source_mode !== "fixture",
+    "the research figure is captured on the fixture source only",
+  );
+
+  await page.goto(`/#token=${encodeURIComponent(token)}`);
+  await page.goto(`/cases/${caseId}`);
+  await expect(page.getByText("Look for newer options?")).toBeVisible();
+  await page.getByRole("button", { name: "Run research" }).click();
+  const results = page.getByRole("list", { name: "Research results" });
+  await expect(results.getByText("2 found", { exact: true })).toBeVisible({
+    timeout: 90_000,
+  });
+  const items = page.getByRole("list", { name: "Researched items" });
+  const harness = items.getByRole("listitem", {
+    name: "fixture-forge/fixturelm-serve",
+  });
+  await harness.getByText("Claims", { exact: true }).click();
+  await expect(harness.getByText("Published release").first()).toBeVisible();
+  await results.evaluate((element) =>
+    element.scrollIntoView({ block: "start", behavior: "instant" }),
+  );
+  await shoot(page, "13-research");
 });

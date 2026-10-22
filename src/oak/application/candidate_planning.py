@@ -18,8 +18,18 @@ from oak.compiler import (
     evaluate_candidate,
     generate_candidates,
 )
+from oak.compiler.catalogue import ResearchInput
+from oak.compiler.research_designs import (
+    ResearchedDesign,
+    effective_verdicts,
+    passing_manifest_ids,
+    researched_designs,
+)
 from oak.contracts import SchemaRegistry
 from oak.domain import (
+    RESEARCH_REVIEW_REFS,
+    RESEARCH_SNAPSHOT_MEDIA_TYPE,
+    RESEARCH_SNAPSHOT_REF,
     Artifact,
     ArtifactReference,
     DesignCase,
@@ -30,7 +40,7 @@ from oak.domain import (
     json_artifact,
 )
 from oak.domain.audit import audit_event_document
-from oak.ports import CataloguePort, TargetProfilePort, WorkspaceRepository
+from oak.ports import CataloguePort, ResearchVocabularyPort, TargetProfilePort, WorkspaceRepository
 
 CASE_MEDIA_TYPE = "application/vnd.oak.design-case+json"
 AUDIT_MEDIA_TYPE = "application/vnd.oak.audit-event+json"
@@ -117,19 +127,31 @@ class CandidatePlanningService:
         catalogue: CataloguePort,
         target_profiles: TargetProfilePort,
         registry: SchemaRegistry,
+        *,
+        research_vocabulary: ResearchVocabularyPort | None = None,
     ) -> None:
         self._repository = repository
         self._catalogue = catalogue
         self._target_profiles = target_profiles
         self._registry = registry
+        self._research_vocabulary = research_vocabulary
 
     def candidates(self, context: CommandContext) -> CandidatesResult:
         documents = self._catalogue.load()
+        research = self._research_input()
         catalogue_input_digest = content_digest(
             canonical_json_bytes(
                 {
                     "manifests": list(documents.manifests),
                     "patterns": list(documents.patterns),
+                    **(
+                        {
+                            "research_snapshot_ref": research["snapshot_ref"],
+                            "review_refs": research["review_refs"],
+                        }
+                        if research is not None
+                        else {}
+                    ),
                 }
             )
         )
@@ -160,12 +182,37 @@ class CandidatePlanningService:
                 "candidates require every model-proposed value to be confirmed, "
                 "corrected or rejected first",
             )
-        catalogue = compile_catalogue(
-            documents.manifests,
-            documents.patterns,
-            self._registry,
-            created_at=context.occurred_at,
-        )
+        if research is None:
+            catalogue = compile_catalogue(
+                documents.manifests,
+                documents.patterns,
+                self._registry,
+                created_at=context.occurred_at,
+            )
+            designs: tuple[ResearchedDesign, ...] = ()
+        else:
+            # The merged snapshot (ADR-0018): the curated entries plus the researched
+            # manifests whose items passed the research gates after the recorded reviews.
+            catalogue = compile_catalogue(
+                (*documents.manifests, *research["manifests"].values()),
+                documents.patterns,
+                self._registry,
+                created_at=context.occurred_at,
+                research=ResearchInput(
+                    snapshot_ref=research["snapshot_ref"],
+                    snapshot_version=str(research["snapshot"]["version"]),
+                    case_key=current.id.removeprefix("design-case."),
+                    researched_manifest_ids=frozenset(research["manifests"]),
+                ),
+            )
+            designs = researched_designs(
+                research["snapshot"],
+                research["verdicts"],
+                research["bindings"],
+                catalogue.pattern_documents,
+                catalogue.manifest_documents,
+                snapshot_ref=research["snapshot_ref"],
+            )
         evaluation_contract = create_evaluation_contract(intent, self._registry)
         candidate_artifacts = generate_candidates(
             intent,
@@ -174,6 +221,7 @@ class CandidatePlanningService:
             catalogue,
             self._registry,
             generated_at=context.occurred_at,
+            research_designs=designs,
         )
         extensions = copy.deepcopy(current.extensions or {})
         extensions["oak.community/catalogue_snapshot_ref"] = (
@@ -204,6 +252,65 @@ class CandidatePlanningService:
             ),
         )
         return self._candidates_result(published, duplicate=False)
+
+    def _research_input(self) -> dict[str, Any] | None:
+        """The research snapshot, its reviews and the manifests that passed, or None.
+
+        Read by `{id, version, digest}` through the case's current references; the
+        researched manifests are the artifacts the run committed, so the same snapshot and
+        reviews give the same bytes.
+        """
+
+        case = self._repository.current_case()
+        if case is None:
+            return None
+        extensions = case.get("extensions") or {}
+        reference = extensions.get(RESEARCH_SNAPSHOT_REF)
+        if not isinstance(reference, dict):
+            return None
+        if self._research_vocabulary is None:
+            raise OAKError(
+                "OAK-RESEARCH-VOCABULARY",
+                "the case holds research but no research vocabulary is configured",
+            )
+        snapshot = self._repository.read_json_artifact(ArtifactReference.from_document(reference))
+        review_refs = [
+            item for item in extensions.get(RESEARCH_REVIEW_REFS) or [] if isinstance(item, dict)
+        ]
+        reviews: dict[str, str] = {}
+        for review_ref in review_refs:
+            review = self._repository.read_json_artifact(
+                ArtifactReference.from_document(review_ref)
+            )
+            if review.get("snapshot_ref", {}).get("digest") == reference.get("digest"):
+                # The service records one decision per item per snapshot; should an older
+                # workspace hold two, the first bound review governs here, on the case page
+                # and in the report alike.
+                reviews.setdefault(str(review["item_id"]), str(review["decision"]))
+        verdicts = effective_verdicts(snapshot, reviews)
+        manifests: dict[str, dict[str, Any]] = {}
+        for item in snapshot["items"]:
+            manifest_ref = item.get("manifest_ref")
+            if verdicts.get(str(item["id"])) == "passed" and isinstance(manifest_ref, dict):
+                manifests[str(manifest_ref["id"])] = self._repository.read_json_artifact(
+                    ArtifactReference.from_document(manifest_ref)
+                )
+        assert set(manifests) == set(passing_manifest_ids(snapshot, verdicts))
+        return {
+            "snapshot": snapshot,
+            # A full reference, so the merged catalogue snapshot and every researched design
+            # name the research snapshot in a form the report reader can read by digest.
+            "snapshot_ref": {
+                "id": str(reference["id"]),
+                "version": str(reference["version"]),
+                "digest": str(reference["digest"]),
+                "media_type": str(reference.get("media_type") or RESEARCH_SNAPSHOT_MEDIA_TYPE),
+            },
+            "review_refs": review_refs,
+            "verdicts": verdicts,
+            "manifests": manifests,
+            "bindings": self._research_vocabulary.load().bindings,
+        }
 
     def list_candidates(self) -> tuple[dict[str, Any], ...]:
         """Return the current immutable candidates in deterministic identity order."""

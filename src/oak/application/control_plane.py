@@ -30,6 +30,13 @@ from oak.application.design_case import (
 )
 from oak.application.operations import OperationService, OperationSubmission
 from oak.application.report.service import ReportNarratorFactory, ReportResult, ReportService
+from oak.application.research import (
+    ResearchPlan,
+    ResearchReviewResult,
+    ResearchService,
+    SourceFactory,
+    SourceMode,
+)
 from oak.compiler import DeterministicBriefInterpreter
 from oak.contracts import SchemaRegistry
 from oak.domain import ArtifactReference, OAKError, canonical_json_bytes, content_digest
@@ -40,10 +47,12 @@ from oak.ports import (
     OutboxLag,
     OutboxStore,
     ProposalLimits,
+    ResearchVocabularyPort,
     TargetProfilePort,
     WorkspaceRepository,
 )
 from oak.ports.report import ReportRendererPort
+from oak.ports.research import ResearchRunner
 
 RepositoryFactory = Callable[[str, str], WorkspaceRepository]
 OperationServiceFactory = Callable[[str], OperationService]
@@ -80,6 +89,11 @@ class CommunityControlPlane:
         report_renderer: ReportRendererPort | None = None,
         report_narrator_factory: ReportNarratorFactory | None = None,
         oak_version: str = "unknown",
+        research_vocabulary: ResearchVocabularyPort | None = None,
+        research_source_factory: SourceFactory | None = None,
+        research_source_mode: SourceMode | None = None,
+        research_runner: ResearchRunner | None = None,
+        research_cache: Any = None,
     ) -> None:
         self._repository_factory = repository_factory
         self._operation_service_factory = operation_service_factory
@@ -95,6 +109,11 @@ class CommunityControlPlane:
         self._report_renderer = report_renderer
         self._report_narrator_factory = report_narrator_factory
         self._oak_version = oak_version
+        self._research_vocabulary = research_vocabulary
+        self._research_source_factory = research_source_factory
+        self._research_source_mode = research_source_mode
+        self._research_runner = research_runner
+        self._research_cache = research_cache
 
     def create_design_case(
         self,
@@ -403,6 +422,56 @@ class CommunityControlPlane:
             )
         return DesignResult(case=case, intent=intent, duplicate=duplicate)
 
+    # ----- research at the point of design (Sprint 14, ADR-0018) ----------------------
+
+    def research_plan(self, case_id: str, *, tenant_id: str) -> ResearchPlan:
+        return self._research_service(self._workspace_id(case_id), tenant_id).plan()
+
+    def submit_research(
+        self, case_id: str, consent: dict[str, Any], context: CommandContext
+    ) -> OperationSubmission:
+        """Enqueue one consented research run; the worker checks the case again before any request.
+
+        The consent is checked against the plan recomputed from the current intent before
+        anything is enqueued, and the run is submitted with one attempt: a timed-out run must
+        never send its terms a second time without new consent.
+        """
+
+        workspace_id = self._workspace_id(case_id)
+        service = self._research_service(workspace_id, context.tenant_id)
+        # The documented order (ADR-0018): the capability token (the route's dependency),
+        # the consent against the recomputed plan, the idempotent replay and the version,
+        # then the status, exactly as :generate-candidates handles its own checks.
+        service.check_consent(consent)
+        return self._submit(
+            kind="research_catalogue",
+            case_id=case_id,
+            request={
+                "consent": {
+                    "hosts": sorted(consent["hosts"]),
+                    "terms_digest": consent["terms_digest"],
+                }
+            },
+            context=context,
+            max_attempts=1,
+            check=service.check_state,
+        )
+
+    def review_research_item(
+        self,
+        case_id: str,
+        context: CommandContext,
+        *,
+        item_id: str,
+        decision: str,
+        rationale: str,
+    ) -> ResearchReviewResult:
+        service = self._research_service(self._workspace_id(case_id), context.tenant_id)
+        self._verify_case(
+            case_id, self._require_case(self._repository_for_case(case_id, context.tenant_id))
+        )
+        return service.review(context, item_id=item_id, decision=decision, rationale=rationale)
+
     def submit_generate_candidates(
         self, case_id: str, context: CommandContext
     ) -> OperationSubmission:
@@ -483,6 +552,12 @@ class CommunityControlPlane:
         planning = self._planning_service(workspace_id, tenant_id)
         if kind == "generate_candidates":
             return planning.candidates(context).to_document()
+        if kind == "research_catalogue":
+            consent = request.get("consent")
+            if not isinstance(consent, dict):
+                raise OAKError("OAK-OPERATION-DOCUMENT", "operation consent is invalid")
+            service = self._research_service(workspace_id, tenant_id)
+            return service.run(context, consent=consent).to_document()
         candidate_id = request.get("candidate_id")
         if not isinstance(candidate_id, str):
             raise OAKError("OAK-OPERATION-DOCUMENT", "operation candidate is invalid")
@@ -500,6 +575,8 @@ class CommunityControlPlane:
         case_id: str,
         request: dict[str, Any],
         context: CommandContext,
+        max_attempts: int = 3,
+        check: Callable[[], Any] | None = None,
     ) -> OperationSubmission:
         workspace_id = self._workspace_id(case_id)
         repository = self._repository_factory(workspace_id, context.tenant_id)
@@ -513,6 +590,10 @@ class CommunityControlPlane:
                     "expected case version does not match current version",
                     retriable=True,
                 )
+            if check is not None:
+                # A kind-specific check (the research status) runs after the version check
+                # and never ahead of an idempotent replay.
+                check()
 
         return self._operation_service_factory(context.tenant_id).submit(
             kind=kind,
@@ -520,6 +601,7 @@ class CommunityControlPlane:
             case_id=case_id,
             request=request,
             context=context,
+            max_attempts=max_attempts,
             precondition=verify_precondition,
         )
 
@@ -548,6 +630,26 @@ class CommunityControlPlane:
             self._catalogue,
             self._target_profiles,
             self._registry,
+            research_vocabulary=self._research_vocabulary,
+        )
+
+    def _research_service(self, workspace_id: str, tenant_id: str) -> ResearchService:
+        if (
+            self._research_vocabulary is None
+            or self._research_source_factory is None
+            or self._research_source_mode is None
+            or self._research_runner is None
+        ):
+            raise OAKError("OAK-RESEARCH-UNAVAILABLE", "research is not configured on this server")
+        return ResearchService(
+            self._repository_factory(workspace_id, tenant_id),
+            self._registry,
+            self._catalogue,
+            self._research_vocabulary,
+            source_factory=self._research_source_factory,
+            source_mode=self._research_source_mode,
+            runner=self._research_runner,
+            cache=self._research_cache,
         )
 
     def _report_service(self, workspace_id: str, tenant_id: str) -> ReportService:

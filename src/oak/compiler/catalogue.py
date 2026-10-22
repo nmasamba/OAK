@@ -6,13 +6,36 @@ from datetime import datetime
 from typing import Any
 
 from oak.contracts import SchemaRegistry
-from oak.domain import Artifact, OAKError, json_artifact
+from oak.domain import (
+    CURATED_RULES_VERSION,
+    RESEARCH_GATES_VERSION,
+    Artifact,
+    OAKError,
+    json_artifact,
+)
+from oak.domain.catalogue_rules import (
+    catalogue_timestamp,
+    eligibility_reasons,
+)
 
 MANIFEST_MEDIA_TYPE = "application/vnd.oak.component-manifest+json"
 PATTERN_MEDIA_TYPE = "application/vnd.oak.architecture-pattern+json"
 SNAPSHOT_MEDIA_TYPE = "application/vnd.oak.catalogue-snapshot+json"
-ALLOWED_AVAILABILITY = frozenset({"osi_open_source_software", "osi_open_source_ai"})
-DISALLOWED_LICENCE_CLASSES = frozenset({"restricted", "source_available", "proprietary", "unknown"})
+
+
+# Curated reasons that still make a researched manifest ineligible (ADR-0018); every other
+# curated reason is kept on its entry as a visible review item.
+BLOCKING_REVIEW_ITEMS = frozenset({"OAK-CAT-KNOWN-VULNERABILITY", "OAK-CAT-EVIDENCE-FUTURE"})
+
+
+@dataclass(frozen=True, slots=True)
+class ResearchInput:
+    """What a merged compile needs: the snapshot it merges and the manifests that passed."""
+
+    snapshot_ref: dict[str, Any]
+    snapshot_version: str
+    case_key: str
+    researched_manifest_ids: frozenset[str]
 
 
 @dataclass(frozen=True, slots=True)
@@ -31,8 +54,10 @@ def compile_catalogue(
     registry: SchemaRegistry,
     *,
     created_at: str,
+    research: ResearchInput | None = None,
 ) -> CompiledCatalogue:
     valid_at = _timestamp(created_at)
+    researched_ids = research.researched_manifest_ids if research is not None else frozenset()
     manifests: list[Artifact] = []
     entries: list[dict[str, Any]] = []
     manifest_documents: dict[str, dict[str, Any]] = {}
@@ -49,8 +74,17 @@ def compile_catalogue(
             media_type=MANIFEST_MEDIA_TYPE,
             document=document,
         )
-        reasons = _eligibility_reasons(document, valid_at)
-        eligible = not reasons
+        reasons = eligibility_reasons(document, valid_at)
+        if manifest_id in researched_ids:
+            # Eligibility for comparison was decided by community-research-gates-1.0.0; the
+            # curated reasons stay on the entry as review items, and only a blocked licence,
+            # a known vulnerability or future-dated evidence still makes it ineligible.
+            eligible = not any(
+                reason in BLOCKING_REVIEW_ITEMS or reason.endswith("-LICENCE-BLOCKED")
+                for reason in reasons
+            )
+        else:
+            eligible = not reasons
         evidence_checked_at = max(str(item["checked_at"]) for item in document["evidence"])
         entries.append(
             {
@@ -104,12 +138,24 @@ def compile_catalogue(
         "version": "0.1.0",
         "created_at": created_at,
         "valid_at": created_at,
-        "policy_version": "community-open-components-1.0.0",
+        "policy_version": CURATED_RULES_VERSION,
         "entries": entries,
         "eligible_manifest_ids": eligible_ids,
         "rejected_manifest_ids": rejected_ids,
         "extensions": {},
     }
+    if research is not None:
+        # A merged snapshot has its own identity, so the curated one's bytes never move and
+        # the workspace never sees a second digest for catalogue.community-fixture@0.1.0.
+        snapshot_document["id"] = f"catalogue.research.{research.case_key}"
+        snapshot_document["version"] = research.snapshot_version
+        snapshot_document["extensions"] = {
+            "oak.community/research": {
+                "rule_set": RESEARCH_GATES_VERSION,
+                "research_snapshot_ref": research.snapshot_ref,
+                "researched_manifest_ids": sorted(researched_ids),
+            }
+        }
     registry.validate("catalogue-snapshot.schema.json", snapshot_document)
     snapshot = json_artifact(
         artifact_id=str(snapshot_document["id"]),
@@ -126,32 +172,6 @@ def compile_catalogue(
         pattern_documents=pattern_documents,
         eligibility=eligibility,
     )
-
-
-def _eligibility_reasons(document: dict[str, Any], valid_at: datetime) -> tuple[str, ...]:
-    reasons: list[str] = []
-    if document["status"] not in {"eligible", "approved_for_context"}:
-        reasons.append("OAK-CAT-STATUS-NOT-ELIGIBLE")
-    if document["availability_class"] not in ALLOWED_AVAILABILITY:
-        reasons.append("OAK-CAT-AVAILABILITY-BLOCKED")
-    if _timestamp(str(document["next_review_at"])) <= valid_at:
-        reasons.append("OAK-CAT-EVIDENCE-STALE")
-    if document["security"]["known_vulnerabilities"]:
-        reasons.append("OAK-CAT-KNOWN-VULNERABILITY")
-    if document["licensing"]["transitive_review"] != "passed":
-        reasons.append("OAK-CAT-TRANSITIVE-LICENCE-UNRESOLVED")
-    for domain in ("software", "model", "data"):
-        licence = document["licensing"][domain]
-        if licence["classification"] in DISALLOWED_LICENCE_CLASSES:
-            reasons.append(f"OAK-CAT-{domain.upper()}-LICENCE-BLOCKED")
-        if licence["review_status"] not in {"passed", "not_applicable"}:
-            reasons.append(f"OAK-CAT-{domain.upper()}-LICENCE-UNREVIEWED")
-    for evidence in document["evidence"]:
-        if evidence["content_digest"] is None:
-            reasons.append("OAK-CAT-EVIDENCE-UNDIGESTED")
-        if _timestamp(str(evidence["checked_at"])) > valid_at:
-            reasons.append("OAK-CAT-EVIDENCE-FUTURE")
-    return tuple(sorted(set(reasons)))
 
 
 def _validate_pattern(pattern: dict[str, Any], manifests: dict[str, dict[str, Any]]) -> None:
@@ -192,7 +212,4 @@ def _validate_pattern(pattern: dict[str, Any], manifests: dict[str, dict[str, An
 
 
 def _timestamp(value: str) -> datetime:
-    try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except ValueError as error:
-        raise OAKError("OAK-CATALOGUE-TIME", "catalogue timestamp is invalid") from error
+    return catalogue_timestamp(value)

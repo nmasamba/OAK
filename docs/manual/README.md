@@ -20,6 +20,11 @@ printed, and the repository's end-to-end suites exercise the same invocations
 continuously (`oak revoke-approval` is covered by the revocation integration suite
 instead — see the manual's colophon).
 
+The research figure (`assets/13-research.png`) is captured by the spec's second test on the
+same stack, which must serve the fixture research source (`OAK_RESEARCH_FIXTURES` on the
+`api` and `worker` services, as the Sprint 14 throwaway override sets it); without it the
+test skips and the figure keeps its previous capture.
+
 ## Rebuilding
 
 ```bash

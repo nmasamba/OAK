@@ -1,0 +1,62 @@
+# SPDX-License-Identifier: Apache-2.0
+# DRAFT for the owner's review in the Sprint 14 pull request (ADR-0018, kickoff Q2).
+#
+# The owner-reviewed harness list. Until `reviewed_by` and `reviewed_at` are set by the
+# owner, no entry forms part of the trusted tier: every harness a search finds is unvetted
+# and enters a design only after the user records a review with a rationale. The entries
+# are open serving runtimes and agent frameworks with dated releases on GitHub, each with
+# why it is listed, where that was read and when. Listing is not approval: an entry still
+# passes every research gate on its own evidence, and nothing here sets a licence
+# classification or an availability class.
+schema_version: 0.1.0
+id: research.harness-repositories
+version: 0.1.0
+as_of: "2026-10-21"
+reviewed_by: null
+reviewed_at: null
+repositories:
+  - repository: vllm-project/vllm
+    kind: serving_runtime
+    why: Open serving runtime for large language models with dated releases.
+    source: https://github.com/vllm-project/vllm
+    checked_at: "2026-10-21"
+  - repository: ggml-org/llama.cpp
+    kind: serving_runtime
+    why: Open CPU and accelerator inference runtime with dated releases.
+    source: https://github.com/ggml-org/llama.cpp
+    checked_at: "2026-10-21"
+  - repository: sgl-project/sglang
+    kind: serving_runtime
+    why: Open serving runtime for large language models with dated releases.
+    source: https://github.com/sgl-project/sglang
+    checked_at: "2026-10-21"
+  - repository: huggingface/text-generation-inference
+    kind: serving_runtime
+    why: Open text-generation server with dated releases.
+    source: https://github.com/huggingface/text-generation-inference
+    checked_at: "2026-10-21"
+  - repository: ollama/ollama
+    kind: serving_runtime
+    why: Open local model runner with dated releases.
+    source: https://github.com/ollama/ollama
+    checked_at: "2026-10-21"
+  - repository: langchain-ai/langchain
+    kind: agent_framework
+    why: Open agent and application framework with dated releases.
+    source: https://github.com/langchain-ai/langchain
+    checked_at: "2026-10-21"
+  - repository: crewAIInc/crewAI
+    kind: agent_framework
+    why: Open multi-agent framework with dated releases.
+    source: https://github.com/crewAIInc/crewAI
+    checked_at: "2026-10-21"
+  - repository: microsoft/autogen
+    kind: agent_framework
+    why: Open multi-agent framework with dated releases.
+    source: https://github.com/microsoft/autogen
+    checked_at: "2026-10-21"
+  - repository: pydantic/pydantic-ai
+    kind: agent_framework
+    why: Open typed agent framework with dated releases.
+    source: https://github.com/pydantic/pydantic-ai
+    checked_at: "2026-10-21"

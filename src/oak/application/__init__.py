@@ -34,6 +34,12 @@ from oak.application.operations import (
 from oak.application.policy import PolicyEvaluationResult, PolicyService
 from oak.application.release import IngestResult, ReleaseResult, ReleaseService
 from oak.application.report.service import ReportResult, ReportService
+from oak.application.research import (
+    ResearchPlan,
+    ResearchResult,
+    ResearchReviewResult,
+    ResearchService,
+)
 from oak.application.system_information import SystemInformationService
 
 __all__ = [
@@ -64,6 +70,10 @@ __all__ = [
     "ReleaseService",
     "ReportResult",
     "ReportService",
+    "ResearchPlan",
+    "ResearchResult",
+    "ResearchReviewResult",
+    "ResearchService",
     "SelectionResult",
     "SystemInformationService",
     "VerificationReport",

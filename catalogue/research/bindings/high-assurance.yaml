@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: Apache-2.0
+# Research binding (Sprint 14, ADR-0018): which curated pattern role a researched model
+# may fill, and the one serving role only a researched harness fills. The curated loader
+# never reads this directory, so the curated patterns and their digests do not move.
+schema_version: 0.1.0
+id: research.binding.high-assurance
+version: 0.1.0
+pattern_id: pattern.high-assurance
+model_role_id: role.generation
+serving_role:
+  id: role.serving
+  role: Serving runtime for the generation and verification model
+  component_category: software
+  required_capability: model_serving
+  data_classifications: [public]
+serving_edge:
+  from: role.serving
+  to: role.generation
+  interface: Local HTTP
+  data: Model inference for generation and independent verification
+  security: Isolated target network with no runtime egress

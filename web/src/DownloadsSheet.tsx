@@ -149,6 +149,24 @@ export function useDownloads(
       ),
     );
   }
+  // The research snapshot the case holds (ADR-0018): what was asked, of whom, and what
+  // came back, stored and checked like every other file.
+  const researchSnapshot = asReference(
+    extensions["oak.community/research_snapshot_ref"],
+  );
+  if (researchSnapshot !== null) {
+    items.push(
+      storedItem(
+        caseId,
+        "research",
+        "Research",
+        "bulb",
+        researchSnapshot,
+        null,
+        "the research snapshot",
+      ),
+    );
+  }
   const selected = asReference(caseDocument["selected_candidate_ref"]);
   // The recorded report's PDF, checked like every stored file; before one is recorded,
   // the tile opens the Report screen, where recording is a deliberate step.

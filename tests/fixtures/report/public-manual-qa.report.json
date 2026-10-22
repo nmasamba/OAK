@@ -149,7 +149,6 @@
   "oak_version": "0.9.0",
   "renderer": {
     "libraries": {
-      "python-pptx": "fixed-for-tests",
       "reportlab": "fixed-for-tests"
     },
     "name": "oak-report-renderer",
@@ -5586,7 +5585,7 @@
                 },
                 {
                   "mark": null,
-                  "text": "measured",
+                  "text": "Synthetic declaration",
                   "type": "text"
                 },
                 {
@@ -5634,7 +5633,7 @@
                 },
                 {
                   "mark": null,
-                  "text": "measured",
+                  "text": "Synthetic declaration",
                   "type": "text"
                 },
                 {
@@ -6263,7 +6262,7 @@
               "source": "template",
               "value": {
                 "mark": null,
-                "text": "python-pptx fixed-for-tests, reportlab fixed-for-tests",
+                "text": "reportlab fixed-for-tests",
                 "type": "text"
               }
             },

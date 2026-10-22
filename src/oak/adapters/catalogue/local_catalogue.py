@@ -54,35 +54,45 @@ class LocalCatalogue:
         return tuple(documents)
 
     def _load_document(self, path: Path, schema_name: str) -> dict[str, Any]:
-        if path.is_symlink() or not path.is_file():
-            raise OAKError("OAK-CATALOGUE-PATH", "catalogue documents must be regular files")
         try:
-            flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
-            descriptor = os.open(path, flags)
-            with os.fdopen(descriptor, "rb") as stream:
-                details = os.fstat(stream.fileno())
-                if not stat.S_ISREG(details.st_mode):
-                    raise ValueError("catalogue document is not a regular file")
-                source_bytes = stream.read(MAXIMUM_DOCUMENT_BYTES + 1)
-            if not source_bytes or len(source_bytes) > MAXIMUM_DOCUMENT_BYTES:
-                raise ValueError("catalogue document size is outside the accepted range")
-            source = source_bytes.decode("utf-8")
-            tokens = tuple(yaml.scan(source))
-            if any(
-                isinstance(token, (yaml.tokens.AliasToken, yaml.tokens.AnchorToken))
-                for token in tokens
-            ):
-                raise ValueError("YAML aliases are not accepted")
-            document = load_yaml_document(source)
+            document = read_bounded_catalogue_document(path)
             self._registry.validate(schema_name, document)
             return document
-        except (
-            OSError,
-            UnicodeError,
-            ValueError,
-            yaml.YAMLError,
-            ContractValidationError,
-        ) as error:
+        except (ValueError, ContractValidationError) as error:
             raise OAKError(
                 "OAK-CATALOGUE-INVALID", "catalogue document failed bounded validation"
             ) from error
+
+
+def read_bounded_catalogue_document(path: Path) -> dict[str, Any]:
+    """Read one YAML document from the bundled catalogue tree, bounded and alias-free.
+
+    Shared by the curated loader and the research-vocabulary loader (Sprint 14), so both
+    refuse the same things: a symlink, a non-regular file, an empty or oversized file,
+    and YAML anchors or aliases. Schema validation is the caller's.
+    """
+
+    if path.is_symlink() or not path.is_file():
+        raise OAKError("OAK-CATALOGUE-PATH", "catalogue documents must be regular files")
+    try:
+        flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+        descriptor = os.open(path, flags)
+        with os.fdopen(descriptor, "rb") as stream:
+            details = os.fstat(stream.fileno())
+            if not stat.S_ISREG(details.st_mode):
+                raise ValueError("catalogue document is not a regular file")
+            source_bytes = stream.read(MAXIMUM_DOCUMENT_BYTES + 1)
+        if not source_bytes or len(source_bytes) > MAXIMUM_DOCUMENT_BYTES:
+            raise ValueError("catalogue document size is outside the accepted range")
+        source = source_bytes.decode("utf-8")
+        tokens = tuple(yaml.scan(source))
+        if any(
+            isinstance(token, (yaml.tokens.AliasToken, yaml.tokens.AnchorToken)) for token in tokens
+        ):
+            raise ValueError("YAML aliases are not accepted")
+        document = load_yaml_document(source)
+    except (OSError, UnicodeError, yaml.YAMLError) as error:
+        raise ValueError("catalogue document could not be read") from error
+    if not isinstance(document, dict):
+        raise ValueError("catalogue document is not a mapping")
+    return document

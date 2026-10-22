@@ -25,10 +25,24 @@ UNRELEASED_OPERATIONS: frozenset[str] = frozenset(
     {
         "GET /v1/design-cases/{case_id}/architecture",
         "POST /v1/design-cases/{case_id}:record-report",
+        # Sprint 14 (2026-10-21): research at the point of design, ADR-0018.
+        "GET /v1/design-cases/{case_id}/research-plan",
+        "POST /v1/design-cases/{case_id}:research",
+        "POST /v1/design-cases/{case_id}:review-research-item",
     }
 )
 UNRELEASED_SCHEMAS: frozenset[str] = frozenset(
-    {"ArchitectureFormat", "NarrativeMode", "ReportResponse"}
+    {
+        "ArchitectureFormat",
+        "NarrativeMode",
+        "ReportResponse",
+        # Sprint 14 (2026-10-21): the research plan, the consent, the run and the review.
+        "ResearchConsent",
+        "ResearchRequest",
+        "ResearchPlanResponse",
+        "ResearchReviewRequest",
+        "ResearchReviewResponse",
+    }
 )
 
 # Operations that shipped after Sprint 3 and that the baseline did not guard until it was

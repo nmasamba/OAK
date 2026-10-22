@@ -115,6 +115,44 @@ class ReportResponse(StrictResponse):
     duplicate: bool
 
 
+class ResearchConsent(StrictResponse):
+    """What the user agreed to: exactly the hosts and the terms digest the plan showed."""
+
+    hosts: list[str]
+    terms_digest: str
+
+
+class ResearchRequest(StrictResponse):
+    consent: ResearchConsent
+
+
+class ResearchPlanResponse(StrictResponse):
+    """The hosts, the derived terms and their digest for the case's current intent; a read."""
+
+    case_id: str
+    case_version: str
+    status: str
+    allowed: bool
+    source_mode: str
+    hosts: list[str]
+    terms: dict[str, Any]
+    terms_digest: str
+
+
+class ResearchReviewRequest(StrictResponse):
+    item_id: str
+    decision: Literal["accept", "reject"]
+    rationale: str
+
+
+class ResearchReviewResponse(StrictResponse):
+    """The case revised with the recorded review, and the review itself."""
+
+    case: dict[str, Any]
+    review: dict[str, Any]
+    duplicate: bool
+
+
 class OperationResponse(StrictResponse):
     operation_id: str
     workspace_id: str

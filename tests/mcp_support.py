@@ -13,8 +13,10 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
-from oak.adapters.catalogue import LocalCatalogue
+from oak.adapters.catalogue import LocalCatalogue, ResearchVocabularyLoader
 from oak.adapters.intake import LocalBriefIntake
+from oak.adapters.models.research_fixture import FixtureResearchSource
+from oak.adapters.models.research_sources import run_research
 from oak.adapters.persistence import FileWorkspaceRepository
 from oak.adapters.report import PdfReportRenderer
 from oak.adapters.targets import LocalTargetProfile
@@ -32,6 +34,9 @@ from oak.interfaces.mcp.server import MCPServer, create_server
 from oak.ports import EnqueuedOperation, OperationLease, OperationRecord, OperationSpec
 
 ROOT = Path(__file__).resolve().parents[1]
+# The e2e set resolves its dates as offsets from each run, so any clock keeps the
+# acceptance case inside the freshness window.
+RESEARCH_FIXTURES = ROOT / "tests/fixtures/research/e2e"
 NOW = "2026-08-21T12:00:00Z"
 LATER = "2026-08-21T12:01:00Z"
 
@@ -275,6 +280,7 @@ def build_file_control_plane(
     *,
     model_interpreter_factory: ModelInterpreterFactory | None = None,
     report_narrator_factory: ReportNarratorFactory | None = None,
+    research_fixtures: Path = RESEARCH_FIXTURES,
 ) -> tuple[CommunityControlPlane, MemoryOperationStore]:
     registry = SchemaRegistry.from_directory(ROOT / "schemas")
     workspaces = tmp_path / "workspaces"
@@ -301,6 +307,14 @@ def build_file_control_plane(
         report_renderer=PdfReportRenderer(),
         report_narrator_factory=report_narrator_factory,
         oak_version="0.9.0",
+        research_vocabulary=ResearchVocabularyLoader(ROOT / "catalogue"),
+        research_source_factory=lambda occurred_at: (
+            FixtureResearchSource(research_fixtures, occurred_at=occurred_at).fetch,
+            "fixture",
+            frozenset(),
+        ),
+        research_source_mode=lambda: ("fixture", frozenset()),
+        research_runner=run_research,
     )
     return control_plane, store
 
@@ -314,6 +328,7 @@ def drain_operations(control_plane: CommunityControlPlane, store: MemoryOperatio
             "generate_candidates": control_plane.execute_operation,
             "evaluate_candidate": control_plane.execute_operation,
             "compile_bundle": control_plane.execute_operation,
+            "research_catalogue": control_plane.execute_operation,
         },
     )
     executed = 0

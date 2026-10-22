@@ -64,6 +64,10 @@ from oak.interfaces.api.models import (
     Problem,
     ReadinessResponse,
     ReportResponse,
+    ResearchPlanResponse,
+    ResearchRequest,
+    ResearchReviewRequest,
+    ResearchReviewResponse,
     SelectCandidateRequest,
     SelectionResponse,
     VersionResponse,
@@ -482,6 +486,7 @@ def _error_status(error: OAKError) -> int:
         "OAK-IDEMPOTENCY-CONFLICT",
         "OAK-CASE-CONFLICT",
         "OAK-OPERATION-CONFLICT",
+        "OAK-RESEARCH-CONSENT",
     } or error.code.endswith("-STATE"):
         return 409
     if error.code.endswith("-SIZE"):
@@ -990,6 +995,102 @@ def create_app(
             report=result.report,
             document=result.document,
             duplicate=result.duplicate,
+        )
+
+    @api.get(
+        "/v1/design-cases/{case_id}/research-plan",
+        response_model=ResearchPlanResponse,
+        tags=["design-cases"],
+    )
+    def research_plan(case_id: str, auth: AuthorityDependency) -> ResearchPlanResponse:
+        """What a research run would send: the hosts and the derived terms, with their digest.
+
+        A read: nothing leaves the machine. The consent card shows exactly this response, and
+        a research request must consent to these hosts and this digest.
+        """
+
+        plan = plane().research_plan(case_id, tenant_id=auth.tenant_id)
+        return ResearchPlanResponse(**plan.to_document())
+
+    @api.post(
+        "/v1/design-cases/{case_id}:research",
+        response_model=OperationResponse,
+        status_code=202,
+        tags=["operations"],
+    )
+    def research_catalogue(
+        case_id: str,
+        body: ResearchRequest,
+        request: Request,
+        idempotency_key: IdempotencyHeader,
+        expected: ExpectedVersionHeader,
+        auth: AuthorityDependency,
+        correlation_id: CorrelationHeader = None,
+        _token: ModelTokenDependency = None,
+    ) -> OperationResponse:
+        """Start one consented research run at ready_for_candidates; returns an operation.
+
+        Checked in order before anything is enqueued: the X-OAK-Model-Token capability token
+        (a dependency, so it is refused before the body is read), the consent against the
+        plan recomputed from the current intent, the idempotency key and If-Match exactly as
+        generate-candidates handles them, then the status. The worker checks the case again
+        before its first request, and the run is never retried.
+        """
+
+        context = command_context(
+            request,
+            auth,
+            idempotency_key=idempotency_key,
+            expected_version=_expected_version(expected),
+            correlation_id=correlation_id,
+        )
+        result = plane().submit_research(
+            case_id,
+            {"hosts": body.consent.hosts, "terms_digest": body.consent.terms_digest},
+            context,
+        )
+        return _operation_response(result.operation, duplicate=result.duplicate)
+
+    @api.post(
+        "/v1/design-cases/{case_id}:review-research-item",
+        response_model=ResearchReviewResponse,
+        tags=["design-cases"],
+    )
+    def review_research_item(
+        case_id: str,
+        body: ResearchReviewRequest,
+        response: Response,
+        request: Request,
+        idempotency_key: IdempotencyHeader,
+        expected: ExpectedVersionHeader,
+        auth: AuthorityDependency,
+        correlation_id: CorrelationHeader = None,
+    ) -> ResearchReviewResponse:
+        """Record a review of one unvetted research item: accept or reject, with a rationale.
+
+        A recorded human decision, bound to the snapshot's digest and the item's response
+        digest; it revises the case at its own status and appends research_item_reviewed. An
+        accepted item becomes eligible for comparison under the research gates, never
+        approved for a context.
+        """
+
+        context = command_context(
+            request,
+            auth,
+            idempotency_key=idempotency_key,
+            expected_version=_expected_version(expected),
+            correlation_id=correlation_id,
+        )
+        result = plane().review_research_item(
+            case_id,
+            context,
+            item_id=body.item_id,
+            decision=body.decision,
+            rationale=body.rationale,
+        )
+        response.headers["ETag"] = _etag(str(result.case["version"]))
+        return ResearchReviewResponse(
+            case=result.case, review=result.review, duplicate=result.duplicate
         )
 
     @api.post(

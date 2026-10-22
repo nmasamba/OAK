@@ -139,6 +139,7 @@ class _PersistentLeg:
                 "generate_candidates": self.control_plane.execute_operation,
                 "evaluate_candidate": self.control_plane.execute_operation,
                 "compile_bundle": self.control_plane.execute_operation,
+                "research_catalogue": self.control_plane.execute_operation,
             },
         )
 

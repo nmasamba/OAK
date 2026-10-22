@@ -145,6 +145,9 @@ prohibition).
 | Compile bundle | ● | ● | ● | ● | ● |
 | Read the chosen architecture (`oak architecture`; `GET …/architecture`) | ○ | ○ | ○ | — | ○ |
 | Record the architecture report (`oak report --record`; `POST …:record-report`) | ● | ● | ● | — | ● |
+| Read the research plan (`oak research --plan`; `GET …/research-plan`) | ● | ● | ● | — | ● |
+| Run research (`oak research --consent <digest>`; `POST …:research`, with `X-OAK-Model-Token`) | ● | ● | ● | — | ● |
+| Review a research item (`oak research review`; `POST …:review-research-item`) | ● | ● | ● | — | ● |
 | Read the recorded report, as JSON or PDF (`oak report`; the artifact read) | ○ | ○ | ○ | — | ○ |
 | Read operation progress | — | — | ○ | ○ | ○ |
 | Cancel operation | — | — | ● | — | ● |

@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: Apache-2.0
+# Synthetic partial intent for the research-terms tests: a small CPU-only machine.
+spec:
+  hardware:
+    cpu_architectures: [aarch64]
+    accelerators: []
+    ram_gib: 8
+    storage_gib: 64
+    drivers: []

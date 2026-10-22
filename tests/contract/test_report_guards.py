@@ -16,11 +16,15 @@ from typing import Any
 import pytest
 
 from scripts import check_report
-from tests.report_support import GOLDEN_REPORT
+from tests.report_support import GOLDEN_REPORT, GOLDEN_RESEARCH_REPORT
 
 
 def _golden() -> dict[str, Any]:
     return json.loads(GOLDEN_REPORT.read_text(encoding="utf-8"))
+
+
+def _research_golden() -> dict[str, Any]:
+    return json.loads(GOLDEN_RESEARCH_REPORT.read_text(encoding="utf-8"))
 
 
 def _section(document: dict[str, Any], identifier: str) -> dict[str, Any]:
@@ -38,6 +42,88 @@ def test_the_golden_passes_every_guard() -> None:
     assert check_report.guard_r2_numbers(document, "golden") == []
     assert check_report.guard_r3_pictures(document, "golden") == []
     assert check_report.guard_r4_contrast() == []
+
+
+def test_the_research_golden_passes_every_guard() -> None:
+    document = _research_golden()
+    assert check_report.guard_r1_words(document, "research") == []
+    assert check_report.guard_r2_numbers(document, "research") == []
+    assert check_report.guard_r3_pictures(document, "research") == []
+    assert check_report.guard_r5_research(document, "research") == []
+
+
+def _first_research_quantity(document: dict[str, Any]) -> dict[str, Any]:
+    appendix = _section(document, "appendix-research")
+    for block in appendix["blocks"]:
+        if block["kind"] == "table" and block["id"].startswith("claims-"):
+            for row in block["rows"]:
+                if row["cells"][1]["type"] == "quantity":
+                    return row["cells"][1]
+    raise AssertionError("the research golden quotes no figure")
+
+
+def test_r2_catches_a_research_figure_that_claims_oaks_own_basis() -> None:
+    document = _research_golden()
+    _first_research_quantity(document)["basis"] = "measured"
+    failures = check_report.guard_r2_numbers(document, "research")
+    assert any("figure from a research record" in failure for failure in failures)
+    document = _research_golden()
+    _first_research_quantity(document)["basis"] = "declared"
+    assert check_report.guard_r2_numbers(document, "research") != []
+
+
+def _drop_appendix_g(document: dict[str, Any]) -> None:
+    document["sections"] = [s for s in document["sections"] if s["number"] != "G"]
+
+
+def _fixture_figure_not_synthetic(document: dict[str, Any]) -> None:
+    quantity = _first_research_quantity(document)
+    quantity["basis"] = "published by source"
+    quantity["estimator"] = None
+
+
+def _claim_without_evidence_word(document: dict[str, Any]) -> None:
+    appendix = _section(document, "appendix-research")
+    table = next(b for b in appendix["blocks"] if b["kind"] == "table" and b["id"] == "claims-0")
+    table["rows"][0]["cells"][2]["text"] = "Checked by OAK"
+
+
+def _claim_pointer_by_name(document: dict[str, Any]) -> None:
+    appendix = _section(document, "appendix-research")
+    table = next(b for b in appendix["blocks"] if b["kind"] == "table" and b["id"] == "claims-0")
+    table["rows"][0]["source"] = "research.public-manual-qa@0.1.0#/items/Fixturelm/claims/licence"
+
+
+def _label_without_suffix(document: dict[str, Any]) -> None:
+    table = next(
+        b for b in _section(document, "comparison")["blocks"] if b.get("id") == "comparison"
+    )
+    table["columns"] = [column.replace(", new", "") for column in table["columns"]]
+
+
+@pytest.mark.parametrize(
+    "plant",
+    (
+        _drop_appendix_g,
+        _fixture_figure_not_synthetic,
+        _claim_without_evidence_word,
+        _claim_pointer_by_name,
+        _label_without_suffix,
+    ),
+)
+def test_r5_catches_a_research_report_that_breaks_its_rules(
+    plant: Callable[[dict[str, Any]], None],
+) -> None:
+    document = _research_golden()
+    plant(document)
+    assert check_report.guard_r5_research(document, "research") != []
+
+
+def test_r5_runs_over_the_research_case_only() -> None:
+    reports = {"bundle_compiled": copy.deepcopy(_golden()), "research-a": _research_golden()}
+    assert check_report.check(reports) == []
+    _drop_appendix_g(reports["research-a"])
+    assert [failure.split()[0] for failure in check_report.check(reports)] == ["R5"]
 
 
 def _assurance_word(document: dict[str, Any]) -> None:
@@ -183,3 +269,12 @@ def test_the_guards_are_run_over_every_recordable_step() -> None:
     reports = {stop: copy.deepcopy(_golden()) for stop in ("a", "b")}
     _section(reports["b"], "cover")["subtitle"] = "A certified decision."
     assert [failure.split()[1].split("/")[0] for failure in check_report.check(reports)] == ["b"]
+
+
+def test_no_link_in_a_fixture_research_report_names_a_real_host() -> None:
+    """U-6: the fixture source answers from files; nothing it produces may point at an
+    address anyone could register."""
+
+    text = json.dumps(_research_golden())
+    assert "https://huggingface.co" not in text and "https://github.com" not in text
+    assert "https://fixture.invalid/" in text
