@@ -539,7 +539,16 @@ Each milestone ends with one commit, its exit check green and a line under Progr
   the report, research and offline-boundary integration suites 57 passed (two
   offline-boundary tests first failed because `tests/report_support` imported the research
   readers at module level; they are imported inside `build_researched_case` now).
-- [ ] M7 — browser suite, screenshots, manual.
+- [x] 2026-10-22 M7: the throwaway stack recreated from scratch (`docker compose down -v`,
+  then `up -d --build --wait`, with the fixture source on `api` and `worker`); `make web-e2e`
+  on it: 26 passed, 2 skipped (the two gated screenshot tests), in one minute, with
+  `research.spec.ts` among them. Then exactly one screenshot run (`OAK_MANUAL_SCREENS=1`,
+  `manual-screens.spec.ts`, 2 passed): the twelve figures recaptured on the same stack and
+  the thirteenth, `assets/13-research.png`, captured by the spec's second test on the
+  fixture source (it skips when the plan is not `fixture`, so a live run is never made for
+  a picture); the figure shows the chips, both items, the harness's claims with their
+  evidence words and the review form, as its caption says. Thirteen `shoot` calls, thirteen
+  figures. The manual PDF rebuilt with the pinned Chromium (`build_manual.mjs`).
 - [ ] M8 — closing review, gates, PR.
 
 ## Decisions
