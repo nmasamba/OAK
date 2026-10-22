@@ -46,7 +46,7 @@ the extension. Curated candidates never carry the extension, so their bytes do n
 - Owner/agent: owner-directed coding agent
 - Started: 2026-10-21
 - Last updated: 2026-10-22 (M8)
-- State: complete, awaiting the owner's merge (the PR is linked in `STATUS.md`)
+- State: complete, awaiting the owner's merge as PR #37 (https://github.com/nmasamba/OAK/pull/37, opened 2026-10-22)
 - Claimed tasks: `OAK-S14-001`–`OAK-S14-007`
 
 One plan covers seven task IDs because they build one vertical feature, from the decision
@@ -561,8 +561,8 @@ Each milestone ends with one commit, its exit check green and a line under Progr
   G1–G5, R1–R5 and S1–S5, format, lint, typecheck, unit, contract, integration and e2e,
   OpenAPI compatibility, the web build); `make audit` green; the throwaway stack rebuilt
   with the M8 images and `make web-e2e` run again, 26 passed, 2 skipped; `origin/main`
-  unchanged at `671d4a4`, so nothing to merge. The branch is pushed and the PR opened
-  (linked in `STATUS.md`); the merge is the owner's, no tag and no release.
+  unchanged at `671d4a4`, so nothing to merge. The branch is pushed and PR #37 is open
+  (https://github.com/nmasamba/OAK/pull/37); the merge is the owner's, no tag and no release.
 
 ## Closing review
 
