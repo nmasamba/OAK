@@ -604,3 +604,183 @@ def test_an_item_with_a_forbidden_word_is_listed_by_digest_with_no_claim(tmp_pat
     assert refused["response_digest"].startswith("sha256:")
     assert "enterprise" not in canonical_json_bytes(snapshot).decode("utf-8")
     REGISTRY.validate("research-snapshot.schema.json", snapshot)
+
+
+# ----- the closing review's fixes (OAK-S14-007) ---------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "override",
+    [
+        OAKError("OAK-INTERPRETER-UNAVAILABLE", "timed out", retriable=True),
+        RedirectRefusedError("OAK-INTERPRETER-UNAVAILABLE", "moved", status=301),
+        TransportResponse(200, {}, b"x" * 600_000),  # over the releases' 512 KiB cap
+        TransportResponse(429, {}, b"{}"),
+    ],
+)
+def test_a_refused_release_read_fails_that_harness_alone_and_the_run_goes_on(
+    override: Any,
+) -> None:
+    """E-1: one repository's redirect, oversized page, outage or rate limit never hides the
+    rest; its request record carries the refusal and the harness is unreachable."""
+
+    fetch = _Recorded(**{"/releases": override})
+    snapshot = _run(fetch).snapshot
+    harness = next(item for item in snapshot["items"] if item["id"] == HARNESS)
+    assert harness["verdict"] == "failed" and "OAK-CAT-RESEARCH-UNREACHABLE" in harness["reasons"]
+    model = next(item for item in snapshot["items"] if item["id"] == MODEL)
+    assert model["verdict"] == "passed"
+    record = next(r for r in snapshot["requests"] if r["path"].endswith("/releases?per_page=1"))
+    assert record["refusal_code"] in {
+        "OAK-RESEARCH-UNREACHABLE",
+        "OAK-RESEARCH-REDIRECTED",
+        "OAK-RESEARCH-OVERSIZED",
+        "OAK-RESEARCH-RATE-LIMITED",
+    }
+    assert len(fetch.log) == 12  # the twelve planned requests, nothing retried
+    REGISTRY.validate("research-snapshot.schema.json", snapshot)
+
+
+def test_a_fact_built_from_a_cached_answer_keeps_the_time_that_answer_was_fetched() -> None:
+    """E-2: a day-old listing never reads as checked today, in the items, their claims, the
+    manifests' evidence and the router's measurement."""
+
+    cache = ResearchCache(seconds=86_400)
+    clock = _Clock(0.0)
+    first = _run(_Recorded(), cache=cache, clock=clock)
+    clock.now = 3_600.0
+    later = "2026-10-21T12:00:00Z"
+    second = run_research(
+        _Recorded(),
+        terms=first.snapshot["terms"],
+        terms_digest=first.snapshot["terms_digest"],
+        vocabulary=_vocabulary(),
+        trusted_namespaces=TRUSTED_NAMESPACES,
+        intent_ref=INTENT_REF,
+        case_id="design-case.public-manual-qa",
+        snapshot_id="research.public-manual-qa",
+        snapshot_version="0.2.0",
+        occurred_at=later,
+        source_mode="fixture",
+        cache=cache,
+        clock=clock,
+    )
+    assert second.snapshot["occurred_at"] == later
+    by_path = {record["path"]: record for record in second.snapshot["requests"]}
+    # The Hub listing, the router and the release page are the same requests: cache hits
+    # that keep the first fetch's time. A search names its own date, so it is fetched afresh.
+    hub = next(record for path, record in by_path.items() if path.startswith("/api/models"))
+    assert hub["cached"] is True and hub["checked_at"] == NOW
+    search = next(record for path, record in by_path.items() if path.startswith("/search/"))
+    assert search["cached"] is False and search["checked_at"] == later
+    model = next(item for item in second.snapshot["items"] if item["id"] == MODEL)
+    assert model["cached"] is True and model["checked_at"] == NOW
+    assert {claim["checked_at"] for claim in model["claims"]} == {NOW}
+    harness = next(item for item in second.snapshot["items"] if item["id"] == HARNESS)
+    assert harness["cached"] is True and harness["checked_at"] == later
+    stamps = {claim["evidence_class"]: claim["checked_at"] for claim in harness["claims"]}
+    # The pairing claim rests on the release notes, so it keeps the release page's time.
+    assert stamps == {
+        "published_by_source": later,
+        "published_release": NOW,
+        "claimed_by_release_notes": NOW,
+    }
+    for artifact in second.manifests:
+        manifest = json.loads(artifact.content)
+        for evidence in manifest["evidence"]:
+            evidence_class = evidence["id"].rsplit(".", 1)[-1]
+            # The Hub's facts and the release page were cached; a GitHub search was fresh.
+            expected = (
+                later
+                if "github" in artifact.id and evidence_class == "published_by_source"
+                else NOW
+            )
+            assert evidence["checked_at"] == expected, (artifact.id, evidence["id"])
+        assert {m["measured_at"] for m in manifest["measurements"]} <= {NOW}
+
+
+def test_two_source_ids_that_fold_to_one_manifest_id_give_one_manifest(tmp_path: Path) -> None:
+    """U-5: `forge/llm_serve` beside `forge/llm-serve` is the lookalike signal; the later
+    item is listed by digest as malformed and the run never holds two manifests with one id."""
+
+    def twin(document: dict[str, Any]) -> None:
+        original = document["items"][0]
+        copy_ = json.loads(json.dumps(original))
+        copy_["full_name"] = original["full_name"].replace("-serve", "_serve")
+        copy_["id"] = original["id"] + 1
+        document["items"].append(copy_)
+
+    directory = _mutated(twin, "github-search--llm-serving.json", tmp_path)
+    fetch = _Recorded(
+        directory,
+        **{
+            "fixturelm_serve/releases": TransportResponse(
+                200,
+                {},
+                (directory / "github-releases--fixture-forge--fixturelm-serve.json").read_bytes(),
+            )
+        },
+    )
+    run = _run(fetch)
+    ids = [str(artifact.id) for artifact in run.manifests]
+    assert len(ids) == len(set(ids))
+    refused = [
+        item for item in run.snapshot["items"] if "OAK-CAT-RESEARCH-MALFORMED" in item["reasons"]
+    ]
+    assert len(refused) == 1 and refused[0]["source_id"] == "refused/by-digest"
+    assert refused[0]["manifest_ref"] is None and refused[0]["claims"] == []
+    REGISTRY.validate("research-snapshot.schema.json", run.snapshot)
+
+
+def test_a_fixture_run_names_no_real_host_anywhere_it_writes() -> None:
+    """U-6: the manifests and their evidence point at the reserved fixture host, never at a
+    destination anyone could register."""
+
+    run = _run(_Recorded())
+    assert run.snapshot["hosts"] == []
+    for artifact in run.manifests:
+        text = artifact.content.decode("utf-8")
+        assert "huggingface.co" not in text and "github.com" not in text
+        manifest = json.loads(text)
+        assert manifest["project_url"].startswith("https://fixture.invalid/")
+        assert all(e["uri"].startswith("https://fixture.invalid/") for e in manifest["evidence"])
+
+
+def test_a_live_run_names_the_source_pages() -> None:
+    run = _run(_Recorded(), source_mode="live")
+    pages = {json.loads(a.content)["project_url"] for a in run.manifests}
+    assert pages == {
+        "https://huggingface.co/HuggingFaceTB/Fixturelm-4B",
+        "https://github.com/fixture-forge/fixturelm-serve",
+    }
+
+
+def test_a_huge_parameter_count_leaves_the_floor_unknown_and_never_crashes(
+    tmp_path: Path,
+) -> None:
+    """U-4: a count beyond the supported range is not a figure OAK adds up."""
+
+    def huge(document: list[dict[str, Any]]) -> None:
+        document[0]["safetensors"] = {"parameters": {"BF16": 10**400}, "total": 10**400}
+
+    run = _run(_Recorded(_mutated(huge, tmp_path=tmp_path)))
+    REGISTRY.validate("research-snapshot.schema.json", run.snapshot)
+    model = next(item for item in run.snapshot["items"] if item["id"] == MODEL)
+    fields = {claim["field"] for claim in model["claims"]}
+    assert "weight_floor" not in fields and "parameters" not in fields
+    manifest = json.loads(next(a for a in run.manifests if "hub" in a.id).content)
+    research = manifest["extensions"]["oak.community/research"]
+    assert research["weight_floor_gib"] is None
+    assert research["weight_floor_reason"] == "A parameter count is outside the supported range."
+
+
+def test_a_confusable_letter_never_reaches_a_claim(tmp_path: Path) -> None:
+    """U-1: a Cyrillic letter in place of a Latin one is outside the displayable class, so
+    the forbidden-word check cannot be slipped past and nothing of it is shown."""
+
+    def confusable(document: list[dict[str, Any]]) -> None:
+        document[0]["library_name"] = "еnterprise-grade"  # noqa: RUF001 - a Cyrillic ie, deliberately
+
+    run = _run(_Recorded(_mutated(confusable, tmp_path=tmp_path)))
+    text = json.dumps(run.snapshot) + "".join(a.content.decode("utf-8") for a in run.manifests)
+    assert "nterprise" not in text

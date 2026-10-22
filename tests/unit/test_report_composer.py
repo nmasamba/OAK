@@ -1024,9 +1024,11 @@ def test_the_researched_flag_names_the_rule_and_what_was_not_compared(
     options = blocks(document, "options", "table")[0]
     flag = options["rows"][-2]["cells"][1]
     assert flag["status"] == "infeasible" and flag["word"] == "Infeasible"
-    assert flag["reason"].endswith(
+    # The closed sentence leads, so the record's long reasons can never shorten it away.
+    assert flag["reason"].startswith(
         "Compared under community-compare-only-1.0.0, never selectable this sprint; not "
-        "compared on energy, latency p95, monthly cost, operability and quality."
+        "compared on energy, latency p95, monthly cost, operability and quality.; "
+        "constraint.hardware:"
     )
     comparison = blocks(document, "comparison", "table")[0]
     flags = comparison["rows"][-1]["cells"][2:]
@@ -1184,3 +1186,102 @@ def test_the_renderer_record_names_no_refused_library(reference: dict[str, Repor
     record = facts(document, "appendix-record")
     assert record["Renderer libraries"]["text"] == "reportlab fixed-for-tests"
     assert "pptx" not in json.dumps(document).lower()
+
+
+# ----- the closing review's fixes (OAK-S14-007) ---------------------------------------------
+
+
+def test_a_non_comparable_researched_option_is_flagged_as_not_compared(
+    research: dict[str, ReportRecords],
+) -> None:
+    """D-5: one record, one sentence: a design excluded by a failed constraint never reads
+    as compared."""
+
+    records = research["candidate_selected"]
+    candidates = copy.deepcopy(list(records.candidates))
+    researched = next(c for c in candidates if c["id"] == "candidate-05")
+    researched["extensions"]["oak.community/comparison"].update(
+        {"comparable": False, "failed": ["constraint.data-locality"]}
+    )
+    document = compose(replace(records, candidates=tuple(candidates)))
+    options = blocks(document, "options", "table")[0]
+    flag = next(r for r in options["rows"] if r["cells"][0]["text"].startswith("Balanced, new"))
+    reason = flag["cells"][1]["reason"]
+    assert reason.startswith(
+        "Not compared under community-compare-only-1.0.0: data locality failed; never "
+        "selectable this sprint."
+    )
+    assert "Compared under" not in reason
+
+
+def test_the_weight_floor_is_an_estimate_with_its_estimator_never_a_published_figure(
+    research: dict[str, ReportRecords],
+) -> None:
+    """D-3: OAK computed the floor from the published counts; a live report says so."""
+
+    records = research["candidate_selected"]
+    assert records.research is not None
+    live = copy.deepcopy(records.research)
+    live["source_mode"] = "live"
+    document = compose(replace(records, research=live))
+    tables = [
+        t for t in blocks(document, "appendix-research", "table") if t["id"].startswith("claims-")
+    ]
+    cell = next(
+        row["cells"][1]
+        for t in tables
+        for row in t["rows"]
+        if row["cells"][0]["text"] == "Weight floor"
+    )
+    assert cell["type"] == "quantity"
+    assert (cell["basis"], cell["estimator"]) == ("estimated", "research-weight-floor-1.0.0")
+    published = [
+        row["cells"][1]
+        for t in tables
+        for row in t["rows"]
+        if row["cells"][0]["text"] in {"Parameters", "Throughput"}
+    ]
+    assert {q["basis"] for q in published} == {"published by source", "measured by source"}
+    fixture = compose(records)
+    tables = [
+        t for t in blocks(fixture, "appendix-research", "table") if t["id"].startswith("claims-")
+    ]
+    cell = next(
+        row["cells"][1]
+        for t in tables
+        for row in t["rows"]
+        if row["cells"][0]["text"] == "Weight floor"
+    )
+    assert (cell["basis"], cell["estimator"]) == (
+        "synthetic estimate",
+        "research-weight-floor-1.0.0",
+    )
+
+
+def test_the_first_review_bound_to_an_item_governs_everywhere(
+    research: dict[str, ReportRecords],
+) -> None:
+    """D-1: the service records one decision per item per run; should a workspace hold two,
+    the report reads the first, as the compiler and the case page do."""
+
+    from oak.application.report.composer import _Context, _review_state
+
+    records = research["candidate_selected"]
+    accept = records.research_reviews[0]
+    reject = {**accept, "id": accept["id"] + ".again", "version": "0.2.0", "decision": "reject"}
+    two = replace(records, research_reviews=(accept, reject))
+    context = _Context(two, FIXED_CLOCK)
+    assert two.research is not None
+    harness = next(item for item in two.research["items"] if item["id"] == accept["item_id"])
+    verdict, state, review = _review_state(context, harness)
+    assert (verdict, state["word"]) == ("passed", "Accepted by reviewer")
+    assert review is accept
+
+
+def test_no_fixture_report_links_to_a_real_host(research: dict[str, ReportRecords]) -> None:
+    """U-6: a fixture snapshot's manifests point at the reserved host, so does the report."""
+
+    document = compose(research["candidate_selected"])
+    text = json.dumps(document)
+    assert "https://huggingface.co" not in text and "https://github.com" not in text
+    assert "https://fixture.invalid/" in text

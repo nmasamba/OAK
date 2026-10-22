@@ -75,7 +75,7 @@ documented flow uses it.
 | Code | Meaning | First raise site |
 |---|---|---|
 | `OAK-CASE-CONFLICT` | workspace contains a different design case | `src/oak/application/control_plane.py:144` |
-| `OAK-CASE-NOT-FOUND` | design case was not found; requested design case is not current; workspace has no design case | `src/oak/application/candidate_planning.py:793` |
+| `OAK-CASE-NOT-FOUND` | design case was not found; requested design case is not current; workspace has no design case | `src/oak/application/candidate_planning.py:796` |
 | `OAK-CASE-TRANSITION-DENIED` | *dynamic message* | `src/oak/domain/design_case.py:95` |
 | `OAK-CASE-VERSION` | case version is not a supported semantic version | `src/oak/domain/design_case.py:46` |
 | `OAK-CONFIRM-ANSWERS` | --answers is required | `src/oak/interfaces/cli/main.py:417` |
@@ -112,28 +112,28 @@ documented flow uses it.
 
 | Code | Meaning | First raise site |
 |---|---|---|
-| `OAK-ASSURE-CANDIDATE` | assurance candidate is not selected | `src/oak/application/candidate_planning.py:473` |
+| `OAK-ASSURE-CANDIDATE` | assurance candidate is not selected | `src/oak/application/candidate_planning.py:476` |
 | `OAK-ASSURE-OUTPUT` | --output is required | `src/oak/interfaces/cli/main.py:695` |
-| `OAK-ASSURE-STATE` | assurance requires candidate_selected state | `src/oak/application/candidate_planning.py:470` |
+| `OAK-ASSURE-STATE` | assurance requires candidate_selected state | `src/oak/application/candidate_planning.py:473` |
 | `OAK-CANDIDATE-NOT-FOUND` | candidate is not part of this design case | `src/oak/application/architecture.py:40` |
 | `OAK-CANDIDATES-STATE` | candidates require a case that is ready for candidates; candidates require every model-proposed value to be confirmed, corrected or rejected first | `src/oak/application/candidate_planning.py:170` |
-| `OAK-EVALUATE-STATE` | candidate evaluation requires candidates_ready state | `src/oak/application/candidate_planning.py:336` |
-| `OAK-EVALUATION-EXISTS` | candidate already has an immutable evaluation; retry with the original key | `src/oak/application/candidate_planning.py:341` |
-| `OAK-EVALUATION-NOT-FOUND` | candidate has no evaluation result | `src/oak/application/candidate_planning.py:741` |
-| `OAK-PLAN-CANDIDATE` | plan candidate is not selected | `src/oak/application/candidate_planning.py:577` |
+| `OAK-EVALUATE-STATE` | candidate evaluation requires candidates_ready state | `src/oak/application/candidate_planning.py:339` |
+| `OAK-EVALUATION-EXISTS` | candidate already has an immutable evaluation; retry with the original key | `src/oak/application/candidate_planning.py:344` |
+| `OAK-EVALUATION-NOT-FOUND` | candidate has no evaluation result | `src/oak/application/candidate_planning.py:744` |
+| `OAK-PLAN-CANDIDATE` | plan candidate is not selected | `src/oak/application/candidate_planning.py:580` |
 | `OAK-PLAN-INPUT` | --target and --output are required; target profile is malformed | `src/oak/interfaces/cli/main.py:766` |
-| `OAK-PLAN-STATE` | plan compilation requires assurance_planned state | `src/oak/application/candidate_planning.py:574` |
+| `OAK-PLAN-STATE` | plan compilation requires assurance_planned state | `src/oak/application/candidate_planning.py:577` |
 | `OAK-PLAN-TARGET` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/cli/main.py:811` |
-| `OAK-SELECT-EVALUATION` | candidate evaluation must pass before selection | `src/oak/application/candidate_planning.py:410` |
-| `OAK-SELECT-INFEASIBLE` | an infeasible candidate cannot be selected | `src/oak/application/candidate_planning.py:406` |
-| `OAK-SELECT-RATIONALE` | --rationale-file is required; selection rationale is required and bounded | `src/oak/application/candidate_planning.py:382` |
-| `OAK-SELECT-STATE` | selection requires candidates_ready state | `src/oak/application/candidate_planning.py:402` |
-| `OAK-TARGET-CAPABILITY` | target does not allow every required read-only planning operation | `src/oak/application/candidate_planning.py:564` |
+| `OAK-SELECT-EVALUATION` | candidate evaluation must pass before selection | `src/oak/application/candidate_planning.py:413` |
+| `OAK-SELECT-INFEASIBLE` | an infeasible candidate cannot be selected | `src/oak/application/candidate_planning.py:409` |
+| `OAK-SELECT-RATIONALE` | --rationale-file is required; selection rationale is required and bounded | `src/oak/application/candidate_planning.py:385` |
+| `OAK-SELECT-STATE` | selection requires candidates_ready state | `src/oak/application/candidate_planning.py:405` |
+| `OAK-TARGET-CAPABILITY` | target does not allow every required read-only planning operation | `src/oak/application/candidate_planning.py:567` |
 | `OAK-TARGET-EXECUTION` | execution.container_image_reference and container_image_digest are superseded; declare execution.component_images, one acknowledged image per component; mutation-capable target profile is missing its execution block (some dynamic) | `src/oak/compiler/planning.py:524` |
 | `OAK-TARGET-INCOMPATIBLE` | *dynamic message* | `src/oak/compiler/planning.py:628` |
 | `OAK-TARGET-INVALID` | target profile failed bounded validation | `src/oak/adapters/targets/local_profile.py:51` |
 | `OAK-TARGET-PATH` | target profile must be a regular file | `src/oak/adapters/targets/local_profile.py:24` |
-| `OAK-TARGET-TENANT` | target tenant does not match the command authority | `src/oak/application/candidate_planning.py:558` |
+| `OAK-TARGET-TENANT` | target tenant does not match the command authority | `src/oak/application/candidate_planning.py:561` |
 
 ### Catalogue (30)
 
@@ -144,21 +144,21 @@ documented flow uses it.
 | `OAK-CAT-EVIDENCE-STALE` | *reason or mapping code; carries no fixed message* | `src/oak/domain/catalogue_rules.py:33` |
 | `OAK-CAT-EVIDENCE-UNDIGESTED` | *reason or mapping code; carries no fixed message* | `src/oak/domain/catalogue_rules.py:46` |
 | `OAK-CAT-KNOWN-VULNERABILITY` | *reason or mapping code; carries no fixed message* | `src/oak/compiler/catalogue.py:28` |
-| `OAK-CAT-RESEARCH-ARCHIVED` | *reason or mapping code; carries no fixed message* | `src/oak/domain/research_rules.py:68` |
-| `OAK-CAT-RESEARCH-CAPABILITY` | *reason or mapping code; carries no fixed message* | `src/oak/domain/research_rules.py:74` |
-| `OAK-CAT-RESEARCH-DISABLED` | *reason or mapping code; carries no fixed message* | `src/oak/domain/research_rules.py:69` |
-| `OAK-CAT-RESEARCH-FORBIDDEN-WORD` | *reason or mapping code; carries no fixed message* | `src/oak/domain/research_rules.py:77` |
-| `OAK-CAT-RESEARCH-FUTURE` | *reason or mapping code; carries no fixed message* | `src/oak/domain/research_rules.py:72` |
-| `OAK-CAT-RESEARCH-GATED` | *reason or mapping code; carries no fixed message* | `src/oak/domain/research_rules.py:67` |
-| `OAK-CAT-RESEARCH-LICENCE-BLOCKED` | *reason or mapping code; carries no fixed message* | `src/oak/domain/research_rules.py:66` |
-| `OAK-CAT-RESEARCH-LICENCE-UNLISTED` | *reason or mapping code; carries no fixed message* | `src/oak/domain/research_rules.py:65` |
-| `OAK-CAT-RESEARCH-MALFORMED` | *reason or mapping code; carries no fixed message* | `src/oak/domain/research_rules.py:78` |
-| `OAK-CAT-RESEARCH-REJECTED` | *reason or mapping code; carries no fixed message* | `src/oak/domain/research_rules.py:76` |
-| `OAK-CAT-RESEARCH-STALE` | *reason or mapping code; carries no fixed message* | `src/oak/domain/research_rules.py:71` |
-| `OAK-CAT-RESEARCH-UNDATED` | *reason or mapping code; carries no fixed message* | `src/oak/domain/research_rules.py:70` |
-| `OAK-CAT-RESEARCH-UNDIGESTED` | *reason or mapping code; carries no fixed message* | `src/oak/domain/research_rules.py:73` |
-| `OAK-CAT-RESEARCH-UNREACHABLE` | *reason or mapping code; carries no fixed message* | `src/oak/domain/research_rules.py:79` |
-| `OAK-CAT-RESEARCH-UNVETTED` | *reason or mapping code; carries no fixed message* | `src/oak/domain/research_rules.py:75` |
+| `OAK-CAT-RESEARCH-ARCHIVED` | *reason or mapping code; carries no fixed message* | `src/oak/domain/research_rules.py:71` |
+| `OAK-CAT-RESEARCH-CAPABILITY` | *reason or mapping code; carries no fixed message* | `src/oak/domain/research_rules.py:77` |
+| `OAK-CAT-RESEARCH-DISABLED` | *reason or mapping code; carries no fixed message* | `src/oak/domain/research_rules.py:72` |
+| `OAK-CAT-RESEARCH-FORBIDDEN-WORD` | *reason or mapping code; carries no fixed message* | `src/oak/domain/research_rules.py:80` |
+| `OAK-CAT-RESEARCH-FUTURE` | *reason or mapping code; carries no fixed message* | `src/oak/domain/research_rules.py:75` |
+| `OAK-CAT-RESEARCH-GATED` | *reason or mapping code; carries no fixed message* | `src/oak/domain/research_rules.py:70` |
+| `OAK-CAT-RESEARCH-LICENCE-BLOCKED` | *reason or mapping code; carries no fixed message* | `src/oak/domain/research_rules.py:69` |
+| `OAK-CAT-RESEARCH-LICENCE-UNLISTED` | *reason or mapping code; carries no fixed message* | `src/oak/domain/research_rules.py:68` |
+| `OAK-CAT-RESEARCH-MALFORMED` | *reason or mapping code; carries no fixed message* | `src/oak/domain/research_rules.py:81` |
+| `OAK-CAT-RESEARCH-REJECTED` | *reason or mapping code; carries no fixed message* | `src/oak/domain/research_rules.py:79` |
+| `OAK-CAT-RESEARCH-STALE` | *reason or mapping code; carries no fixed message* | `src/oak/domain/research_rules.py:74` |
+| `OAK-CAT-RESEARCH-UNDATED` | *reason or mapping code; carries no fixed message* | `src/oak/domain/research_rules.py:73` |
+| `OAK-CAT-RESEARCH-UNDIGESTED` | *reason or mapping code; carries no fixed message* | `src/oak/domain/research_rules.py:76` |
+| `OAK-CAT-RESEARCH-UNREACHABLE` | *reason or mapping code; carries no fixed message* | `src/oak/domain/research_rules.py:82` |
+| `OAK-CAT-RESEARCH-UNVETTED` | *reason or mapping code; carries no fixed message* | `src/oak/domain/research_rules.py:78` |
 | `OAK-CAT-STATUS-NOT-ELIGIBLE` | *reason or mapping code; carries no fixed message* | `src/oak/domain/catalogue_rules.py:29` |
 | `OAK-CAT-TRANSITIVE-LICENCE-UNRESOLVED` | *reason or mapping code; carries no fixed message* | `src/oak/domain/catalogue_rules.py:37` |
 | `OAK-CATALOGUE-COUNT` | catalogue contains too many documents | `src/oak/adapters/catalogue/local_catalogue.py:37` |
@@ -329,12 +329,12 @@ documented flow uses it.
 | `OAK-OPERATION-DOCUMENT` | operation candidate is invalid; operation consent is invalid; operation document is invalid; and 2 more (some dynamic) | `src/oak/adapters/persistence/operations.py:561` |
 | `OAK-OPERATION-ERROR-CODE` | operation error code is invalid | `src/oak/adapters/persistence/operations.py:568` |
 | `OAK-OPERATION-FAILED` | the remote operation failed | `src/oak/application/operations.py:196` |
-| `OAK-OPERATION-KIND` | operation kind is not supported | `src/oak/application/control_plane.py:567` |
+| `OAK-OPERATION-KIND` | operation kind is not supported | `src/oak/application/control_plane.py:569` |
 | `OAK-OPERATION-LEASE` | heartbeat lease must extend into the future; operation lease must expire after claim time | `src/oak/adapters/persistence/operations.py:188` |
 | `OAK-OPERATION-LEASE-LOST` | operation lease is no longer current | `src/oak/adapters/persistence/operations.py:470` |
 | `OAK-OPERATION-NOT-CANCELLING` | operation has no cancellation request | `src/oak/adapters/persistence/operations.py:399` |
 | `OAK-OPERATION-NOT-FOUND` | operation was not found | `src/oak/adapters/persistence/operations.py:481` |
-| `OAK-OPERATION-SCOPE` | operation workspace does not match its case | `src/oak/application/control_plane.py:549` |
+| `OAK-OPERATION-SCOPE` | operation workspace does not match its case | `src/oak/application/control_plane.py:551` |
 | `OAK-OPERATION-SIZE` | *dynamic message* | `src/oak/adapters/persistence/operations.py:563` |
 | `OAK-OPERATION-UNSAFE-FIELD` | operation request contains a prohibited execution field | `src/oak/application/operations.py:135` |
 | `OAK-OUTBOX-CONSUMER-FAILED` | *reason or mapping code; carries no fixed message* | `src/oak/application/operations.py:268` |
@@ -343,7 +343,7 @@ documented flow uses it.
 | `OAK-OUTBOX-LEASE` | outbox lease must expire after claim time | `src/oak/adapters/persistence/outbox.py:48` |
 | `OAK-OUTBOX-LEASE-LOST` | outbox delivery lease is no longer current | `src/oak/adapters/persistence/outbox.py:110` |
 | `OAK-OUTBOX-LIMIT` | outbox claim limit must be between 1 and 100 | `src/oak/adapters/persistence/outbox.py:44` |
-| `OAK-OUTBOX-UNAVAILABLE` | outbox observation is unavailable | `src/oak/application/control_plane.py:518` |
+| `OAK-OUTBOX-UNAVAILABLE` | outbox observation is unavailable | `src/oak/application/control_plane.py:520` |
 | `OAK-PROJECTION-NAME` | projection name is invalid | `src/oak/adapters/persistence/outbox.py:152` |
 | `OAK-WORKER-CONFIG` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/worker.py:53` |
 
@@ -363,7 +363,7 @@ documented flow uses it.
 | `OAK-MODEL-CONFIGURATION-FILE` | *reason or mapping code; carries no fixed message* | `src/oak/adapters/credentials/configuration_store.py:17` |
 | `OAK-MODEL-CREDENTIAL-SOURCE` | --store must be auto, keychain, file, or env; the credential source must be keychain, file, or env; this family has no documented environment variable; store the key in the keychain or file backend instead (some dynamic) | `src/oak/adapters/credentials/environment_reference.py:24` |
 | `OAK-MODEL-DISCOVERY-UNAVAILABLE` | model discovery is not available in this build; select a model identifier directly; the Hugging Face catalogue did not answer within its deadline; the provider's model list could not be read (some dynamic) | `src/oak/adapters/models/huggingface_catalogue.py:133` |
-| `OAK-MODEL-EGRESS-DENIED` | only https is spoken to a provider (plain http only to a loopback address); the request destination is not on the provider's fixed host allowlist | `src/oak/adapters/models/research_sources.py:211` |
+| `OAK-MODEL-EGRESS-DENIED` | only https is spoken to a provider (plain http only to a loopback address); the request destination is not on the provider's fixed host allowlist | `src/oak/adapters/models/research_sources.py:222` |
 | `OAK-MODEL-ENDPOINT-INVALID` | OAK_MODEL_ENDPOINT_LOCAL is not a usable URL; OAK_MODEL_ENDPOINT_LOCAL must be an http(s) URL on a loopback address (for example http://127.0.0.1:11434/v1) with no credentials in it | `src/oak/adapters/models/providers.py:229` |
 | `OAK-MODEL-FAMILY-REQUIRED` | *dynamic message* | `src/oak/interfaces/cli/main.py:2067` |
 | `OAK-MODEL-FAMILY-UNKNOWN` | *dynamic message* | `src/oak/adapters/models/providers.py:271` |
@@ -402,7 +402,7 @@ documented flow uses it.
 | Code | Meaning | First raise site |
 |---|---|---|
 | `OAK-ACTOR-DENIED` | local actor is not authorized | `src/oak/interfaces/api/app.py:115` |
-| `OAK-CORRELATION-ID` | correlation ID must contain at least 8 characters; correlation id must contain at least 8 characters | `src/oak/application/candidate_planning.py:826` |
+| `OAK-CORRELATION-ID` | correlation ID must contain at least 8 characters; correlation id must contain at least 8 characters | `src/oak/application/candidate_planning.py:829` |
 | `OAK-DIRECTORY-UNAVAILABLE` | design-case directory is unavailable | `src/oak/application/control_plane.py:155` |
 | `OAK-EXPECTED-VERSION` | expected case version does not match current version (some dynamic) | `src/oak/adapters/persistence/file_workspace.py:505` |
 | `OAK-IDEMPOTENCY-CONFLICT` | idempotency key was already used for different input; idempotency key was already used for different operation input; import destination contains different canonical state | `src/oak/adapters/persistence/file_workspace.py:218` |
@@ -430,7 +430,7 @@ documented flow uses it.
 | `OAK-CONFIRM` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/cli/main.py:2357` |
 | `OAK-CONTRACT-INVALID` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/cli/main.py:2485` |
 | `OAK-CURSOR-INVALID` | pagination cursor is invalid | `src/oak/interfaces/api/app.py:438` |
-| `OAK-DEPENDENCY-MISSING` | case has no recorded policy decision; rendering requires a compiled bundle; rendering requires a semantic manifest; and 2 more (some dynamic) | `src/oak/application/candidate_planning.py:804` |
+| `OAK-DEPENDENCY-MISSING` | case has no recorded policy decision; rendering requires a compiled bundle; rendering requires a semantic manifest; and 2 more (some dynamic) | `src/oak/application/candidate_planning.py:807` |
 | `OAK-HTTP-ERROR` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/api/app.py:637` |
 | `OAK-INPUT-INVALID` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/cli/main.py:2489` |
 | `OAK-INT-CONTRADICTION-PRODUCTION-DATA` | *reason or mapping code; carries no fixed message* | `src/oak/compiler/interpretation.py:586` |
@@ -461,22 +461,22 @@ documented flow uses it.
 | `OAK-REPORT-RENDER` | no PDF report renderer is configured; the report document could not be drawn; this renderer writes PDF only | `src/oak/adapters/report/pdf.py:1132` |
 | `OAK-REPORT-SIZE` | the rendered report exceeds 4 MiB | `src/oak/adapters/report/pdf.py:1138` |
 | `OAK-REPORT-STATE` | *dynamic message* | `src/oak/application/report/service.py:156` |
-| `OAK-RESEARCH-BUDGET` | *reason or mapping code; carries no fixed message* | `src/oak/adapters/models/research_sources.py:160` |
+| `OAK-RESEARCH-BUDGET` | *reason or mapping code; carries no fixed message* | `src/oak/adapters/models/research_sources.py:175` |
 | `OAK-RESEARCH-CONSENT` | the consent does not name the hosts and terms this research would send; read the plan again and consent to what it shows; the research source changed since the plan | `src/oak/application/research.py:150` |
 | `OAK-RESEARCH-FIXTURE` | a research fixture exceeds its size limit; a research fixture is not a regular file | `src/oak/adapters/models/research_fixture.py:103` |
-| `OAK-RESEARCH-ITEM-STATE` | only an item that needs a review can be reviewed; a passed or failed item keeps the verdict the gates gave it | `src/oak/application/research.py:317` |
+| `OAK-RESEARCH-ITEM-STATE` | only an item that needs a review can be reviewed; a passed or failed item keeps the verdict the gates gave it; this item is already reviewed against this research snapshot; one decision is recorded per item per run, so run research again to review it afresh | `src/oak/application/research.py:317` |
 | `OAK-RESEARCH-ITEM-UNKNOWN` | the snapshot holds no such item | `src/oak/application/research.py:315` |
 | `OAK-RESEARCH-MISSING` | the case holds no research snapshot; the case holds no research snapshot to review | `src/oak/application/research.py:311` |
-| `OAK-RESEARCH-OVERSIZED` | *reason or mapping code; carries no fixed message* | `src/oak/adapters/models/research_sources.py:207` |
-| `OAK-RESEARCH-RATE-LIMITED` | *reason or mapping code; carries no fixed message* | `src/oak/adapters/models/research_sources.py:223` |
-| `OAK-RESEARCH-REDIRECTED` | *reason or mapping code; carries no fixed message* | `src/oak/adapters/models/research_sources.py:201` |
+| `OAK-RESEARCH-OVERSIZED` | *reason or mapping code; carries no fixed message* | `src/oak/adapters/models/research_sources.py:226` |
+| `OAK-RESEARCH-RATE-LIMITED` | *reason or mapping code; carries no fixed message* | `src/oak/adapters/models/research_sources.py:240` |
+| `OAK-RESEARCH-REDIRECTED` | *reason or mapping code; carries no fixed message* | `src/oak/adapters/models/research_sources.py:219` |
 | `OAK-RESEARCH-REVIEW-DECISION` | a review is accept or reject | `src/oak/application/research.py:270` |
 | `OAK-RESEARCH-REVIEW-RATIONALE` | a review needs a rationale | `src/oak/application/research.py:272` |
 | `OAK-RESEARCH-REVIEW-SIZE` | *dynamic message* | `src/oak/application/research.py:274` |
 | `OAK-RESEARCH-REVIEW-STATE` | a research item is reviewed only while the case is ready for candidates | `src/oak/application/research.py:299` |
 | `OAK-RESEARCH-STATE` | research runs only while the case is ready for candidates; once candidates exist the recorded design is kept as it is; the case holds no interpreted intent yet | `src/oak/application/research.py:159` |
-| `OAK-RESEARCH-UNAVAILABLE` | research is not configured on this server | `src/oak/application/control_plane.py:636` |
-| `OAK-RESEARCH-UNREACHABLE` | *reason or mapping code; carries no fixed message* | `src/oak/adapters/models/research_sources.py:182` |
+| `OAK-RESEARCH-UNAVAILABLE` | research is not configured on this server | `src/oak/application/control_plane.py:643` |
+| `OAK-RESEARCH-UNREACHABLE` | *reason or mapping code; carries no fixed message* | `src/oak/adapters/models/research_sources.py:197` |
 | `OAK-RESEARCH-USAGE` | a review needs --rationale-file <file>; use exactly one of --accept or --reject; use exactly one of --plan or --consent <digest> | `src/oak/interfaces/cli/main.py:1461` |
 | `OAK-RESEARCH-VOCABULARY` | freshness window must be 1 to 365 days; hardware classes have no fallback; no research binding yields a capability; and 8 more (some dynamic) | `src/oak/adapters/catalogue/research_vocabulary.py:50` |
 | `OAK-REVOCATION-REASON` | revocation requires a reason | `src/oak/application/release.py:285` |

@@ -548,8 +548,9 @@ means:
   needs your recorded review, and that review is your judgement, not OAK's
   ([`RR-051`](docs/security/residual-risk.md)). The search is anonymous and shares a public
   rate limit, so it can fail on a busy address ([`RR-050`](docs/security/residual-risk.md)).
-  It runs once per case, only when you consent to the exact hosts and terms it shows, and
-  the default path stays offline; [research.md](docs/research.md) has the whole picture.
+  It runs only before candidates exist and each time you consent to the exact hosts and
+  terms it shows, and the default path stays offline; [research.md](docs/research.md) has
+  the whole picture.
 
 The complete, numbered list of what isn't defended is
 [security/residual-risk.md](docs/security/residual-risk.md), and progress is tracked in

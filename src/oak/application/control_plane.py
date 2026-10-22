@@ -439,8 +439,9 @@ class CommunityControlPlane:
 
         workspace_id = self._workspace_id(case_id)
         service = self._research_service(workspace_id, context.tenant_id)
-        case = service.check_state()
-        self._verify_case(case_id, case)
+        # The documented order (ADR-0018): the capability token (the route's dependency),
+        # the consent against the recomputed plan, the idempotent replay and the version,
+        # then the status, exactly as :generate-candidates handles its own checks.
         service.check_consent(consent)
         return self._submit(
             kind="research_catalogue",
@@ -453,6 +454,7 @@ class CommunityControlPlane:
             },
             context=context,
             max_attempts=1,
+            check=service.check_state,
         )
 
     def review_research_item(
@@ -574,6 +576,7 @@ class CommunityControlPlane:
         request: dict[str, Any],
         context: CommandContext,
         max_attempts: int = 3,
+        check: Callable[[], Any] | None = None,
     ) -> OperationSubmission:
         workspace_id = self._workspace_id(case_id)
         repository = self._repository_factory(workspace_id, context.tenant_id)
@@ -587,6 +590,10 @@ class CommunityControlPlane:
                     "expected case version does not match current version",
                     retriable=True,
                 )
+            if check is not None:
+                # A kind-specific check (the research status) runs after the version check
+                # and never ahead of an idempotent replay.
+                check()
 
         return self._operation_service_factory(context.tenant_id).submit(
             kind=kind,

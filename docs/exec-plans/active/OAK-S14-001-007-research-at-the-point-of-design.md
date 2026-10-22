@@ -549,7 +549,38 @@ Each milestone ends with one commit, its exit check green and a line under Progr
   a picture); the figure shows the chips, both items, the harness's claims with their
   evidence words and the review form, as its caption says. Thirteen `shoot` calls, thirteen
   figures. The manual PDF rebuilt with the pinned Chromium (`build_manual.mjs`).
-- [ ] M8 — closing review, gates, PR.
+- [ ] M8 — closing review, gates, PR. 2026-10-22: the closing review ran as one workflow
+  of four agents (three finders — egress and the data boundary, untrusted input and the
+  supply chain, determinism and honest claims — reporting to one refute-by-default
+  skeptic): 21 findings raised, merged to 18, 15 confirmed and 3 refuted; every survivor
+  is fixed with a test (the table below). `make audit` lifted Pillow 12.3.0 → 13.0.0,
+  certifi 2026.7.22 → 2026.10.19 and vite 7.3.6 → 7.3.7 (no new dependency). The hand-run
+  live check (`OAK_LIVE_RESEARCH_TESTS=1`, `tests/live/test_research_live.py`) passed
+  against the three hosts in twelve seconds. The gates and the PR are recorded below when
+  they finish.
+
+## Closing review
+
+| Id | Lens | Finding | Verdict | What changed |
+|---|---|---|---|---|
+| E-1 (= U-3) | egress; untrusted | A transport-level refusal of one harness's release read (redirect, oversized page, timeout, rate limit) aborted the whole run | confirmed, medium | `_Requester.read(per_item=True)` for the releases and tag-commit reads records the refusal and returns `None`; the harness is unreachable and the run goes on. Test: `test_a_refused_release_read_fails_that_harness_alone_and_the_run_goes_on` |
+| E-2 (= D-2) | egress; determinism | Items, claims, manifest evidence and the router measurement built from a cached answer said `cached: false` and were stamped with the run's time | confirmed, medium | Every parsed fact carries the stamp of the record that produced it (`last_stamp`); claims, evidence, `measured_at`, the item's `checked_at` and `cached` follow it; the pairing claim keeps the release page's time. Test: `test_a_fact_built_from_a_cached_answer_keeps_the_time_that_answer_was_fetched` |
+| E-3 | egress | The persistent control plane imported the research readers and the transport at startup | confirmed, low | Bootstrap hands the services the cache *factory*; `ResearchService` resolves it on the first live run. Test: `test_the_persistent_control_plane_starts_without_the_research_readers` |
+| E-4 | egress | The REST route checked the status before the consent and before the idempotent replay | confirmed, low | `submit_research` checks the consent, then `_submit` replays or checks the version, then the status (`check=`). Test: `test_a_replay_after_generation_is_a_duplicate_and_a_bad_consent_is_named_first` |
+| E-5 | egress | The cache's window runs on the monotonic clock, which pauses with the host | refuted | A TTL on a monotonic clock is the right clock; the request record keeps the wall-clock fetch time |
+| U-1 | untrusted | The displayable text class admitted any Unicode letter, so a confusable letter defeated the forbidden-word check | confirmed, medium | `normalise_text` admits ASCII letters and digits plus the fixed marks. Tests: `test_the_displayable_class_is_ascii_so_a_confusable_letter_is_refused`, `test_a_confusable_letter_never_reaches_a_claim` |
+| D-1 (= U-2) | determinism; untrusted | A second review of the same item was accepted, and the compiler, the web and the report disagreed on which governs | confirmed, high | `ResearchService.review` refuses a second review of an item against the same snapshot (`OAK-RESEARCH-ITEM-STATE`); the compiler reads the first bound review, as the page and the report do. Tests: `test_a_second_review_of_the_same_item_is_refused_so_one_decision_governs`, `test_the_first_review_bound_to_an_item_governs_everywhere` |
+| U-4 | untrusted | A huge safetensors parameter count overflowed the weight floor and crashed the run | confirmed, medium | `MAXIMUM_PARAMETER_COUNT` (10^15): a larger count gives no floor and no parameters claim, with its reason. Tests: `test_a_parameter_count_outside_the_supported_range_gives_no_floor`, `test_a_huge_parameter_count_leaves_the_floor_unknown_and_never_crashes` |
+| U-5 | untrusted | `manifest_slug` folded `_`, `-` and case, so two repositories shared one manifest id | confirmed, medium | `_one_manifest_per_id`: the later item is listed by digest as malformed (the lookalike signal) and gets no manifest. Test: `test_two_source_ids_that_fold_to_one_manifest_id_give_one_manifest` |
+| U-6 | untrusted | Fixture-mode manifests and the report linked to `huggingface.co` and `github.com` for synthetic items | confirmed, low | A fixture run names `https://fixture.invalid/<id>` (RFC 2606) in every page address; S1 allows the reserved host. Tests: `test_a_fixture_run_names_no_real_host_anywhere_it_writes`, `test_no_link_in_a_fixture_research_report_names_a_real_host`, `test_no_fixture_report_links_to_a_real_host` |
+| U-7 | untrusted | An ordinary-word family token pairs with any note that uses the word | refuted | The rule works as ADR-0018 records it; the pairing is labelled by its class |
+| U-8 | untrusted | Manifest ids carry author-chosen names onto main slides | refuted | The plan's M6 decision: the ids are allowlist-normalised identifiers checked for forbidden words |
+| U-9 | untrusted | The hardware class and weight floor were computed but never compared | confirmed, low | `_weight_floor_shortfall`: a floor above the declared RAM (or VRAM with an accelerator) fails the hardware constraint, naming the floor. Test: `test_a_weight_floor_above_the_declared_memory_fails_the_hardware_constraint` |
+| D-3 | determinism | The weight floor OAK computes read "published by source" | confirmed, low | The composer prints it as an estimate with `research-weight-floor-1.0.0` (synthetic on the fixture); R2 admits "estimated" from a research record only with its estimator. Test: `test_the_weight_floor_is_an_estimate_with_its_estimator_never_a_published_figure` |
+| D-4 | determinism | Security and data-locality constraints passed for a researched component on absent evidence | confirmed, medium | Both read `unknown` with "not published for <id>" for a researched manifest's empty external-call list or unknown air-gap suitability; the research golden moved accordingly. Test: `test_absent_evidence_is_unknown_for_a_researched_component_never_a_pass` |
+| D-5 | determinism | A researched design excluded by a failed constraint still said it was compared | confirmed, low | The classification is computed before the risks and read by them; the report's flag says "Not compared under …: <constraint> failed" and leads with the closed sentence so a long record never shortens it away. Tests: `test_a_researched_design_that_is_not_comparable_never_says_it_is_compared`, `test_a_non_comparable_researched_option_is_flagged_as_not_compared` |
+| D-6 | determinism | `_licence_reviews_pending` depended on the order of a design's manifests | confirmed, low | The shortfall is judged per item. Test: `test_the_licence_pending_rule_ignores_the_order_of_a_designs_manifests` |
+| D-7 | determinism | `docs/research.md` and `RR-048` named local-only terms as sent; the README said research runs once per case | confirmed, low | The documents say what `derive_research_terms` sends and that research runs before candidates exist, on each consent. Test: `tests/contract/test_research_docs.py` |
 
 ## Decisions
 
@@ -689,6 +720,14 @@ Each milestone ends with one commit, its exit check green and a line under Progr
 - 2026-10-22 M6, ruff drops an import it has not seen used yet. A patch that adds an import
   before the code that uses it, then runs `ruff check --fix`, loses the import; add both in
   one patch or fix after.
+- 2026-10-22 M8, `make audit`. Symptom: `pip-audit` named seven Pillow 12.3.0 advisories
+  (fixed in 13.0.0) and one certifi 2026.7.22 advisory (fixed in 2026.10.19); `pnpm audit`
+  named vite 7.3.6 (GHSA-587h-7wmj-h5pm, fixed in 7.3.7). Cause: environment, not product:
+  advisories published since Sprint 13's scan against transitive and build-time dependencies
+  (Pillow via reportlab, `RR-047`; certifi via the transport's TLS roots; vite is the web
+  build tool). Fix: `uv lock --upgrade-package pillow`, `… certifi`, vite pinned to 7.3.7,
+  no new dependency; `make audit` green, `make web-build` green; the throwaway stack is
+  rebuilt before the final browser run so the images carry the same locks.
 
 ## Self-review
 

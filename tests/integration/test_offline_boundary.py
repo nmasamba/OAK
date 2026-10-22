@@ -449,3 +449,33 @@ def test_a_deterministic_generation_never_imports_a_research_module() -> None:
         "oak.adapters.models.transport",
     ):
         assert module not in loaded, f"a deterministic generation loaded {module}"
+
+
+def test_the_persistent_control_plane_starts_without_the_research_readers() -> None:
+    """E-3: the API and the worker load the readers on the first consented live run, never at
+    start; the cache they share is handed over as a factory (ADR-0018)."""
+
+    program = "\n".join(
+        (
+            "import json, os, sys",
+            f"sys.path.insert(0, {str(ROOT)!r})",
+            "os.environ['OAK_DATABASE_URL'] = 'postgresql+psycopg://oak:oak@127.0.0.1:1/oak'",
+            "os.environ.pop('OAK_RESEARCH_FIXTURES', None)",
+            "from oak.bootstrap import create_persistent_control_plane",
+            "create_persistent_control_plane()",
+            "modules = sorted(n for n in sys.modules if n.startswith('oak.'))",
+            "print(json.dumps({'modules': modules}))",
+        )
+    )
+    completed = subprocess.run(
+        [sys.executable, "-c", program], capture_output=True, text=True, cwd=ROOT, check=False
+    )
+    assert completed.returncode == 0, completed.stderr[-3000:]
+    loaded = set(json.loads(completed.stdout.splitlines()[-1])["modules"])
+    assert "oak.application.research" in loaded
+    for module in (
+        "oak.adapters.models.research_sources",
+        "oak.adapters.models.research_fixture",
+        "oak.adapters.models.transport",
+    ):
+        assert module not in loaded, f"the persistent control plane imported {module}"

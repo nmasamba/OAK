@@ -513,3 +513,35 @@ def test_an_unresearched_case_still_gives_four_curated_candidates(tmp_path: Path
     ]
     assert result.catalogue_snapshot["id"] == "catalogue.community-fixture"
     assert all(RESEARCH_EXTENSION not in c["extensions"] for c in result.candidates)
+
+
+def test_a_second_review_of_the_same_item_is_refused_so_one_decision_governs(
+    tmp_path: Path,
+) -> None:
+    """D-1: one recorded decision per item per run; a changed mind is a new research run."""
+
+    source = _CountingSource()
+    repository = _ready_case(tmp_path)
+    service = _service(repository, source)
+    service.run(_context("research-run-00000001", "0.1.2"), consent=_consent(service))
+    service.review(
+        _context("research-review-000001", "0.1.3"),
+        item_id=HARNESS,
+        decision="accept",
+        rationale="Reviewed by hand.",
+    )
+    with pytest.raises(OAKError) as refused:
+        service.review(
+            _context("research-review-000002", "0.1.4"),
+            item_id=HARNESS,
+            decision="reject",
+            rationale="Changed my mind.",
+        )
+    assert refused.value.code == "OAK-RESEARCH-ITEM-STATE"
+    case = repository.current_case()
+    assert case is not None and case["version"] == "0.1.4"
+    assert len(case["extensions"][RESEARCH_REVIEW_REFS]) == 1
+    # The accepted harness enters the serving role, as every reader agrees.
+    result = _planning(repository).candidates(_context("research-generate-0001", "0.1.4"))
+    researched = next(c for c in result.candidates if c["id"] == "candidate-05")
+    assert researched["extensions"]["oak.community/research"]["harness_item_id"] == HARNESS

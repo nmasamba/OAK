@@ -377,3 +377,40 @@ def test_slugs_and_timestamps_are_bounded_and_canonical() -> None:
     assert as_timestamp("2026-10-19T09:00:00") is None
     assert as_timestamp("yesterday") is None
     assert as_timestamp(1234) is None
+
+
+# ----- the closing review's fixes (OAK-S14-007) ---------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "еnterprise",  # noqa: RUF001 - a Cyrillic ie, deliberately
+        "שלום 2026",  # Hebrew letters
+        "١٢٣",  # Arabic-Indic digits
+        "café",  # a Latin letter with a diacritic is outside the class too
+    ],
+)
+def test_the_displayable_class_is_ascii_so_a_confusable_letter_is_refused(value: str) -> None:
+    """U-1: the forbidden-word check matches Latin words; a lookalike from another script
+    must not slip past it onto a screen."""
+
+    from oak.domain.research_rules import normalise_text
+
+    assert normalise_text(value) is None
+    assert normalise_text("enterprise-grade") == "enterprise-grade"
+    assert normalise_text("Apache-2.0 text/plain v1.2+beta") == "Apache-2.0 text/plain v1.2+beta"
+
+
+@pytest.mark.parametrize("count", [10**16, 10**300, 10**400])
+def test_a_parameter_count_outside_the_supported_range_gives_no_floor(count: int) -> None:
+    """U-4: a count no model has never overflows the floor or reaches a claim."""
+
+    from oak.domain.research_rules import MAXIMUM_PARAMETER_COUNT, weight_floor_gib
+
+    assert count > MAXIMUM_PARAMETER_COUNT
+    floor, reason = weight_floor_gib({"F32": count})
+    assert floor is None and reason == "A parameter count is outside the supported range."
+    assert weight_floor_gib({"F32": MAXIMUM_PARAMETER_COUNT})[0] == round(
+        4 * MAXIMUM_PARAMETER_COUNT / 1024**3, 3
+    )

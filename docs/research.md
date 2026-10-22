@@ -1,8 +1,8 @@
 # Research at the point of design
 
-OAK can look for newer open models and harnesses for one design case, once, before its
-candidates are generated, and show what it finds as alternative designs beside the curated
-ones. This page says what research is, what leaves your machine, what comes back, and what
+OAK can look for newer open models and harnesses for one design case, only while its
+candidates are not yet generated and each time you consent, and show what it finds as
+alternative designs beside the curated ones. This page says what research is, what leaves your machine, what comes back, and what
 it will not do. The decision record is
 [ADR-0018](adr/architecture/0018-research-at-the-point-of-design.md).
 
@@ -26,7 +26,7 @@ cannot be selected this sprint.
 
 | Sent | To | Never sent |
 |---|---|---|
-| Search terms drawn from closed vocabularies: the capability keywords, the hardware class, the licence ids and the pipeline tags the confirmed intent maps to, plus a freshness window | `huggingface.co` (model listings), `router.huggingface.co` (live routes and published prices), `api.github.com` (repository search, releases, tag commits) | The brief, the intent, your answers, your Hugging Face token, any name from your organisation |
+| Search terms drawn from closed vocabularies: for the Hub, the pipeline tags, the filters, the sort order and the inference-provider flag; for GitHub, the topics per harness kind, the archived flag and the freshness window | `huggingface.co` (model listings), `router.huggingface.co` (live routes and published prices), `api.github.com` (repository search, releases, tag commits) | The brief, the intent, your answers, your Hugging Face token, any name from your organisation; the capability keywords, the hardware class and the licence ids, which are applied on this machine only |
 
 The plan is a read: `GET /v1/design-cases/{case_id}/research-plan` (or `oak research
 --plan`) returns the hosts, the terms and their digest. A run must consent to exactly

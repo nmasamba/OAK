@@ -269,3 +269,12 @@ def test_the_guards_are_run_over_every_recordable_step() -> None:
     reports = {stop: copy.deepcopy(_golden()) for stop in ("a", "b")}
     _section(reports["b"], "cover")["subtitle"] = "A certified decision."
     assert [failure.split()[1].split("/")[0] for failure in check_report.check(reports)] == ["b"]
+
+
+def test_no_link_in_a_fixture_research_report_names_a_real_host() -> None:
+    """U-6: the fixture source answers from files; nothing it produces may point at an
+    address anyone could register."""
+
+    text = json.dumps(_research_golden())
+    assert "https://huggingface.co" not in text and "https://github.com" not in text
+    assert "https://fixture.invalid/" in text

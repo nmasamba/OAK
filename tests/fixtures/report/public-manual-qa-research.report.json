@@ -1,6 +1,6 @@
 {
   "case_ref": {
-    "digest": "sha256:197d1ebb7703fc8f8fa2be83b01412d94e1f35e5cf5a81e0eeeda62a742e3c07",
+    "digest": "sha256:53ad9eb7903c368e9e611bda4621424f3da7d396e9b27c218267e70f1c02023a",
     "id": "design-case.public-manual-qa",
     "media_type": "application/vnd.oak.design-case+json",
     "uri": null,
@@ -14,7 +14,7 @@
   "id": "report.public-manual-qa.from-0.1.7",
   "inputs": [
     {
-      "digest": "sha256:197d1ebb7703fc8f8fa2be83b01412d94e1f35e5cf5a81e0eeeda62a742e3c07",
+      "digest": "sha256:53ad9eb7903c368e9e611bda4621424f3da7d396e9b27c218267e70f1c02023a",
       "id": "design-case.public-manual-qa",
       "kind": "design_case",
       "media_type": "application/vnd.oak.design-case+json",
@@ -28,42 +28,42 @@
       "version": "0.1.1"
     },
     {
-      "digest": "sha256:a4a51c802f45029dd6ff4b4327bef17930a17754556e982ad7def8596a4f8de5",
+      "digest": "sha256:2b2dabb164b11da5dbcad37b29b4c32c3d2da1a354c47915ca88b1075acbe0ac",
       "id": "candidate-00",
       "kind": "architecture_candidate",
       "media_type": "application/vnd.oak.architecture-candidate+json",
       "version": "0.1.0"
     },
     {
-      "digest": "sha256:3c95d356c80f5a57f25df8fa0d987061531b34897ae3afe2a223f5f7ab2a93a9",
+      "digest": "sha256:de8b349520de2bcdd2bed8b8cae83c389fee5920f8621cbcb9807bfb8fed4ab0",
       "id": "candidate-01",
       "kind": "architecture_candidate",
       "media_type": "application/vnd.oak.architecture-candidate+json",
       "version": "0.1.0"
     },
     {
-      "digest": "sha256:a43243b4791bc00adc0453d856b20fe382eaa54f95a15281a6084429bab6f614",
+      "digest": "sha256:b509b2d38cc52d373931f07b3c81d52220491b5e7f24e12e830b028ecb23d018",
       "id": "candidate-03",
       "kind": "architecture_candidate",
       "media_type": "application/vnd.oak.architecture-candidate+json",
       "version": "0.1.0"
     },
     {
-      "digest": "sha256:0e1b09b36e7a5af0285bb902a005abd205b5f36ff53d844302a6464036945ddd",
+      "digest": "sha256:8c71a482a2f333d91989879bc82a3f694b6e5f3a2f20338b9656d138dc9ff880",
       "id": "candidate-04",
       "kind": "architecture_candidate",
       "media_type": "application/vnd.oak.architecture-candidate+json",
       "version": "0.1.0"
     },
     {
-      "digest": "sha256:5849d91cb2da4a451dd53152c6c7914ea111e68bf04a09cf11a1debc0464c090",
+      "digest": "sha256:fb520840f9dcbd2e544d052c3db6636bc4253f6e2c7b908b48f49a5899a53d47",
       "id": "candidate-05",
       "kind": "architecture_candidate",
       "media_type": "application/vnd.oak.architecture-candidate+json",
       "version": "0.1.0"
     },
     {
-      "digest": "sha256:bed5ee810ce7901a824218d7e65b1b508b7470713d97c54a650ab492b1aa3f2c",
+      "digest": "sha256:4ae6db9a75b3000ec9c943ed8c0db1fd2a66941a5f41ad93b9ed71d2fd4ecac3",
       "id": "candidate-06",
       "kind": "architecture_candidate",
       "media_type": "application/vnd.oak.architecture-candidate+json",
@@ -119,49 +119,49 @@
       "version": "0.1.0"
     },
     {
-      "digest": "sha256:9621bbd88db491717eb82e187c52e5fb9647005bc6e8eb2a8017e08c678f8753",
+      "digest": "sha256:81e1a0ade64088670a03d6a9b1c6dced7b113442074f0d7529b5d38d049e4743",
       "id": "decision.candidate-03",
       "kind": "architecture_decision",
       "media_type": "application/vnd.oak.architecture-decision+json",
       "version": "0.1.0"
     },
     {
-      "digest": "sha256:2fd923ab541cc1409362b4aef2af5f690bd9e28584e800f028a16cbed10b642d",
+      "digest": "sha256:8b192152d8c4d792d70c5126ab8c30b247c6285399f8dc787d785db1ef6ca403",
       "id": "evaluation-result.candidate-03",
       "kind": "evaluation_result",
       "media_type": "application/vnd.oak.evaluation-result+json",
       "version": "0.1.0"
     },
     {
-      "digest": "sha256:5921a0c8ea9cedae88f86012dfa73c808eacea3cf8528db8ec908a8fb3342c7f",
+      "digest": "sha256:0a105190a9f4fe3ebc559d2c82102ee930e7e49132c810afb9bce8e32fe5d048",
       "id": "catalogue.research.public-manual-qa",
       "kind": "catalogue_snapshot",
       "media_type": "application/vnd.oak.catalogue-snapshot+json",
       "version": "0.1.0"
     },
     {
-      "digest": "sha256:73229e1eaefefe5d1c3bd75a5f4da9fce0952d4e93508005a385acb713b12eae",
+      "digest": "sha256:1525a412c1f1b6085b152dffcc787f3a9f34f48d884d3874362f801381e98c91",
       "id": "research.public-manual-qa",
       "kind": "research_snapshot",
       "media_type": "application/vnd.oak.research-snapshot+json",
       "version": "0.1.0"
     },
     {
-      "digest": "sha256:78e16b4a17a6f4fbb8593ad7748c250eeca7adaedebdb4b55cee09099f49012e",
+      "digest": "sha256:12c7aacc2819b8005356c26b2f51fbc994931fe6b7beee7b665ae150746829b3",
       "id": "component.research.hub.huggingfacetb.fixturelm-4b.run-1",
       "kind": "component_manifest",
       "media_type": "application/vnd.oak.component-manifest+json",
       "version": "0123456789ab"
     },
     {
-      "digest": "sha256:162734621ad3f60582d439d18f851b2659aff1ddd4e9bd19746d109c5c59962d",
+      "digest": "sha256:f4dd52bed7e825277058c440acdcdad276fcedbc5da9311a85c693a1fd25e9b8",
       "id": "component.research.github.fixture-forge.fixturelm-serve.run-1",
       "kind": "component_manifest",
       "media_type": "application/vnd.oak.component-manifest+json",
       "version": "v0.9.0"
     },
     {
-      "digest": "sha256:6bba57734310b6773d57c42997600d90780a6e72dcf870b5473f69bbb0442190",
+      "digest": "sha256:70a470b9dde5b05e6bd7a8c8ed44ca72017a7c6de3b3d07efe21bf9016c47861",
       "id": "research-review.public-manual-qa.github.fixture-forge.fixturelm-serve",
       "kind": "research_review",
       "media_type": "application/vnd.oak.research-review+json",
@@ -1003,7 +1003,7 @@
                   "type": "text"
                 },
                 {
-                  "reason": "constraint.hardware: Minimum resources are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.; constraint.deployment: Deployment modes are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.; constraint.licence: A component licence or transitive review is pending.; constraint.compatibility: Interfaces, operating systems or CPU architectures are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.; Compared under community-compare-only-1.0.0, never selectable this sprint; not compared on energy, latency p95, monthly cost, operability and quality.",
+                  "reason": "Compared under community-compare-only-1.0.0, never selectable this sprint; not compared on energy, latency p95, monthly cost, operability and quality.; constraint.hardware: Minimum resources are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.; constraint.deployment: Deployment modes are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.; constraint.security: Runtime external calls are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.; constraint.licence: A component licence or transitive review is pending.; constraint.data-locality: Air-gap suitability is not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.hug \u2026 (shortened; the full text is in the record named in the source)",
                   "status": "infeasible",
                   "type": "status",
                   "word": "Infeasible"
@@ -1017,7 +1017,9 @@
                   "items": [
                     "constraint.hardware: Minimum resources are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.",
                     "constraint.deployment: Deployment modes are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.",
+                    "constraint.security: Runtime external calls are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.",
                     "constraint.licence: A component licence or transitive review is pending.",
+                    "constraint.data-locality: Air-gap suitability is not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.",
                     "constraint.compatibility: Interfaces, operating systems or CPU architectures are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1."
                   ],
                   "mark": null,
@@ -1034,7 +1036,7 @@
                   "type": "text"
                 },
                 {
-                  "reason": "constraint.hardware: Minimum resources are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.; constraint.deployment: Deployment modes are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.; constraint.licence: A component licence or transitive review is pending.; constraint.compatibility: Interfaces, operating systems or CPU architectures are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.; Compared under community-compare-only-1.0.0, never selectable this sprint; not compared on energy, latency p95, monthly cost, operability and quality.",
+                  "reason": "Compared under community-compare-only-1.0.0, never selectable this sprint; not compared on energy, latency p95, monthly cost, operability and quality.; constraint.hardware: Minimum resources are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.; constraint.deployment: Deployment modes are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.; constraint.security: Runtime external calls are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.; constraint.licence: A component licence or transitive review is pending.; constraint.data-locality: Air-gap suitability is not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.hug \u2026 (shortened; the full text is in the record named in the source)",
                   "status": "infeasible",
                   "type": "status",
                   "word": "Infeasible"
@@ -1048,7 +1050,9 @@
                   "items": [
                     "constraint.hardware: Minimum resources are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.",
                     "constraint.deployment: Deployment modes are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.",
+                    "constraint.security: Runtime external calls are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.",
                     "constraint.licence: A component licence or transitive review is pending.",
+                    "constraint.data-locality: Air-gap suitability is not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.",
                     "constraint.compatibility: Interfaces, operating systems or CPU architectures are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1."
                   ],
                   "mark": null,
@@ -1259,16 +1263,16 @@
                   "word": "pass"
                 },
                 {
-                  "reason": null,
-                  "status": "pass",
+                  "reason": "Runtime external calls are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.",
+                  "status": "unknown",
                   "type": "status",
-                  "word": "pass"
+                  "word": "unknown"
                 },
                 {
-                  "reason": null,
-                  "status": "pass",
+                  "reason": "Runtime external calls are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.",
+                  "status": "unknown",
                   "type": "status",
-                  "word": "pass"
+                  "word": "unknown"
                 }
               ],
               "source": "candidate-00@0.1.0#/hard_constraints/3"
@@ -1351,16 +1355,16 @@
                   "word": "pass"
                 },
                 {
-                  "reason": null,
-                  "status": "pass",
+                  "reason": "Air-gap suitability is not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.",
+                  "status": "unknown",
                   "type": "status",
-                  "word": "pass"
+                  "word": "unknown"
                 },
                 {
-                  "reason": null,
-                  "status": "pass",
+                  "reason": "Air-gap suitability is not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.",
+                  "status": "unknown",
                   "type": "status",
-                  "word": "pass"
+                  "word": "unknown"
                 }
               ],
               "source": "candidate-00@0.1.0#/hard_constraints/5"
@@ -2340,13 +2344,13 @@
                   "word": "Infeasible"
                 },
                 {
-                  "reason": "constraint.hardware: Minimum resources are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.; constraint.deployment: Deployment modes are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.; constraint.licence: A component licence or transitive review is pending.; constraint.compatibility: Interfaces, operating systems or CPU architectures are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.; Compared under community-compare-only-1.0.0, never selectable this sprint; not compared on energy, latency p95, monthly cost, operability and quality.",
+                  "reason": "Compared under community-compare-only-1.0.0, never selectable this sprint; not compared on energy, latency p95, monthly cost, operability and quality.; constraint.hardware: Minimum resources are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.; constraint.deployment: Deployment modes are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.; constraint.security: Runtime external calls are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.; constraint.licence: A component licence or transitive review is pending.; constraint.data-locality: Air-gap suitability is not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.hug \u2026 (shortened; the full text is in the record named in the source)",
                   "status": "infeasible",
                   "type": "status",
                   "word": "Infeasible"
                 },
                 {
-                  "reason": "constraint.hardware: Minimum resources are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.; constraint.deployment: Deployment modes are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.; constraint.licence: A component licence or transitive review is pending.; constraint.compatibility: Interfaces, operating systems or CPU architectures are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.; Compared under community-compare-only-1.0.0, never selectable this sprint; not compared on energy, latency p95, monthly cost, operability and quality.",
+                  "reason": "Compared under community-compare-only-1.0.0, never selectable this sprint; not compared on energy, latency p95, monthly cost, operability and quality.; constraint.hardware: Minimum resources are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.; constraint.deployment: Deployment modes are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.; constraint.security: Runtime external calls are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.; constraint.licence: A component licence or transitive review is pending.; constraint.data-locality: Air-gap suitability is not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.hug \u2026 (shortened; the full text is in the record named in the source)",
                   "status": "infeasible",
                   "type": "status",
                   "word": "Infeasible"
@@ -2704,7 +2708,7 @@
                 },
                 {
                   "mark": null,
-                  "text": "constraint.hardware: Minimum resources are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.; constraint.deployment: Deployment modes are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.; constraint.licence: A component licence or transitive review is pending.; constraint.compatibility: Interfaces, operating systems or CPU architectures are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.",
+                  "text": "constraint.hardware: Minimum resources are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.; constraint.deployment: Deployment modes are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.; constraint.security: Runtime external calls are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.; constraint.licence: A component licence or transitive review is pending.; constraint.data-locality: Air-gap suitability is not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.; constraint.compatibility: Interfaces, operating systems or CPU architectures are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.",
                   "type": "text"
                 }
               ],
@@ -2719,7 +2723,7 @@
                 },
                 {
                   "mark": null,
-                  "text": "constraint.hardware: Minimum resources are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.; constraint.deployment: Deployment modes are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.; constraint.licence: A component licence or transitive review is pending.; constraint.compatibility: Interfaces, operating systems or CPU architectures are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.",
+                  "text": "constraint.hardware: Minimum resources are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.; constraint.deployment: Deployment modes are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.; constraint.security: Runtime external calls are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.; constraint.licence: A component licence or transitive review is pending.; constraint.data-locality: Air-gap suitability is not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.; constraint.compatibility: Interfaces, operating systems or CPU architectures are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.",
                   "type": "text"
                 }
               ],
@@ -4686,7 +4690,7 @@
               "label": "Flag",
               "source": "candidate-05@0.1.0#/pareto",
               "value": {
-                "reason": "constraint.hardware: Minimum resources are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.; constraint.deployment: Deployment modes are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.; constraint.licence: A component licence or transitive review is pending.; constraint.compatibility: Interfaces, operating systems or CPU architectures are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.; Compared under community-compare-only-1.0.0, never selectable this sprint; not compared on energy, latency p95, monthly cost, operability and quality.",
+                "reason": "Compared under community-compare-only-1.0.0, never selectable this sprint; not compared on energy, latency p95, monthly cost, operability and quality.; constraint.hardware: Minimum resources are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.; constraint.deployment: Deployment modes are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.; constraint.security: Runtime external calls are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.; constraint.licence: A component licence or transitive review is pending.; constraint.data-locality: Air-gap suitability is not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.hug \u2026 (shortened; the full text is in the record named in the source)",
                 "status": "infeasible",
                 "type": "status",
                 "word": "Infeasible"
@@ -4726,10 +4730,10 @@
               "label": "Security",
               "source": "candidate-05@0.1.0#/hard_constraints/3",
               "value": {
-                "reason": null,
-                "status": "pass",
+                "reason": "Runtime external calls are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.",
+                "status": "unknown",
                 "type": "status",
-                "word": "pass"
+                "word": "unknown"
               }
             },
             {
@@ -4746,10 +4750,10 @@
               "label": "Data locality",
               "source": "candidate-05@0.1.0#/hard_constraints/5",
               "value": {
-                "reason": null,
-                "status": "pass",
+                "reason": "Air-gap suitability is not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.",
+                "status": "unknown",
                 "type": "status",
-                "word": "pass"
+                "word": "unknown"
               }
             },
             {
@@ -4837,7 +4841,7 @@
               "label": "Flag",
               "source": "candidate-06@0.1.0#/pareto",
               "value": {
-                "reason": "constraint.hardware: Minimum resources are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.; constraint.deployment: Deployment modes are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.; constraint.licence: A component licence or transitive review is pending.; constraint.compatibility: Interfaces, operating systems or CPU architectures are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.; Compared under community-compare-only-1.0.0, never selectable this sprint; not compared on energy, latency p95, monthly cost, operability and quality.",
+                "reason": "Compared under community-compare-only-1.0.0, never selectable this sprint; not compared on energy, latency p95, monthly cost, operability and quality.; constraint.hardware: Minimum resources are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.; constraint.deployment: Deployment modes are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.; constraint.security: Runtime external calls are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.; constraint.licence: A component licence or transitive review is pending.; constraint.data-locality: Air-gap suitability is not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.hug \u2026 (shortened; the full text is in the record named in the source)",
                 "status": "infeasible",
                 "type": "status",
                 "word": "Infeasible"
@@ -4877,10 +4881,10 @@
               "label": "Security",
               "source": "candidate-06@0.1.0#/hard_constraints/3",
               "value": {
-                "reason": null,
-                "status": "pass",
+                "reason": "Runtime external calls are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.",
+                "status": "unknown",
                 "type": "status",
-                "word": "pass"
+                "word": "unknown"
               }
             },
             {
@@ -4897,10 +4901,10 @@
               "label": "Data locality",
               "source": "candidate-06@0.1.0#/hard_constraints/5",
               "value": {
-                "reason": null,
-                "status": "pass",
+                "reason": "Air-gap suitability is not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.",
+                "status": "unknown",
                 "type": "status",
-                "word": "pass"
+                "word": "unknown"
               }
             },
             {
@@ -5029,8 +5033,8 @@
                   "candidate-00: Retained as a visible feasible trade-off but not selected by the owner.",
                   "candidate-01: Retained as a visible feasible trade-off but not selected by the owner.",
                   "candidate-04: constraint.hardware: Required accelerator compatibility is unconfirmed.",
-                  "candidate-05: constraint.hardware: Minimum resources are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.; constraint.deployment: Deployment modes are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.; constraint.licence: A component licence or transitive review is pending.; constraint.compatibility: Interfaces, operating systems or CPU architectures are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.",
-                  "candidate-06: constraint.hardware: Minimum resources are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.; constraint.deployment: Deployment modes are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.; constraint.licence: A component licence or transitive review is pending.; constraint.compatibility: Interfaces, operating systems or CPU architectures are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1."
+                  "candidate-05: constraint.hardware: Minimum resources are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.; constraint.deployment: Deployment modes are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.; constraint.security: Runtime external calls are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.; constraint.licence: A component licence or transitive review is pending.; constraint.data-locality: Air-gap suitability is not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.; constraint.compatibility: Interfaces, operating systems or CPU architectures are not published for compone \u2026 (shortened; the full text is in the record named in the source)",
+                  "candidate-06: constraint.hardware: Minimum resources are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.; constraint.deployment: Deployment modes are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.; constraint.security: Runtime external calls are not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.; constraint.licence: A component licence or transitive review is pending.; constraint.data-locality: Air-gap suitability is not published for component.research.github.fixture-forge.fixturelm-serve.run-1, component.research.hub.huggingfacetb.fixturelm-4b.run-1.; constraint.compatibility: Interfaces, operating systems or CPU architectures are not published for compone \u2026 (shortened; the full text is in the record named in the source)"
                 ],
                 "mark": null,
                 "type": "list"
@@ -5041,10 +5045,10 @@
               "source": "decision.candidate-03@0.1.0#/dependency_digests",
               "value": {
                 "items": [
-                  "sha256:2fd923ab541cc1409362b4aef2af5f690bd9e28584e800f028a16cbed10b642d",
-                  "sha256:5921a0c8ea9cedae88f86012dfa73c808eacea3cf8528db8ec908a8fb3342c7f",
+                  "sha256:0a105190a9f4fe3ebc559d2c82102ee930e7e49132c810afb9bce8e32fe5d048",
+                  "sha256:8b192152d8c4d792d70c5126ab8c30b247c6285399f8dc787d785db1ef6ca403",
                   "sha256:8e3ae58092a9f1ce476391555f6023ca37cfd64c5769d33910cc374ac317fc97",
-                  "sha256:a43243b4791bc00adc0453d856b20fe382eaa54f95a15281a6084429bab6f614"
+                  "sha256:b509b2d38cc52d373931f07b3c81d52220491b5e7f24e12e830b028ecb23d018"
                 ],
                 "mark": null,
                 "type": "list"
@@ -6177,7 +6181,7 @@
                 },
                 {
                   "mark": null,
-                  "text": "https://github.com/fixture-forge/fixturelm-serve",
+                  "text": "https://fixture.invalid/fixture-forge/fixturelm-serve",
                   "type": "text"
                 },
                 {
@@ -6225,7 +6229,7 @@
                 },
                 {
                   "mark": null,
-                  "text": "https://github.com/fixture-forge/fixturelm-serve",
+                  "text": "https://fixture.invalid/fixture-forge/fixturelm-serve",
                   "type": "text"
                 },
                 {
@@ -6273,7 +6277,7 @@
                 },
                 {
                   "mark": null,
-                  "text": "https://huggingface.co/HuggingFaceTB/Fixturelm-4B",
+                  "text": "https://fixture.invalid/HuggingFaceTB/Fixturelm-4B",
                   "type": "text"
                 },
                 {
@@ -6321,7 +6325,7 @@
                 },
                 {
                   "mark": null,
-                  "text": "https://huggingface.co/HuggingFaceTB/Fixturelm-4B",
+                  "text": "https://fixture.invalid/HuggingFaceTB/Fixturelm-4B",
                   "type": "text"
                 },
                 {
@@ -6369,7 +6373,7 @@
                 },
                 {
                   "mark": null,
-                  "text": "https://huggingface.co/HuggingFaceTB/Fixturelm-4B",
+                  "text": "https://fixture.invalid/HuggingFaceTB/Fixturelm-4B",
                   "type": "text"
                 },
                 {
@@ -6417,7 +6421,7 @@
                 },
                 {
                   "mark": null,
-                  "text": "https://huggingface.co/HuggingFaceTB/Fixturelm-4B",
+                  "text": "https://fixture.invalid/HuggingFaceTB/Fixturelm-4B",
                   "type": "text"
                 },
                 {
@@ -6615,7 +6619,7 @@
                 },
                 {
                   "mark": null,
-                  "text": "sha256:197d1ebb7703fc8f8fa2be83b01412d94e1f35e5cf5a81e0eeeda62a742e3c07",
+                  "text": "sha256:53ad9eb7903c368e9e611bda4621424f3da7d396e9b27c218267e70f1c02023a",
                   "type": "text"
                 }
               ],
@@ -6665,7 +6669,7 @@
                 },
                 {
                   "mark": null,
-                  "text": "sha256:a4a51c802f45029dd6ff4b4327bef17930a17754556e982ad7def8596a4f8de5",
+                  "text": "sha256:2b2dabb164b11da5dbcad37b29b4c32c3d2da1a354c47915ca88b1075acbe0ac",
                   "type": "text"
                 }
               ],
@@ -6690,7 +6694,7 @@
                 },
                 {
                   "mark": null,
-                  "text": "sha256:3c95d356c80f5a57f25df8fa0d987061531b34897ae3afe2a223f5f7ab2a93a9",
+                  "text": "sha256:de8b349520de2bcdd2bed8b8cae83c389fee5920f8621cbcb9807bfb8fed4ab0",
                   "type": "text"
                 }
               ],
@@ -6715,7 +6719,7 @@
                 },
                 {
                   "mark": null,
-                  "text": "sha256:a43243b4791bc00adc0453d856b20fe382eaa54f95a15281a6084429bab6f614",
+                  "text": "sha256:b509b2d38cc52d373931f07b3c81d52220491b5e7f24e12e830b028ecb23d018",
                   "type": "text"
                 }
               ],
@@ -6740,7 +6744,7 @@
                 },
                 {
                   "mark": null,
-                  "text": "sha256:0e1b09b36e7a5af0285bb902a005abd205b5f36ff53d844302a6464036945ddd",
+                  "text": "sha256:8c71a482a2f333d91989879bc82a3f694b6e5f3a2f20338b9656d138dc9ff880",
                   "type": "text"
                 }
               ],
@@ -6765,7 +6769,7 @@
                 },
                 {
                   "mark": null,
-                  "text": "sha256:5849d91cb2da4a451dd53152c6c7914ea111e68bf04a09cf11a1debc0464c090",
+                  "text": "sha256:fb520840f9dcbd2e544d052c3db6636bc4253f6e2c7b908b48f49a5899a53d47",
                   "type": "text"
                 }
               ],
@@ -6790,7 +6794,7 @@
                 },
                 {
                   "mark": null,
-                  "text": "sha256:bed5ee810ce7901a824218d7e65b1b508b7470713d97c54a650ab492b1aa3f2c",
+                  "text": "sha256:4ae6db9a75b3000ec9c943ed8c0db1fd2a66941a5f41ad93b9ed71d2fd4ecac3",
                   "type": "text"
                 }
               ],
@@ -6990,7 +6994,7 @@
                 },
                 {
                   "mark": null,
-                  "text": "sha256:9621bbd88db491717eb82e187c52e5fb9647005bc6e8eb2a8017e08c678f8753",
+                  "text": "sha256:81e1a0ade64088670a03d6a9b1c6dced7b113442074f0d7529b5d38d049e4743",
                   "type": "text"
                 }
               ],
@@ -7015,7 +7019,7 @@
                 },
                 {
                   "mark": null,
-                  "text": "sha256:2fd923ab541cc1409362b4aef2af5f690bd9e28584e800f028a16cbed10b642d",
+                  "text": "sha256:8b192152d8c4d792d70c5126ab8c30b247c6285399f8dc787d785db1ef6ca403",
                   "type": "text"
                 }
               ],
@@ -7040,7 +7044,7 @@
                 },
                 {
                   "mark": null,
-                  "text": "sha256:5921a0c8ea9cedae88f86012dfa73c808eacea3cf8528db8ec908a8fb3342c7f",
+                  "text": "sha256:0a105190a9f4fe3ebc559d2c82102ee930e7e49132c810afb9bce8e32fe5d048",
                   "type": "text"
                 }
               ],
@@ -7065,7 +7069,7 @@
                 },
                 {
                   "mark": null,
-                  "text": "sha256:73229e1eaefefe5d1c3bd75a5f4da9fce0952d4e93508005a385acb713b12eae",
+                  "text": "sha256:1525a412c1f1b6085b152dffcc787f3a9f34f48d884d3874362f801381e98c91",
                   "type": "text"
                 }
               ],
@@ -7090,7 +7094,7 @@
                 },
                 {
                   "mark": null,
-                  "text": "sha256:78e16b4a17a6f4fbb8593ad7748c250eeca7adaedebdb4b55cee09099f49012e",
+                  "text": "sha256:12c7aacc2819b8005356c26b2f51fbc994931fe6b7beee7b665ae150746829b3",
                   "type": "text"
                 }
               ],
@@ -7115,7 +7119,7 @@
                 },
                 {
                   "mark": null,
-                  "text": "sha256:162734621ad3f60582d439d18f851b2659aff1ddd4e9bd19746d109c5c59962d",
+                  "text": "sha256:f4dd52bed7e825277058c440acdcdad276fcedbc5da9311a85c693a1fd25e9b8",
                   "type": "text"
                 }
               ],
@@ -7140,7 +7144,7 @@
                 },
                 {
                   "mark": null,
-                  "text": "sha256:6bba57734310b6773d57c42997600d90780a6e72dcf870b5473f69bbb0442190",
+                  "text": "sha256:70a470b9dde5b05e6bd7a8c8ed44ca72017a7c6de3b3d07efe21bf9016c47861",
                   "type": "text"
                 }
               ],
@@ -7647,7 +7651,7 @@
                 {
                   "basis": "synthetic estimate",
                   "confidence": null,
-                  "estimator": "fixture-research-source",
+                  "estimator": "research-weight-floor-1.0.0",
                   "lower": null,
                   "short": "7.45",
                   "source": "research.public-manual-qa@0.1.0#/items/0/claims/7/value",

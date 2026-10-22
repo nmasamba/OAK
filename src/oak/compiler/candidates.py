@@ -174,6 +174,13 @@ def generate_candidates(
             if item["result"] in {"fail", "unknown"}
         ]
         pattern_ref = pattern_artifacts[pattern_id].reference
+        comparison = (
+            classify_comparison(
+                constraints, [manifest for _requirement, _artifact, manifest in components]
+            )
+            if research is not None
+            else None
+        )
         document: dict[str, Any] = {
             "schema_version": "0.3.0",
             "id": candidate_id,
@@ -211,7 +218,12 @@ def generate_candidates(
                 if variant == "simpler_baseline"
                 else []
             ),
-            "risks": _risks(variant, feasible, researched=research is not None),
+            "risks": _risks(
+                variant,
+                feasible,
+                researched=research is not None,
+                comparable=comparison is None or bool(comparison["comparable"]),
+            ),
             "operational_requirements": [
                 "Operate without runtime egress and retain the public source digest."
             ],
@@ -233,12 +245,9 @@ def generate_candidates(
                 ),
             },
         }
-        if research is not None:
-            manifests = [manifest for _requirement, _artifact, manifest in components]
+        if research is not None and comparison is not None:
             document["extensions"][RESEARCH_EXTENSION] = research
-            document["extensions"][COMPARISON_EXTENSION] = classify_comparison(
-                constraints, manifests
-            )
+            document["extensions"][COMPARISON_EXTENSION] = comparison
         documents.append(document)
 
     _apply_pareto(documents)
@@ -320,9 +329,42 @@ def _constraint(
     }
 
 
+def _weight_floor_shortfall(
+    hardware: dict[str, Any], manifests: list[dict[str, Any]]
+) -> str | None:
+    """A researched model whose estimated weight floor exceeds the declared memory.
+
+    The floor is a lower bound on the bytes the weights occupy (ADR-0018), so exceeding
+    the memory the intent declares is sufficient to fail; a floor within it says nothing.
+    """
+
+    accelerators = hardware.get("accelerators")
+    memory = (
+        hardware.get("vram_gib")
+        if isinstance(accelerators, list) and accelerators
+        else hardware.get("ram_gib")
+    )
+    if isinstance(memory, bool) or not isinstance(memory, (int, float)):
+        return None
+    for item in manifests:
+        research = (item.get("extensions") or {}).get(RESEARCH_EXTENSION) or {}
+        floor = research.get("weight_floor_gib")
+        if isinstance(floor, bool) or not isinstance(floor, (int, float)):
+            continue
+        if float(floor) > float(memory):
+            return (
+                f"The estimated weight floor of {float(floor):g} GiB for {item['id']} exceeds "
+                f"the declared {float(memory):g} GiB of memory."
+            )
+    return None
+
+
 def _hardware_constraint(
     hardware: dict[str, Any], manifests: list[dict[str, Any]]
 ) -> dict[str, Any]:
+    shortfall = _weight_floor_shortfall(hardware, manifests)
+    if shortfall is not None:
+        return _constraint("constraint.hardware", "fail", shortfall, ["OAK-FR-ARC-002"])
     unpublished = _unpublished_minimums(manifests)
     required_ram = max(
         float(item["targets"]["minimum_resources"].get("ram_gib", 0)) for item in manifests
@@ -396,8 +438,20 @@ def _security_constraint(
 ) -> dict[str, Any]:
     del security
     external_calls = [call for item in manifests for call in item["deployment"]["external_calls"]]
+    unpublished = sorted(
+        str(item["id"])
+        for item in manifests
+        if _is_researched(item) and not item["deployment"]["external_calls"]
+    )
     if external_calls:
         result, reason = "fail", "A component requires runtime external calls."
+    elif unpublished:
+        # A researched manifest's empty list is the honest value for "nobody published
+        # it", not a declaration that there are none (ADR-0018).
+        result, reason = (
+            "unknown",
+            f"Runtime external calls are not published for {', '.join(unpublished)}.",
+        )
     else:
         result, reason = "pass", "No component requires runtime external calls."
     return _constraint("constraint.security", result, reason, ["OAK-NFR-SEC-003"])
@@ -431,6 +485,23 @@ def _locality_constraint(data: dict[str, Any], manifests: list[dict[str, Any]]) 
         result, reason = "fail", "The synthetic catalogue is eligible only for public fixture data."
     elif any(item["deployment"]["air_gap_suitability"] == "unsupported" for item in manifests):
         result, reason = "fail", "A component cannot satisfy local data handling."
+    elif any(
+        _is_researched(item) and item["deployment"]["air_gap_suitability"] == "unknown"
+        for item in manifests
+    ):
+        result, reason = (
+            "unknown",
+            "Air-gap suitability is not published for "
+            + ", ".join(
+                sorted(
+                    str(item["id"])
+                    for item in manifests
+                    if _is_researched(item)
+                    and item["deployment"]["air_gap_suitability"] == "unknown"
+                )
+            )
+            + ".",
+        )
     else:
         result, reason = "pass", "Public fixture data remains on the local target."
     return _constraint("constraint.data-locality", result, reason, ["OAK-FR-ARC-002"])
@@ -494,6 +565,7 @@ def _licence_reviews_pending(manifests: list[dict[str, Any]]) -> bool:
 
     shortfall = False
     for item in manifests:
+        item_shortfall = False
         licensing = item["licensing"]
         if item["availability_class"] not in {
             "osi_open_source_software",
@@ -513,13 +585,15 @@ def _licence_reviews_pending(manifests: list[dict[str, Any]]) -> bool:
             }:
                 return False
             if licensing[domain]["review_status"] == "pending":
-                shortfall = True
+                item_shortfall = True
         if licensing["transitive_review"] == "pending" or item["availability_class"] == "unknown":
-            shortfall = True
-        if shortfall and not _is_researched(item):
+            item_shortfall = True
+        if item_shortfall and not _is_researched(item):
             # Only a researched manifest may stand on a pending review; a curated one
-            # passes the curated rules or is ineligible.
+            # passes the curated rules or is ineligible. Judged per item, so the answer
+            # does not depend on the order a pattern lists its roles in.
             return False
+        shortfall = shortfall or item_shortfall
     return shortfall
 
 
@@ -784,11 +858,18 @@ def _dominates(left: dict[str, Any], right: dict[str, Any]) -> bool:
     return weakly_better and strictly_better
 
 
-def _risks(variant: str, feasible: bool, *, researched: bool = False) -> list[str]:
-    if researched:
+def _risks(
+    variant: str, feasible: bool, *, researched: bool = False, comparable: bool = True
+) -> list[str]:
+    if researched and comparable:
         return [
             "This design is researched: its licence reviews are pending and the figures its "
             "sources do not publish are unknown, so it is compared but cannot be selected."
+        ]
+    if researched:
+        return [
+            "This design is researched and a hard constraint failed, so it is not compared "
+            "and cannot be selected."
         ]
     if not feasible:
         return ["The candidate is blocked and cannot be selected or compiled."]

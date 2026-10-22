@@ -491,7 +491,11 @@ _RESEARCH_CACHE: Any = None
 
 
 def research_cache() -> Any:
-    """The worker's in-memory research cache, created on first use (24 hours, by terms)."""
+    """The worker's in-memory research cache, created on first use (24 hours, by terms).
+
+    Handed to the services as a factory: the reader it imports loads on the first
+    consented live run, never when the API or the worker starts (ADR-0018).
+    """
 
     global _RESEARCH_CACHE
     if _RESEARCH_CACHE is None:
@@ -520,7 +524,7 @@ def create_research_service(workspace: Path) -> ResearchService:
         source_factory=lambda occurred_at: create_research_source(occurred_at=occurred_at),
         source_mode=research_source_mode,
         runner=research_runner,
-        cache=research_cache(),
+        cache=research_cache,
     )
 
 
@@ -880,7 +884,7 @@ def create_persistent_control_plane() -> CommunityControlPlane:
         research_source_factory=lambda occurred_at: create_research_source(occurred_at=occurred_at),
         research_source_mode=research_source_mode,
         research_runner=research_runner,
-        research_cache=research_cache(),
+        research_cache=research_cache,
     )
 
 

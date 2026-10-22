@@ -91,6 +91,9 @@ RESEARCH_SOURCE = "research."
 RESEARCH_BASES = frozenset(
     {"published by source", "measured by source", "synthetic estimate", "counted"}
 )
+# OAK's own estimate from a source's published figures (the weight floor) reads
+# "estimated" and must name its estimator; it is never what the source published.
+RESEARCH_ESTIMATE = "estimated"
 CLAIM_POINTER = re.compile(r"#/items/\d+/claims/\d+$")
 
 
@@ -116,9 +119,9 @@ def guard_r2_numbers(document: dict[str, Any], label: str) -> list[str]:
                 )
             if not SOURCE.match(str(value.get("source") or "")):
                 failures.append(f"R2 {label}{path}: quantity has no source")
-            if (
-                str(value.get("source") or "").startswith(RESEARCH_SOURCE)
-                and value.get("basis") not in RESEARCH_BASES
+            if str(value.get("source") or "").startswith(RESEARCH_SOURCE) and not (
+                value.get("basis") in RESEARCH_BASES
+                or (value.get("basis") == RESEARCH_ESTIMATE and value.get("estimator"))
             ):
                 failures.append(
                     f"R2 {label}{path}: a figure from a research record is labelled "

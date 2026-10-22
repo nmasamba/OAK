@@ -56,9 +56,11 @@ def _reference(identifier: str, media_type: str) -> ArtifactReference:
     )
 
 
-def _candidate_documents(documents: CatalogueDocuments) -> list[dict[str, object]]:
+def _candidate_documents(
+    documents: CatalogueDocuments, intent: dict[str, object] | None = None
+) -> list[dict[str, object]]:
     registry = _registry()
-    intent = _intent()
+    intent = intent if intent is not None else _intent()
     catalogue = compile_catalogue(
         documents.manifests, documents.patterns, registry, created_at=FIXED_TIME
     )
@@ -503,3 +505,112 @@ def test_a_researched_component_with_nothing_published_yields_unknowns_never_zer
     for identifier in ("candidate-00", "candidate-01", "candidate-04"):
         assert by_id[identifier]["objectives"] == reference[identifier]["objectives"]
         assert by_id[identifier]["hard_constraints"] == reference[identifier]["hard_constraints"]
+
+
+# ----- the closing review's fixes (OAK-S14-007) ---------------------------------------------
+
+
+def _researched_pair() -> tuple[list[dict[str, object]], dict[str, object]]:
+    """The fixture manifests with the local model researched, and that researched model."""
+
+    documents = _documents()
+    manifests = [copy.deepcopy(item) for item in documents.manifests]
+    model = next(item for item in manifests if item["id"] == "component.fixture-local-model")
+    researched = _researched(model)
+    manifests[manifests.index(model)] = researched
+    return manifests, researched
+
+
+def test_a_weight_floor_above_the_declared_memory_fails_the_hardware_constraint() -> None:
+    """U-9: the floor is a lower bound, so exceeding the declared memory is enough to fail;
+    a floor within it says nothing and the constraint keeps its other answer."""
+
+    from oak.compiler.candidates import _hardware_constraint
+
+    manifests, researched = _researched_pair()
+    research = researched["extensions"]["oak.community/research"]  # type: ignore[index]
+    assert isinstance(research, dict)
+    research["weight_floor_gib"] = 745.0
+    hardware = {"cpu_architectures": ["x86_64"], "ram_gib": 32, "storage_gib": 100}
+    failed = _hardware_constraint(hardware, manifests)
+    assert failed["result"] == "fail"
+    assert failed["reason"] == (
+        "The estimated weight floor of 745 GiB for component.fixture-local-model exceeds the "
+        "declared 32 GiB of memory."
+    )
+    research["weight_floor_gib"] = 2.0
+    assert _hardware_constraint(hardware, manifests)["result"] != "fail"
+    # With an accelerator declared, the accelerator's memory is the one compared (the
+    # fixture GPU model is left out so its own accelerator requirement does not decide).
+    plain = [item for item in manifests if item["id"] != "component.fixture-high-assurance-model"]
+    research["weight_floor_gib"] = 40.0
+    accelerated = {**hardware, "accelerators": ["cuda"], "vram_gib": 24}
+    assert _hardware_constraint(accelerated, plain)["result"] == "fail"
+    assert _hardware_constraint({**accelerated, "vram_gib": 48}, plain)["result"] != "fail"
+
+
+def test_absent_evidence_is_unknown_for_a_researched_component_never_a_pass() -> None:
+    """D-4: a researched manifest's empty external-call list and unknown air-gap suitability
+    are "nobody published it", so security and data locality read unknown with the reason."""
+
+    from oak.compiler.candidates import _locality_constraint, _security_constraint
+
+    manifests, researched = _researched_pair()
+    deployment = researched["deployment"]
+    assert isinstance(deployment, dict)
+    deployment["external_calls"] = []
+    deployment["air_gap_suitability"] = "unknown"
+    security = _security_constraint({}, manifests)
+    assert security["result"] == "unknown"
+    assert security["reason"] == (
+        "Runtime external calls are not published for component.fixture-local-model."
+    )
+    locality = _locality_constraint({"classifications": ["public"]}, manifests)
+    assert locality["result"] == "unknown"
+    assert locality["reason"] == (
+        "Air-gap suitability is not published for component.fixture-local-model."
+    )
+    curated = [item for item in manifests if item is not researched]
+    assert _security_constraint({}, curated)["result"] == "pass"
+    assert _locality_constraint({"classifications": ["public"]}, curated)["result"] == "pass"
+
+
+def test_a_researched_design_that_is_not_comparable_never_says_it_is_compared() -> None:
+    """D-5: the risk sentence reads the classification; an excluded design says so."""
+
+    from oak.compiler.candidates import _risks
+
+    compared = _risks("balanced_enterprise", False, researched=True, comparable=True)
+    excluded = _risks("balanced_enterprise", False, researched=True, comparable=False)
+    assert compared == [
+        "This design is researched: its licence reviews are pending and the figures its "
+        "sources do not publish are unknown, so it is compared but cannot be selected."
+    ]
+    assert excluded == [
+        "This design is researched and a hard constraint failed, so it is not compared and "
+        "cannot be selected."
+    ]
+    from oak.compiler.candidates import classify_comparison
+
+    manifests, _researched_model = _researched_pair()
+    constraints = [
+        _constraint("constraint.licence", "fail"),
+        _constraint("constraint.data-locality", "fail"),
+    ]
+    comparison = classify_comparison(constraints, manifests)
+    assert comparison["comparable"] is False
+    assert comparison["failed"] == ["constraint.data-locality"]
+    assert comparison["pending_review"] == ["constraint.licence"]
+
+
+def test_the_licence_pending_rule_ignores_the_order_of_a_designs_manifests() -> None:
+    """D-6: a curated role before or after the researched one gives the same answer."""
+
+    from oak.compiler.candidates import _licence_reviews_pending, classify_comparison
+
+    manifests, _ = _researched_pair()
+    forward, backward = manifests, list(reversed(manifests))
+    assert _licence_reviews_pending(forward) is True
+    assert _licence_reviews_pending(backward) is True
+    constraints = [_constraint("constraint.licence", "fail")]
+    assert classify_comparison(constraints, forward) == classify_comparison(constraints, backward)

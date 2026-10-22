@@ -50,6 +50,8 @@ from oak.domain.vocabulary import forbidden_words  # noqa: E402
 
 EXPECTED_HOSTS = frozenset({"huggingface.co", "router.huggingface.co", "api.github.com"})
 PAGE_HOSTS = frozenset({"github.com", "huggingface.co"})
+# The reserved host (RFC 2606) a fixture run names in place of a real page address.
+FIXTURE_HOST = "fixture.invalid"
 FIXED_CLOCK = "2026-10-20T12:00:00Z"
 FIXTURES = ROOT / "tests/fixtures/research/live"
 PLACEHOLDERS = frozenset(
@@ -78,7 +80,12 @@ def check_s1() -> list[str]:
         host = match.group(1)
         # Page addresses in a manifest (`https://github.com/<repo>`) are records, never
         # requests; every request goes through the transport, whose allowlist S1 pins below.
-        if host.startswith("{") or host in EXPECTED_HOSTS or host in PAGE_HOSTS:
+        if (
+            host.startswith("{")
+            or host in EXPECTED_HOSTS
+            or host in PAGE_HOSTS
+            or host == FIXTURE_HOST
+        ):
             continue
         failures.append(f"S1 research_sources.py builds an address for {host!r}")
     for node in ast.walk(ast.parse(source)):

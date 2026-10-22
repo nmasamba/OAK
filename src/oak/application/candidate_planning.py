@@ -283,7 +283,10 @@ class CandidatePlanningService:
                 ArtifactReference.from_document(review_ref)
             )
             if review.get("snapshot_ref", {}).get("digest") == reference.get("digest"):
-                reviews[str(review["item_id"])] = str(review["decision"])
+                # The service records one decision per item per snapshot; should an older
+                # workspace hold two, the first bound review governs here, on the case page
+                # and in the report alike.
+                reviews.setdefault(str(review["item_id"]), str(review["decision"]))
         verdicts = effective_verdicts(snapshot, reviews)
         manifests: dict[str, dict[str, Any]] = {}
         for item in snapshot["items"]:

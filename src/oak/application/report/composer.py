@@ -43,6 +43,7 @@ from oak.application.report.labels import (
 )
 from oak.application.report.topology import layout_topology
 from oak.domain.research import EVIDENCE_WORDS
+from oak.domain.research_rules import WEIGHT_FLOOR_ESTIMATOR
 
 COMPOSER_VERSION = "oak-report-composer-1.0.0"
 SCHEMA_VERSION = "0.1.0"
@@ -482,16 +483,26 @@ class _Context:
         if candidate.get("status") == "infeasible":
             reasons = list(candidate.get("rejection_reasons") or [])
             comparison = (candidate.get("extensions") or {}).get(COMPARISON_EXTENSION)
-            if isinstance(comparison, dict):
+            # The closed sentence leads, so the record's long reasons can never shorten it.
+            if isinstance(comparison, dict) and comparison.get("comparable") is True:
                 # ADR-0018: compared under the compare-only rule, never selectable, and
                 # the objectives no source published are named, not scored.
                 uncompared = [
                     OBJECTIVE_NAMES.get(str(name), humanise(str(name))).lower()
                     for name in comparison.get("uncompared_objectives") or []
                 ]
-                reasons.append(
+                reasons.insert(
+                    0,
                     f"Compared under {comparison.get('rule')}, never selectable this sprint"
-                    + (f"; not compared on {_sentence_list(uncompared)}." if uncompared else ".")
+                    + (f"; not compared on {_sentence_list(uncompared)}." if uncompared else "."),
+                )
+            elif isinstance(comparison, dict):
+                failed = [humanise(str(name)).lower() for name in comparison.get("failed") or []]
+                reasons.insert(
+                    0,
+                    f"Not compared under {comparison.get('rule')}"
+                    + (f": {_sentence_list(failed)} failed" if failed else "")
+                    + "; never selectable this sprint.",
                 )
             return _status("infeasible", FLAG_WORDS["infeasible"], "; ".join(reasons) or None)
         if candidate is self.selected:
@@ -2742,6 +2753,17 @@ def _claim_value(ctx: _Context, claim: dict[str, Any], origin: str) -> dict[str,
         return _unknown("Nothing backs this claim.")
     if evidence_class in QUOTED_CLASSES:
         return _text(str(value))
+    if claim.get("field") == "weight_floor" and isinstance(value, (int, float)):
+        # OAK's own estimate from the published counts: an estimate with its estimator,
+        # never a figure the source published (ADR-0018).
+        return _quantity(
+            value,
+            str(claim.get("unit") or "GiB estimated"),
+            "estimated",
+            origin,
+            estimator=WEIGHT_FLOOR_ESTIMATOR,
+            synthetic=ctx.research_fixture,
+        )
     if isinstance(value, (int, float)) and not isinstance(value, bool) and claim.get("unit"):
         return _research_quantity(
             ctx, value, str(claim["unit"]), EVIDENCE_BASIS[evidence_class], origin

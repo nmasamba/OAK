@@ -224,7 +224,7 @@ class ResearchService:
             snapshot_version=snapshot_version,
             occurred_at=context.occurred_at,
             source_mode=mode,
-            cache=self._cache if mode != "fixture" else None,
+            cache=self._resolve_cache() if mode != "fixture" else None,
             clock=clock,
         )
         self._registry.validate("research-snapshot.schema.json", run.snapshot)
@@ -319,6 +319,18 @@ class ResearchService:
                 "only an item that needs a review can be reviewed; a passed or failed item "
                 "keeps the verdict the gates gave it",
             )
+        for earlier in self._reviews_for(current_document):
+            if earlier.get("item_id") == item_id and (earlier.get("snapshot_ref") or {}).get(
+                "digest"
+            ) == str(reference["digest"]):
+                # One recorded decision per item per run is the invariant the compiler, the
+                # workspace and the report all read; a changed mind is a new research run.
+                raise OAKError(
+                    "OAK-RESEARCH-ITEM-STATE",
+                    "this item is already reviewed against this research snapshot; one "
+                    "decision is recorded per item per run, so run research again to review "
+                    "it afresh",
+                )
         suffix = current.id.removeprefix("design-case.")
         slug = item_id.removeprefix("research.item.").replace("/", ".")
         review_id = f"research-review.{suffix}.{slug}"
@@ -396,6 +408,14 @@ class ResearchService:
         if not isinstance(reference, dict):
             raise OAKError("OAK-RESEARCH-MISSING", "the case holds no research snapshot")
         return self._repository.read_json_artifact(ArtifactReference.from_document(reference))
+
+    def _resolve_cache(self) -> Any:
+        """The cache, built on first use when a factory was given: the reader behind it is
+        imported only when a consented live run needs it, never at startup."""
+
+        if callable(self._cache):
+            self._cache = self._cache()
+        return self._cache
 
     def _reviews_for(self, case: dict[str, Any]) -> list[dict[str, Any]]:
         references = (case.get("extensions") or {}).get(RESEARCH_REVIEW_REFS) or []

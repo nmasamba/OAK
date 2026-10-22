@@ -61,6 +61,9 @@ DTYPE_BYTES: dict[str, int] = {
     "U64": 8,
 }
 WEIGHT_FLOOR_ESTIMATOR = "research-weight-floor-1.0.0"
+# The largest parameter count a source may publish and OAK will add up: a thousand
+# trillion. A larger one is not a model a person would run and would overflow the floor.
+MAXIMUM_PARAMETER_COUNT = 10**15
 
 REASON_LICENCE_UNLISTED = "OAK-CAT-RESEARCH-LICENCE-UNLISTED"
 REASON_LICENCE_BLOCKED = "OAK-CAT-RESEARCH-LICENCE-BLOCKED"
@@ -88,14 +91,23 @@ def _has_control(value: str) -> bool:
 
 
 def normalise_text(value: Any, limit: int = COLUMN_LIMIT) -> str | None:
-    """A displayable string, or ``None``: NFKC, no category C, a fixed class, bounded."""
+    """A displayable string, or ``None``: NFKC, no category C, a fixed ASCII class, bounded.
+
+    The class is ASCII letters and digits plus a few marks, like the identifier class: a
+    confusable letter from another script (a Cyrillic ie in place of the Latin e of a
+    forbidden word) would otherwise pass the forbidden-word check, which matches Latin
+    words, and reach a screen.
+    """
 
     if not isinstance(value, str):
         return None
     text = unicodedata.normalize("NFKC", value).strip()
     if not text or len(text) > limit or _has_control(text):
         return None
-    if not all(character.isalnum() or character in TEXT_PUNCTUATION for character in text):
+    if not all(
+        (character.isascii() and character.isalnum()) or character in TEXT_PUNCTUATION
+        for character in text
+    ):
         return None
     return text
 
@@ -165,6 +177,8 @@ def weight_floor_gib(parameters: Any) -> tuple[float | None, str]:
             )
         if isinstance(count, bool) or not isinstance(count, int) or count < 0:
             return None, "A parameter count is not a whole number."
+        if count > MAXIMUM_PARAMETER_COUNT:
+            return None, "A parameter count is outside the supported range."
         total += width * count
     return round(total / 1024**3, 3), WEIGHT_FLOOR_ESTIMATOR
 

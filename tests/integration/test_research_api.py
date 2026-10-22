@@ -272,3 +272,58 @@ async def test_a_consented_run_is_one_attempt_an_idempotent_retry_sends_nothing_
         assert selected.status_code == 422
         assert selected.json()["code"] == "OAK-SELECT-INFEASIBLE"
     assert len(fetch_log) == 12
+
+
+@pytest.mark.anyio
+async def test_a_replay_after_generation_is_a_duplicate_and_a_bad_consent_is_named_first(
+    tmp_path: Path, fetch_log: list[str]
+) -> None:
+    """E-4: the documented order holds in the refusal codes too: token, consent, the
+    idempotent replay and the version, then the status."""
+
+    stack = _Stack(tmp_path)
+    token = {"X-OAK-Model-Token": TOKEN}
+    async with stack.client() as client:
+        await _ready(client)
+        plan = (await client.get(f"/v1/design-cases/{CASE}/research-plan")).json()
+        consent = {"consent": {"hosts": plan["hosts"], "terms_digest": plan["terms_digest"]}}
+        submitted = await client.post(
+            f"/v1/design-cases/{CASE}:research",
+            headers=_headers("research-api-order-0001", "0.1.2", **token),
+            json=consent,
+        )
+        assert submitted.status_code == 202, submitted.text
+        assert stack.drain() == 1
+        sent = len(fetch_log)
+        generated = await client.post(
+            f"/v1/design-cases/{CASE}:generate-candidates",
+            headers=_headers("research-api-order-gen1", "0.1.3"),
+        )
+        assert generated.status_code == 202
+        assert stack.drain() == 1
+        # The same key and body after generation: a replay, not a status refusal.
+        replayed = await client.post(
+            f"/v1/design-cases/{CASE}:research",
+            headers=_headers("research-api-order-0001", "0.1.2", **token),
+            json=consent,
+        )
+        assert replayed.status_code == 202, replayed.text
+        assert replayed.json()["duplicate"] is True
+        # A wrong consent at candidates_ready is a consent refusal, named before the status.
+        wrong = await client.post(
+            f"/v1/design-cases/{CASE}:research",
+            headers=_headers("research-api-order-0002", "0.1.4", **token),
+            json={"consent": {"hosts": ["api.github.com"], "terms_digest": plan["terms_digest"]}},
+        )
+        assert wrong.status_code == 409
+        assert wrong.json()["code"] == "OAK-RESEARCH-CONSENT"
+        # A right consent at candidates_ready is the status refusal, after the version check.
+        late = await client.post(
+            f"/v1/design-cases/{CASE}:research",
+            headers=_headers("research-api-order-0003", "0.1.4", **token),
+            json=consent,
+        )
+        assert late.status_code == 409
+        assert late.json()["code"] == "OAK-RESEARCH-STATE"
+        assert stack.drain() == 0
+    assert len(fetch_log) == sent

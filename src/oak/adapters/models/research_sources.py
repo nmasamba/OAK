@@ -39,6 +39,7 @@ from oak.domain import (
 from oak.domain.catalogue_rules import catalogue_timestamp, eligibility_reasons
 from oak.domain.research_rules import (
     COMMIT_ID,
+    MAXIMUM_PARAMETER_COUNT,
     REASON_FORBIDDEN_WORD,
     REASON_MALFORMED,
     REASON_UNREACHABLE,
@@ -149,8 +150,22 @@ class _Requester:
     records: list[dict[str, Any]] = field(default_factory=list)
     fresh: int = 0
 
-    def read(self, kind: str, url: str, headers: dict[str, str] | None = None) -> Any:
-        """The parsed JSON (or text for a commit) of one bounded request, or a refusal."""
+    def read(
+        self,
+        kind: str,
+        url: str,
+        headers: dict[str, str] | None = None,
+        *,
+        per_item: bool = False,
+    ) -> Any:
+        """The parsed JSON (or text for a commit) of one bounded request, or a refusal.
+
+        A refusal of a run-level read (the Hub listing, the router, a search) ends the run.
+        A per-item read (one repository's releases or tag commit) records its refusal code
+        and returns ``None``, so one repository's redirect, oversized page, outage or rate
+        limit fails that harness alone and the run goes on; the budget and the deadline are
+        checked before anything is sent and stay run-level.
+        """
 
         parts = urllib.parse.urlsplit(url)
         host = (parts.hostname or "").lower()
@@ -194,41 +209,48 @@ class _Requester:
         self.records.append(record)
         self.fresh += 1
         request = TransportRequest(method="GET", url=url, headers=dict(headers or {}))
+        refusal: tuple[str, str] | None = None
+        cause: BaseException | None = None
+        response = None
         try:
             response = self.fetch(request, deadline_seconds=min(remaining, 55.0))
         except RedirectRefusedError as error:
             record["status"] = int(error.status)
-            record["refusal_code"] = "OAK-RESEARCH-REDIRECTED"
-            raise ResearchRefusedError(
-                "OAK-RESEARCH-REDIRECTED", f"the {kind} source answered with a redirect"
-            ) from error
+            refusal = ("OAK-RESEARCH-REDIRECTED", f"the {kind} source answered with a redirect")
+            cause = error
         except OAKError as error:
-            if error.code == "OAK-INTERPRETER-OUTPUT-LIMIT":
-                record["refusal_code"] = "OAK-RESEARCH-OVERSIZED"
-                raise ResearchRefusedError(
-                    "OAK-RESEARCH-OVERSIZED", f"the {kind} source's answer exceeded its size cap"
-                ) from error
             if error.code == "OAK-MODEL-EGRESS-DENIED":
                 raise
-            record["refusal_code"] = "OAK-RESEARCH-UNREACHABLE"
-            raise ResearchRefusedError(
-                "OAK-RESEARCH-UNREACHABLE", f"the {kind} source could not be reached"
-            ) from error
-        record["status"] = int(response.status)
-        digest = "sha256:" + hashlib.sha256(response.body).hexdigest()
-        record["response_digest"] = digest
-        if response.status == 429 or (
-            response.status == 403 and response.header("x-ratelimit-remaining") == "0"
-        ):
-            record["refusal_code"] = "OAK-RESEARCH-RATE-LIMITED"
-            raise ResearchRefusedError(
-                "OAK-RESEARCH-RATE-LIMITED", f"the {kind} source's anonymous rate limit is spent"
-            )
-        if len(response.body) > RESPONSE_LIMITS[kind]:
-            record["refusal_code"] = "OAK-RESEARCH-OVERSIZED"
-            raise ResearchRefusedError(
-                "OAK-RESEARCH-OVERSIZED", f"the {kind} source's answer exceeded its size cap"
-            )
+            if error.code == "OAK-INTERPRETER-OUTPUT-LIMIT":
+                refusal = (
+                    "OAK-RESEARCH-OVERSIZED",
+                    f"the {kind} source's answer exceeded its size cap",
+                )
+            else:
+                refusal = ("OAK-RESEARCH-UNREACHABLE", f"the {kind} source could not be reached")
+            cause = error
+        if response is not None:
+            record["status"] = int(response.status)
+            digest = "sha256:" + hashlib.sha256(response.body).hexdigest()
+            record["response_digest"] = digest
+            if response.status == 429 or (
+                response.status == 403 and response.header("x-ratelimit-remaining") == "0"
+            ):
+                refusal = (
+                    "OAK-RESEARCH-RATE-LIMITED",
+                    f"the {kind} source's anonymous rate limit is spent",
+                )
+            elif len(response.body) > RESPONSE_LIMITS[kind]:
+                refusal = (
+                    "OAK-RESEARCH-OVERSIZED",
+                    f"the {kind} source's answer exceeded its size cap",
+                )
+        if refusal is not None:
+            record["refusal_code"] = refusal[0]
+            if per_item:
+                return None
+            raise ResearchRefusedError(*refusal) from cause
+        assert response is not None
         if response.status != 200:
             record["refusal_code"] = "OAK-RESEARCH-UNREACHABLE"
             return None
@@ -243,6 +265,16 @@ class _Requester:
 
     def last_digest(self) -> str:
         return str(self.records[-1]["response_digest"] or "sha256:" + "0" * 64)
+
+    def last_stamp(self) -> dict[str, Any]:
+        """When the last answer was fetched and whether it came from the cache.
+
+        A fact built from a cached answer keeps the time that answer was fetched, so a
+        day-old listing never reads as checked today (ADR-0018, `RR-050`).
+        """
+
+        record = self.records[-1]
+        return {"checked_at": str(record["checked_at"]), "cached": bool(record["cached"])}
 
 
 def _parse(body: bytes, kind: str) -> Any:
@@ -361,6 +393,7 @@ def run_research(
         occurred_at=occurred_at,
         freshness=freshness,
         run=_run_number(snapshot_version),
+        source_mode=source_mode,
     )
 
     # 1. The Hub, one list per pipeline tag, then the router for live routes.
@@ -371,11 +404,13 @@ def run_research(
             raise ResearchRefusedError(
                 "OAK-RESEARCH-UNREACHABLE", "the Hub listing was not readable"
             )
-        raw_models.extend(_hub_models(listing, requester.last_digest(), terms))
+        raw_models.extend(
+            _hub_models(listing, requester.last_digest(), terms, requester.last_stamp())
+        )
     routes: dict[str, tuple[dict[str, Any], str]] = {}
     router = requester.read("router", router_url())
     if router is not None:
-        routes = _router_routes(router, requester.last_digest())
+        routes = _router_routes(router, requester.last_digest(), requester.last_stamp())
 
     # 2. GitHub: a bounded search per kind and topic, then each hit's releases.
     raw_harnesses: list[dict[str, Any]] = []
@@ -387,7 +422,7 @@ def run_research(
                 raise ResearchRefusedError(
                     "OAK-RESEARCH-UNREACHABLE", "a GitHub search was not readable"
                 )
-            for hit in _search_hits(found, requester.last_digest(), kind):
+            for hit in _search_hits(found, requester.last_digest(), kind, requester.last_stamp()):
                 hits.setdefault(hit["source_id"], hit)
         ordered = sorted(hits.values(), key=lambda hit: (hit["pushed_at"] or "", hit["source_id"]))
         for hit in list(reversed(ordered))[:MAXIMUM_HITS_PER_KIND]:
@@ -402,6 +437,7 @@ def run_research(
         _model_item(raw, routes.get(raw["source_id"].casefold()), terms, context) for raw in models
     ]
     harness_items = [_harness_item(raw, kinds, context) for raw in raw_harnesses]
+    model_items, harness_items = _one_manifest_per_id(model_items, harness_items)
     for item, manifest in [*model_items, *harness_items]:
         items.append(item)
         if manifest is not None:
@@ -458,6 +494,45 @@ class _GateContext:
     occurred_at: str
     freshness: int
     run: int = 1
+    source_mode: str = "live"
+
+
+# The reserved host a fixture run names instead of a real address (RFC 2606): nothing a
+# fixture produces may point at a destination anyone could register (ADR-0018, `RR-052`).
+FIXTURE_HOST = "fixture.invalid"
+
+
+def _page(context: _GateContext, host: str, source_id: str) -> str:
+    return f"https://{FIXTURE_HOST if context.source_mode == 'fixture' else host}/{source_id}"
+
+
+Built = tuple[dict[str, Any], dict[str, Any] | None]
+
+
+def _one_manifest_per_id(
+    models: list[Built], harnesses: list[Built]
+) -> tuple[list[Built], list[Built]]:
+    """Two source ids that fold to one manifest id (`forge/llm-serve`, `forge/llm_serve`) are
+    the lookalike signal ADR-0018 names: the later item is listed by digest as malformed
+    and gets no manifest, so a run never holds two manifests with one id."""
+
+    seen: set[str] = set()
+    kept: list[Built] = []
+    for item, manifest in [*models, *harnesses]:
+        if manifest is not None:
+            identity = str(manifest["id"])
+            if identity in seen:
+                reasons = tuple(sorted({*item["reasons"], REASON_MALFORMED}))
+                item["verdict"] = "failed"
+                item["reasons"] = list(reasons)
+                item["review_items"] = []
+                item.pop("notes", None)
+                _list_by_digest(item, reasons)
+                manifest = None
+            else:
+                seen.add(identity)
+        kept.append((item, manifest))
+    return kept[: len(models)], kept[len(models) :]
 
 
 def _run_number(snapshot_version: str) -> int:
@@ -482,7 +557,9 @@ def _reference(artifact: Artifact) -> dict[str, Any]:
 # ----- parsing: the Hub -------------------------------------------------------------------
 
 
-def _hub_models(listing: Any, digest: str, terms: dict[str, Any]) -> list[dict[str, Any]]:
+def _hub_models(
+    listing: Any, digest: str, terms: dict[str, Any], stamp: dict[str, Any]
+) -> list[dict[str, Any]]:
     if not isinstance(listing, list):
         return []
     wanted_tags = set(terms["sent"]["hub"]["pipeline_tags"])
@@ -509,6 +586,7 @@ def _hub_models(listing: Any, digest: str, terms: dict[str, Any]) -> list[dict[s
                 "library_name": normalise_text(raw.get("library_name"), 40),
                 "licence": _hub_licence(card, raw.get("tags")),
                 "parameters": safetensors.get("parameters"),
+                **stamp,
             }
         )
     return models
@@ -541,7 +619,9 @@ def _hub_licence(card: dict[str, Any], tags: Any) -> str | None:
     return licence
 
 
-def _router_routes(document: Any, digest: str) -> dict[str, tuple[dict[str, Any], str]]:
+def _router_routes(
+    document: Any, digest: str, stamp: dict[str, Any]
+) -> dict[str, tuple[dict[str, Any], str]]:
     routes: dict[str, tuple[dict[str, Any], str]] = {}
     entries = document.get("data") if isinstance(document, dict) else None
     if not isinstance(entries, list):
@@ -567,6 +647,7 @@ def _router_routes(document: Any, digest: str) -> dict[str, tuple[dict[str, Any]
                 "throughput": _number(provider.get("throughput")),
                 "first_token_latency_ms": _number(provider.get("first_token_latency_ms")),
                 "pointer": f"/data/{index}/providers/{position}",
+                **stamp,
             }
             routes.setdefault(identifier.casefold(), (route, digest))
             break
@@ -592,7 +673,9 @@ def _number(value: Any) -> float | None:
 # ----- parsing: GitHub -------------------------------------------------------------------
 
 
-def _search_hits(document: Any, digest: str, kind: str) -> list[dict[str, Any]]:
+def _search_hits(
+    document: Any, digest: str, kind: str, stamp: dict[str, Any]
+) -> list[dict[str, Any]]:
     items = document.get("items") if isinstance(document, dict) else None
     if not isinstance(items, list):
         return []
@@ -615,6 +698,7 @@ def _search_hits(document: Any, digest: str, kind: str) -> list[dict[str, Any]]:
                 "licence": normalise_identifier(licence.get("spdx_id"), SEGMENT),
                 "pushed_at": as_timestamp(raw.get("pushed_at")),
                 "created_at": as_timestamp(raw.get("created_at")),
+                **stamp,
             }
         )
     return hits
@@ -633,8 +717,15 @@ def _with_release(hit: dict[str, Any], requester: _Requester) -> dict[str, Any]:
         "commit_id": None,
         "release_digest": None,
         "unreachable": False,
+        "release_checked_at": hit["checked_at"],
+        "release_cached": hit["cached"],
     }
-    releases = requester.read("releases", releases_url(hit["source_id"]), GITHUB_HEADERS)
+    releases = requester.read(
+        "releases", releases_url(hit["source_id"]), GITHUB_HEADERS, per_item=True
+    )
+    stamp = requester.last_stamp()
+    enriched["release_checked_at"] = stamp["checked_at"]
+    enriched["release_cached"] = stamp["cached"]
     if releases is None:
         enriched["unreachable"] = True
         return enriched
@@ -662,7 +753,14 @@ def _with_release(hit: dict[str, Any], requester: _Requester) -> dict[str, Any]:
                 enriched["asset_pointer"] = f"/{index}/assets/{position}/digest"
                 break
         if enriched["asset_digest"] is None:
-            commit = requester.read("commit", commit_url(hit["source_id"], tag), COMMIT_HEADERS)
+            commit = requester.read(
+                "commit", commit_url(hit["source_id"], tag), COMMIT_HEADERS, per_item=True
+            )
+            stamp = requester.last_stamp()
+            enriched["release_checked_at"] = max(
+                enriched["release_checked_at"], stamp["checked_at"]
+            )
+            enriched["release_cached"] = enriched["release_cached"] or stamp["cached"]
             if isinstance(commit, str):
                 enriched["commit_id"] = commit
         break
@@ -696,7 +794,11 @@ def _model_item(
     terms: dict[str, Any],
     context: _GateContext,
 ) -> tuple[dict[str, Any], dict[str, Any] | None]:
-    checked_at = context.occurred_at
+    # Every claim keeps the time its answer was fetched: the Hub's for the listing, the
+    # router's for a route; a cached answer keeps its own time (E-2).
+    checked_at = str(raw["checked_at"])
+    route_checked_at = str(route[0]["checked_at"]) if route is not None else checked_at
+    cached = bool(raw["cached"]) or (route is not None and bool(route[0]["cached"]))
     source_id = raw["source_id"]
     item_id = (
         f"research.item.hub.{source_id.replace('/', '.')}"
@@ -753,12 +855,13 @@ def _model_item(
             )
         )
     floor, estimator = weight_floor_gib(raw["parameters"])
-    if isinstance(raw["parameters"], dict):
-        total = sum(
-            count
-            for count in raw["parameters"].values()
-            if isinstance(count, int) and not isinstance(count, bool)
-        )
+    counts = [
+        count
+        for count in (raw["parameters"].values() if isinstance(raw["parameters"], dict) else ())
+        if isinstance(count, int) and not isinstance(count, bool)
+    ]
+    if counts and all(0 <= count <= MAXIMUM_PARAMETER_COUNT for count in counts):
+        total = sum(counts)
         claims.append(
             _claim(
                 "parameters",
@@ -789,7 +892,7 @@ def _model_item(
                 details["provider"],
                 "served_by_live_route",
                 f"{details['pointer']}/status",
-                checked_at,
+                route_checked_at,
             )
         )
         if details["price_input"] is not None:
@@ -799,7 +902,7 @@ def _model_item(
                     details["price_input"],
                     "published_by_source",
                     f"{details['pointer']}/pricing/input",
-                    checked_at,
+                    route_checked_at,
                     "USD per million tokens",
                 )
             )
@@ -810,7 +913,7 @@ def _model_item(
                     details["price_output"],
                     "published_by_source",
                     f"{details['pointer']}/pricing/output",
-                    checked_at,
+                    route_checked_at,
                     "USD per million tokens",
                 )
             )
@@ -821,7 +924,7 @@ def _model_item(
                     details["throughput"],
                     "measured_by_source",
                     f"{details['pointer']}/throughput",
-                    checked_at,
+                    route_checked_at,
                     "tokens per second",
                 )
             )
@@ -832,7 +935,7 @@ def _model_item(
                     "unit": "tokens per second",
                     "workload": "One validation probe by the router; not a benchmark",
                     "hardware": "Not published by the source.",
-                    "measured_at": checked_at,
+                    "measured_at": route_checked_at,
                     "evidence_ref": (
                         f"evidence.research.{manifest_slug(source_id)}.measured_by_source"
                     ),
@@ -845,7 +948,7 @@ def _model_item(
                     details["first_token_latency_ms"],
                     "measured_by_source",
                     f"{details['pointer']}/first_token_latency_ms",
-                    checked_at,
+                    route_checked_at,
                     "milliseconds to first token",
                 )
             )
@@ -890,8 +993,8 @@ def _model_item(
         "reasons": list(reasons),
         "review_items": [],
         "response_digest": raw["response_digest"],
-        "checked_at": checked_at,
-        "cached": False,
+        "checked_at": max(checked_at, route_checked_at),
+        "cached": cached,
     }
     if verdict == "failed":
         _list_by_digest(item, reasons)
@@ -899,13 +1002,18 @@ def _model_item(
     licence = licence_entry_for(raw["licence"], context.licences)
     slug = manifest_slug(source_id)
     classes = sorted({str(claim["evidence_class"]) for claim in claims})
+    page = _page(context, "huggingface.co", source_id)
     evidence = [
         evidence_reference(
             f"evidence.research.{slug}.{evidence_class}",
             evidence_class,
-            uri=f"https://huggingface.co/{source_id}",
+            uri=page,
             version=raw["revision"],
-            checked_at=checked_at,
+            checked_at=(
+                route_checked_at
+                if evidence_class in {"served_by_live_route", "measured_by_source"}
+                else checked_at
+            ),
             content_digest=raw["response_digest"],
             source_word="Hugging Face Hub"
             if evidence_class != "served_by_live_route" and evidence_class != "measured_by_source"
@@ -921,11 +1029,11 @@ def _model_item(
         category="model",
         kind="model",
         owner=str(raw["namespace"]),
-        project_url=f"https://huggingface.co/{source_id}",
-        repository_url=f"https://huggingface.co/{source_id}",
+        project_url=page,
+        repository_url=page,
         release_version=str(raw["revision"])[:12],
         released_at=raw["created_at"],
-        artifact_reference=f"huggingface.co/{source_id}@{raw['revision']}",
+        artifact_reference=f"{page.removeprefix('https://')}@{raw['revision']}",
         artifact_digest=raw["response_digest"],
         digest_covers="the Hub's listing of this model, not its weights",
         commit_id=raw["revision"],
@@ -959,7 +1067,11 @@ def _model_item(
 def _harness_item(
     raw: dict[str, Any], kinds: dict[str, Any], context: _GateContext
 ) -> tuple[dict[str, Any], dict[str, Any] | None]:
-    checked_at = context.occurred_at
+    # The search's fetch time stamps what the search published; the release read's stamps
+    # the release facts; a cached answer keeps its own time (E-2).
+    checked_at = str(raw["checked_at"])
+    release_checked_at = str(raw.get("release_checked_at") or checked_at)
+    cached = bool(raw["cached"]) or bool(raw.get("release_cached"))
     source_id = raw["source_id"]
     kind = raw["kind"]
     item_id = f"research.item.github.{source_id.replace('/', '.')}"
@@ -1002,7 +1114,7 @@ def _harness_item(
                 raw["release_tag"],
                 "published_release",
                 f"{release_pointer}/tag_name",
-                checked_at,
+                release_checked_at,
             )
         )
     if raw["released_at"]:
@@ -1012,7 +1124,7 @@ def _harness_item(
                 raw["released_at"],
                 "published_release",
                 f"{release_pointer}/published_at",
-                checked_at,
+                release_checked_at,
             )
         )
     if raw["asset_digest"]:
@@ -1022,12 +1134,12 @@ def _harness_item(
                 raw["asset_digest"],
                 "published_release",
                 raw.get("asset_pointer", f"{release_pointer}/assets/0/digest"),
-                checked_at,
+                release_checked_at,
             )
         )
     elif raw["commit_id"]:
         claims.append(
-            _claim("commit_id", raw["commit_id"], "published_release", "/sha", checked_at)
+            _claim("commit_id", raw["commit_id"], "published_release", "/sha", release_checked_at)
         )
     facts = GateFacts(
         kind=kind,
@@ -1072,8 +1184,8 @@ def _harness_item(
         "reasons": list(reasons),
         "review_items": [],
         "response_digest": raw["release_digest"] or raw["search_digest"],
-        "checked_at": checked_at,
-        "cached": False,
+        "checked_at": max(checked_at, release_checked_at),
+        "cached": cached,
         "notes": raw["notes"],
     }
     if verdict == "failed":
@@ -1084,13 +1196,14 @@ def _harness_item(
     slug = manifest_slug(source_id)
     classes = sorted({str(claim["evidence_class"]) for claim in claims})
     digest = raw["asset_digest"] or raw["release_digest"] or raw["search_digest"]
+    page = _page(context, "github.com", source_id)
     evidence = [
         evidence_reference(
             f"evidence.research.{slug}.{evidence_class}",
             evidence_class,
-            uri=f"https://github.com/{source_id}",
+            uri=page,
             version=raw["release_tag"],
-            checked_at=checked_at,
+            checked_at=release_checked_at if evidence_class == "published_release" else checked_at,
             content_digest=raw["release_digest"] or raw["search_digest"],
             source_word="GitHub",
         )
@@ -1102,11 +1215,11 @@ def _harness_item(
         category="software",
         kind=kind,
         owner=source_id.split("/", 1)[0],
-        project_url=f"https://github.com/{source_id}",
-        repository_url=f"https://github.com/{source_id}",
+        project_url=page,
+        repository_url=page,
         release_version=str(raw["release_tag"]),
         released_at=raw["released_at"],
-        artifact_reference=f"github.com/{source_id}@{raw['release_tag']}",
+        artifact_reference=f"{page.removeprefix('https://')}@{raw['release_tag']}",
         artifact_digest=digest,
         digest_covers=(
             "the release asset the source published"
@@ -1156,6 +1269,15 @@ def _list_by_digest(item: dict[str, Any], reasons: tuple[str, ...]) -> None:
         item["family_token"] = None
 
 
+def _release_stamp(harness: dict[str, Any]) -> str:
+    """When the release page a pairing rests on was fetched (the notes come from it)."""
+
+    for claim in harness["claims"]:
+        if claim["evidence_class"] == "published_release":
+            return str(claim["checked_at"])
+    return str(harness["checked_at"])
+
+
 def _pairings(
     model_items: list[tuple[dict[str, Any], dict[str, Any] | None]],
     harness_items: list[tuple[dict[str, Any], dict[str, Any] | None]],
@@ -1179,7 +1301,7 @@ def _pairings(
                     token,
                     "claimed_by_release_notes",
                     f"{harness.get('release_pointer', '/0')}/body",
-                    harness["checked_at"],
+                    _release_stamp(harness),
                 )
             )
             classes = {
