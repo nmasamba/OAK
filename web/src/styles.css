@@ -2655,3 +2655,61 @@ summary {
   color: var(--text-faint);
   cursor: default;
 }
+
+/* Research at the point of design (Sprint 14, ADR-0018). */
+.research-consent {
+  margin: 0;
+}
+
+.research-consent h2 {
+  margin-top: 0;
+}
+
+.research-terms {
+  max-width: 100%;
+}
+
+.research {
+  display: grid;
+  gap: 10px;
+}
+
+.research-summary:focus,
+.research-item:focus {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.research-items {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.research-item {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-card);
+  background: var(--surface-inset);
+}
+
+.research-item-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+.research-reason {
+  margin-right: 0.5rem;
+}
+
+.research-facts {
+  display: grid;
+  gap: 6px;
+}

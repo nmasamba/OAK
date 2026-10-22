@@ -78,6 +78,22 @@ All notable changes to OAK Community are recorded here.
     `oak research --consent <digest>` and `oak research review <item> --accept|--reject
     --rationale-file <file>`, locally and with `--server`. MCP is unchanged. Each run's
     manifests carry the run's ordinal in their ids, so a later run keeps its own record.
+  - **The workspace** (`OAK-S14-005`). At `ready_for_candidates` the case page asks "Look
+    for newer options?" and shows, verbatim, what one research run would send and to whom
+    (the hosts, the terms, their digest); **Run research** needs the capability token and
+    consents to exactly that, the run is watched in place, and the result rises on the
+    same page with focus moved to it. The results are chips (found, passed, needing your
+    review) and a list of items, each with its source, tier, date and verdict and every
+    claim beside its evidence word; an unvetted item is reviewed by a recorded decision
+    with a rationale (**Accept for comparison** or **Reject**), never a toggle. Once the
+    case holds a snapshot the keycap is gone. On Designs a researched design carries a
+    **New** chip and the label "Balanced, new" (the suffix is one closed word in
+    `web/src/ui/variantLabel.ts` and `oak.application.report.labels`, held equal by an
+    agreement test, as are the evidence words), its evidence chips, an unknown estimate's
+    own reason, the Source and Release date table columns, and the plain reason it cannot
+    be selected this sprint; a researched design is never the baseline. The Take it sheet
+    offers the research snapshot. `web/e2e/research.spec.ts` proves the journey on the
+    fixture source with zero accessibility violations.
 
 - **The architecture report** (Sprint 13, `OAK-S13-001`–`007`, authorized 2026-10-16): a
   decision deck about one design case, recorded beside the case, read on a Report screen

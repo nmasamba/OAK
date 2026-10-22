@@ -10,6 +10,14 @@ import {
   type JsonObject,
 } from "../generated/api";
 import { ProblemAlert, toActionFailure, type ActionFailure } from "../problems";
+import {
+  TIER_WORDS,
+  dateWord,
+  evidenceWord,
+  researchOf,
+  sourceWord,
+  whyNotSelectable,
+} from "../research";
 import { Link, useRouter } from "../router";
 import {
   asArray,
@@ -27,6 +35,7 @@ import {
   RangeBar,
   candidateLabel,
   formatQuantity,
+  isResearched,
   type IconName,
 } from "../ui";
 
@@ -136,6 +145,15 @@ function ObjectiveCell({
   const lower = asNumber(objective["lower"]);
   const upper = asNumber(objective["upper"]);
   const unit = unitWord(asString(objective["unit"]));
+  const unknownReason = asString(objective["unknown_reason"]);
+  if (value === null && unknownReason !== null) {
+    return (
+      <td>
+        <span className="objective-value">unknown</span>
+        <span className="timeline-meta"> {unknownReason}</span>
+      </td>
+    );
+  }
   return (
     <td>
       <span className="objective-value">{formatQuantity(value)}</span>
@@ -277,6 +295,103 @@ function TopologyGlyph({
 
 function sign(value: number): string {
   return value > 0 ? `+${formatQuantity(value)}` : formatQuantity(value);
+}
+
+/** Where a design's components came from: the curated catalogue, or a research source. */
+function SourceCell({ candidate }: { readonly candidate: JsonObject }) {
+  const research = researchOf(candidate);
+  if (research === null) {
+    return <td>Curated catalogue</td>;
+  }
+  const harness = asString(research["harness_source_id"]);
+  return (
+    <td>
+      {sourceWord(asString(research["model_source"]))}{" "}
+      <span className="mono">{asString(research["model_source_id"])}</span>
+      {harness !== null && (
+        <>
+          <br />
+          with <span className="mono">{harness}</span>
+        </>
+      )}
+    </td>
+  );
+}
+
+function ReleaseDateCell({ candidate }: { readonly candidate: JsonObject }) {
+  const research = researchOf(candidate);
+  if (research === null) {
+    return <td>—</td>;
+  }
+  const harnessDate = asString(research["harness_released_at"]);
+  return (
+    <td>
+      <span className="mono">
+        {dateWord(asString(research["model_created_at"]))}
+      </span>
+      {harnessDate !== null && (
+        <>
+          <br />
+          <span className="mono">{dateWord(harnessDate)}</span>
+        </>
+      )}
+    </td>
+  );
+}
+
+/**
+ * What research says about a researched design: its source, tier and date, the
+ * evidence class of every claim behind it, and why it cannot be selected this sprint
+ * (ADR-0018: compare-only). Nothing here is a judgement; each word is a closed class.
+ */
+function ResearchFacts({
+  candidateId,
+  candidate,
+}: {
+  readonly candidateId: string;
+  readonly candidate: JsonObject;
+}) {
+  const research = researchOf(candidate);
+  if (research === null) {
+    return null;
+  }
+  const tier = asString(research["model_tier"]);
+  const harness = asString(research["harness_source_id"]);
+  const evidence = asArray(research["evidence_classes"])
+    .map(asString)
+    .filter((entry): entry is string => entry !== null);
+  const pairing = asArray(research["pairing_claim_classes"])
+    .map(asString)
+    .filter((entry): entry is string => entry !== null);
+  const why = whyNotSelectable(candidate);
+  return (
+    <div className="research-facts">
+      <p className="timeline-meta">
+        {sourceWord(asString(research["model_source"]))} ·{" "}
+        <span className="mono">{asString(research["model_source_id"])}</span> ·{" "}
+        {tier === null ? "Unknown tier" : (TIER_WORDS[tier] ?? tier)} · released{" "}
+        {dateWord(asString(research["model_created_at"]))}
+      </p>
+      {harness !== null && (
+        <p className="timeline-meta">
+          Serving runtime <span className="mono">{harness}</span> · released{" "}
+          {dateWord(asString(research["harness_released_at"]))}
+          {pairing.length > 0 &&
+            ` · paired on ${pairing.map(evidenceWord).join(", ").toLowerCase()}`}
+        </p>
+      )}
+      <ul className="chip-row" aria-label={`Evidence behind ${candidateId}`}>
+        {evidence.map((entry) => (
+          <li key={entry}>
+            <Chip small tone="neutral">
+              {evidenceWord(entry)}
+            </Chip>
+          </li>
+        ))}
+      </ul>
+      {why !== null && <p className="design-reason">{why}</p>}
+    </div>
+  );
 }
 
 export function CandidatesPage({ caseId }: { readonly caseId: string }) {
@@ -479,6 +594,8 @@ export function CandidatesPage({ caseId }: { readonly caseId: string }) {
                 <tr>
                   <th scope="col">Candidate</th>
                   <th scope="col">Variant</th>
+                  <th scope="col">Source</th>
+                  <th scope="col">Release date</th>
                   <th scope="col">Status</th>
                   <th scope="col">Frontier</th>
                   {names.map((name) => (
@@ -502,6 +619,8 @@ export function CandidatesPage({ caseId }: { readonly caseId: string }) {
                         <code className="mono">{id}</code>
                       </th>
                       <td>{candidateLabel(candidate)}</td>
+                      <SourceCell candidate={candidate} />
+                      <ReleaseDateCell candidate={candidate} />
                       <td>
                         <Chip
                           small
@@ -540,6 +659,7 @@ export function CandidatesPage({ caseId }: { readonly caseId: string }) {
             const id = asString(candidate["id"]) ?? "";
             const candidateStatus = asString(candidate["status"]) ?? "";
             const infeasible = candidateStatus === "infeasible";
+            const researched = isResearched(candidate);
             const onBench = bench.includes(id);
             const chosen = chosenId === id;
             const rejections = asArray(candidate["rejection_reasons"]).map(
@@ -580,6 +700,11 @@ export function CandidatesPage({ caseId }: { readonly caseId: string }) {
                       {candidateLabel(candidate)}
                     </span>
                   </h2>
+                  {researched && (
+                    <Chip small tone="info" icon="bulb">
+                      New
+                    </Chip>
+                  )}
                   {infeasible ? (
                     <Chip small tone="bad" icon="cross">
                       {candidateStatus}
@@ -599,13 +724,16 @@ export function CandidatesPage({ caseId }: { readonly caseId: string }) {
                   )}
                 </div>
                 <TopologyGlyph candidate={candidate} infeasible={infeasible} />
-                {infeasible ? (
+                {infeasible && (
                   <p className="design-reason">
                     {rejections.length > 0
                       ? rejections.join(" ")
                       : "Infeasible."}
                   </p>
-                ) : (
+                )}
+                {/* A researched design is shown with its estimates even though it is
+                    infeasible: the reader compares it, and never selects it. */}
+                {(!infeasible || researched) && (
                   <div className="design-bars">
                     {BAR_OBJECTIVES.map(({ name, word }) => {
                       const objective = objectiveFor(candidate, name);
@@ -636,12 +764,15 @@ export function CandidatesPage({ caseId }: { readonly caseId: string }) {
                               ? null
                               : asString(objective["unit"]),
                           )}
-                          tone={chosen ? "brass" : "ok"}
+                          tone={
+                            researched ? "neutral" : chosen ? "brass" : "ok"
+                          }
                         />
                       );
                     })}
                   </div>
                 )}
+                <ResearchFacts candidateId={id} candidate={candidate} />
                 {chosen ? (
                   <Chip small tone="brass" icon="check">
                     Selected

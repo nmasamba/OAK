@@ -4,7 +4,10 @@
 `VARIANT_LABELS` mirrors `web/src/ui/variantLabel.ts` and a contract test keeps the two
 equal: a candidate is "Balanced" in the report for the reason it is "Balanced" on the
 screen, and a raw variant id is never rendered. `PROVENANCE_WORDS` mirrors the classes
-`web/src/claims.tsx` names, plus the two the intent schema adds.
+`web/src/claims.tsx` names, plus the two the intent schema adds. `RESEARCHED_SUFFIX`
+mirrors the one closed suffix a researched design's label carries ("Balanced, new",
+ADR-0018); a label is never built from a model or repository name, and a researched
+design is never the baseline.
 """
 
 from __future__ import annotations
@@ -19,6 +22,8 @@ VARIANT_LABELS: dict[str, str] = {
     "high_assurance_sovereign": "High assurance",
 }
 BASELINE_VARIANT = "simpler_baseline"
+RESEARCHED_SUFFIX = "new"
+RESEARCH_EXTENSION = "oak.community/research"
 
 PROVENANCE_WORDS: dict[str, str] = {
     "explicit": "Fact from brief",
@@ -58,12 +63,22 @@ def candidate_variant_id(candidate: dict[str, Any]) -> str | None:
     return variant if isinstance(variant, str) else None
 
 
+def is_researched(candidate: dict[str, Any]) -> bool:
+    """True for a design the compiler built from a research snapshot."""
+
+    extensions = candidate.get("extensions")
+    return isinstance(extensions, dict) and isinstance(extensions.get(RESEARCH_EXTENSION), dict)
+
+
 def candidate_label(candidate: dict[str, Any]) -> str:
-    return variant_label(candidate_variant_id(candidate))
+    label = variant_label(candidate_variant_id(candidate))
+    return f"{label}, {RESEARCHED_SUFFIX}" if is_researched(candidate) else label
 
 
 def is_baseline(candidate: dict[str, Any]) -> bool:
-    return candidate_variant_id(candidate) == BASELINE_VARIANT
+    """Only the curated baseline is a baseline; a researched design never is."""
+
+    return not is_researched(candidate) and candidate_variant_id(candidate) == BASELINE_VARIANT
 
 
 def humanise(identifier: str) -> str:

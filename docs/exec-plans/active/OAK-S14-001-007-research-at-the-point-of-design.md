@@ -489,7 +489,25 @@ Each milestone ends with one commit, its exit check green and a line under Progr
   import answered 500; the `OAK-IMPORT-INVALID` mapping fixed it and the module was
   re-run twice, green both times.) `make format-check`, `make lint` and
   `make typecheck` were green at the commit.
-- [ ] M5 — workspace.
+- [x] 2026-10-22 M5: `web/src/ResearchMoment.tsx` (the consent card with hosts, verbatim
+  terms and digest; **Run research** needing the capability token; the operation polled
+  in place, never through the loading state; the result chips found / passed / need your
+  review; each item with source, tier, date, verdict, reasons and every claim beside its
+  evidence word; **Accept for comparison** / **Reject** with a rationale; focus moved and
+  the change announced; no keycap once a snapshot exists), `CasePage.tsx` (a refresh in
+  place), `CandidatesPage.tsx` (the New chip, "Balanced, new", the Source and Release date
+  columns, evidence chips, an unknown's own reason, bars for a researched design, the
+  compare-only sentence from `oak.community/comparison`), `DownloadsSheet.tsx` (the
+  Research tile), `web/src/research.ts` (the evidence, tier, verdict, source and kind
+  words and `whyNotSelectable`), the suffix `RESEARCHED_SUFFIX` in `ui/variantLabel.ts`
+  and `report/labels.py` with `is_researched`, `is_baseline` false for a researched
+  design, and three agreement tests (evidence words, suffix against the compiler's
+  `LABEL_SUFFIX`, never a baseline). Proofs: `web/e2e/research.spec.ts` green on the
+  throwaway stack with the fixture source (plan read, consent, run, the unvetted harness
+  reviewed, generation, six designs with "Balanced, new", the table columns, the sheet;
+  axe clean on seven screens); `journey.spec.ts` and `report.spec.ts` unchanged and
+  green on the same stack; unit and contract suites 1080 passed; `make validate` (G1–G5,
+  R1–R4, S1–S5) and `make web-build` green; tsc green.
 - [ ] M6 — report and docs.
 - [ ] M7 — browser suite, screenshots, manual.
 - [ ] M8 — closing review, gates, PR.
@@ -579,6 +597,12 @@ Each milestone ends with one commit, its exit check green and a line under Progr
 - 2026-10-21 M0, the throwaway override. Written with the ports only; the worker's
   `OAK_RESEARCH_FIXTURES` and the fixture volume are added at M3 once the directory exists,
   so Docker does not create an empty directory in the tree.
+- 2026-10-22 M5, the fixture source on both processes. The prompt's override mounts the
+  fixtures on the worker only, but the API computes the plan the consent card shows and
+  the worker re-checks the consent against its own plan before the first request; with
+  the API in live mode the card would name the three real hosts while the worker expected
+  none, and every run would be refused `OAK-RESEARCH-CONSENT`. The override therefore
+  sets `OAK_RESEARCH_FIXTURES` and the read-only volume on `api` and `worker` alike.
 
 ## Discoveries and follow-ups
 
@@ -591,6 +615,15 @@ Each milestone ends with one commit, its exit check green and a line under Progr
   behaved as designed: nothing was retried and no snapshot was written.
 - 2026-10-21 M3, process. The live test prints its summary and the console tail dropped
   it. Lesson: pipe a hand-run live check to a log file in the scratchpad and read the file.
+
+- 2026-10-22 M5, the agreement test's literal finder. `_object_literal` in
+  `tests/contract/test_report_agreement.py` takes the first mention of a name, so a doc
+  comment that names `EVIDENCE_WORDS` before its definition made the parsed map empty;
+  the test passes `"export const EVIDENCE_WORDS"`. Worth remembering for any mirror whose
+  module comment names it.
+- 2026-10-22 M5, strict locators. The claims table's hidden caption repeats the item's
+  source id, so an item-scoped `getByText` without `exact` matched two elements; the
+  spec uses `{ exact: true }` for every word it looks for, as the prompt asks.
 
 ## Self-review
 
@@ -630,3 +663,14 @@ determinism?
   plan, the idempotency key and version, the status, and the worker's own state check
   before the first request; one attempt, never retried. Authority: `select` is unchanged
   and refuses a researched design; a review admits an item to comparison only.
+- **M5.** (1) No pinned name changed: `report.spec.ts` still finds "Balanced" for
+  `candidate-03`, the curated labels and ids are untouched, and `journey.spec.ts` passes
+  unchanged. (2) Every word the workspace shows for research is a closed one: the
+  evidence words, tier words, verdict words, source and kind words, and the one suffix;
+  a label is never built from a model or repository name, and the plain reason a design
+  cannot be selected is derived from the typed comparison, never typed by hand. (3)
+  Egress from the browser: the consent card shows the plan's own response verbatim, the
+  run sends exactly `{hosts, terms_digest}` from it with the capability token, and the
+  web gains the two non-GET calls G2 lists and no other. No button approves, signs,
+  dispatches, installs or applies; a review admits an item to comparison only, and the
+  Select keycap never appears on a researched design.
