@@ -124,6 +124,23 @@ All notable changes to OAK Community are recorded here.
     case at six options; `scripts/check_report.py` composes it live and adds guard R5.
     Docs: `docs/research.md`, the README's limits and documentation table, the manual's
     section on looking for newer options, threat-coverage rows with the Sprint 14 tests.
+  - **The closing review** (`OAK-S14-007`). Four agents (three finders, one
+    refute-by-default skeptic) over the branch: fifteen confirmed findings, each fixed with
+    a test. A refused release or tag-commit read fails that harness alone and the run goes
+    on; every fact keeps the fetch time of the answer it came from and says when it was
+    cached; the API and the worker load no research reader at start; the research route
+    checks the consent, then the replay and the version, then the status; displayable text
+    is ASCII, so a confusable letter cannot slip past the forbidden words; one recorded
+    review per item per run, the first bound review governing in the compiler, the
+    workspace and the report alike; a parameter count beyond 10^15 gives no floor; two
+    source ids that fold to one manifest id give one manifest, the later listed by digest;
+    a fixture run names `fixture.invalid`, never a real host; a weight floor above the
+    declared memory fails the hardware constraint; the floor reads as OAK's estimate with
+    its estimator; absent evidence is unknown, never a pass, for security and data
+    locality; an excluded researched design never says it is compared; the licence-pending
+    rule ignores manifest order; the documents say what is sent and that research runs
+    before candidates exist, on each consent. `make audit` lifted Pillow to 13.0.0, certifi
+    to 2026.10.19 and vite to 7.3.7 with no new dependency.
 
 - **The architecture report** (Sprint 13, `OAK-S13-001`–`007`, authorized 2026-10-16): a
   decision deck about one design case, recorded beside the case, read on a Report screen

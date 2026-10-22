@@ -45,8 +45,8 @@ the extension. Curated candidates never carry the extension, so their bytes do n
 
 - Owner/agent: owner-directed coding agent
 - Started: 2026-10-21
-- Last updated: 2026-10-21 (M4)
-- State: in-progress
+- Last updated: 2026-10-22 (M8)
+- State: complete, awaiting the owner's merge (the PR is linked in `STATUS.md`)
 - Claimed tasks: `OAK-S14-001`–`OAK-S14-007`
 
 One plan covers seven task IDs because they build one vertical feature, from the decision
@@ -549,15 +549,20 @@ Each milestone ends with one commit, its exit check green and a line under Progr
   a picture); the figure shows the chips, both items, the harness's claims with their
   evidence words and the review form, as its caption says. Thirteen `shoot` calls, thirteen
   figures. The manual PDF rebuilt with the pinned Chromium (`build_manual.mjs`).
-- [ ] M8 — closing review, gates, PR. 2026-10-22: the closing review ran as one workflow
+- [x] 2026-10-22 M8 — closing review, gates, PR. The closing review ran as one workflow
   of four agents (three finders — egress and the data boundary, untrusted input and the
   supply chain, determinism and honest claims — reporting to one refute-by-default
   skeptic): 21 findings raised, merged to 18, 15 confirmed and 3 refuted; every survivor
   is fixed with a test (the table below). `make audit` lifted Pillow 12.3.0 → 13.0.0,
   certifi 2026.7.22 → 2026.10.19 and vite 7.3.6 → 7.3.7 (no new dependency). The hand-run
   live check (`OAK_LIVE_RESEARCH_TESTS=1`, `tests/live/test_research_live.py`) passed
-  against the three hosts in twelve seconds. The gates and the PR are recorded below when
-  they finish.
+  against the three hosts in twelve seconds. Gates after the fixes: `make check` with
+  `OAK_TEST_DATABASE_URL` on the throwaway database, zero `make: ***` lines (validate with
+  G1–G5, R1–R5 and S1–S5, format, lint, typecheck, unit, contract, integration and e2e,
+  OpenAPI compatibility, the web build); `make audit` green; the throwaway stack rebuilt
+  with the M8 images and `make web-e2e` run again, 26 passed, 2 skipped; `origin/main`
+  unchanged at `671d4a4`, so nothing to merge. The branch is pushed and the PR opened
+  (linked in `STATUS.md`); the merge is the owner's, no tag and no release.
 
 ## Closing review
 
@@ -788,3 +793,20 @@ determinism?
   composed from records alone, the main slides carry a researched design only by its id,
   closed label, evidence word, date, licence id and digest, and a researched option is
   flagged infeasible with the compare-only rule named.
+
+## Retro
+
+- **What worked:** deciding the words before the code — one closed evidence enum, one
+  closed label suffix and the research words mirrored in Python and the web with
+  agreement tests — meant the screen, the CLI, the report and the docs could not drift from
+  each other, and the closing review's finders could test claims against a fixed
+  vocabulary rather than argue about wording. Composing the acceptance report live in a
+  guard (R5) caught what a refreshed golden would have hidden.
+- **What cost time:** text-anchored patch scripts against files `ruff format` had just
+  reflowed (a trap Sprint 13 already named), a fix tool that removes an import added one
+  patch too early, and a fresh-interpreter boundary test that a test-support import quietly
+  broke; each cost a round trip that a read-first habit would have saved.
+- **What to keep:** the refute-by-default skeptic. Of 21 findings it kept 15, and every one
+  of those was a real defect with a reproducing probe, three of them (a second review
+  accepted, a cached fact stamped as fresh, a whole run lost to one repository's page) in
+  the egress and record-keeping core the sprint exists to get right.
