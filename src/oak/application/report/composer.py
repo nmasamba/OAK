@@ -28,13 +28,21 @@ from typing import Any
 
 from oak.application.report.formatting import format_number, format_unit
 from oak.application.report.labels import (
+    KIND_WORDS,
     PROVENANCE_WORDS,
+    TIER_WORDS,
+    VERDICT_WORDS,
     candidate_label,
     count_words,
+    estimator_word,
     humanise,
     is_baseline,
+    is_researched,
+    number_words,
+    source_type_word,
 )
 from oak.application.report.topology import layout_topology
+from oak.domain.research import EVIDENCE_WORDS
 
 COMPOSER_VERSION = "oak-report-composer-1.0.0"
 SCHEMA_VERSION = "0.1.0"
@@ -108,6 +116,23 @@ FIELD_UNITS = {
     "team_size": "people",
 }
 FIXTURE_COMPONENT_PREFIX = "component.fixture-"
+# A case holds at most six options (four curated, two researched), so the comparison
+# table and the constraint matrix fit the schema's nine-column cap (ADR-0018).
+MAXIMUM_OPTIONS = 6
+RESEARCH_EXTENSION = "oak.community/research"
+COMPARISON_EXTENSION = "oak.community/comparison"
+# A fixture research snapshot is a synthetic source: every figure it holds is a synthetic
+# estimate, and this estimator name says so (R2).
+FIXTURE_RESEARCH_ESTIMATOR = "fixture-research-source"
+# An evidence class onto the basis word a figure from that class carries. A claim an
+# author controls is quoted as text, never a quantity.
+EVIDENCE_BASIS = {
+    "published_by_source": "published by source",
+    "measured_by_source": "measured by source",
+    "served_by_live_route": "published by source",
+    "published_release": "published by source",
+}
+QUOTED_CLASSES = frozenset({"claimed_by_model_card", "claimed_by_release_notes"})
 # The longest record text the report holds (a decision's rationale), and a list item's.
 MAXIMUM_TEXT = 12000
 MAXIMUM_LIST_ITEM = 1000
@@ -155,6 +180,11 @@ class ReportRecords:
     regulatory_nexus: dict[str, Any] | None = None
     cost_model: dict[str, Any] | None = None
     proposal: dict[str, Any] | None = None
+    # Research (ADR-0018): the snapshot the design's catalogue names, the manifests it
+    # produced by item id, and the reviews bound to its digest.
+    research: dict[str, Any] | None = None
+    research_manifests: dict[str, dict[str, Any]] = field(default_factory=dict)
+    research_reviews: tuple[dict[str, Any], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -412,7 +442,19 @@ class _Context:
         selected = by_id.get(str(selected_ref.get("id")))
         if selected is None:
             raise ValueError("a report needs the selected candidate among the candidates")
+        if len(records.candidates) > MAXIMUM_OPTIONS:
+            raise ValueError(
+                f"a report holds at most {number_words(MAXIMUM_OPTIONS)} options, not "
+                f"{len(records.candidates)}"
+            )
+        labels = [candidate_label(candidate) for candidate in records.candidates]
+        if len(set(labels)) != len(labels):
+            raise ValueError(f"every option label must be unique; got {sorted(labels)}")
         self.selected: dict[str, Any] = selected
+        self.research = records.research
+        self.research_fixture = (
+            records.research is not None and records.research.get("source_mode") == "fixture"
+        )
         baselines = [candidate for candidate in records.candidates if is_baseline(candidate)]
         self.baseline = baselines[0] if baselines else None
         others = [candidate for candidate in records.candidates if candidate not in baselines]
@@ -438,7 +480,19 @@ class _Context:
     def flag(self, candidate: dict[str, Any]) -> dict[str, Any]:
         pareto = candidate.get("pareto") or {}
         if candidate.get("status") == "infeasible":
-            reasons = candidate.get("rejection_reasons") or []
+            reasons = list(candidate.get("rejection_reasons") or [])
+            comparison = (candidate.get("extensions") or {}).get(COMPARISON_EXTENSION)
+            if isinstance(comparison, dict):
+                # ADR-0018: compared under the compare-only rule, never selectable, and
+                # the objectives no source published are named, not scored.
+                uncompared = [
+                    OBJECTIVE_NAMES.get(str(name), humanise(str(name))).lower()
+                    for name in comparison.get("uncompared_objectives") or []
+                ]
+                reasons.append(
+                    f"Compared under {comparison.get('rule')}, never selectable this sprint"
+                    + (f"; not compared on {_sentence_list(uncompared)}." if uncompared else ".")
+                )
             return _status("infeasible", FLAG_WORDS["infeasible"], "; ".join(reasons) or None)
         if candidate is self.selected:
             return _status("selected", FLAG_WORDS["selected"])
@@ -457,7 +511,9 @@ class _Context:
                 return index, objective
         return None
 
-    def objective_quantity(self, candidate: dict[str, Any], name: str) -> dict[str, Any]:
+    def objective_quantity(
+        self, candidate: dict[str, Any], name: str, *, unit_of: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         found = self.objective(candidate, name)
         if found is None:
             return _unknown(f"{self.name(candidate)} records no {humanise(name).lower()} estimate.")
@@ -466,6 +522,16 @@ class _Context:
             # K4: the objective's own reason, with its recorded unit, never the generic one.
             return _unknown(
                 str(objective["unknown_reason"]), unit=_recorded_unit(objective.get("unit"))
+            )
+        expected = self.objective(unit_of, name) if unit_of is not None else None
+        if expected is not None and _recorded_unit(expected[1].get("unit")) != _recorded_unit(
+            objective.get("unit")
+        ):
+            # Units must agree per objective across options, or the value is unknown.
+            return _unknown(
+                f"The record states this in {format_unit(str(objective.get('unit')))}, not "
+                f"{format_unit(str(expected[1].get('unit')))}, so it is not compared.",
+                unit=_recorded_unit(objective.get("unit")),
             )
         return _quantity(
             objective.get("value"),
@@ -710,6 +776,22 @@ def _method(ctx: _Context, oak_version: str, narrative: Narrative | None) -> dic
                 "Catalogue snapshot",
                 _unknown("The case holds no catalogue snapshot."),
                 ctx.case_source("extensions"),
+            )
+        )
+    research = ctx.research
+    if research is not None:
+        facts.append(
+            _fact(
+                "Research run",
+                _text(f"{research['id']}, {_when(research.get('occurred_at'))}"),
+                source(research, "occurred_at"),
+            )
+        )
+        facts.append(
+            _fact(
+                "Research rule sets",
+                _list(str(item) for item in research.get("rule_sets") or []),
+                source(research, "rule_sets"),
             )
         )
     classes = Counter(str(entry.get("source") or "unknown") for entry in ctx.provenance.values())
@@ -1044,16 +1126,29 @@ def _comparison(ctx: _Context) -> dict[str, Any]:
     ]
     series = []
     rows = []
+    # K4: an option with no bar is named, with the objectives it has none for and why; it
+    # is never drawn as zero. The table beside the chart carries each cell's own reason.
+    without_bar: dict[str, list[str]] = {}
+    why_no_bar: dict[str, str] = {}
     for name in names:
         bars = []
         unit: str | None = None
         cells = []
         for candidate in ctx.ordered:
-            quantity = ctx.objective_quantity(candidate, name)
+            quantity = ctx.objective_quantity(candidate, name, unit_of=ctx.selected)
             cells.append(quantity)
             if quantity["type"] == "quantity":
                 unit = quantity["unit"]
                 bars.append({"label": ctx.label(candidate), "value": quantity})
+            else:
+                label = ctx.label(candidate)
+                without_bar.setdefault(label, []).append(OBJECTIVE_NAMES[name].lower())
+                why_no_bar.setdefault(
+                    label,
+                    "no source published those figures"
+                    if is_researched(candidate)
+                    else str(quantity["reason"]),
+                )
         series.append({"objective": OBJECTIVE_NAMES[name], "unit": _unit_words(unit), "bars": bars})
         found = ctx.objective(ctx.selected, name)
         direction = (found[1].get("direction") if found else None) or "minimize"
@@ -1113,7 +1208,7 @@ def _comparison(ctx: _Context) -> dict[str, Any]:
                         "declared",
                         source(ctx.selected, "objectives", index, "weight"),
                     ),
-                    _text(str(objective.get("estimator_ref"))),
+                    _text(estimator_word(objective.get("estimator_ref"))),
                     _quantity(
                         objective.get("confidence"),
                         "of 1",
@@ -1125,14 +1220,20 @@ def _comparison(ctx: _Context) -> dict[str, Any]:
             )
         )
     summary = selected_pareto.get("sensitivity_summary")
+    description = (
+        "Ranges for each objective, one bar per option on a shared scale. "
+        "The table lists the same numbers."
+    )
+    for label, objectives in without_bar.items():
+        description += (
+            f" {label} has no bar for {_sentence_list(objectives)}: {why_no_bar[label]}; "
+            "the table states each reason."
+        )
     blocks = [
         {
             "kind": "chart",
             "heading": None,
-            "description": (
-                "Ranges for each objective, one bar per option on a shared scale. "
-                "The table lists the same numbers."
-            ),
+            "description": _clip(description),
             "series": series,
             "table_id": "comparison",
             "source": source(ctx.selected, "objectives"),
@@ -2114,12 +2215,16 @@ def _best_and_worst(ctx: _Context, candidate: dict[str, Any]) -> tuple[list[str]
         return best, worst
     for name, word in OBJECTIVE_NAMES.items():
         values = []
+        unknown = False
         for other in feasible:
             found = ctx.objective(other, name)
             if found is not None and isinstance(found[1].get("value"), (int, float)):
                 values.append((other, found[1]))
+            elif found is not None:
+                unknown = True
         own = ctx.objective(candidate, name)
-        if own is None or len(values) < 2:
+        # K4: no best or worst on an objective any feasible option leaves unknown.
+        if own is None or len(values) < 2 or unknown:
             continue
         direction = own[1].get("direction")
         numbers = [objective["value"] for _, objective in values]
@@ -2322,7 +2427,7 @@ def _appendix_estimates(ctx: _Context) -> dict[str, Any]:
                         f"{'lower' if objective.get('direction') == 'minimize' else 'higher'} "
                         f"is better, in {format_unit(str(objective.get('unit')))}"
                     ),
-                    _text(str(objective.get("estimator_ref"))),
+                    _text(estimator_word(objective.get("estimator_ref"))),
                     _quantity(
                         objective.get("confidence"),
                         "of 1",
@@ -2411,7 +2516,7 @@ def _appendix_estimates(ctx: _Context) -> dict[str, Any]:
             )
         )
     estimators = {
-        str(objective.get("estimator_ref"))
+        estimator_word(objective.get("estimator_ref"))
         for candidate in ctx.ordered
         for objective in candidate.get("objectives") or []
     }
@@ -2429,30 +2534,40 @@ def _appendix_estimates(ctx: _Context) -> dict[str, Any]:
     )
 
 
+def _evidence_rows(manifest: dict[str, Any]) -> list[dict[str, Any]]:
+    # A fixture component's evidence is a synthetic declaration whatever its recorded
+    # type; a researched manifest's reads as the untrusted type ADR-0018 mapped it to.
+    synthetic = str(manifest.get("id", "")).startswith(FIXTURE_COMPONENT_PREFIX)
+    rows = []
+    for index, evidence in enumerate(manifest.get("evidence") or []):
+        rows.append(
+            _row(
+                [
+                    _text(str(evidence.get("title"))),
+                    _text(str(manifest.get("id"))),
+                    _text(source_type_word(evidence.get("source_type"), synthetic=synthetic)),
+                    _text(str(evidence.get("version") or "not recorded")),
+                    _text(str(evidence.get("uri") or "no link recorded")),
+                    _text(_date(evidence.get("checked_at"))),
+                    _quantity(
+                        evidence.get("confidence"),
+                        "of 1",
+                        "declared",
+                        source(manifest, "evidence", index, "confidence"),
+                    ),
+                ],
+                source(manifest, "evidence", index),
+            )
+        )
+    return rows
+
+
 def _appendix_evidence(ctx: _Context) -> dict[str, Any]:
     rows = []
     for key in sorted(ctx.records.components):
-        manifest = ctx.records.components[key]
-        for index, evidence in enumerate(manifest.get("evidence") or []):
-            rows.append(
-                _row(
-                    [
-                        _text(str(evidence.get("title"))),
-                        _text(str(manifest.get("id"))),
-                        _text(str(evidence.get("source_type"))),
-                        _text(str(evidence.get("version") or "not recorded")),
-                        _text(str(evidence.get("uri") or "no link recorded")),
-                        _text(_date(evidence.get("checked_at"))),
-                        _quantity(
-                            evidence.get("confidence"),
-                            "of 1",
-                            "declared",
-                            source(manifest, "evidence", index, "confidence"),
-                        ),
-                    ],
-                    source(manifest, "evidence", index),
-                )
-            )
+        rows.extend(_evidence_rows(ctx.records.components[key]))
+    for item_id in sorted(ctx.records.research_manifests):
+        rows.extend(_evidence_rows(ctx.records.research_manifests[item_id]))
     blocks: list[dict[str, Any]] = [
         _table(
             "evidence",
@@ -2493,6 +2608,31 @@ def _appendix_evidence(ctx: _Context) -> dict[str, Any]:
                     ),
                 ],
                 heading="The catalogue snapshot",
+            )
+        )
+    research = ctx.research
+    if research is not None:
+        blocks.append(
+            _facts(
+                [
+                    _fact("Snapshot", _text(str(research.get("id"))), source(research, "id")),
+                    _fact(
+                        "Run at",
+                        _text(_when(research.get("occurred_at"))),
+                        source(research, "occurred_at"),
+                    ),
+                    _fact(
+                        "Researched components",
+                        _list(
+                            str(manifest.get("id"))
+                            for _, manifest in sorted(ctx.records.research_manifests.items())
+                        )
+                        if ctx.records.research_manifests
+                        else _text("none"),
+                        source(research, "items"),
+                    ),
+                ],
+                heading="The research snapshot",
             )
         )
     requirement_ids = sorted(
@@ -2574,6 +2714,277 @@ def _appendix_record(ctx: _Context, oak_version: str, renderer: dict[str, Any]) 
     )
 
 
+# ----- appendix G: research (ADR-0018) ---------------------------------------------------
+
+
+def _research_quantity(
+    ctx: _Context, value: Any, unit: str | None, basis: str, origin: str
+) -> dict[str, Any]:
+    """A figure from the research snapshot: its source's basis, or synthetic for a fixture."""
+
+    return _quantity(
+        value,
+        unit,
+        basis,
+        origin,
+        estimator=FIXTURE_RESEARCH_ESTIMATOR if ctx.research_fixture else None,
+        synthetic=ctx.research_fixture,
+    )
+
+
+def _claim_value(ctx: _Context, claim: dict[str, Any], origin: str) -> dict[str, Any]:
+    """What a claim says, typed by its evidence class: a quantity when the source published
+    a figure with a unit, a quoted text for an author-controlled claim, unknown otherwise."""
+
+    evidence_class = str(claim.get("evidence_class"))
+    value = claim.get("value")
+    if evidence_class == "unverified":
+        return _unknown("Nothing backs this claim.")
+    if evidence_class in QUOTED_CLASSES:
+        return _text(str(value))
+    if isinstance(value, (int, float)) and not isinstance(value, bool) and claim.get("unit"):
+        return _research_quantity(
+            ctx, value, str(claim["unit"]), EVIDENCE_BASIS[evidence_class], origin
+        )
+    if isinstance(value, bool):
+        return _text("yes" if value else "no")
+    if str(claim.get("field", "")).endswith("_at") and isinstance(value, str):
+        return _text(_when(value))
+    return _text(str(value))
+
+
+def _review_state(
+    ctx: _Context, item: dict[str, Any]
+) -> tuple[str, dict[str, Any], dict[str, Any] | None]:
+    """The effective verdict of an item, as a status with its word, and its review if any."""
+
+    verdict = str(item.get("verdict"))
+    review = next(
+        (r for r in ctx.records.research_reviews if r.get("item_id") == item.get("id")), None
+    )
+    if verdict == "needs_review" and review is not None:
+        accepted = review.get("decision") == "accept"
+        word = "Accepted by reviewer" if accepted else "Rejected by reviewer"
+        return (
+            ("passed" if accepted else "failed"),
+            _status("pass" if accepted else "fail", word),
+            review,
+        )
+    reasons = "; ".join(str(reason) for reason in item.get("reasons") or []) or None
+    status = {"passed": "pass", "failed": "fail"}.get(verdict, "unknown")
+    return verdict, _status(status, VERDICT_WORDS.get(verdict, "Unknown"), reasons), review
+
+
+def _appendix_research(ctx: _Context) -> dict[str, Any]:
+    research = ctx.research
+    assert research is not None
+    budget = research.get("budget") or {}
+    hosts = [str(host) for host in research.get("hosts") or []]
+    run_facts = [
+        _fact("Run", _text(str(research.get("id"))), source(research, "id")),
+        _fact("Date", _text(_when(research.get("occurred_at"))), source(research, "occurred_at")),
+        _fact(
+            "Source",
+            _text(
+                "The fixture source: recorded answers, read from files on this machine. "
+                "Every figure below is a synthetic estimate."
+                if ctx.research_fixture
+                else "Live: the public listings of the hosts named below, read anonymously."
+            ),
+            source(research, "source_mode"),
+        ),
+        _fact(
+            "Hosts",
+            _list(hosts) if hosts else _text("none; no address was read"),
+            source(research, "hosts"),
+        ),
+        _fact(
+            "Terms digest",
+            _text(str(research.get("terms_digest"))),
+            source(research, "terms_digest"),
+        ),
+        _fact(
+            "Rule sets",
+            _list(str(item) for item in research.get("rule_sets") or []),
+            source(research, "rule_sets"),
+        ),
+        _fact(
+            "Budget",
+            _text(
+                f"{number_words(int(budget.get('requests_max') or 0))} requests within "
+                f"{number_words(int(budget.get('deadline_seconds') or 0))} seconds, and a "
+                "freshness window of "
+                f"{number_words(int(research.get('freshness_window_days') or 0))} days"
+            ),
+            source(research, "budget"),
+        ),
+        _fact(
+            "Requests used",
+            _research_quantity(
+                ctx,
+                budget.get("requests_used"),
+                "requests",
+                "counted",
+                source(research, "budget", "requests_used"),
+            ),
+            source(research, "budget", "requests_used"),
+        ),
+        _fact(
+            "Time taken",
+            _research_quantity(
+                ctx,
+                budget.get("elapsed_seconds"),
+                "seconds",
+                "counted",
+                source(research, "budget", "elapsed_seconds"),
+            ),
+            source(research, "budget", "elapsed_seconds"),
+        ),
+    ]
+    items = list(research.get("items") or [])
+    designed: set[str] = set()
+    for candidate in ctx.ordered:
+        extension = (candidate.get("extensions") or {}).get(RESEARCH_EXTENSION) or {}
+        for key in ("model_item_id", "harness_item_id"):
+            if isinstance(extension.get(key), str):
+                designed.add(str(extension[key]))
+    item_rows = []
+    passed_not_designed: list[str] = []
+    failed: list[str] = []
+    claim_tables = []
+    for index, item in enumerate(items):
+        verdict, state, review = _review_state(ctx, item)
+        source_id = str(item.get("source_id"))
+        if verdict == "passed" and str(item.get("id")) not in designed:
+            passed_not_designed.append(source_id)
+        if verdict == "failed":
+            reasons = "; ".join(str(reason) for reason in item.get("reasons") or [])
+            if review is not None:
+                reasons = f"rejected by {review.get('actor')}, {_date(review.get('recorded_at'))}"
+            failed.append(f"{source_id}: {reasons or 'no reason recorded'}")
+        review_value = (
+            _text(
+                f"{'accepted' if review.get('decision') == 'accept' else 'rejected'} by "
+                f"{review.get('actor')}, {_date(review.get('recorded_at'))}"
+            )
+            if review is not None
+            else _text("none")
+        )
+        item_rows.append(
+            _row(
+                [
+                    _text(source_id),
+                    _text(KIND_WORDS.get(str(item.get("kind")), humanise(str(item.get("kind"))))),
+                    _text(TIER_WORDS.get(str(item.get("tier")), "Unknown tier")),
+                    _text(_date(item.get("created_or_released_at"))),
+                    state,
+                    review_value,
+                ],
+                source(research, "items", index),
+            )
+        )
+        claim_rows = [
+            _row(
+                [
+                    _text(humanise(str(claim.get("field")))),
+                    _claim_value(
+                        ctx, claim, source(research, "items", index, "claims", position, "value")
+                    ),
+                    _text(EVIDENCE_WORDS.get(str(claim.get("evidence_class")), "Unverified")),
+                    _text(_date(claim.get("checked_at"))),
+                ],
+                source(research, "items", index, "claims", position),
+            )
+            for position, claim in enumerate(item.get("claims") or [])
+        ]
+        claim_tables.append(
+            _table(
+                f"claims-{index}",
+                f"What the source says about {source_id}, each claim with its evidence class",
+                ["Claim", "Value", "Evidence", "Checked"],
+                claim_rows,
+            )
+            if claim_rows
+            else _paragraph(f"The source published no claim about {source_id}.")
+        )
+    by_id = {str(item.get("id")): str(item.get("source_id")) for item in items}
+    pairings = [
+        f"{by_id.get(str(pairing.get('model_item_id')), '?')} with "
+        f"{by_id.get(str(pairing.get('harness_item_id')), '?')}, on "
+        + _sentence_list(
+            [
+                EVIDENCE_WORDS.get(str(name), "Unverified").lower()
+                for name in pairing.get("claim_classes") or []
+            ]
+        )
+        for pairing in research.get("pairings") or []
+    ]
+    request_rows = [
+        _row(
+            [
+                _text(str(request.get("host"))),
+                _text(str(request.get("path"))),
+                _status("fail", "refused", str(request.get("refusal_code")))
+                if request.get("refusal_code")
+                else _status("pass", "answered"),
+                _text("yes" if request.get("cached") else "no"),
+            ],
+            source(research, "requests", index),
+        )
+        for index, request in enumerate(research.get("requests") or [])
+    ]
+    outcome_facts = [
+        _fact(
+            "Found",
+            _text(f"{count_words(len(items))} item{'s' if len(items) != 1 else ''}"),
+            source(research, "summary", "found"),
+        ),
+        _fact(
+            "Passed but not designed",
+            _list(passed_not_designed) if passed_not_designed else _text("none"),
+            source(research, "items"),
+        ),
+        _fact(
+            "Did not pass",
+            _list(failed) if failed else _text("none"),
+            source(research, "items"),
+        ),
+        _fact(
+            "Pairings",
+            _list(pairings) if pairings else _text("none"),
+            source(research, "pairings"),
+        ),
+    ]
+    blocks: list[dict[str, Any]] = [
+        _facts(run_facts, heading="The run"),
+        _table(
+            "research-items",
+            "What research found, with the verdict of the gates and any recorded review",
+            ["Item", "Kind", "Tier", "Date", "Gates", "Review"],
+            item_rows,
+        )
+        if item_rows
+        else _paragraph("Research found nothing within its terms."),
+        _facts(outcome_facts, heading="What became of it"),
+        *claim_tables,
+        _table(
+            "research-requests",
+            "Every request the run made",
+            ["Host", "Path", "Outcome", "Cached"],
+            request_rows,
+        )
+        if request_rows
+        else _paragraph("The run made no request."),
+    ]
+    return _section(
+        "appendix-research",
+        "G",
+        "What research found, and what each source claims",
+        "The run, its budget, every item with its claims and evidence class, and every request.",
+        blocks,
+    )
+
+
 # ----- the document --------------------------------------------------------------------
 
 
@@ -2620,6 +3031,10 @@ def report_document(
         _appendix_evidence(ctx),
         _appendix_record(ctx, oak_version, renderer),
     ]
+    if records.research is not None:
+        # Appendix G exists only for a case that holds a research snapshot (ADR-0018); an
+        # unresearched report keeps its twenty sections byte for byte.
+        sections.append(_appendix_research(ctx))
     if narrative is not None:
         reference = narrative.narrative_ref
         for section in sections:

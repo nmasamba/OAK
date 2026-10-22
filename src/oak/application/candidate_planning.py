@@ -28,6 +28,7 @@ from oak.compiler.research_designs import (
 from oak.contracts import SchemaRegistry
 from oak.domain import (
     RESEARCH_REVIEW_REFS,
+    RESEARCH_SNAPSHOT_MEDIA_TYPE,
     RESEARCH_SNAPSHOT_REF,
     Artifact,
     ArtifactReference,
@@ -294,10 +295,13 @@ class CandidatePlanningService:
         assert set(manifests) == set(passing_manifest_ids(snapshot, verdicts))
         return {
             "snapshot": snapshot,
+            # A full reference, so the merged catalogue snapshot and every researched design
+            # name the research snapshot in a form the report reader can read by digest.
             "snapshot_ref": {
                 "id": str(reference["id"]),
                 "version": str(reference["version"]),
                 "digest": str(reference["digest"]),
+                "media_type": str(reference.get("media_type") or RESEARCH_SNAPSHOT_MEDIA_TYPE),
             },
             "review_refs": review_refs,
             "verdicts": verdicts,

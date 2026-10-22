@@ -781,7 +781,12 @@ def _diagram_unit(block: dict[str, Any]) -> Unit:
             _draw_lines(ink, x + 5, y + 6, [Line(t, BOLD, 8.5, palette.INK) for t in role], 10.5)
             component = node.get("component")
             if component:
-                short = wrap(str(component), MONO, 6.5, width - 10)[:2]
+                # Two lines at most; a longer identifier ends in an ellipsis rather than
+                # being cut mid-word, so a reader knows it continues in the table.
+                lines = wrap(str(component), MONO, 6.5, width - 10)
+                short = lines[:2]
+                if len(lines) > 2:
+                    short[1] = fit(f"{short[1]} {' '.join(lines[2:])}", MONO, 6.5, width - 10)
                 _draw_lines(
                     ink,
                     x + 5,

@@ -31,7 +31,8 @@ export const VERDICT_WORDS: Readonly<Record<string, string>> = {
 
 /** Where a researched item came from; the fixture source is named as synthetic. */
 export const SOURCE_WORDS: Readonly<Record<string, string>> = {
-  hub: "Hugging Face",
+  huggingface_hub: "Hugging Face Hub",
+  huggingface_router: "Hugging Face router",
   github: "GitHub",
   fixture: "Fixture (synthetic)",
 };

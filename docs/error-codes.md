@@ -75,7 +75,7 @@ documented flow uses it.
 | Code | Meaning | First raise site |
 |---|---|---|
 | `OAK-CASE-CONFLICT` | workspace contains a different design case | `src/oak/application/control_plane.py:144` |
-| `OAK-CASE-NOT-FOUND` | design case was not found; requested design case is not current; workspace has no design case | `src/oak/application/candidate_planning.py:789` |
+| `OAK-CASE-NOT-FOUND` | design case was not found; requested design case is not current; workspace has no design case | `src/oak/application/candidate_planning.py:793` |
 | `OAK-CASE-TRANSITION-DENIED` | *dynamic message* | `src/oak/domain/design_case.py:95` |
 | `OAK-CASE-VERSION` | case version is not a supported semantic version | `src/oak/domain/design_case.py:46` |
 | `OAK-CONFIRM-ANSWERS` | --answers is required | `src/oak/interfaces/cli/main.py:417` |
@@ -112,28 +112,28 @@ documented flow uses it.
 
 | Code | Meaning | First raise site |
 |---|---|---|
-| `OAK-ASSURE-CANDIDATE` | assurance candidate is not selected | `src/oak/application/candidate_planning.py:469` |
+| `OAK-ASSURE-CANDIDATE` | assurance candidate is not selected | `src/oak/application/candidate_planning.py:473` |
 | `OAK-ASSURE-OUTPUT` | --output is required | `src/oak/interfaces/cli/main.py:695` |
-| `OAK-ASSURE-STATE` | assurance requires candidate_selected state | `src/oak/application/candidate_planning.py:466` |
+| `OAK-ASSURE-STATE` | assurance requires candidate_selected state | `src/oak/application/candidate_planning.py:470` |
 | `OAK-CANDIDATE-NOT-FOUND` | candidate is not part of this design case | `src/oak/application/architecture.py:40` |
-| `OAK-CANDIDATES-STATE` | candidates require a case that is ready for candidates; candidates require every model-proposed value to be confirmed, corrected or rejected first | `src/oak/application/candidate_planning.py:169` |
-| `OAK-EVALUATE-STATE` | candidate evaluation requires candidates_ready state | `src/oak/application/candidate_planning.py:332` |
-| `OAK-EVALUATION-EXISTS` | candidate already has an immutable evaluation; retry with the original key | `src/oak/application/candidate_planning.py:337` |
-| `OAK-EVALUATION-NOT-FOUND` | candidate has no evaluation result | `src/oak/application/candidate_planning.py:737` |
-| `OAK-PLAN-CANDIDATE` | plan candidate is not selected | `src/oak/application/candidate_planning.py:573` |
+| `OAK-CANDIDATES-STATE` | candidates require a case that is ready for candidates; candidates require every model-proposed value to be confirmed, corrected or rejected first | `src/oak/application/candidate_planning.py:170` |
+| `OAK-EVALUATE-STATE` | candidate evaluation requires candidates_ready state | `src/oak/application/candidate_planning.py:336` |
+| `OAK-EVALUATION-EXISTS` | candidate already has an immutable evaluation; retry with the original key | `src/oak/application/candidate_planning.py:341` |
+| `OAK-EVALUATION-NOT-FOUND` | candidate has no evaluation result | `src/oak/application/candidate_planning.py:741` |
+| `OAK-PLAN-CANDIDATE` | plan candidate is not selected | `src/oak/application/candidate_planning.py:577` |
 | `OAK-PLAN-INPUT` | --target and --output are required; target profile is malformed | `src/oak/interfaces/cli/main.py:766` |
-| `OAK-PLAN-STATE` | plan compilation requires assurance_planned state | `src/oak/application/candidate_planning.py:570` |
+| `OAK-PLAN-STATE` | plan compilation requires assurance_planned state | `src/oak/application/candidate_planning.py:574` |
 | `OAK-PLAN-TARGET` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/cli/main.py:811` |
-| `OAK-SELECT-EVALUATION` | candidate evaluation must pass before selection | `src/oak/application/candidate_planning.py:406` |
-| `OAK-SELECT-INFEASIBLE` | an infeasible candidate cannot be selected | `src/oak/application/candidate_planning.py:402` |
-| `OAK-SELECT-RATIONALE` | --rationale-file is required; selection rationale is required and bounded | `src/oak/application/candidate_planning.py:378` |
-| `OAK-SELECT-STATE` | selection requires candidates_ready state | `src/oak/application/candidate_planning.py:398` |
-| `OAK-TARGET-CAPABILITY` | target does not allow every required read-only planning operation | `src/oak/application/candidate_planning.py:560` |
+| `OAK-SELECT-EVALUATION` | candidate evaluation must pass before selection | `src/oak/application/candidate_planning.py:410` |
+| `OAK-SELECT-INFEASIBLE` | an infeasible candidate cannot be selected | `src/oak/application/candidate_planning.py:406` |
+| `OAK-SELECT-RATIONALE` | --rationale-file is required; selection rationale is required and bounded | `src/oak/application/candidate_planning.py:382` |
+| `OAK-SELECT-STATE` | selection requires candidates_ready state | `src/oak/application/candidate_planning.py:402` |
+| `OAK-TARGET-CAPABILITY` | target does not allow every required read-only planning operation | `src/oak/application/candidate_planning.py:564` |
 | `OAK-TARGET-EXECUTION` | execution.container_image_reference and container_image_digest are superseded; declare execution.component_images, one acknowledged image per component; mutation-capable target profile is missing its execution block (some dynamic) | `src/oak/compiler/planning.py:524` |
 | `OAK-TARGET-INCOMPATIBLE` | *dynamic message* | `src/oak/compiler/planning.py:628` |
 | `OAK-TARGET-INVALID` | target profile failed bounded validation | `src/oak/adapters/targets/local_profile.py:51` |
 | `OAK-TARGET-PATH` | target profile must be a regular file | `src/oak/adapters/targets/local_profile.py:24` |
-| `OAK-TARGET-TENANT` | target tenant does not match the command authority | `src/oak/application/candidate_planning.py:554` |
+| `OAK-TARGET-TENANT` | target tenant does not match the command authority | `src/oak/application/candidate_planning.py:558` |
 
 ### Catalogue (30)
 
@@ -351,7 +351,7 @@ documented flow uses it.
 
 | Code | Meaning | First raise site |
 |---|---|---|
-| `OAK-INTERPRETER-` | *reason or mapping code; carries no fixed message* | `src/oak/adapters/models/report_narrator.py:201` |
+| `OAK-INTERPRETER-` | *reason or mapping code; carries no fixed message* | `src/oak/adapters/models/report_narrator.py:202` |
 | `OAK-INTERPRETER-INPUT-LIMIT` | proposal input exceeds its limit | `src/oak/adapters/models/fake_interpreter.py:28` |
 | `OAK-INTERPRETER-MALFORMED` | optional interpreter returned no proposal; optional proposal failed validation; optional proposal is not canonical JSON data; and 6 more | `src/oak/adapters/models/fake_interpreter.py:36` |
 | `OAK-INTERPRETER-MODE` | interpreter must be deterministic, online or local | `src/oak/application/design_case.py:264` |
@@ -402,7 +402,7 @@ documented flow uses it.
 | Code | Meaning | First raise site |
 |---|---|---|
 | `OAK-ACTOR-DENIED` | local actor is not authorized | `src/oak/interfaces/api/app.py:115` |
-| `OAK-CORRELATION-ID` | correlation ID must contain at least 8 characters; correlation id must contain at least 8 characters | `src/oak/application/candidate_planning.py:822` |
+| `OAK-CORRELATION-ID` | correlation ID must contain at least 8 characters; correlation id must contain at least 8 characters | `src/oak/application/candidate_planning.py:826` |
 | `OAK-DIRECTORY-UNAVAILABLE` | design-case directory is unavailable | `src/oak/application/control_plane.py:155` |
 | `OAK-EXPECTED-VERSION` | expected case version does not match current version (some dynamic) | `src/oak/adapters/persistence/file_workspace.py:505` |
 | `OAK-IDEMPOTENCY-CONFLICT` | idempotency key was already used for different input; idempotency key was already used for different operation input; import destination contains different canonical state | `src/oak/adapters/persistence/file_workspace.py:218` |
@@ -430,7 +430,7 @@ documented flow uses it.
 | `OAK-CONFIRM` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/cli/main.py:2357` |
 | `OAK-CONTRACT-INVALID` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/cli/main.py:2485` |
 | `OAK-CURSOR-INVALID` | pagination cursor is invalid | `src/oak/interfaces/api/app.py:438` |
-| `OAK-DEPENDENCY-MISSING` | case has no recorded policy decision; rendering requires a compiled bundle; rendering requires a semantic manifest; and 2 more (some dynamic) | `src/oak/application/candidate_planning.py:800` |
+| `OAK-DEPENDENCY-MISSING` | case has no recorded policy decision; rendering requires a compiled bundle; rendering requires a semantic manifest; and 2 more (some dynamic) | `src/oak/application/candidate_planning.py:804` |
 | `OAK-HTTP-ERROR` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/api/app.py:637` |
 | `OAK-INPUT-INVALID` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/cli/main.py:2489` |
 | `OAK-INT-CONTRADICTION-PRODUCTION-DATA` | *reason or mapping code; carries no fixed message* | `src/oak/compiler/interpretation.py:586` |
@@ -445,10 +445,10 @@ documented flow uses it.
 | `OAK-INTERPRET-STATE` | only a draft case can be interpreted | `src/oak/application/design_case.py:307` |
 | `OAK-JOURNAL-ENTRY` | journal entry type is not recognized | `src/oak/runner/journal.py:59` |
 | `OAK-JOURNAL-TAMPERED` | journal hash chain does not verify (some dynamic) | `src/oak/runner/journal.py:103` |
-| `OAK-NARRATIVE-` | *reason or mapping code; carries no fixed message* | `src/oak/adapters/models/report_narrator.py:202` |
+| `OAK-NARRATIVE-` | *reason or mapping code; carries no fixed message* | `src/oak/adapters/models/report_narrator.py:203` |
 | `OAK-NARRATIVE-EMPTY` | none of the model's notes passed OAK's checks, so nothing was recorded; record again or use --narrative deterministic | `src/oak/application/report/service.py:231` |
-| `OAK-NARRATIVE-INPUT-LIMIT` | the report is too long to narrate | `src/oak/adapters/models/report_narrator.py:111` |
-| `OAK-NARRATIVE-MALFORMED` | the model's answer was longer than allowed; the model's answer was not the requested JSON; the narrator did not name its model | `src/oak/adapters/models/report_narrator.py:120` |
+| `OAK-NARRATIVE-INPUT-LIMIT` | the report is too long to narrate | `src/oak/adapters/models/report_narrator.py:112` |
+| `OAK-NARRATIVE-MALFORMED` | the model's answer was longer than allowed; the model's answer was not the requested JSON; the narrator did not name its model | `src/oak/adapters/models/report_narrator.py:121` |
 | `OAK-NARRATIVE-MODE` | narrative must be deterministic, online or local | `src/oak/application/report/service.py:114` |
 | `OAK-NARRATIVE-UNAVAILABLE` | the provider did not answer; the provider did not answer within the request deadline | `src/oak/adapters/models/fake_narrator.py:33` |
 | `OAK-NOT-FOUND` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/api/app.py:637` |
@@ -458,8 +458,8 @@ documented flow uses it.
 | `OAK-OUTPUT-EXISTS` | GitOps output directory already exists; output directory already exists; render output directory already exists | `src/oak/application/gitops.py:36` |
 | `OAK-REPORT-MISSING` | no report is recorded for this case; run `oak report --record` first | `src/oak/interfaces/cli/main.py:1634` |
 | `OAK-REPORT-OUTPUT` | a PDF needs --output <file> | `src/oak/interfaces/cli/main.py:1353` |
-| `OAK-REPORT-RENDER` | no PDF report renderer is configured; the report document could not be drawn; this renderer writes PDF only | `src/oak/adapters/report/pdf.py:1127` |
-| `OAK-REPORT-SIZE` | the rendered report exceeds 4 MiB | `src/oak/adapters/report/pdf.py:1133` |
+| `OAK-REPORT-RENDER` | no PDF report renderer is configured; the report document could not be drawn; this renderer writes PDF only | `src/oak/adapters/report/pdf.py:1132` |
+| `OAK-REPORT-SIZE` | the rendered report exceeds 4 MiB | `src/oak/adapters/report/pdf.py:1138` |
 | `OAK-REPORT-STATE` | *dynamic message* | `src/oak/application/report/service.py:156` |
 | `OAK-RESEARCH-BUDGET` | *reason or mapping code; carries no fixed message* | `src/oak/adapters/models/research_sources.py:160` |
 | `OAK-RESEARCH-CONSENT` | the consent does not name the hosts and terms this research would send; read the plan again and consent to what it shows; the research source changed since the plan | `src/oak/application/research.py:150` |

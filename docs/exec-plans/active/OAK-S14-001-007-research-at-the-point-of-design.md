@@ -508,7 +508,37 @@ Each milestone ends with one commit, its exit check green and a line under Progr
   axe clean on seven screens); `journey.spec.ts` and `report.spec.ts` unchanged and
   green on the same stack; unit and contract suites 1080 passed; `make validate` (G1–G5,
   R1–R4, S1–S5) and `make web-build` green; tsc green.
-- [ ] M6 — report and docs.
+- [x] 2026-10-22 M6: appendix G (`_appendix_research`: the run with its budget in words
+  and its figures as quantities, the items table with the gates' verdict and the recorded
+  review, a claims table per item with the evidence word and an array-index pointer, the
+  outcomes, the pairings, every request), slide 2 naming the run and both rule sets,
+  appendix E with the researched evidence under closed source-type words and the research
+  snapshot, appendix F binding the snapshot, manifests and reviews through
+  `records.gather_records` (reached through the catalogue snapshot the selected design
+  names); the K4 rules (the chart names each option without a bar and why; best and worst
+  skipped on an objective any feasible option leaves unknown; a differing unit makes the
+  value unknown; the flag names the compare-only rule and the uncompared objectives); the
+  six-option maximum and unique labels refused in `_Context`; `estimator_word` for a null
+  estimator; the two declared golden moves (`source_type_word`, `FIXED_RENDERER` without
+  `python-pptx` and the package docstring); `check_notes` and the narrator rule refusing
+  superlatives; `fit()` on the PDF diagram's component label; the second golden
+  `public-manual-qa-research.report.json` from `tests/report_support.build_researched_case`;
+  `scripts/check_report.py` R5 and the research basis rule in R2 (`SYNTHETIC_SOURCES` gains
+  `component.research.`); the research words mirrored in `labels.py` with agreement tests
+  and `number_words`. Docs: `docs/research.md` (linked from the README table and limits, the
+  docs index and the ADR index), the manual's section 2b with a real fixture-source
+  transcript and the thirteenth figure's caption (the shot is captured at M7), threat
+  coverage rows TM-02, TM-04, TM-13, TM-14 and TM-17 with the Sprint 14 test names, the
+  CHANGELOG. Proofs: the reference golden moved only by the two declared changes (checked
+  field by field before it was rewritten); the acceptance report records, validates and
+  renders at six options with appendix G on its pages; no researched free text reaches
+  `narrator_facts`; R1–R5 green live over both cases; the counts are in the M6 checks line.
+- [x] 2026-10-22 M6 checks: `make format-check`, `make lint` and `make typecheck` green;
+  `make validate` green (G1–G5, R1–R5 over the reference case at three stops and the
+  acceptance case at two, S1–S5, the error reference regenerated); `make test` 1117 passed;
+  the report, research and offline-boundary integration suites 57 passed (two
+  offline-boundary tests first failed because `tests/report_support` imported the research
+  readers at module level; they are imported inside `build_researched_case` now).
 - [ ] M7 — browser suite, screenshots, manual.
 - [ ] M8 — closing review, gates, PR.
 
@@ -597,6 +627,24 @@ Each milestone ends with one commit, its exit check green and a line under Progr
 - 2026-10-21 M0, the throwaway override. Written with the ports only; the worker's
   `OAK_RESEARCH_FIXTURES` and the fixture volume are added at M3 once the directory exists,
   so Docker does not create an empty directory in the tree.
+- 2026-10-22 M6, manifest ids on main slides. A researched design's rejection reasons and
+  constraint reasons name its component manifests (`component.research.<source>.<slug>.run-n`).
+  Those ids are OAK identifiers made by the allowlist normalisation (ASCII, bounded, no
+  forbidden word), not an author's text, so the main slides keep them as the record states
+  them; the test that no researched free text reaches `narrator_facts` strips them before it
+  looks for the quoted claims, names, descriptions and the reviewer's rationale, all of which
+  live in appendix G only.
+- 2026-10-22 M6, a fixture snapshot's figures. The prompt's rule that every figure from a
+  fixture research snapshot reads "synthetic estimate" applies to the run's own counts too
+  (requests used, time taken), with the estimator `fixture-research-source` so R2's
+  "an estimate names no estimator" holds; the budget itself is words, never a bare digit.
+  A live snapshot's figures keep "published by source", "measured by source" or "counted".
+- 2026-10-22 M6, the research records are reached through the design. `gather_records`
+  reads the catalogue snapshot the selected candidate names (the case's own reference is
+  the fallback), then the research snapshot that catalogue names, its manifests and the
+  reviews bound to its digest, in that order after every other read, so an unresearched
+  report's record appendix does not move. The planning service now carries the research
+  snapshot reference with its media type into the merged catalogue and the designs.
 - 2026-10-22 M5, the fixture source on both processes. The prompt's override mounts the
   fixtures on the worker only, but the API computes the plan the consent card shows and
   the worker re-checks the consent against its own plan before the first request; with
@@ -624,6 +672,14 @@ Each milestone ends with one commit, its exit check green and a line under Progr
 - 2026-10-22 M5, strict locators. The claims table's hidden caption repeats the item's
   source id, so an item-scoped `getByText` without `exact` matched two elements; the
   spec uses `{ exact: true }` for every word it looks for, as the prompt asks.
+
+- 2026-10-22 M6, the chart text's limit. Naming every missing bar with its full reason ran
+  past the chart description's 2,000 characters; the text now names each option once with
+  the objectives it has no bar for and a short why, and the table beside it carries each
+  cell's own reason (R3 still ties the two).
+- 2026-10-22 M6, ruff drops an import it has not seen used yet. A patch that adds an import
+  before the code that uses it, then runs `ruff check --fix`, loses the import; add both in
+  one patch or fix after.
 
 ## Self-review
 
@@ -674,3 +730,13 @@ determinism?
   web gains the two non-GET calls G2 lists and no other. No button approves, signs,
   dispatches, installs or applies; a review admits an item to comparison only, and the
   Select keycap never appears on a researched design.
+- **M6.** (1) The reference golden moved only by the two declared changes, proved field
+  by field before the file was rewritten; `COMPOSER_VERSION`, `schema_version` and the
+  twenty-section order for an unresearched case are untouched, and `report.spec.ts` still
+  finds "Balanced". (2) Every research figure in a report carries its unit, its source as
+  an array-index pointer and a basis the source can stand behind (or synthetic for the
+  fixture), every claim its evidence word, every count a word; no number is invented for a
+  figure no source published. (3) No egress and no authority change: the report is still
+  composed from records alone, the main slides carry a researched design only by its id,
+  closed label, evidence word, date, licence id and digest, and a researched option is
+  flagged infeasible with the compare-only rule named.

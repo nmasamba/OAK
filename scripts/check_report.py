@@ -12,6 +12,10 @@ R2  Every number is a quantity with a unit, a source and a basis; a fixture esti
     holds no bare number (counts are words, figures are quantities).
 R3  Every section that draws a picture carries its table, and the table covers the picture.
 R4  Every text and background pair in the print palette reaches 4.5:1.
+R5  The acceptance case (ADR-0018: researched on the fixture source, the unvetted harness
+    accepted) composes live too: appendix G is its last section; every figure from its
+    fixture snapshot is a synthetic estimate; every claim carries an evidence word and a
+    pointer with array indexes; a researched option's label carries the one closed suffix.
 """
 
 from __future__ import annotations
@@ -27,6 +31,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from oak.domain.research import EVIDENCE_WORDS  # noqa: E402
 from oak.domain.vocabulary import forbidden_words  # noqa: E402
 
 SOURCE = re.compile(r"^(template|[A-Za-z][A-Za-z0-9._:/-]*@[^#\s]+#(/\S*)?)$")
@@ -75,9 +80,18 @@ def _template_strings(section: dict[str, Any]) -> Iterator[tuple[str, str]]:
             yield f"{where}/items/label", item["label"]
 
 
-# Records whose figures come from a fixture set: an offline evaluation and a fixture
-# component. Their numbers are never "measured" or "counted" in a report.
-SYNTHETIC_SOURCES = ("evaluation-result.", "component.fixture-")
+# Records whose figures come from a fixture set or an untrusted source: an offline
+# evaluation, a fixture component and a researched component manifest. Their numbers are
+# never "measured" or "counted" in a report.
+SYNTHETIC_SOURCES = ("evaluation-result.", "component.fixture-", "component.research.")
+# A figure quoted from a research snapshot is what its source published or measured, or a
+# synthetic estimate from the fixture source, or OAK's own count; never OAK's measurement,
+# declaration or confirmation (ADR-0018).
+RESEARCH_SOURCE = "research."
+RESEARCH_BASES = frozenset(
+    {"published by source", "measured by source", "synthetic estimate", "counted"}
+)
+CLAIM_POINTER = re.compile(r"#/items/\d+/claims/\d+$")
 
 
 def guard_r2_numbers(document: dict[str, Any], label: str) -> list[str]:
@@ -102,6 +116,15 @@ def guard_r2_numbers(document: dict[str, Any], label: str) -> list[str]:
                 )
             if not SOURCE.match(str(value.get("source") or "")):
                 failures.append(f"R2 {label}{path}: quantity has no source")
+            if (
+                str(value.get("source") or "").startswith(RESEARCH_SOURCE)
+                and value.get("basis") not in RESEARCH_BASES
+            ):
+                failures.append(
+                    f"R2 {label}{path}: a figure from a research record is labelled "
+                    f"{value.get('basis')!r}; it is published by source, measured by source "
+                    "or a synthetic estimate"
+                )
             estimator = value.get("estimator")
             if isinstance(estimator, str) and estimator.startswith("fixture-"):
                 if value.get("basis") != "synthetic estimate":
@@ -205,13 +228,81 @@ def guard_r4_contrast() -> list[str]:
     return failures
 
 
+RESEARCH_LABEL = "research-"
+
+
+def guard_r5_research(document: dict[str, Any], label: str) -> list[str]:
+    failures = []
+    numbers = [section["number"] for section in document["sections"]]
+    if numbers.count("G") != 1 or numbers[-1] != "G":
+        return [f"R5 {label}: appendix G must be the last section, once; got {numbers[-3:]}"]
+    appendix = next(section for section in document["sections"] if section["number"] == "G")
+    fixture = any(
+        item["label"] == "Source" and "fixture" in str(item["value"].get("text", "")).lower()
+        for block in appendix["blocks"]
+        if block["kind"] == "facts"
+        for item in block["items"]
+    )
+    if fixture:
+        for path, value in _walk(document):
+            if (
+                isinstance(value, dict)
+                and value.get("type") == "quantity"
+                and str(value.get("source") or "").startswith(RESEARCH_SOURCE)
+                and value.get("basis") != "synthetic estimate"
+            ):
+                failures.append(
+                    f"R5 {label}{path}: a figure from the fixture snapshot reads "
+                    f"{value.get('basis')!r}, not synthetic estimate"
+                )
+    words = set(EVIDENCE_WORDS.values())
+    claims = 0
+    for block in appendix["blocks"]:
+        if block["kind"] != "table" or not block["id"].startswith("claims-"):
+            continue
+        for row in block["rows"]:
+            claims += 1
+            if row["cells"][2].get("text") not in words:
+                failures.append(f"R5 {label}: claim without an evidence word in {block['id']}")
+            if not CLAIM_POINTER.search(str(row.get("source") or "")):
+                failures.append(
+                    f"R5 {label}: claim pointer {row.get('source')!r} must use array indexes"
+                )
+    if claims == 0:
+        failures.append(f"R5 {label}: appendix G quotes no claim")
+    comparison = next(
+        (
+            block
+            for section in document["sections"]
+            if section["id"] == "comparison"
+            for block in section["blocks"]
+            if block["kind"] == "table" and block["id"] == "comparison"
+        ),
+        None,
+    )
+    if comparison is None or not any(column.endswith(", new") for column in comparison["columns"]):
+        failures.append(f"R5 {label}: no researched option carries the closed suffix")
+    return failures
+
+
 def reference_reports() -> dict[str, dict[str, Any]]:
-    from tests.report_support import STOPS, build_reference_case, compose_reference
+    from tests.report_support import (
+        RESEARCH_STOPS,
+        STOPS,
+        build_reference_case,
+        build_researched_case,
+        compose_reference,
+    )
 
     reports = {}
     for stop in STOPS:
         with tempfile.TemporaryDirectory(prefix=f"oak-report-{stop}-") as directory:
             reports[stop] = compose_reference(build_reference_case(Path(directory), stop))
+    for stop in RESEARCH_STOPS:
+        with tempfile.TemporaryDirectory(prefix=f"oak-report-research-{stop}-") as directory:
+            reports[f"{RESEARCH_LABEL}{stop}"] = compose_reference(
+                build_researched_case(Path(directory), stop)
+            )
     return reports
 
 
@@ -221,6 +312,8 @@ def check(reports: dict[str, dict[str, Any]]) -> list[str]:
         failures += guard_r1_words(document, stop)
         failures += guard_r2_numbers(document, stop)
         failures += guard_r3_pictures(document, stop)
+        if stop.startswith(RESEARCH_LABEL):
+            failures += guard_r5_research(document, stop)
     failures += guard_r4_contrast()
     return failures
 
@@ -231,7 +324,7 @@ def main() -> int:
         print(failure, file=sys.stderr)
     if failures:
         return 1
-    print("Report guards R1-R4 passed.")
+    print("Report guards R1-R5 passed.")
     return 0
 
 

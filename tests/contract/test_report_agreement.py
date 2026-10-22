@@ -10,13 +10,20 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import pytest
+
 from oak.application.report.composer import INSTALL_STEPS
 from oak.application.report.labels import (
+    KIND_WORDS,
     PROVENANCE_WORDS,
     RESEARCHED_SUFFIX,
+    SOURCE_WORDS,
+    TIER_WORDS,
     VARIANT_LABELS,
+    VERDICT_WORDS,
     candidate_label,
     is_baseline,
+    number_words,
     variant_label,
 )
 from oak.compiler.research_designs import LABEL_SUFFIX
@@ -62,6 +69,38 @@ def test_the_evidence_words_match_the_workspace() -> None:
 
     source = (WEB / "research.ts").read_text(encoding="utf-8")
     assert _object_literal(source, "export const EVIDENCE_WORDS") == EVIDENCE_WORDS
+
+
+@pytest.mark.parametrize(
+    ("name", "expected"),
+    [
+        ("SOURCE_WORDS", SOURCE_WORDS),
+        ("KIND_WORDS", KIND_WORDS),
+        ("TIER_WORDS", TIER_WORDS),
+        ("VERDICT_WORDS", VERDICT_WORDS),
+    ],
+)
+def test_the_research_words_match_the_workspace(name: str, expected: dict[str, str]) -> None:
+    source = (WEB / "research.ts").read_text(encoding="utf-8")
+    assert _object_literal(source, f"export const {name}") == expected
+
+
+def test_budget_figures_have_words() -> None:
+    assert [number_words(n) for n in (0, 1, 12, 13, 19, 20, 30, 42, 60, 99, 100, 180, 1000)] == [
+        "no",
+        "one",
+        "twelve",
+        "thirteen",
+        "nineteen",
+        "twenty",
+        "thirty",
+        "forty-two",
+        "sixty",
+        "ninety-nine",
+        "one hundred",
+        "one hundred and eighty",
+        "many",
+    ]
 
 
 def test_the_researched_suffix_matches_the_workspace_and_the_compiler() -> None:

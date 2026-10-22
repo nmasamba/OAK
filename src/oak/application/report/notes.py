@@ -8,6 +8,7 @@ rather than only naming what it may not say. It is kept only if:
 - it carries no control or format character (no zero-width or bidirectional tricks);
 - it uses no assurance vocabulary, no edition word and no raw variant id;
 - it claims no approval, clearance, safety, security or authority;
+- it calls nothing the best, says nothing works well, and uses no other superlative;
 - it holds no link, address or host name the slide does not hold;
 - it holds no benefit, saving or return;
 - every number in it, in digits or in words, appears on that slide, and where a number
@@ -30,6 +31,13 @@ AUTHORITY = re.compile(
     r"sign(?:ed|-off|off)|secur\w*|safe(?:ly|ty)?|cleared|clearance|endors\w*|vetted|"
     r"accredit\w*|sanction\w*|verified|validated|permitted to (?:deploy|install|run)|"
     r"ready (?:for|to) (?:production|deploy\w*|install\w*))\b",
+    re.IGNORECASE,
+)
+# "Works well" and "best" are never asserted (ADR-0018): OAK says what each record states.
+SUPERLATIVE = re.compile(
+    r"\b(?:best|worst|works? (?:well|great|fine)|perfect\w*|ideal(?:ly)?|optimal\w*|"
+    r"superior|excellent|outstanding|state[- ]of[- ]the[- ]art|cutting[- ]edge|"
+    r"world[- ]class|top|greatest|finest|flawless\w*|unbeat\w*|leading)\b",
     re.IGNORECASE,
 )
 BENEFIT = re.compile(
@@ -136,6 +144,7 @@ def check_notes(proposed: Any, facts: dict[str, Any]) -> tuple[dict[str, str], i
             or len(SENTENCE_END.findall(text)) > MAXIMUM_SENTENCES
             or forbidden_words(text)
             or AUTHORITY.search(text)
+            or SUPERLATIVE.search(text)
             or BENEFIT.search(text)
             or MARKUP.search(text)
             or any(host.lower() not in slide_lower for host in HOST.findall(text))

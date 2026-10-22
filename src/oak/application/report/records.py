@@ -3,7 +3,10 @@
 
 Each read goes by `{id, version, digest}`, so a record whose bytes changed is refused by
 the repository, never reported. The records are read from the current case version; the
-list of what was read becomes the report's record appendix.
+list of what was read becomes the report's record appendix. The research records
+(ADR-0018) are reached through the catalogue snapshot the selected candidate names, never
+through the case's latest research, so a report describes the research its design was
+generated against.
 """
 
 from __future__ import annotations
@@ -15,6 +18,9 @@ from oak.domain import ArtifactReference, OAKError
 from oak.ports import WorkspaceRepository
 
 COMPONENT_MEDIA_TYPE = "application/vnd.oak.component-manifest+json"
+CATALOGUE_SNAPSHOT_EXTENSION = "oak.community/catalogue_snapshot_ref"
+RESEARCH_EXTENSION = "oak.community/research"
+RESEARCH_REVIEW_REFS = "oak.community/research_review_refs"
 _CASE_FIELDS = (
     "evaluation_contract_ref",
     "assurance_plan_ref",
@@ -59,6 +65,16 @@ class _Reader:
         )
 
 
+def _research_reference(snapshot: dict[str, Any] | None) -> dict[str, Any] | None:
+    """The research snapshot a catalogue snapshot was merged from, if any."""
+
+    if snapshot is None:
+        return None
+    research = (snapshot.get("extensions") or {}).get(RESEARCH_EXTENSION)
+    reference = research.get("research_snapshot_ref") if isinstance(research, dict) else None
+    return reference if isinstance(reference, dict) else None
+
+
 def gather_records(repository: WorkspaceRepository) -> ReportRecords:
     """The current case and everything its report reads, each checked by digest."""
 
@@ -81,9 +97,11 @@ def gather_records(repository: WorkspaceRepository) -> ReportRecords:
         if pattern is not None:
             patterns[str(pattern["id"])] = pattern
     selected_id = (case.get("selected_candidate_ref") or {}).get("id")
+    selected: dict[str, Any] | None = None
     for candidate in candidates:
         if candidate.get("id") != selected_id:
             continue
+        selected = candidate
         for component in candidate.get("components") or []:
             reference = {
                 "id": component.get("manifest_id"),
@@ -101,26 +119,57 @@ def gather_records(repository: WorkspaceRepository) -> ReportRecords:
         for action in sorted(approvals_refs)
         if (document := reader.read(approvals_refs[action])) is not None
     }
+    decision = reader.read(extensions.get("oak.community/selection_decision_ref"))
+    evaluations = reader.read_all(extensions.get("oak.community/evaluation_refs"))
+    # The catalogue snapshot the selected design was generated against, else the case's.
+    snapshot_ref = (
+        (selected.get("extensions") or {}).get(CATALOGUE_SNAPSHOT_EXTENSION)
+        if selected is not None
+        else None
+    ) or extensions.get(CATALOGUE_SNAPSHOT_EXTENSION)
+    snapshot = reader.read(snapshot_ref)
+    policy_decisions = reader.read_all(extensions.get("oak.community/policy_decision_refs"))
+    observations = reader.read_all(extensions.get("oak.community/observation_refs"))
+    proposal = reader.read(
+        (intent.get("extensions") or {}).get("oak.community/interpretation_proposal_ref")
+    )
+    # Research (ADR-0018): the snapshot the design's catalogue names, every manifest it
+    # produced, and the reviews bound to its digest; nothing from a later run.
+    research_ref = _research_reference(snapshot)
+    research = reader.read(research_ref)
+    research_manifests: dict[str, dict[str, Any]] = {}
+    research_reviews: tuple[dict[str, Any], ...] = ()
+    if research is not None and research_ref is not None:
+        for item in research.get("items") or []:
+            manifest_document = reader.read(item.get("manifest_ref"))
+            if manifest_document is not None:
+                research_manifests[str(item.get("id"))] = manifest_document
+        research_reviews = tuple(
+            review
+            for review in reader.read_all(extensions.get(RESEARCH_REVIEW_REFS))
+            if (review.get("snapshot_ref") or {}).get("digest") == research_ref.get("digest")
+        )
     return ReportRecords(
         case=case,
         case_ref=dict(case_ref),
         intent=intent,
         candidates=candidates,
         patterns=patterns,
-        decision=reader.read(extensions.get("oak.community/selection_decision_ref")),
+        decision=decision,
         contract=documents["evaluation_contract_ref"],
-        evaluations=reader.read_all(extensions.get("oak.community/evaluation_refs")),
+        evaluations=evaluations,
         assurance_plan=documents["assurance_plan_ref"],
         bundle=documents["deployment_bundle_ref"],
         components=components,
-        snapshot=reader.read(extensions.get("oak.community/catalogue_snapshot_ref")),
-        policy_decisions=reader.read_all(extensions.get("oak.community/policy_decision_refs")),
+        snapshot=snapshot,
+        policy_decisions=policy_decisions,
         approvals=approvals,
-        observations=reader.read_all(extensions.get("oak.community/observation_refs")),
+        observations=observations,
         regulatory_nexus=documents["regulatory_nexus_ref"],
         cost_model=documents["decision_cost_model_ref"],
-        proposal=reader.read(
-            (intent.get("extensions") or {}).get("oak.community/interpretation_proposal_ref")
-        ),
+        proposal=proposal,
+        research=research,
+        research_manifests=research_manifests,
+        research_reviews=research_reviews,
         inputs=tuple(reader.inputs),
     )

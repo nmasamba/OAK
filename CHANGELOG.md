@@ -94,6 +94,36 @@ All notable changes to OAK Community are recorded here.
     be selected this sprint; a researched design is never the baseline. The Take it sheet
     offers the research snapshot. `web/e2e/research.spec.ts` proves the journey on the
     fixture source with zero accessibility violations.
+  - **The report** (`OAK-S14-006`). Appendix G, "What research found, and what each source
+    claims", is the twenty-first section of a report for a case that holds a research
+    snapshot: the run (date, source, hosts, terms digest, rule sets, budget in words,
+    requests used and time taken as figures), every item with its kind, tier, date, the
+    verdict of the gates and any recorded review, every claim beside its evidence word with
+    a pointer into the snapshot by array index, the items that passed but were not
+    designed and those that did not pass, the pairings, and every request made. A figure
+    from a fixture snapshot reads "synthetic estimate"; one from a live snapshot reads
+    "published by source" or "measured by source", never "measured", "declared" or
+    "confirmed" (R2). Slide 2 names the research run and both rule sets; appendix E lists
+    the researched evidence by its untrusted source type and names the research snapshot;
+    appendix F binds the snapshot, every researched manifest and every review by digest,
+    read through the catalogue snapshot the selected design names, never the case's
+    latest. A researched option carries "…, new" on slides 4–6 and appendix B with its
+    flag, which names the compare-only rule and the objectives no source published; the
+    chart's text names each option that has no bar and why; best and worst are skipped on
+    an objective any feasible option leaves unknown; a unit that differs per objective
+    makes the value unknown; a researched option is never the baseline, even listed
+    first; a report refuses more than six options or two options with one label; appendix
+    D prints "none recorded" for a missing estimator. The two declared golden moves:
+    appendix E prints `source_type` through a closed label map, with a fixture component's
+    evidence as "Synthetic declaration" rather than "measured", and the fixed renderer
+    record names `reportlab` alone (the refused `python-pptx` is gone from the golden,
+    the example and the package docstring). `check_notes` and the narrator's rules also
+    refuse "best", "works well" and other superlatives. The PDF fits a long component
+    identifier in the diagram with an ellipsis instead of cutting it. A second golden,
+    `tests/fixtures/report/public-manual-qa-research.report.json`, pins the acceptance
+    case at six options; `scripts/check_report.py` composes it live and adds guard R5.
+    Docs: `docs/research.md`, the README's limits and documentation table, the manual's
+    section on looking for newer options, threat-coverage rows with the Sprint 14 tests.
 
 - **The architecture report** (Sprint 13, `OAK-S13-001`–`007`, authorized 2026-10-16): a
   decision deck about one design case, recorded beside the case, read on a Report screen

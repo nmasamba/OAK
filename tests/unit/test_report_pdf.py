@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -23,7 +24,7 @@ from oak.adapters.report.pdf import CONTENT_BOTTOM, PAGE_HEIGHT, paginate, pdf_t
 from oak.domain import OAKError
 from oak.domain.report import MAXIMUM_RENDERING_BYTES, PDF_MEDIA_TYPE
 from tests.report_pdf_support import parse_pdf
-from tests.report_support import GOLDEN_REPORT
+from tests.report_support import GOLDEN_REPORT, GOLDEN_RESEARCH_REPORT
 
 ROOT = Path(__file__).resolve().parents[2]
 STANDARD_FONTS = {"Helvetica", "Helvetica-Bold", "Helvetica-Oblique", "Courier"}
@@ -218,3 +219,50 @@ def test_the_renderer_draws_only_palette_colours() -> None:
         if 'HexColor("#' in line
     )
     assert 'HexColor("#' not in source
+
+
+# ----- the acceptance case (OAK-S14-006, ADR-0018) -----------------------------------------
+
+
+def _research_golden() -> dict[str, Any]:
+    return json.loads(GOLDEN_RESEARCH_REPORT.read_text(encoding="utf-8"))
+
+
+@pytest.fixture(scope="module")
+def rendered_research() -> bytes:
+    return PdfReportRenderer().render(_research_golden(), PDF_MEDIA_TYPE)
+
+
+def test_the_acceptance_report_renders_with_appendix_g_on_its_pages(
+    rendered_research: bytes,
+) -> None:
+    parsed = parse_pdf(rendered_research)
+    text = " ".join(parsed.page_texts)
+    golden = _research_golden()
+    assert golden["sections"][-1]["number"] == "G"
+    for section in golden["sections"]:
+        first_words = " ".join(section["title"].split()[:4])
+        assert first_words in text, section["title"]
+    assert "Balanced, new" in text
+    assert "Claimed by release notes" in text
+    assert len(parsed.pages) == len(paginate(golden))
+    assert parsed.fonts <= STANDARD_FONTS
+    assert len(rendered_research) <= MAXIMUM_RENDERING_BYTES
+
+
+def test_the_acceptance_pdf_is_byte_stable(rendered_research: bytes) -> None:
+    assert PdfReportRenderer().render(_research_golden(), PDF_MEDIA_TYPE) == rendered_research
+
+
+def test_a_long_component_identifier_ends_in_an_ellipsis_not_a_cut() -> None:
+    document = _golden()
+    architecture = next(s for s in document["sections"] if s["id"] == "architecture")
+    diagram = next(b for b in architecture["blocks"] if b["kind"] == "diagram")
+    long_name = "component.research.hub.some-namespace." + "x" * 90 + ".run-1"
+    diagram["nodes"][0]["component"] = long_name
+    rendered = PdfReportRenderer().render(document, PDF_MEDIA_TYPE)
+    text = " ".join(parse_pdf(rendered).page_texts)
+    # The standard fonts print the ellipsis as three dots (see `pdf_text`), so the fitted
+    # second line ends in "..." and the identifier is never cut mid-word.
+    assert re.search(r"x{8,}\.\.\.", text)
+    assert long_name not in text

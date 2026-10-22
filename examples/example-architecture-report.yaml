@@ -114,7 +114,6 @@ narrative:
 oak_version: 0.9.0
 renderer:
   libraries:
-    python-pptx: fixed-for-tests
     reportlab: fixed-for-tests
   name: oak-report-renderer
   version: 1.0.0
@@ -342,8 +341,8 @@ sections:
         text: Problem
         type: text
       - mark: null
-        text: Help a small internal engineering team locate and cite answers from a bounded collection
-          of public technical manuals.
+        text: Help a small internal engineering team locate and cite answers from a bounded
+          collection of public technical manuals.
         type: text
       - mark:
           class: explicit
@@ -855,8 +854,8 @@ sections:
   subtitle: 'Hard constraints by option: pass, fail, unknown or not applicable.'
   title: One option fails or leaves a hard constraint unknown
 - blocks:
-  - description: Ranges for each objective, one bar per option on a shared scale. The table lists the
-      same numbers.
+  - description: Ranges for each objective, one bar per option on a shared scale. The table
+      lists the same numbers.
     heading: null
     kind: chart
     series:
@@ -1397,8 +1396,8 @@ sections:
       source: candidate-03@0.1.0#/objectives/4
   - kind: paragraph
     source: candidate-03@0.1.0#/pareto/sensitivity_summary
-    text: Frontier membership is stable; preference changes choose between simplicity, quality, operability,
-      cost and energy.
+    text: Frontier membership is stable; preference changes choose between simplicity, quality,
+      operability, cost and energy.
   detail_in:
   - B
   - D
@@ -1655,8 +1654,8 @@ sections:
   subtitle: Point estimate and range, the selected option beside the baseline.
   title: Balanced is estimated to cost more than the baseline per month
 - blocks:
-  - description: Deterministic cited passage retrieval feeds Bounded cited-answer drafting over Local
-      HTTP. The table lists the same.
+  - description: Deterministic cited passage retrieval feeds Bounded cited-answer drafting
+      over Local HTTP. The table lists the same.
     edges:
     - from: node.retrieval
       label: Local HTTP
@@ -1876,8 +1875,8 @@ sections:
     text: The case holds no policy decision.
   - kind: paragraph
     source: template
-    text: Installing needs a signed plan and two separate approvals, given in a terminal. The web workspace
-      holds none of it.
+    text: Installing needs a signed plan and two separate approvals, given in a terminal.
+      The web workspace holds none of it.
   detail_in:
   - C
   id: security
@@ -1954,8 +1953,8 @@ sections:
         text: Control
         type: text
       - mark: null
-        text: Run only typed runner operations; an install needs a signed plan, a separate architecture
-          approval and an apply approval, each verified again by the runner.
+        text: Run only typed runner operations; an install needs a signed plan, a separate
+          architecture approval and an apply approval, each verified again by the runner.
         type: text
       - mark: null
         text: security-reviewer
@@ -2015,8 +2014,8 @@ sections:
         text: Evidence
         type: text
       - mark: null
-        text: Observe target cost, latency, quality and energy under a representative workload before
-          any production deployment decision.
+        text: Observe target cost, latency, quality and energy under a representative workload
+          before any production deployment decision.
         type: text
       - mark: null
         text: evaluation-owner
@@ -2052,7 +2051,8 @@ sections:
       - mark: null
         text: Gate 3
         type: text
-      - reason: Observed cost, latency, quality and energy under a representative workload are still missing.
+      - reason: Observed cost, latency, quality and energy under a representative workload
+          are still missing.
         status: blocked
         type: status
         word: blocked
@@ -2283,8 +2283,8 @@ sections:
       source: candidate-03@0.1.0#/pareto/sensitivity_summary
       value:
         mark: null
-        text: Frontier membership is stable; preference changes choose between simplicity, quality, operability,
-          cost and energy.
+        text: Frontier membership is stable; preference changes choose between simplicity,
+          quality, operability, cost and energy.
         type: text
     - label: Uncertainties
       source: candidate-03@0.1.0#/extensions/oak.community~1explanation/uncertainties
@@ -3062,8 +3062,8 @@ sections:
         text: control.read-only-plan
         type: text
       - mark: null
-        text: Run only typed runner operations; an install needs a signed plan, a separate architecture
-          approval and an apply approval, each verified again by the runner.
+        text: Run only typed runner operations; an install needs a signed plan, a separate
+          architecture approval and an apply approval, each verified again by the runner.
         type: text
       - mark: null
         text: security-reviewer
@@ -3079,8 +3079,8 @@ sections:
       source: intent.public-manual-qa@0.1.1#/spec/purpose/problem
       value:
         mark: null
-        text: Help a small internal engineering team locate and cite answers from a bounded collection
-          of public technical manuals.
+        text: Help a small internal engineering team locate and cite answers from a bounded
+          collection of public technical manuals.
         type: text
     - label: Decision
       source: decision.candidate-03@0.1.0#/rationale
@@ -3092,8 +3092,10 @@ sections:
       source: decision.candidate-03@0.1.0#/alternatives
       value:
         items:
-        - 'candidate-00: Retained as a visible feasible trade-off but not selected by the owner.'
-        - 'candidate-01: Retained as a visible feasible trade-off but not selected by the owner.'
+        - 'candidate-00: Retained as a visible feasible trade-off but not selected by the
+          owner.'
+        - 'candidate-01: Retained as a visible feasible trade-off but not selected by the
+          owner.'
         - 'candidate-04: constraint.hardware: Required accelerator compatibility is unconfirmed.'
         mark: null
         type: list
@@ -3636,7 +3638,7 @@ sections:
         text: component.fixture-lexical-search
         type: text
       - mark: null
-        text: measured
+        text: Synthetic declaration
         type: text
       - mark: null
         text: 1.0.0
@@ -3667,7 +3669,7 @@ sections:
         text: component.fixture-local-model
         type: text
       - mark: null
-        text: measured
+        text: Synthetic declaration
         type: text
       - mark: null
         text: 1.0.0
@@ -4040,7 +4042,7 @@ sections:
       source: template
       value:
         mark: null
-        text: python-pptx fixed-for-tests, reportlab fixed-for-tests
+        text: reportlab fixed-for-tests
         type: text
     - label: OAK version
       source: template

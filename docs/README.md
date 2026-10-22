@@ -11,6 +11,7 @@
 | Watch one case pass between the browser, `curl`, the remote CLI and an AI assistant over MCP | [tour.md](tour.md) |
 | Operate it: back up, restore, upgrade, uninstall | [operations.md](operations.md) |
 | Look up a setting | [configuration.md](configuration.md) |
+| Understand what research sends, finds and refuses | [research.md](research.md) |
 | Look up an `OAK-*` code you just hit | [error-codes.md](error-codes.md) |
 | Understand what it does | [architecture.md](architecture.md), [compiler-flow.md](compiler-flow.md) |
 | Contribute | [../CONTRIBUTING.md](../CONTRIBUTING.md), [development.md](development.md) |
@@ -25,6 +26,8 @@
 - [compiler-flow.md](compiler-flow.md) — what each compilation stage produces and binds.
 - [interfaces.md](interfaces.md) — CLI, REST, MCP and portals; the permission model and
   the capability matrix, including what is deliberately unavailable.
+- [research.md](research.md) — research at the point of design (ADR-0018): what leaves
+  the machine, the two tiers, the gates, the evidence words, the fixture source and the limits.
 - [signed-runner.md](signed-runner.md) — signing, approval, dispatch and the verification
   order before any target access.
 - [extension-sdk.md](extension-sdk.md) — writing a governed extension.

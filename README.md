@@ -548,6 +548,8 @@ means:
   needs your recorded review, and that review is your judgement, not OAK's
   ([`RR-051`](docs/security/residual-risk.md)). The search is anonymous and shares a public
   rate limit, so it can fail on a busy address ([`RR-050`](docs/security/residual-risk.md)).
+  It runs once per case, only when you consent to the exact hosts and terms it shows, and
+  the default path stays offline; [research.md](docs/research.md) has the whole picture.
 
 The complete, numbered list of what isn't defended is
 [security/residual-risk.md](docs/security/residual-risk.md), and progress is tracked in
@@ -602,6 +604,7 @@ and how changes are reviewed.
 | [Releases](https://github.com/nmasamba/OAK/releases) | Published downloads: the Python package (a wheel, plus the source as an sdist), a software bill of materials (an SBOM, listing everything inside) and `SHA256SUMS`. They're checksummed but not signed, so [verify them](#verifying-a-release) before installing |
 | [platforms.md](docs/platforms.md) | Where OAK is supported, and where it isn't |
 | [interfaces.md](docs/interfaces.md) | CLI, REST, MCP and portals: setup, permissions, and what each one can do |
+| [research.md](docs/research.md) | Research at the point of design: what leaves the machine, the gates, the evidence words, and what research does not do |
 | [operations.md](docs/operations.md) | Install, observe, back up, restore, upgrade, troubleshoot, uninstall |
 | [configuration.md](docs/configuration.md) | Every `OAK_*` environment variable |
 | [error-codes.md](docs/error-codes.md) | Every `OAK-*` error code, generated from the source |

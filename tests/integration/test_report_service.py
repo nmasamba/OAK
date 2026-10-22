@@ -24,7 +24,11 @@ from oak.contracts import SchemaRegistry
 from oak.domain import ArtifactReference, OAKError, content_digest
 from oak.domain.report import PDF_MEDIA_TYPE, REPORT_EXTENSION
 from tests.report_pdf_support import parse_pdf
-from tests.report_support import build_case_with_candidates, build_reference_case
+from tests.report_support import (
+    build_case_with_candidates,
+    build_reference_case,
+    build_researched_case,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 REGISTRY = SchemaRegistry.from_directory(ROOT / "schemas")
@@ -233,3 +237,29 @@ def test_an_exported_workspace_with_a_report_imports_and_keeps_it(tmp_path: Path
     assert case["extensions"][REPORT_EXTENSION] == recorded.report
     pdf = imported.read_artifact(ArtifactReference.from_document(recorded.report["pdf_ref"]))
     assert content_digest(pdf) == recorded.report["pdf_ref"]["digest"]
+
+
+def test_recording_the_acceptance_case_stores_twenty_one_sections_and_renders(
+    tmp_path: Path,
+) -> None:
+    """OAK-S14-006: a report records, validates and renders for the researched case at six
+    options; appendix G is its last section and the PDF carries it."""
+
+    workspace = build_researched_case(tmp_path, "candidate_selected")
+    result = _service(workspace).record(_context("report-record-research-01", "0.1.7"))
+
+    assert not result.duplicate
+    assert (result.case["version"], result.case["status"]) == ("0.1.8", "candidate_selected")
+    document = json.loads(_read(workspace, result.report["document_ref"]))
+    REGISTRY.validate("architecture-report.schema.json", document)
+    assert [section["number"] for section in document["sections"]][-2:] == ["F", "G"]
+    assert len(document["sections"]) == 21
+    options = next(section for section in document["sections"] if section["id"] == "options")
+    table = next(block for block in options["blocks"] if block["kind"] == "table")
+    assert len(table["rows"]) == 6
+    kinds = {item["kind"] for item in document["inputs"]}
+    assert {"research_snapshot", "research_review", "component_manifest"} <= kinds
+    pdf = _read(workspace, result.report["pdf_ref"])
+    assert content_digest(pdf) == result.report["pdf_ref"]["digest"]
+    text = " ".join(parse_pdf(pdf).page_texts)
+    assert "What research found, and" in text and "Balanced, new" in text

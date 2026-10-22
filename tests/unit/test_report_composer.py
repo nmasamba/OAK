@@ -24,6 +24,7 @@ from oak.application.report.composer import (
     INSTALL_STEPS,
     MAIN_SECTIONS,
     NO_UNIT,
+    OBJECTIVE_NAMES,
     SHORTENED,
     _unit_for,
 )
@@ -32,12 +33,16 @@ from oak.application.report.records import gather_records
 from oak.application.report.topology import layout_topology
 from oak.contracts import SchemaRegistry, load_yaml_document
 from oak.domain import canonical_json_bytes
+from oak.domain.research import EVIDENCE_WORDS
 from tests.report_support import (
     FIXED_CLOCK,
     FIXED_RENDERER,
     GOLDEN_REPORT,
+    GOLDEN_RESEARCH_REPORT,
+    RESEARCH_STOPS,
     STOPS,
     build_reference_case,
+    build_researched_case,
 )
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -818,3 +823,364 @@ def test_an_unknown_objective_shows_its_own_reason_with_its_unit(
     energy = next(series for series in chart["series"] if series["objective"] == "Energy")
     assert "High assurance" not in {bar["label"] for bar in energy["bars"]}
     assert len(energy["bars"]) == len(candidates) - 1
+
+
+# ----- research at the point of design (OAK-S14-006, ADR-0018) ---------------------------
+
+
+@pytest.fixture(scope="module")
+def research(tmp_path_factory: pytest.TempPathFactory) -> dict[str, ReportRecords]:
+    records = {}
+    for stop in RESEARCH_STOPS:
+        workspace = build_researched_case(tmp_path_factory.mktemp(f"research-{stop}"), stop)
+        records[stop] = gather_records(FileWorkspaceRepository(workspace, REGISTRY))
+    return records
+
+
+def _quoted_text(records: ReportRecords) -> list[str]:
+    """Every string a source's author controls: quoted claims, names, descriptions, the
+    reviewer's own words. None of it may reach a main slide."""
+
+    assert records.research is not None
+    phrases: list[str] = []
+    for item in records.research["items"]:
+        phrases.append(str(item["source_id"]))
+        for claim in item["claims"]:
+            # An SPDX id (the licence claim) may appear on a main slide; nothing else may.
+            if (
+                claim["evidence_class"] in {"claimed_by_model_card", "claimed_by_release_notes"}
+                and claim["field"] != "licence"
+            ):
+                phrases.append(str(claim["value"]))
+    for manifest in records.research_manifests.values():
+        phrases.extend(str(manifest[key]) for key in ("name", "description"))
+    phrases.extend(str(review["rationale"]) for review in records.research_reviews)
+    return phrases
+
+
+def test_the_acceptance_report_matches_its_golden_byte_for_byte(
+    research: dict[str, ReportRecords],
+) -> None:
+    golden = json.loads(GOLDEN_RESEARCH_REPORT.read_text(encoding="utf-8"))
+    composed = compose(research["candidate_selected"])
+    assert canonical_json_bytes(composed) == canonical_json_bytes(golden)
+    assert golden["sections"][-1]["id"] == "appendix-research"
+
+
+@pytest.mark.parametrize("stop", RESEARCH_STOPS)
+def test_a_researched_case_adds_appendix_g_last_and_nothing_else(
+    research: dict[str, ReportRecords], stop: str
+) -> None:
+    document = compose(research[stop])
+    assert [item["number"] for item in document["sections"]] == [*MAIN_SECTIONS, *"ABCDEFG"]
+    appendix = section(document, "appendix-research")
+    assert appendix["kind"] == "appendix" and appendix["state"] == "ready"
+    assert "G" not in MAIN_SECTIONS
+    assert document["composer_version"] == "oak-report-composer-1.0.0"
+    assert document["schema_version"] == "0.1.0"
+
+
+def test_appendix_g_holds_the_run_every_item_and_every_claim_with_its_evidence_word(
+    research: dict[str, ReportRecords],
+) -> None:
+    document = compose(research["candidate_selected"])
+    run = facts(document, "appendix-research")
+    assert run["Hosts"]["text"] == "none; no address was read"
+    assert run["Budget"]["text"] == (
+        "thirty requests within sixty seconds, and a freshness window of one hundred and "
+        "eighty days"
+    )
+    assert run["Requests used"]["basis"] == "synthetic estimate"
+    assert run["Requests used"]["estimator"] == "fixture-research-source"
+    assert run["Rule sets"]["items"] == [
+        "community-open-components-1.0.0",
+        "community-research-gates-1.0.0",
+    ]
+    assert run["Terms digest"]["text"].startswith("sha256:")
+    assert run["Found"]["text"] == "two items"
+    assert run["Passed but not designed"]["text"] == "none"
+    assert run["Did not pass"]["text"] == "none"
+    assert run["Pairings"]["items"] == [
+        "HuggingFaceTB/Fixturelm-4B with fixture-forge/fixturelm-serve, on claimed by "
+        "release notes, published by source, published release and live route"
+    ]
+    tables = blocks(document, "appendix-research", "table")
+    items = next(table for table in tables if table["id"] == "research-items")
+    assert [row["cells"][0]["text"] for row in items["rows"]] == [
+        "HuggingFaceTB/Fixturelm-4B",
+        "fixture-forge/fixturelm-serve",
+    ]
+    assert [row["cells"][2]["text"] for row in items["rows"]] == ["Trusted source", "Unvetted"]
+    assert [row["cells"][4]["word"] for row in items["rows"]] == [
+        "Passed the gates",
+        "Accepted by reviewer",
+    ]
+    assert items["rows"][1]["cells"][5]["text"] == "accepted by local-user, 2026-08-18"
+    claims = [table for table in tables if table["id"].startswith("claims-")]
+    assert len(claims) == 2
+    words = {row["cells"][2]["text"] for table in claims for row in table["rows"]}
+    assert words <= set(EVIDENCE_WORDS.values())
+    assert {"Claimed by release notes", "Measured by source", "Published release"} <= words
+    for table in claims:
+        for row in table["rows"]:
+            # JSON pointers into the snapshot use array indexes, never free-text keys.
+            assert re.fullmatch(
+                r"research\.public-manual-qa@0\.1\.0#/items/\d+/claims/\d+", row["source"]
+            )
+    quantities = [
+        row["cells"][1]
+        for table in claims
+        for row in table["rows"]
+        if row["cells"][1]["type"] == "quantity"
+    ]
+    assert quantities and {item["basis"] for item in quantities} == {"synthetic estimate"}
+    assert all(item["source"].endswith("/value") for item in quantities)
+    quoted = [
+        row
+        for table in claims
+        for row in table["rows"]
+        if row["cells"][2]["text"].startswith("Claimed by")
+    ]
+    assert quoted and all(row["cells"][1]["type"] == "text" for row in quoted)
+    requests = next(table for table in tables if table["id"] == "research-requests")
+    assert len(requests["rows"]) == 12
+    assert {row["cells"][2]["word"] for row in requests["rows"]} == {"answered"}
+
+
+def test_no_researched_free_text_reaches_the_narrator(research: dict[str, ReportRecords]) -> None:
+    records = research["candidate_selected"]
+    document = compose(records)
+    slides = narrator_facts(document)["slides"]
+    assert [slide["section"] for slide in slides] == list(MAIN_SECTIONS)
+    text = "\n".join(
+        "\n".join([slide["title"], slide["subtitle"], *slide["lines"]]) for slide in slides
+    )
+    # A researched component's manifest id is an OAK identifier built by the allowlist
+    # normalisation, not free text; everything else an author wrote stays in appendix G.
+    without_identifiers = re.sub(r"component\.research\.[a-z0-9.-]+", "", text).lower()
+    for phrase in _quoted_text(records):
+        assert phrase.lower() not in without_identifiers, phrase
+    appendix = json.dumps(section(document, "appendix-research")).lower()
+    assert "huggingfacetb/fixturelm-4b" in appendix and "fixturelm" in appendix
+    # The main slides name a researched design only by its typed fields.
+    assert "Balanced, new (candidate-05)" in text
+    assert "approved" not in text.lower()
+
+
+def test_the_report_refuses_a_seventh_option_and_a_duplicate_label(
+    research: dict[str, ReportRecords],
+) -> None:
+    records = research["candidate_selected"]
+    seventh = copy.deepcopy(records.candidates[-1])
+    seventh["id"] = "candidate-07"
+    with pytest.raises(ValueError, match="six options"):
+        compose(replace(records, candidates=(*records.candidates, seventh)))
+    twin = copy.deepcopy(records.candidates[2])  # a second "Balanced"
+    twin["id"] = "candidate-99"
+    with pytest.raises(ValueError, match="unique"):
+        compose(replace(records, candidates=(*records.candidates[:5], twin)))
+
+
+def test_six_options_fit_the_nine_column_tables(research: dict[str, ReportRecords]) -> None:
+    document = compose(research["candidate_selected"])
+    assert len(blocks(document, "comparison", "table")[0]["columns"]) == 8
+    assert len(blocks(document, "risks", "table")[0]["columns"]) == 7
+    for item in document["sections"]:
+        for block in item["blocks"]:
+            if block["kind"] == "table":
+                assert 1 <= len(block["columns"]) <= 9, block["id"]
+                assert all(len(row["cells"]) == len(block["columns"]) for row in block["rows"])
+    assert section(document, "options")["title"] == "Six options considered; three cannot be built"
+    options = blocks(document, "options", "table")[0]
+    assert [row["cells"][0]["text"] for row in options["rows"]][-2:] == [
+        "Balanced, new (candidate-05)",
+        "High assurance, new (candidate-06)",
+    ]
+    cards = [block["heading"] for block in blocks(document, "appendix-candidates", "facts")]
+    assert cards[-2:] == ["Balanced, new (candidate-05)", "High assurance, new (candidate-06)"]
+
+
+def test_a_researched_option_is_never_the_baseline_even_when_listed_first(
+    research: dict[str, ReportRecords],
+) -> None:
+    records = research["candidate_selected"]
+    listed_first = replace(
+        records,
+        candidates=(records.candidates[4], *records.candidates[:4], records.candidates[5]),
+    )
+    document = compose(listed_first)
+    options = blocks(document, "options", "table")[0]
+    assert options["rows"][0]["cells"][0]["text"] == "Baseline (candidate-00)"
+    callouts = {block["label"]: block["text"] for block in blocks(document, "cover", "callout")}
+    assert callouts["Baseline beside it"] == "Baseline (candidate-00)"
+    cost = facts(document, "cost")
+    assert "candidate-05" not in json.dumps(cost)
+
+
+def test_the_researched_flag_names_the_rule_and_what_was_not_compared(
+    research: dict[str, ReportRecords],
+) -> None:
+    document = compose(research["candidate_selected"])
+    options = blocks(document, "options", "table")[0]
+    flag = options["rows"][-2]["cells"][1]
+    assert flag["status"] == "infeasible" and flag["word"] == "Infeasible"
+    assert flag["reason"].endswith(
+        "Compared under community-compare-only-1.0.0, never selectable this sprint; not "
+        "compared on energy, latency p95, monthly cost, operability and quality."
+    )
+    comparison = blocks(document, "comparison", "table")[0]
+    flags = comparison["rows"][-1]["cells"][2:]
+    assert [cell["status"] for cell in flags][-2:] == ["infeasible", "infeasible"]
+
+
+def test_slide_6_names_each_option_without_a_bar_and_why(
+    research: dict[str, ReportRecords],
+) -> None:
+    document = compose(research["candidate_selected"])
+    chart = blocks(document, "comparison", "chart")[0]
+    assert (
+        "Balanced, new has no bar for monthly cost, latency p95, quality, operability and "
+        "energy: no source published those figures; the table states each reason."
+    ) in chart["description"]
+    assert "High assurance, new has no bar for" in chart["description"]
+    assert len(chart["description"]) <= 2000
+    # An infeasible curated option still has figures and a bar; a researched one has none.
+    drawn = {bar["label"] for series in chart["series"] for bar in series["bars"]}
+    assert drawn == {"Baseline", "Minimal", "Balanced", "High assurance"}
+    table = blocks(document, "comparison", "table")[0]
+    cell = table["rows"][0]["cells"][6]
+    assert cell["type"] == "unknown" and cell["reason"].startswith("No ") and cell["unit"]
+
+
+def test_units_must_agree_per_objective_or_the_value_is_unknown(
+    reference: dict[str, ReportRecords],
+) -> None:
+    records = reference["bundle_compiled"]
+    candidates = copy.deepcopy(list(records.candidates))
+    baseline = next(candidate for candidate in candidates if candidate["id"] == "candidate-00")
+    latency = next(
+        objective for objective in baseline["objectives"] if objective["name"] == "latency_p95"
+    )
+    latency["unit"] = "seconds"
+    document = compose(replace(records, candidates=tuple(candidates)))
+    table = blocks(document, "comparison", "table")[0]
+    row = next(
+        row for row in table["rows"] if row["cells"][0]["text"] == OBJECTIVE_NAMES["latency_p95"]
+    )
+    cell = row["cells"][2]
+    assert cell["type"] == "unknown" and cell["unit"] == "seconds"
+    assert "not" in cell["reason"] and "so it is not compared" in cell["reason"]
+    chart = blocks(document, "comparison", "chart")[0]
+    assert "Baseline has no bar for latency p95" in chart["description"]
+
+
+def test_best_and_worst_skip_an_objective_any_feasible_option_leaves_unknown(
+    reference: dict[str, ReportRecords],
+) -> None:
+    records = reference["bundle_compiled"]
+
+    def best_lists(document: dict[str, Any]) -> list[list[str]]:
+        return [
+            item["value"].get("items", [])
+            for block in blocks(document, "appendix-candidates", "facts")
+            for item in block["items"]
+            if item["label"] == "Best of the feasible options on"
+        ]
+
+    before = best_lists(compose(records))
+    assert any("monthly cost" in items for items in before)
+    candidates = copy.deepcopy(list(records.candidates))
+    minimal = next(candidate for candidate in candidates if candidate["id"] == "candidate-01")
+    cost = next(
+        objective for objective in minimal["objectives"] if objective["name"] == "monthly_cost"
+    )
+    cost.update({"value": None, "lower": None, "upper": None, "unknown_reason": "Not published."})
+    after = best_lists(compose(replace(records, candidates=tuple(candidates))))
+    assert not any("monthly cost" in items for items in after)
+
+
+def test_appendix_d_prints_a_closed_word_for_a_missing_estimator(
+    reference: dict[str, ReportRecords],
+) -> None:
+    records = reference["bundle_compiled"]
+    candidates = copy.deepcopy(list(records.candidates))
+    candidates[0]["objectives"][0]["estimator_ref"] = None
+    document = compose(replace(records, candidates=tuple(candidates)))
+    estimators = blocks(document, "appendix-estimates", "table")[0]
+    words = [row["cells"][2]["text"] for row in estimators["rows"]]
+    assert "none recorded" in words and "None" not in words
+    weights = blocks(document, "comparison", "table")[1]
+    assert "None" not in [row["cells"][2]["text"] for row in weights["rows"]]
+
+
+def test_appendix_e_reads_source_types_as_closed_words(
+    reference: dict[str, ReportRecords], research: dict[str, ReportRecords]
+) -> None:
+    document = compose(reference["bundle_compiled"])
+    evidence = blocks(document, "appendix-evidence", "table")[0]
+    assert {row["cells"][2]["text"] for row in evidence["rows"]} == {"Synthetic declaration"}
+    researched = compose(research["candidate_selected"])
+    evidence = blocks(researched, "appendix-evidence", "table")[0]
+    words = [row["cells"][2]["text"] for row in evidence["rows"]]
+    assert set(words) == {"Synthetic declaration", "Vendor claim", "Community claim"}
+    assert "measured" not in {word.lower() for word in words}
+    headings = [block["heading"] for block in blocks(researched, "appendix-evidence", "facts")]
+    assert headings[:2] == ["The catalogue snapshot", "The research snapshot"]
+
+
+def test_slide_2_names_the_research_run_and_both_rule_sets(
+    reference: dict[str, ReportRecords], research: dict[str, ReportRecords]
+) -> None:
+    method = facts(compose(research["candidate_selected"]), "method")
+    assert method["Research run"]["text"] == "research.public-manual-qa, 2026-08-18 12:00 UTC"
+    assert method["Research rule sets"]["items"] == [
+        "community-open-components-1.0.0",
+        "community-research-gates-1.0.0",
+    ]
+    assert "Research run" not in facts(compose(reference["bundle_compiled"]), "method")
+
+
+def test_appendix_f_binds_the_research_records_by_digest(
+    research: dict[str, ReportRecords],
+) -> None:
+    records = research["candidate_selected"]
+    document = compose(records)
+    inputs = {(item["kind"], item["id"]) for item in document["inputs"]}
+    assert ("research_snapshot", "research.public-manual-qa") in inputs
+    assert (
+        "research_review",
+        "research-review.public-manual-qa.github.fixture-forge.fixturelm-serve",
+    ) in inputs
+    assert (
+        "component_manifest",
+        "component.research.hub.huggingfacetb.fixturelm-4b.run-1",
+    ) in inputs
+    assert (
+        "component_manifest",
+        "component.research.github.fixture-forge.fixturelm-serve.run-1",
+    ) in inputs
+    assert all(re.fullmatch(r"sha256:[0-9a-f]{64}", item["digest"]) for item in document["inputs"])
+    record = blocks(document, "appendix-record", "table")[0]
+    assert "research.public-manual-qa" in {row["cells"][1]["text"] for row in record["rows"]}
+    # The records were reached through the snapshot the design names, not the case's latest.
+    assert records.research is not None and records.snapshot is not None
+    named = records.snapshot["extensions"]["oak.community/research"]["research_snapshot_ref"]
+    assert records.research["id"] == named["id"]
+    assert all(
+        review["snapshot_ref"]["digest"] == named["digest"] for review in records.research_reviews
+    )
+
+
+def test_an_unresearched_case_reads_no_research_record(reference: dict[str, ReportRecords]) -> None:
+    records = reference["bundle_compiled"]
+    assert records.research is None and records.research_manifests == {}
+    assert records.research_reviews == ()
+    document = compose(records)
+    assert "research" not in {item["kind"].split("_")[0] for item in document["inputs"]}
+
+
+def test_the_renderer_record_names_no_refused_library(reference: dict[str, ReportRecords]) -> None:
+    document = compose(reference["bundle_compiled"])
+    record = facts(document, "appendix-record")
+    assert record["Renderer libraries"]["text"] == "reportlab fixed-for-tests"
+    assert "pptx" not in json.dumps(document).lower()
