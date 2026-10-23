@@ -316,15 +316,16 @@ class PostgreSQLOperationStore:
         completed = _parse_time(completed_at)
         with self._engine.begin() as connection:
             row = self._require_lease(connection, lease, now=completed)
-            cancelled = bool(row["cancel_requested"])
+            # A step that completed is recorded as succeeded even when cancellation was
+            # requested while it ran; the request stays visible on the record (F2-8).
             updated_row = (
                 connection.execute(
                     update(operations)
                     .where(self._identity(lease.operation.operation_id))
                     .values(
-                        state="cancelled" if cancelled else "succeeded",
+                        state="succeeded",
                         version=int(row["version"]) + 1,
-                        result=None if cancelled else result,
+                        result=result,
                         problem=None,
                         leased_by=None,
                         lease_expires_at=None,

@@ -198,9 +198,10 @@ class OperationWorker:
                 failed_at=now,
                 retry_at=now,
             )
-        current = self._store.get(lease.operation.operation_id)
-        if current.cancel_requested:
-            return self._store.acknowledge_cancellation(lease, cancelled_at=now)
+        # The handler has committed its step, and a cancellation requested while it ran
+        # cannot undo that: the operation succeeded, with its result, and still shows the
+        # request (`cancel_requested`). Reporting it cancelled with the result dropped
+        # told the client nothing happened while the case had moved on (F2-8).
         return self._store.succeed(lease, result=result, completed_at=now)
 
 

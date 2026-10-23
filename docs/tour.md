@@ -436,6 +436,8 @@ If you're scripting against the API yourself:
 - **Slow jobs** (generate, evaluate, compile, and research) return HTTP status `202`
   (Accepted) with an operation. Poll `GET /v1/operations/{operation_id}` until `state` is
   `succeeded`, `failed` or `cancelled`. Only the `worker` container makes progress on them.
+  Cancelling stops a job that has not started; one already running finishes its step,
+  which cannot be undone, and ends `succeeded` with `cancel_requested: true`.
 - **Identity** comes from the optional `X-OAK-Actor` and `X-OAK-Tenant` headers, which
   default to the local user and tenant. A tenant is a separate space for one
   organisation's data, and Community has just one, called `local`.
