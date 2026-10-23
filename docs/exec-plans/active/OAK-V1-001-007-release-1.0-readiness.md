@@ -201,6 +201,28 @@ group and can be reverted alone. No migration, no flag, no release.
   compatibility policy: the owner asked for this pass "in anticipation of" 1.0, and each of
   those is an owner act. They are prepared as the readiness list instead.
 
+- 2026-10-23 M4. Runner messages are believed only from an enrolled runner (F4-1): the
+  operator pins each runner's public identity once (`oak-runner identity`, then
+  `oak keys enroll-runner --identity <file>`), one file per runner under the trust
+  directory's `runners/`, because the manual's two install sections use two runner homes
+  against one trust directory. `oak ingest` refuses until one is enrolled. A completion may
+  report only kinds its own envelope requested.
+- 2026-10-23 M4. The consented research digest covers the source mode and the hosts as well
+  as the terms (F1-1). This moves the researched report golden (the fixture terms digest is
+  now `sha256:4b871ec5…`) and nothing on the deterministic path; the four reference
+  digests are unchanged.
+- 2026-10-23 M4. A revocation manifest keeps every entry the last signed manifest listed,
+  whether or not the notice's file is still there, so a deleted notice leaves the runner
+  denying until it is restored rather than re-signing the gap (F4-2).
+- 2026-10-23 M4. The worker's lease is 120 seconds, twice the research deadline, rather than
+  a heartbeat thread; one failed cycle is logged by code and retried (F2-2). A step that
+  committed while cancellation was requested is recorded as succeeded with its result (F2-8).
+- 2026-10-23 M4. A second or edited brief in a workspace, and a server create for a case that
+  exists, are refused with a new non-retriable `OAK-CASE-EXISTS` (409) rather than the
+  stale-version conflict (F1-6, F2-10). FastAPI's `/docs` and `/redoc` are switched off
+  (F2-9). Every error response in the OpenAPI document names the `Problem` schema; the
+  framework's validation schemas stay listed so no published name disappears (F2-7).
+
 ## Discoveries and follow-ups
 
 ### Mechanical documentation checks (M1, 2026-10-23)
@@ -293,39 +315,39 @@ column is updated as each lands.
 
 | ID | Severity | Finding | Disposition |
 |---|---|---|---|
-| F1-1 | high | `oak research --consent` binds only the terms digest; hosts are copied from a recomputed plan | fix: the consented digest covers the source mode and hosts |
-| F1-2 | high | JSON/YAML escapes put bidi and ANSI characters into the case, the GitOps description and the report | fix: refuse Cc/Cf in every parsed string of a brief, answers or target |
-| F1-3 | high | Model-proposed rationales and values keep control characters; `oak questions` prints them raw | fix: a proposed claim carrying one is dropped; the CLI escapes model text |
-| F1-4 | medium | `oak validate bundle` accepts an altered semantic manifest | fix: its digest must match the bundle and every plan reference |
-| F1-5 | medium | A bad `--idempotency-key` on local `oak design` creates the case, then fails, stranding it | fix: the key is checked before anything commits |
-| F1-6 | medium | A second brief in a workspace is refused as a retriable concurrency conflict | fix: a non-retriable `OAK-CASE-EXISTS` naming the case (with F2-10, F3-6) |
-| F1-7 | medium | The prose-brief hint suggests a re-run that is always refused | fix: the hint says a model reading needs a new workspace |
-| F1-8 | medium | Remote re-runs are refused with a state error; remote keys include the case version | fix: remote keys derive from the same inputs as local ones |
-| F1-9 | medium | `oak assure`/`oak plan` commit before checking `--output` | fix: the destination is checked first |
-| F1-10 | medium | An interrupted object write leaves a torn object; every retry reports a collision | fix: write to a temporary file and link it into place; repair a torn object |
-| F1-11 | medium | `oak research review --rationale-file` is read unbounded and unchecked | fix: bounded read; control characters refused in the service |
-| F1-12 | medium | `oak extensions verify`/`activate` on an active policy pack fail against itself | fix: the entry's own pack is excluded; activating an active version succeeds |
-| F1-13 | medium | Remote `oak import` crashes on a non-list `artifact_index` | fix: `OAK-IMPORT-INVALID` |
-| F1-14 | medium | `oak report --output` overwrites files and fails after `--record` committed | fix: the destination is checked before recording; `-` is stdout |
-| F1-15 | low | `oak gitops` and remote `oak export` write in place | fix: staged and renamed into place, owner-only |
-| F1-16 | low | `oak policy evaluate --engine opa` replays a builtin decision | fix: the engine is part of the request digest |
-| F1-17 | low | `oak research --plan --case <other>` prints the current case | fix: refused |
-| F1-18 | low | Two recovery hints print commands that do not work | fix: quoted path; the architecture hint names a real step |
-| F1-19 | low | `oak report | head` reports `OAK-INPUT-INVALID` | fix: a closed pipe exits quietly |
-| F1-20 | low | Remote mode words two refusals worse than local | fix: `OAK-INTAKE-ENCODING`; the operation's own message |
-| F2-1 | high | Import accepts any media type; the artifact read serves imported HTML inline in the API and web origins | fix: media type bound to kind on import; artifacts served as attachments under a sandbox CSP |
-| F2-2 | medium | Worker leases are never renewed and the worker loop has no exception boundary | fix: a lease longer than any handler's deadline; the loop survives a failed cycle |
-| F2-3 | medium | Schema-invalid REST input answers 500; create leaves a dangling workspace row | fix: 422 `OAK-CONTRACT-INVALID`; the case id checked before anything is stored |
-| F2-4 | medium | Research plan and run crash on a case with no intent | fix: `OAK-RESEARCH-STATE` |
-| F2-5 | medium | A brief id with upper case, `:` or `/` creates an unreachable server case | fix: refused before anything is stored |
-| F2-6 | medium | `:record-report` calls the model before a stale `If-Match` is refused | fix: the version is checked first |
-| F2-7 | medium | The OpenAPI contract misdescribes every error response | fix: a Problem schema on every operation's error responses |
-| F2-8 | medium | Cancelling a running operation reports `cancelled` although its change committed | fix: a committed step is recorded as succeeded |
-| F2-9 | medium | `/docs` loads unpinned third-party JavaScript into the API origin | fix: the interactive docs are off unless asked for |
-| F2-10 | low | Creating an existing case answers a retriable `OAK-EXPECTED-VERSION` | fix: `OAK-CASE-EXISTS` (with F1-6) |
-| F2-11 | low | An idempotency key reused with a different create or import body never conflicts | document: create and import keys are scoped to the case the body names |
-| F2-12 | low | `sequence_lag` compares maxima of different cases | fix: lag summed per case |
-| F2-13 | low | A local export cannot be imported into a server (`OAK-IMPORT-SCOPE`), undocumented | document, with the workaround |
+| F1-1 | high | `oak research --consent` binds only the terms digest; hosts are copied from a recomputed plan | fixed (`7f1e62f`): the consented digest covers the source mode and hosts |
+| F1-2 | high | JSON/YAML escapes put bidi and ANSI characters into the case, the GitOps description and the report | fixed (`37f711f`): refuse Cc/Cf in every parsed string of a brief, answers or target |
+| F1-3 | high | Model-proposed rationales and values keep control characters; `oak questions` prints them raw | fixed (`37f711f`): a proposed claim carrying one is dropped; the CLI escapes model text |
+| F1-4 | medium | `oak validate bundle` accepts an altered semantic manifest | fixed (`8ffc1fc`): its digest must match the bundle and every plan reference |
+| F1-5 | medium | A bad `--idempotency-key` on local `oak design` creates the case, then fails, stranding it | fixed (`1c161f8`): the key is checked before anything commits |
+| F1-6 | medium | A second brief in a workspace is refused as a retriable concurrency conflict | fixed (`1c161f8`): a non-retriable `OAK-CASE-EXISTS` naming the case (with F2-10, F3-6) |
+| F1-7 | medium | The prose-brief hint suggests a re-run that is always refused | fixed (`8ffc1fc`): the hint says a model reading needs a new workspace |
+| F1-8 | medium | Remote re-runs are refused with a state error; remote keys include the case version | fixed (`fd75afe`): remote keys derive from the same inputs as local ones |
+| F1-9 | medium | `oak assure`/`oak plan` commit before checking `--output` | fixed (`8ffc1fc`): the destination is checked first |
+| F1-10 | medium | An interrupted object write leaves a torn object; every retry reports a collision | fixed (`fd75afe`): write to a temporary file and link it into place; repair a torn object |
+| F1-11 | medium | `oak research review --rationale-file` is read unbounded and unchecked | fixed (`0bb1bce`): bounded read; control characters refused in the service |
+| F1-12 | medium | `oak extensions verify`/`activate` on an active policy pack fail against itself | fixed (`b0f3cc1`): the entry's own pack is excluded; activating an active version succeeds |
+| F1-13 | medium | Remote `oak import` crashes on a non-list `artifact_index` | fixed (`0bb1bce`): `OAK-IMPORT-INVALID` |
+| F1-14 | medium | `oak report --output` overwrites files and fails after `--record` committed | fixed (`8ffc1fc`): the destination is checked before recording; `-` is stdout |
+| F1-15 | low | `oak gitops` and remote `oak export` write in place | fixed (`b0f3cc1, 572d674`): staged and renamed into place, owner-only |
+| F1-16 | low | `oak policy evaluate --engine opa` replays a builtin decision | fixed (`fd75afe`): the engine is part of the request digest |
+| F1-17 | low | `oak research --plan --case <other>` prints the current case | fixed (`0bb1bce`): refused |
+| F1-18 | low | Two recovery hints print commands that do not work | fixed (`8ffc1fc`): quoted path; the architecture hint names a real step |
+| F1-19 | low | `oak report | head` reports `OAK-INPUT-INVALID` | fixed (`0bb1bce`): a closed pipe exits quietly |
+| F1-20 | low | Remote mode words two refusals worse than local | fixed (`0bb1bce`): `OAK-INTAKE-ENCODING`; the operation's own message |
+| F2-1 | high | Import accepts any media type; the artifact read serves imported HTML inline in the API and web origins | fixed (`37f711f`): media type bound to kind on import; artifacts served as attachments under a sandbox CSP |
+| F2-2 | medium | Worker leases are never renewed and the worker loop has no exception boundary | fixed (`e0ce87b`): a lease longer than any handler's deadline; the loop survives a failed cycle |
+| F2-3 | medium | Schema-invalid REST input answers 500; create leaves a dangling workspace row | fixed (`1c161f8`): 422 `OAK-CONTRACT-INVALID`; the case id checked before anything is stored |
+| F2-4 | medium | Research plan and run crash on a case with no intent | fixed (`1c161f8`): `OAK-RESEARCH-STATE` |
+| F2-5 | medium | A brief id with upper case, `:` or `/` creates an unreachable server case | fixed (`1c161f8`): refused before anything is stored |
+| F2-6 | medium | `:record-report` calls the model before a stale `If-Match` is refused | fixed (`1c161f8`): the version is checked first |
+| F2-7 | medium | The OpenAPI contract misdescribes every error response | fixed (`065546e`): a Problem schema on every operation's error responses |
+| F2-8 | medium | Cancelling a running operation reports `cancelled` although its change committed | fixed (`e0ce87b`): a committed step is recorded as succeeded |
+| F2-9 | medium | `/docs` loads unpinned third-party JavaScript into the API origin | fixed (`fa02854`): the interactive docs are off unless asked for |
+| F2-10 | low | Creating an existing case answers a retriable `OAK-EXPECTED-VERSION` | fixed (`1c161f8`): `OAK-CASE-EXISTS` (with F1-6) |
+| F2-11 | low | An idempotency key reused with a different create or import body never conflicts | documented (`0065bc0`): create and import keys are scoped to the case the body names |
+| F2-12 | low | `sequence_lag` compares maxima of different cases | fixed (`fa02854`): lag summed per case |
+| F2-13 | low | A local export cannot be imported into a server (`OAK-IMPORT-SCOPE`), undocumented | documented (`0065bc0`), with the workaround |
 | F3-1 | high | Decision shows the last-evaluated design's evaluation as the selected design's evidence | fix: the selected candidate's own evaluation, named |
 | F3-2 | high | Reload after a conflict on the questions screen discards every draft | fix: drafts kept by question id |
 | F3-3 | medium | The operation screen shows `unknown code` for every failure | fix: reads `problem.code`; no next attempt once terminal |
@@ -343,19 +365,19 @@ column is updated as each lands.
 | F3-15 | medium | Long identifiers overflow cards and phone-width screens | fix |
 | F3-16 | low | The target profile hint names a YAML file; the field takes JSON | fix: a visible JSON example |
 | F3-17 | low | Raw document views render raw variant ids | fix: the raw views go; the Take it sheet hands over the files |
-| F4-1 | high | `oak ingest` accepts a completion signed by any key and believes its claims | fix: the runner key is enrolled and pinned; a completion is bound to its envelope |
-| F4-2 | high | A later revocation re-signs whatever notices are in the mailbox | fix: the manifest is built from the case's own record |
-| F4-3 | medium | Separation of duties compares role-scoped ids, so it never fires | fix: compares key material; refused at pinning and at approve |
-| F4-4 | medium | Configuration read-back passes privileged and bind-mounted containers | fix: an allowlist over the whole host configuration |
-| F4-5 | medium | Overlapping or resumed runs corrupt a journal | fix: a run lock; a finished journal is only marked processed |
-| F4-6 | medium | A dispatch name with `..` wedges the runner | fix: refused at delivery; unsafe entries skipped |
-| F4-7 | medium | `oak ingest` acknowledges every message before recording any | fix: record, then acknowledge, one at a time |
-| F4-8 | medium | Denial completions are always rejected | fix: published with their lease and recorded |
-| F4-9 | medium | A refused delivery still records the lease, and ingest adopts another workspace's completion | fix: deliver before committing |
-| F4-10 | medium | The GitOps description lists revoked approvals as on file | fix: each approval's state |
-| F4-11 | low | The denial path builds a message path from the unverified lease id | fix: safe message names |
-| F4-12 | low | `oak-runner status` cannot detect a cut journal tail | document as a residual risk |
-| F4-13 | low | Any `pack.yaml` under `extensions/active/` is used unverified | fix: only an activated, digest-matching pack |
-| F4-14 | low | The scanner image is pinned by a mutable tag | fix: tag and digest, recorded in the evidence |
+| F4-1 | high | `oak ingest` accepts a completion signed by any key and believes its claims | fixed (`f995c5b, 7bcf96c`): the runner key is enrolled and pinned; a completion is bound to its envelope |
+| F4-2 | high | A later revocation re-signs whatever notices are in the mailbox | fixed (`f995c5b`): the manifest is built from the case's own record |
+| F4-3 | medium | Separation of duties compares role-scoped ids, so it never fires | fixed (`f995c5b`): compares key material; refused at pinning and at approve |
+| F4-4 | medium | Configuration read-back passes privileged and bind-mounted containers | fixed (`b0f3cc1`): an allowlist over the whole host configuration |
+| F4-5 | medium | Overlapping or resumed runs corrupt a journal | fixed (`f995c5b`): a run lock; a finished journal is only marked processed |
+| F4-6 | medium | A dispatch name with `..` wedges the runner | fixed (`f995c5b, 1c161f8`): refused at delivery; unsafe entries skipped |
+| F4-7 | medium | `oak ingest` acknowledges every message before recording any | fixed (`f995c5b`): record, then acknowledge, one at a time |
+| F4-8 | medium | Denial completions are always rejected | fixed (`f995c5b`): published with their lease and recorded |
+| F4-9 | medium | A refused delivery still records the lease, and ingest adopts another workspace's completion | fixed (`f995c5b`): deliver before committing |
+| F4-10 | medium | The GitOps description lists revoked approvals as on file | fixed (`b0f3cc1`): each approval's state |
+| F4-11 | low | The denial path builds a message path from the unverified lease id | fixed (`f995c5b`): safe message names |
+| F4-12 | low | `oak-runner status` cannot detect a cut journal tail | documented (`9076a18`) as a residual risk |
+| F4-13 | low | Any `pack.yaml` under `extensions/active/` is used unverified | fixed (`b0f3cc1`): only an activated, digest-matching pack |
+| F4-14 | low | The scanner image is pinned by a mutable tag | fixed (`b0f3cc1`): tag and digest, recorded in the evidence |
 
 ## Self-review
