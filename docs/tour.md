@@ -433,9 +433,9 @@ If you're scripting against the API yourself:
   changed case carries its new version in an `ETag` header. A stale version is refused
   with HTTP status `409` (Conflict) and the code `OAK-EXPECTED-VERSION`. Re-read the case
   and try again.
-- **Slow jobs** (generate, evaluate, compile) return HTTP status `202` (Accepted) with an
-  operation. Poll `GET /v1/operations/{operation_id}` until `state` is `succeeded`,
-  `failed` or `cancelled`. Only the `worker` container makes progress on them.
+- **Slow jobs** (generate, evaluate, compile, and research) return HTTP status `202`
+  (Accepted) with an operation. Poll `GET /v1/operations/{operation_id}` until `state` is
+  `succeeded`, `failed` or `cancelled`. Only the `worker` container makes progress on them.
 - **Identity** comes from the optional `X-OAK-Actor` and `X-OAK-Tenant` headers, which
   default to the local user and tenant. A tenant is a separate space for one
   organisation's data, and Community has just one, called `local`.

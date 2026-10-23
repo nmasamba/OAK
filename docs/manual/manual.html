@@ -466,9 +466,9 @@ uv run oak report --output ../report.json</code></pre>
   </p>
   <h2>Export and import</h2>
   <pre><code>uv run oak export --output ../case-export
-<span class="out">Exported design-case.public-manual-qa@0.1.7 to ../case-export</span>
+<span class="out">Exported design-case.public-manual-qa@0.1.8 to ../case-export</span>
 uv run oak import ../case-export --directory ../restored
-<span class="out">Imported design-case.public-manual-qa@0.1.7 into …/restored</span></code></pre>
+<span class="out">Imported design-case.public-manual-qa@0.1.8 into …/restored</span></code></pre>
   <p>
     The export is the portable, digest-verified unit — also your backup before any
     upgrade. Import revalidates every artifact, digest and audit event before
@@ -1068,11 +1068,21 @@ uv run oak ingest</code></pre>
     keep running until a rollback or destroy removes them.
   </p>
   <p>
-    To measure a repeated install as well, run <code>oak dispatch apply</code> again,
-    then the same <code>run-once</code> command and <code>oak ingest</code>: the runner
-    finds each container already there, carrying this case's labels, and checks its
-    image digest again instead of creating another. Then record what was observed:
+    To measure a repeated install as well, dispatch the apply again and run the runner
+    once more: it finds each container already there, carrying this case's labels, and
+    checks its image digest again instead of creating another. The output below includes
+    that repeated install; without it, <code>EV-DEP-02</code> reads <code>unknown</code>
+    and the smoke test counts one run instead of two.
   </p>
+  <pre><code>uv run oak dispatch apply
+<span class="out">Dispatched apply as dispatch.public-manual-qa.14</span>
+OAK_RUNNER_MAILBOX=$OAK_DISPATCH_MAILBOX \
+OAK_RUNNER_TRUST_ANCHORS=$OAK_TRUST_DIRECTORY \
+OAK_RUNNER_TARGET_PROFILE=../examples/targets/local-started-fixture.yaml \
+OAK_RUNNER_HOME=$PWD/runner-home \
+uv run oak-runner run-once
+uv run oak ingest</code></pre>
+  <p>Then record what was observed:</p>
   <pre><code>uv run oak observe
 <span class="out">Recorded observation.public-manual-qa.1 for design-case.public-manual-qa; the case is observing and the installation is present
 
