@@ -113,10 +113,13 @@ and replies.
   receives `OAK-ACTOR-DENIED`. `interface_origin` is set by the transport
   (`cli`, `api`, `mcp`, `web`, `portal`, `import`) and is audit metadata only.
 - **Idempotency and versions.** Mutations require an idempotency key
-  (≥16 characters); case successors require an expected version
+  (16 to 240 characters); case successors require an expected version
   (REST `If-Match`, MCP/CLI derive or pass it). Reusing a key with the same
   normalized input converges on one result; reusing it with different input is a
-  conflict.
+  conflict. A key is scoped to the case it acts on, and creating or importing a case
+  names that case in its body: the same key sent with a different brief or a different
+  export creates or imports a different case rather than conflicting, so a client that
+  retries must resend the same body.
 - **Separation of duties.** Proposal, confirmation, selection, compilation,
   signing, approval, and target mutation are distinct steps and no single call
   collapses them (build security invariants, ADR-0015). This is why candidate
@@ -210,6 +213,11 @@ Notes:
   downloads the canonical export, each stored artifact (saved only when its SHA-256
   matches `X-OAK-Artifact-Digest`) and the architecture document, but cannot import an
   export.
+- A server keeps one workspace per case, named from the case, while a local workspace is
+  named from its directory. An export from a local workspace therefore carries an identity
+  the server refuses (`oak --server import` answers `OAK-IMPORT-SCOPE`); an export taken
+  from a server imports into a local workspace. To move a local case onto a server, create
+  it there from the same brief and confirm the same answers.
 - `oak validate` is a server-free read-only checker (export, bundle, webhook)
   intended for CI and portals. It checks schema validity, digest integrity, and
   the execution-field ban across all three kinds. For a compiled bundle it
