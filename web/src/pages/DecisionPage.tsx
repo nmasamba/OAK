@@ -74,54 +74,85 @@ export function DecisionPage({ caseId }: { readonly caseId: string }) {
   const [failure, setFailure] = useState<ActionFailure | null>(null);
   const [pending, setPending] = useState(false);
 
+  const fetchPage = () =>
+    getDesignCase(caseId).then(async (response) => {
+      const caseDocument = response.case;
+      const extensions = asObject(caseDocument["extensions"]) ?? {};
+      const decisionReference = asReference(
+        extensions["oak.community/selection_decision_ref"],
+      );
+      const assuranceReference = asReference(
+        caseDocument["assurance_plan_ref"],
+      );
+      // The selected design's own evaluation, never simply the last one recorded: a
+      // case that evaluated another design after this one used to show that design's
+      // figures as this one's evidence (F3-1).
+      const selectedId =
+        asReference(caseDocument["selected_candidate_ref"])?.id ?? null;
+      const evaluationReferences = asArray(
+        extensions["oak.community/evaluation_refs"],
+      )
+        .map(asReference)
+        .filter(
+          (reference): reference is ArtifactReference =>
+            reference !== null &&
+            selectedId !== null &&
+            reference.id === `evaluation-result.${selectedId}`,
+        );
+      const [decision, assurance, evaluation] = await Promise.all([
+        decisionReference === null
+          ? Promise.resolve(null)
+          : getJsonArtifact(caseId, decisionReference),
+        assuranceReference === null
+          ? Promise.resolve(null)
+          : getJsonArtifact(caseId, assuranceReference),
+        evaluationReferences.length === 0
+          ? Promise.resolve(null)
+          : getJsonArtifact(
+              caseId,
+              evaluationReferences[
+                evaluationReferences.length - 1
+              ] as ArtifactReference,
+            ).then((document) =>
+              asReference(document["candidate_ref"])?.id === selectedId
+                ? document
+                : null,
+            ),
+      ]);
+      return {
+        kind: "ready",
+        caseDocument,
+        decision,
+        assurance,
+        evaluation,
+      } as const;
+    });
+
   const load = () => {
     setState({ kind: "loading" });
     setFailure(null);
-    getDesignCase(caseId)
-      .then(async (response) => {
-        const caseDocument = response.case;
-        const extensions = asObject(caseDocument["extensions"]) ?? {};
-        const decisionReference = asReference(
-          extensions["oak.community/selection_decision_ref"],
-        );
-        const assuranceReference = asReference(
-          caseDocument["assurance_plan_ref"],
-        );
-        const evaluationReferences = asArray(
-          extensions["oak.community/evaluation_refs"],
-        )
-          .map(asReference)
-          .filter(
-            (reference): reference is ArtifactReference => reference !== null,
-          );
-        const [decision, assurance, evaluation] = await Promise.all([
-          decisionReference === null
-            ? Promise.resolve(null)
-            : getJsonArtifact(caseId, decisionReference),
-          assuranceReference === null
-            ? Promise.resolve(null)
-            : getJsonArtifact(caseId, assuranceReference),
-          evaluationReferences.length === 0
-            ? Promise.resolve(null)
-            : getJsonArtifact(
-                caseId,
-                evaluationReferences[
-                  evaluationReferences.length - 1
-                ] as ArtifactReference,
-              ),
-        ]);
-        setState({
-          kind: "ready",
-          caseDocument,
-          decision,
-          assurance,
-          evaluation,
-        });
-      })
+    fetchPage()
+      .then(setState)
       .catch((error: unknown) =>
         setState({ kind: "failed", failure: toActionFailure(error) }),
       );
   };
+
+  // In place, after an action: the reader's place and focus survive, and the new section
+  // is focused and so announced (F3-9).
+  const refresh = (focusId?: string) =>
+    fetchPage()
+      .then((next) => {
+        setState(next);
+        if (focusId !== undefined) {
+          window.requestAnimationFrame(() => {
+            const target = document.getElementById(focusId);
+            target?.setAttribute("tabindex", "-1");
+            target?.focus();
+          });
+        }
+      })
+      .catch((error: unknown) => setFailure(toActionFailure(error)));
 
   useEffect(load, [caseId]);
 
@@ -157,7 +188,7 @@ export function DecisionPage({ caseId }: { readonly caseId: string }) {
       idempotencyKey: newIdempotencyKey("assure"),
       etag: etagFor(version),
     })
-      .then(load)
+      .then(() => refresh("assurance-heading"))
       .catch((error: unknown) => setFailure(toActionFailure(error)))
       .finally(() => setPending(false));
   };
@@ -216,16 +247,19 @@ export function DecisionPage({ caseId }: { readonly caseId: string }) {
                   );
                 })}
             </ul>
-            <details>
-              <summary>Raw decision document</summary>
-              <pre className="value">{JSON.stringify(decision, null, 1)}</pre>
-            </details>
           </section>
         )}
 
         {evaluation !== null && (
           <section aria-labelledby="evaluation-heading" className="card">
             <h2 id="evaluation-heading">Evaluation evidence</h2>
+            <p>
+              For the selected design,{" "}
+              <span className="mono">
+                {asReference(evaluation["candidate_ref"])?.id}
+              </span>
+              .
+            </p>
             <p className="chip-row">
               <span>Contract result:</span>
               <Chip

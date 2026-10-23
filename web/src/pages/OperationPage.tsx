@@ -56,10 +56,12 @@ export function OperationPage({
     null,
   );
   const [cancelling, setCancelling] = useState(false);
+  const [readFailed, setReadFailed] = useState(false);
 
   useEffect(() => {
     let disposed = false;
     let timer: number | undefined;
+    let failures = 0;
 
     const poll = () => {
       getOperation(operationId)
@@ -67,15 +69,30 @@ export function OperationPage({
           if (disposed) {
             return;
           }
+          failures = 0;
+          setReadFailed(false);
           setState({ kind: "ready", operation });
           if (!TERMINAL_STATES.has(operation.state)) {
             timer = window.setTimeout(poll, POLL_INTERVAL_MILLISECONDS);
           }
         })
         .catch((error: unknown) => {
-          if (!disposed) {
-            setState({ kind: "failed", failure: toActionFailure(error) });
+          if (disposed) {
+            return;
           }
+          // One failed read (an API restart, a laptop waking) used to end the screen for
+          // good. The last good state stays on screen, the failure is said inline, and
+          // polling goes on with a backoff until the API answers (F3-11).
+          failures += 1;
+          const failure = toActionFailure(error);
+          setReadFailed(true);
+          setState((current) =>
+            current.kind === "ready" ? current : { kind: "failed", failure },
+          );
+          timer = window.setTimeout(
+            poll,
+            Math.min(15_000, POLL_INTERVAL_MILLISECONDS * 2 ** failures),
+          );
         });
     };
 
@@ -135,11 +152,23 @@ export function OperationPage({
             </span>
           </div>
           {!terminal && <p role="status">Waiting for the worker to finish…</p>}
+          {readFailed && (
+            <p role="status">The API did not answer; trying again…</p>
+          )}
           {operation.problem !== null && (
             <div className="problem" role="alert">
-              <p className="problem-title">The operation reported a problem.</p>
+              <p className="problem-title">
+                {typeof operation.problem["message"] === "string"
+                  ? operation.problem["message"]
+                  : "The operation reported a problem."}
+              </p>
               <p className="problem-meta">
-                {String(operation.problem["error_code"] ?? "unknown code")}
+                {typeof operation.problem["code"] === "string"
+                  ? operation.problem["code"]
+                  : "OAK-OPERATION-FAILED"}
+                {operation.problem["retriable"] === true && !terminal
+                  ? " · it will be tried again"
+                  : ""}
               </p>
             </div>
           )}
@@ -180,10 +209,12 @@ export function OperationPage({
               <dt>Completed</dt>
               <dd className="mono">{operation.completed_at ?? "not yet"}</dd>
             </div>
-            <div>
-              <dt>Next attempt</dt>
-              <dd className="mono">{operation.next_attempt_at}</dd>
-            </div>
+            {!terminal && (
+              <div>
+                <dt>Next attempt</dt>
+                <dd className="mono">{operation.next_attempt_at}</dd>
+              </div>
+            )}
             <div>
               <dt>Correlation</dt>
               <dd className="mono">{operation.correlation_id}</dd>

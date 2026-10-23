@@ -42,6 +42,24 @@ function formatSize(bytes: number): string {
   return bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KB`;
 }
 
+/**
+ * Every case, following the API's pages: only the first fifty were listed, so a case after
+ * the fiftieth by id, possibly the one just created, could not be reached from here (F3-13).
+ */
+async function listEveryCase(): Promise<readonly JsonObject[]> {
+  const items: JsonObject[] = [];
+  let cursor: string | undefined = undefined;
+  for (let page = 0; page < 40; page += 1) {
+    const response = await listDesignCases(cursor);
+    items.push(...response.items);
+    if (response.next_cursor === null) {
+      break;
+    }
+    cursor = response.next_cursor;
+  }
+  return items;
+}
+
 export function CaseListPage() {
   const { navigate } = useRouter();
   const [state, setState] = useState<ListState>({ kind: "loading" });
@@ -74,8 +92,8 @@ export function CaseListPage() {
 
   const load = () => {
     setState({ kind: "loading" });
-    listDesignCases()
-      .then((response) => setState({ kind: "ready", items: response.items }))
+    listEveryCase()
+      .then((items) => setState({ kind: "ready", items }))
       .catch((error: unknown) =>
         setState({ kind: "failed", failure: toActionFailure(error) }),
       );

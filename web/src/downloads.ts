@@ -22,6 +22,29 @@ export type DownloadState =
   | "mismatch"
   | "failed";
 
+/**
+ * What a finished download says aloud, on every surface that offers one: a refusal used to
+ * change only a tile's word, so a screen-reader user never learned that nothing was saved
+ * (F3-14). `null` while it is still running.
+ */
+export function downloadOutcome(
+  word: string,
+  state: DownloadState,
+): string | null {
+  switch (state) {
+    case "verified":
+      return `${word} saved; it matches the case record.`;
+    case "saved":
+      return `${word} saved.`;
+    case "mismatch":
+      return `${word} did not match the case record's digest, so nothing was saved.`;
+    case "failed":
+      return `${word} could not be fetched; nothing was saved.`;
+    default:
+      return null;
+  }
+}
+
 export async function sha256Hex(bytes: ArrayBuffer): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", bytes);
   return [...new Uint8Array(digest)]

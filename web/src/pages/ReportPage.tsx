@@ -3,7 +3,11 @@ import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 
 import { CaseRail, Moment } from "../CaseRail";
 import { DownloadTile, type DownloadItem } from "../DownloadsSheet";
-import { downloadVerified, type DownloadState } from "../downloads";
+import {
+  downloadOutcome,
+  downloadVerified,
+  type DownloadState,
+} from "../downloads";
 import {
   getDesignCase,
   getJsonArtifact,
@@ -61,6 +65,7 @@ export function ReportPage({ caseId }: { readonly caseId: string }) {
   const [mode, setMode] = useState<InterpretMode>("deterministic");
   const [models, setModels] = useState<ModelStatusResponse | null>(null);
   const [tiles, setTiles] = useState<Record<string, DownloadState>>({});
+  const [downloadNote, setDownloadNote] = useState("");
   const slideRegion = useRef<HTMLElement>(null);
   const tokenPresent = currentModelToken() !== null;
 
@@ -197,12 +202,17 @@ export function ReportPage({ caseId }: { readonly caseId: string }) {
   }
   const runTile = (item: DownloadItem) => {
     setTiles((states) => ({ ...states, [item.key]: "fetching" }));
+    setDownloadNote("");
     item
       .run()
-      .then((result) =>
-        setTiles((states) => ({ ...states, [item.key]: result })),
-      )
-      .catch(() => setTiles((states) => ({ ...states, [item.key]: "failed" })));
+      .then((result) => {
+        setTiles((states) => ({ ...states, [item.key]: result }));
+        setDownloadNote(downloadOutcome(item.word, result) ?? "");
+      })
+      .catch(() => {
+        setTiles((states) => ({ ...states, [item.key]: "failed" }));
+        setDownloadNote(downloadOutcome(item.word, "failed") ?? "");
+      });
   };
 
   const recordControls = recordable ? (
@@ -289,6 +299,9 @@ export function ReportPage({ caseId }: { readonly caseId: string }) {
                 </li>
               ))}
             </ul>
+            <p className="timeline-meta" role="status" aria-live="polite">
+              {downloadNote}
+            </p>
 
             <section
               ref={slideRegion}

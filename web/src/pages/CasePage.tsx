@@ -253,7 +253,14 @@ export function CasePage({ caseId }: { readonly caseId: string }) {
           },
           interpreter,
         ),
-      load,
+      () =>
+        // In place, not through the loading state: focus and the reader's place survive,
+        // and the heading takes focus so the interpreted case is announced (F3-9).
+        void refresh().then(() =>
+          window.requestAnimationFrame(() =>
+            document.getElementById("page-heading")?.focus(),
+          ),
+        ),
     );
   };
 

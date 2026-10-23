@@ -1748,6 +1748,12 @@ summary {
   border: 1px solid var(--hairline-2);
 }
 
+/* A researched design's ids and reasons are long and unbroken; they wrap inside the card
+   rather than running over the next one (F3-15). */
+.design > * {
+  min-width: 0;
+}
+
 .design[draggable="true"] {
   cursor: grab;
 }
@@ -1777,6 +1783,7 @@ summary {
 
 .design-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
@@ -1879,6 +1886,15 @@ summary {
   margin: 0;
   font-size: 14px;
   color: var(--bad-text);
+  overflow-wrap: anywhere;
+}
+
+/* Pointers, digests and ids in a meta line break anywhere on a phone-width screen; a slash
+   is no break point, so they used to widen the page (F3-15). */
+.timeline-meta code,
+.timeline-meta .mono,
+.design-id {
+  overflow-wrap: anywhere;
 }
 
 .design-bars {

@@ -4,6 +4,8 @@ import { Link } from "./router";
 
 export type ActionFailure =
   | { readonly kind: "conflict"; readonly problem: Problem }
+  | { readonly kind: "exists"; readonly problem: Problem }
+  | { readonly kind: "token"; readonly problem: Problem }
   | { readonly kind: "model"; readonly problem: Problem }
   | { readonly kind: "problem"; readonly problem: Problem }
   | { readonly kind: "unreachable" };
@@ -17,6 +19,14 @@ export function toActionFailure(error: unknown): ActionFailure {
   if (error instanceof OakApiError) {
     if (error.problem.code === "OAK-EXPECTED-VERSION") {
       return { kind: "conflict", problem: error.problem };
+    }
+    // A name already in use is not a stale view to reload (F3-6), and a token the API no
+    // longer holds is not a model failure (F3-4).
+    if (error.problem.code === "OAK-CASE-EXISTS") {
+      return { kind: "exists", problem: error.problem };
+    }
+    if (error.problem.code === "OAK-MODEL-TOKEN-REQUIRED") {
+      return { kind: "token", problem: error.problem };
     }
     if (isModelProblem(error.problem.code)) {
       return { kind: "model", problem: error.problem };
@@ -66,16 +76,57 @@ export function ProblemAlert({
       </div>
     );
   }
+  if (failure.kind === "exists") {
+    const existing = /design-case\.[a-z0-9._-]+/.exec(
+      failure.problem.detail,
+    )?.[0];
+    return (
+      <div className="problem" role="alert">
+        <p className="problem-title">A case with this name already exists.</p>
+        <p>
+          Give the brief another name to start a new case
+          {existing === undefined
+            ? "."
+            : ", or carry on with the existing one."}
+        </p>
+        {existing !== undefined && (
+          <Link to={`/cases/${encodeURIComponent(existing)}`}>
+            Open {existing}
+          </Link>
+        )}
+        <p className="problem-meta">{failure.problem.code}</p>
+      </div>
+    );
+  }
+  if (failure.kind === "token") {
+    return (
+      <div className="problem" role="alert">
+        <p className="problem-title">
+          This browser does not hold the API's current model-configuration
+          token.
+        </p>
+        <p>
+          The token changes each time the API starts. Paste the one it printed
+          in model settings, then try again.
+        </p>
+        <Link to="/settings/models">Open model settings</Link>
+        <p className="problem-meta">{failure.problem.code}</p>
+      </div>
+    );
+  }
   if (failure.kind === "model") {
     return (
       <div className="problem" role="alert">
         <p className="problem-title">
-          The model could not interpret this brief.
+          {onInterpretWithoutModel !== undefined
+            ? "The model could not interpret this brief."
+            : "The model request was refused."}
         </p>
         <p>{failure.problem.detail}</p>
         <p>
-          Nothing was recorded. You can interpret this brief without the model,
-          or change the model settings and try again.
+          {onInterpretWithoutModel !== undefined
+            ? "Nothing was recorded. You can interpret this brief without the model, or change the model settings and try again."
+            : "Nothing was recorded. Change the model settings and try again."}
         </p>
         {onInterpretWithoutModel !== undefined && (
           <button type="button" onClick={onInterpretWithoutModel}>

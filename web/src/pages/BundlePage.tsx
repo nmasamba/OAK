@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { CaseRail, Moment } from "../CaseRail";
 import { semanticDiff, type DiffRow } from "../diff";
 import { DownloadTile, useDownloads } from "../DownloadsSheet";
-import type { DownloadState } from "../downloads";
+import { downloadOutcome, type DownloadState } from "../downloads";
+import { LOCAL_FIXTURE_TARGET_JSON } from "../targets";
 import {
   compileBundle,
   exportDesignCase,
@@ -303,6 +304,7 @@ export function BundlePage({ caseId }: { readonly caseId: string }) {
   const [diffLabel, setDiffLabel] = useState<string | null>(null);
   const [view, setView] = useState<"diagram" | "table">("diagram");
   const [zoom, setZoom] = useState(1);
+  const [downloadNote, setDownloadNote] = useState("");
   const [tileStates, setTileStates] = useState<Record<string, DownloadState>>(
     {},
   );
@@ -442,14 +444,17 @@ export function BundlePage({ caseId }: { readonly caseId: string }) {
   );
   const runTile = (item: (typeof downloads)[number]) => {
     setTileStates((current) => ({ ...current, [item.key]: "fetching" }));
+    setDownloadNote("");
     item
       .run()
-      .then((next) =>
-        setTileStates((current) => ({ ...current, [item.key]: next })),
-      )
-      .catch(() =>
-        setTileStates((current) => ({ ...current, [item.key]: "failed" })),
-      );
+      .then((next) => {
+        setTileStates((current) => ({ ...current, [item.key]: next }));
+        setDownloadNote(downloadOutcome(item.word, next) ?? "");
+      })
+      .catch(() => {
+        setTileStates((current) => ({ ...current, [item.key]: "failed" }));
+        setDownloadNote(downloadOutcome(item.word, "failed") ?? "");
+      });
   };
 
   const onCompile = () => {
@@ -555,14 +560,26 @@ export function BundlePage({ caseId }: { readonly caseId: string }) {
                 <p>Compile it for a target.</p>
                 <div className="field">
                   <label htmlFor="target-profile">Target profile (JSON)</label>
+                  <p className="timeline-meta" id="target-profile-hint">
+                    Paste a target profile as JSON, or start from the
+                    repository's read-only fixture. Compiling validates the
+                    target and never contacts it.
+                  </p>
                   <textarea
                     id="target-profile"
                     rows={8}
                     value={target}
+                    aria-describedby="target-profile-hint"
                     onChange={(event) => setTarget(event.target.value)}
                     spellCheck={false}
-                    title="The repository fixture is examples/targets/local-fixture.yaml. Compilation validates the target and never contacts it."
                   />
+                  <button
+                    type="button"
+                    className="chipb"
+                    onClick={() => setTarget(LOCAL_FIXTURE_TARGET_JSON)}
+                  >
+                    Use the local fixture
+                  </button>
                 </div>
                 <div className="moment-row">
                   <Keycap
@@ -935,6 +952,9 @@ export function BundlePage({ caseId }: { readonly caseId: string }) {
                 />
               ))}
             </div>
+            <p className="timeline-meta" role="status" aria-live="polite">
+              {downloadNote}
+            </p>
             <Keycap icon="download" onClick={onExport} className="dock-all">
               Everything
             </Keycap>
