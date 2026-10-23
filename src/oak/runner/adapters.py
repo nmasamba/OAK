@@ -99,7 +99,26 @@ class AdapterFailureError(OAKError):
     evidence: tuple[dict[str, Any], ...] = ()
 
 
-def isolated_executor(docker_config: Path) -> CommandExecutor:
+def resolve_executable(name: str) -> str | None:
+    """Find ``name`` on the absolute entries of ``PATH`` and return its absolute path.
+
+    The runner resolves each executable once, when it starts, and runs that path for every
+    later call, so a change to ``PATH``, or to what it reaches, part-way through a run
+    cannot swap the binary between one call and the next (RR-002). A relative entry
+    (``.``, ``bin``) means a different directory from every working directory, so it is
+    skipped rather than resolved against wherever the runner happened to start.
+    """
+
+    entries = [
+        entry
+        for entry in os.environ.get("PATH", os.defpath).split(os.pathsep)
+        if os.path.isabs(entry)
+    ]
+    found = shutil.which(name, path=os.pathsep.join(entries)) if entries else None
+    return None if found is None else os.path.abspath(found)
+
+
+def isolated_executor(docker_config: Path, *, working_directory: Path) -> CommandExecutor:
     """An executor whose child sees only ``PATH`` and an empty runner-owned Docker config.
 
     The Docker CLI reads the operator's ``~/.docker/config.json`` even with no ``HOME``
@@ -109,10 +128,18 @@ def isolated_executor(docker_config: Path) -> CommandExecutor:
     somewhere other than the default socket. An empty config owned by the runner means
     the operator's registry credentials and helpers are never used, public images are
     pulled anonymously, and only the default socket is reached (RR-013).
+
+    Each allowlisted executable is resolved here, once, and the child starts in
+    ``working_directory``, a private directory the caller owns and removes, never in the
+    directory the runner was started from (RR-027).
     """
 
+    executables = {name: resolve_executable(name) for name in ALLOWLISTED_EXECUTABLES}
+
     def execute(argv: tuple[str, ...], timeout_seconds: int) -> CommandResult:
-        executable = shutil.which(argv[0])
+        if argv[0] not in executables:
+            raise OAKError("OAK-RUNNER-EXECUTABLE", "executable is not allowlisted")
+        executable = executables[argv[0]]
         if executable is None:
             raise OAKError("OAK-RUNNER-EXECUTABLE", f"{argv[0]} is not installed on this host")
         docker_config.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -122,6 +149,7 @@ def isolated_executor(docker_config: Path) -> CommandExecutor:
             text=True,
             timeout=timeout_seconds,
             env={"PATH": os.defpath, "DOCKER_CONFIG": str(docker_config)},
+            cwd=working_directory,
             check=False,
             shell=False,
         )
@@ -135,16 +163,20 @@ def isolated_executor(docker_config: Path) -> CommandExecutor:
 
 
 def default_executor(argv: tuple[str, ...], timeout_seconds: int) -> CommandResult:
-    """The isolated executor over a private, process-lifetime empty Docker config."""
+    """The isolated executor over a private, process-lifetime directory, built once."""
 
-    global _DEFAULT_DOCKER_CONFIG
-    if _DEFAULT_DOCKER_CONFIG is None:
-        _DEFAULT_DOCKER_CONFIG = Path(tempfile.mkdtemp(prefix="oak-runner-docker-config-"))
-        atexit.register(shutil.rmtree, _DEFAULT_DOCKER_CONFIG, ignore_errors=True)
-    return isolated_executor(_DEFAULT_DOCKER_CONFIG)(argv, timeout_seconds)
+    global _DEFAULT_EXECUTOR
+    if _DEFAULT_EXECUTOR is None:
+        directory = Path(tempfile.mkdtemp(prefix="oak-runner-"))
+        atexit.register(shutil.rmtree, directory, ignore_errors=True)
+        (directory / "work").mkdir(mode=0o700)
+        _DEFAULT_EXECUTOR = isolated_executor(
+            directory / "docker-config", working_directory=directory / "work"
+        )
+    return _DEFAULT_EXECUTOR(argv, timeout_seconds)
 
 
-_DEFAULT_DOCKER_CONFIG: Path | None = None
+_DEFAULT_EXECUTOR: CommandExecutor | None = None
 
 
 def collect_inventory() -> dict[str, Any]:

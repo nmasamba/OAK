@@ -12,7 +12,10 @@ import contextlib
 import fcntl
 import json
 import os
+import shutil
 import sys
+import tempfile
+from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -71,15 +74,36 @@ def run_once(
             raise OAKError(
                 "OAK-RUNNER-BUSY", "another oak-runner run-once is using this runner home"
             ) from error
-        return _run_once_locked(
-            home, cancellation_requested=cancellation_requested, adapter=adapter
-        )
+        with _run_directory(home) as work:
+            return _run_once_locked(
+                home, work, cancellation_requested=cancellation_requested, adapter=adapter
+            )
     finally:
         os.close(lock)
 
 
+@contextlib.contextmanager
+def _run_directory(home: Path) -> Iterator[Path]:
+    """A private, empty working directory for this run's children, removed when it ends.
+
+    A child the runner starts never runs in the directory the operator started the runner
+    from (RR-027). The caller holds the run lock, so a `run-*` directory already in the
+    home was left by a run that crashed, and is removed before this one starts.
+    """
+
+    for stale in home.glob("run-*"):
+        if stale.is_dir() and not stale.is_symlink():
+            shutil.rmtree(stale, ignore_errors=True)
+    directory = Path(tempfile.mkdtemp(prefix="run-", dir=home))
+    try:
+        yield directory
+    finally:
+        shutil.rmtree(directory, ignore_errors=True)
+
+
 def _run_once_locked(
     home: Path,
+    work: Path,
     *,
     cancellation_requested: bool,
     adapter: ContainerFixtureAdapter | None,
@@ -116,6 +140,8 @@ def _run_once_locked(
         raise OAKError(
             "OAK-RUNNER-CONFIG", "the runner home, mailbox or trust anchors are unreadable"
         ) from error
+    # Resolved once for the whole run: every dispatch runs the same `docker` (RR-002).
+    executor = isolated_executor(home / "docker-config", working_directory=work)
     processed_any = False
     for unsafe in mailbox.unsafe_dispatch_names():
         print(f"skipped {unsafe!r}: not a dispatch name a control plane delivers", file=sys.stderr)
@@ -171,7 +197,7 @@ def _run_once_locked(
             registry=registry,
             now=now,
             cancellation_requested=cancellation_requested,
-            adapter=adapter or ContainerFixtureAdapter(isolated_executor(home / "docker-config")),
+            adapter=adapter or ContainerFixtureAdapter(executor),
         )
         try:
             mailbox.publish_message(

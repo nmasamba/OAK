@@ -99,13 +99,17 @@ def test_the_docker_child_sees_only_path_and_an_empty_runner_owned_config(
         captured.update(kwargs)
         return subprocess.CompletedProcess(argv, 0, stdout="", stderr="")
 
-    monkeypatch.setattr("oak.runner.adapters.shutil.which", lambda name: "/usr/local/bin/docker")
+    monkeypatch.setattr(
+        "oak.runner.adapters.shutil.which", lambda name, path=None: "/usr/local/bin/docker"
+    )
     monkeypatch.setattr("oak.runner.adapters.subprocess.run", fake_run)
     config = tmp_path / "docker-config"
+    work = tmp_path / "work"
 
-    isolated_executor(config)(("docker", "version"), 5)
+    isolated_executor(config, working_directory=work)(("docker", "version"), 5)
 
     assert captured["env"] == {"PATH": os.defpath, "DOCKER_CONFIG": str(config)}
+    assert captured["cwd"] == work
     assert captured["shell"] is False
     assert config.is_dir() and list(config.iterdir()) == []
     assert oct(config.stat().st_mode & 0o777) == "0o700"

@@ -104,7 +104,9 @@ digest, subject digest, per-rule results, sorted reasons, and obligations,
 and never names the engine (the audit event records that). The built-in
 engine is the required offline reference implementation and an external
 engine is never an independent oracle. The OPA adapter (`--engine opa`,
-requires a locally installed `opa` binary) recomputes the reference evaluation
+requires a locally installed `opa` 1.0.0 or later; an older binary, or one that
+reports no version, is refused with `OAK-POLICY-ENGINE-UNAVAILABLE` before anything is
+evaluated) recomputes the reference evaluation
 and refuses with `OAK-POLICY-ENGINE-DIVERGED` rather than publish a decision
 the built-in engine would not produce, so an engine version whose comparison
 semantics differ, a translation defect, or a tampered module fails closed and

@@ -56,7 +56,7 @@ schemas, catalogue entries or policy packs.
 
 | Variable | Default | Meaning | Safety-relevant |
 |---|---|---|---|
-| `OAK_SCHEMA_DIRECTORY` | packaged `oak/canonical_schemas`, then the source `schemas/` | Canonical JSON Schema directory. **Also read by the runner** (`src/oak/runner/schemas.py`), where it selects the schema set every dispatch is verified against | Yes |
+| `OAK_SCHEMA_DIRECTORY` | packaged `oak/canonical_schemas`, then the source `schemas/` | Canonical JSON Schema directory for the control plane. **The runner ignores it**: it verifies every dispatch against the schemas installed with it (`RR-033`, closed) | Yes |
 | `OAK_CATALOGUE_DIRECTORY` | packaged `oak/community_catalogue`, then the source `catalogue/` | Component catalogue snapshot directory and, under `research/`, the research vocabularies: the capability map, the hardware classes, the licence allowlist, the owner-reviewed harness list that decides research's trusted tier, and the research bindings | Yes |
 | `OAK_POLICY_PACK_DIRECTORY` | packaged `oak/community_policy_packs`, then the source `policy-packs/` | Governed policy-pack directory | Yes |
 | `OAK_EXTENSIONS_DIRECTORY` | `~/.oak/extensions` | Extension quarantine and activation store | Yes |
@@ -82,18 +82,17 @@ schemas, catalogue entries or policy packs.
 
 ## Runner (`oak-runner`)
 
-The runner is a separate trust domain and has its own variables — but it is **not** true
-that it reads none of the control plane's. `src/oak/runner/schemas.py` reads
-**`OAK_SCHEMA_DIRECTORY`**, and that registry is what validates the target profile and,
-through `verify_dispatch`, the envelope, lease, approval and signature documents. Pointing
-it at a directory you do not control replaces the schema set the runner verifies against:
-a target profile the runner would refuse can be made acceptable. Scope it deliberately
-when you harden a runner environment. Recorded as `RR-033`.
+The runner is a separate trust domain and reads only its own variables, plus `PATH`. It
+validates the target profile and, through `verify_dispatch`, the envelope, lease, approval
+and signature documents against the schemas installed with it, and ignores
+`OAK_SCHEMA_DIRECTORY`, so its environment cannot swap the rules it verifies against
+(`RR-033`, closed). It resolves `docker` once per run, to an absolute path on the absolute
+entries of `PATH`, and runs that path for the whole run (`RR-002`, closed).
 
 | Variable | Default | Meaning | Safety-relevant |
 |---|---|---|---|
 | `OAK_RUNNER_MAILBOX` | *(none — required)* | Mailbox directory the runner reads dispatched leases from | Yes |
-| `OAK_RUNNER_HOME` | `~/.oak/runner` | Runner state: journal, consumed nonces, processed dispatches, recorded revocation-manifest sequence, and `docker-config/`, the empty Docker client configuration the runner's `docker` commands use instead of yours | Yes |
+| `OAK_RUNNER_HOME` | `~/.oak/runner` | Runner state: journal, consumed nonces, processed dispatches, recorded revocation-manifest sequence, and `docker-config/`, the empty Docker client configuration the runner's `docker` commands use instead of yours. Each `run-once` also makes a private `run-*` working directory here for its `docker` commands and removes it when the run ends | Yes |
 | `OAK_RUNNER_TRUST_ANCHORS` | *(none — required)* | Directory of pinned public identities the runner verifies signatures against. **Never** a key carried inside the document being checked | Yes |
 | `OAK_RUNNER_TARGET_PROFILE` | *(none — required)* | Path to the target profile the runner is permitted to act against. The runner checks every dispatched install against this copy, not the plan's: its `execution.component_images` decides which image each component may run, and its `execution.mutation_acknowledgement` whether containers are only created or also started under fixed hardening flags (`RR-043`) | Yes |
 | `OAK_RUNNER_ID` | `runner.local-fixture-runner` | Runner identity recorded in leases and evidence | Yes |
@@ -107,7 +106,8 @@ when you harden a runner environment. Recorded as `RR-033`.
 
 > The runner's `docker` commands do not inherit its environment. Each runs with only a
 > minimal `PATH` (`/bin:/usr/bin`) and `DOCKER_CONFIG` set to the empty, runner-owned
-> `$OAK_RUNNER_HOME/docker-config`. `DOCKER_HOST`, `DOCKER_CONTEXT`, your
+> `$OAK_RUNNER_HOME/docker-config`, from the run's private working directory rather than
+> the directory you started the runner in. `DOCKER_HOST`, `DOCKER_CONTEXT`, your
 > `~/.docker/config.json`, and its registry credentials and credential helpers are never
 > used: the runner reaches only the default daemon socket and pulls public images
 > anonymously (`RR-013`).

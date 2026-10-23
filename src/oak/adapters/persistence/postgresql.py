@@ -42,6 +42,9 @@ from oak.ports.workspace import WorkspaceCommit, WorkspaceMutation
 
 BeforeCommit = Callable[[Connection, WorkspaceMutation], None]
 MAXIMUM_EXPORT_BYTES = 67_108_864
+# The schema revision this binary's queries are written for: the head of
+# `migrations/versions`. A contract test fails if a migration lands without moving it.
+SCHEMA_REVISION = "0001_sprint3_baseline"
 
 
 def create_postgresql_engine(database_url: str) -> Engine:
@@ -59,15 +62,24 @@ def create_postgresql_engine(database_url: str) -> Engine:
 
 
 class PostgreSQLReadinessProbe:
-    """Return only coarse database availability; never expose connection details."""
+    """Ready only when the database answers at the schema revision this binary expects.
 
-    def __init__(self, engine: Engine) -> None:
+    Coarse by design: it returns a boolean and never exposes connection details. A database
+    behind this binary (a skipped `oak-db-migrate`) or ahead of it (an older binary started
+    after a newer one migrated) still answers simple queries, so readiness used to go green
+    and the mismatch surfaced later as an opaque error on the first request that touched a
+    changed table (RR-016).
+    """
+
+    def __init__(self, engine: Engine, *, revision: str = SCHEMA_REVISION) -> None:
         self._engine = engine
+        self._revision = revision
 
     def is_ready(self) -> bool:
         try:
             with self._engine.connect() as connection:
-                return int(connection.scalar(text("SELECT 1")) or 0) == 1
+                revisions = connection.scalars(text("SELECT version_num FROM alembic_version"))
+                return list(revisions) == [self._revision]
         except SQLAlchemyError:
             return False
 

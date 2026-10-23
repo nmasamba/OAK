@@ -54,15 +54,15 @@ documented flow uses it.
 | `OAK-ARTIFACT-INVALID` | a brief source must carry a brief media type; a report rendering must be a PDF document; artifact media type does not fit its kind; and 2 more (some dynamic) | `src/oak/adapters/persistence/file_workspace.py:106` |
 | `OAK-ARTIFACT-KIND` | artifact kind is not supported | `src/oak/adapters/persistence/file_workspace.py:104` |
 | `OAK-ARTIFACT-NONCANONICAL` | canonical artifact bytes are not normalized | `src/oak/adapters/persistence/file_workspace.py:463` |
-| `OAK-ARTIFACT-NOT-FOUND` | artifact was not found | `src/oak/adapters/persistence/postgresql.py:233` |
+| `OAK-ARTIFACT-NOT-FOUND` | artifact was not found | `src/oak/adapters/persistence/postgresql.py:245` |
 | `OAK-ARTIFACT-SIZE` | artifact exceeds the local size limit | `src/oak/adapters/persistence/file_workspace.py:535` |
 | `OAK-EXPORT-EXISTS` | export destination already exists | `src/oak/adapters/persistence/file_workspace.py:261` |
 | `OAK-EXPORT-OUTPUT` | --output is required; output directory already exists | `src/oak/interfaces/cli/main.py:895` |
-| `OAK-EXPORT-SIZE` | canonical export exceeds the size limit | `src/oak/adapters/persistence/postgresql.py:335` |
+| `OAK-EXPORT-SIZE` | canonical export exceeds the size limit | `src/oak/adapters/persistence/postgresql.py:347` |
 | `OAK-IMPORT-DIGEST` | an imported object digest does not match; import object digest does not match; import object digest is invalid | `src/oak/adapters/persistence/file_workspace.py:331` |
 | `OAK-IMPORT-INVALID` | an imported artifact does not fit its indexed kind; an imported object size does not match; an indexed import object is missing; and 13 more | `src/oak/adapters/persistence/file_workspace.py:303` |
-| `OAK-IMPORT-SCOPE` | import case and workspace do not match; import tenant does not match command authority; import workspace or tenant does not match destination | `src/oak/adapters/persistence/postgresql.py:355` |
-| `OAK-IMPORT-SIZE` | an import object exceeds the size limit; canonical import exceeds the size limit; import manifest exceeds the size limit | `src/oak/adapters/persistence/postgresql.py:370` |
+| `OAK-IMPORT-SCOPE` | import case and workspace do not match; import tenant does not match command authority; import workspace or tenant does not match destination | `src/oak/adapters/persistence/postgresql.py:367` |
+| `OAK-IMPORT-SIZE` | an import object exceeds the size limit; canonical import exceeds the size limit; import manifest exceeds the size limit | `src/oak/adapters/persistence/postgresql.py:382` |
 | `OAK-IMPORT-UNSAFE-PATH` | import object store is unsafe; import source must be a regular directory | `src/oak/adapters/persistence/file_workspace.py:292` |
 | `OAK-WORKSPACE-CORRUPT` | artifact reference is not canonical JSON; artifact reference is not indexed correctly; canonical artifact is not an object; and 11 more | `src/oak/adapters/persistence/file_workspace.py:183` |
 | `OAK-WORKSPACE-EXISTS` | import destination is already initialized; workspace is already initialized | `src/oak/adapters/persistence/file_workspace.py:148` |
@@ -177,9 +177,9 @@ documented flow uses it.
 | Code | Meaning | First raise site |
 |---|---|---|
 | `OAK-POLICY-ACTION` | policy action must be evaluate or packs | `src/oak/interfaces/cli/main.py:1900` |
-| `OAK-POLICY-ENGINE-DIVERGED` | the external policy engine disagreed with the built-in reference engine; refusing to publish a decision | `src/oak/adapters/policies/opa.py:156` |
-| `OAK-POLICY-ENGINE-FAILED` | opa evaluation failed; opa evaluation omitted a rule verdict; opa evaluation returned an unreadable result; and 2 more | `src/oak/adapters/policies/opa.py:188` |
-| `OAK-POLICY-ENGINE-UNAVAILABLE` | the opa binary is not installed; the built-in engine remains available | `src/oak/adapters/policies/opa.py:95` |
+| `OAK-POLICY-ENGINE-DIVERGED` | the external policy engine disagreed with the built-in reference engine; refusing to publish a decision | `src/oak/adapters/policies/opa.py:228` |
+| `OAK-POLICY-ENGINE-FAILED` | opa evaluation failed; opa evaluation omitted a rule verdict; opa evaluation returned an unreadable result; and 2 more | `src/oak/adapters/policies/opa.py:260` |
+| `OAK-POLICY-ENGINE-UNAVAILABLE` | the installed opa did not report its version; the built-in engine remains available; the installed opa is older than 1.0.0; the built-in engine remains available; the opa binary is not installed; the built-in engine remains available | `src/oak/adapters/policies/opa.py:126` |
 | `OAK-POLICY-ENGINE-UNKNOWN` | policy engine is not registered | `src/oak/application/policy.py:79` |
 | `OAK-POLICY-PACK-COUNT` | too many policy pack files | `src/oak/adapters/policies/pack_store.py:52` |
 | `OAK-POLICY-PACK-DUPLICATE` | policy pack ID is duplicated | `src/oak/adapters/policies/pack_store.py:56` |
@@ -238,24 +238,24 @@ documented flow uses it.
 | `OAK-KEYS-ACTION` | keys action must be init, show or enroll-runner | `src/oak/interfaces/cli/main.py:1096` |
 | `OAK-KEYS-RUNNER-IDENTITY` | a runner identity must be a JSON object; an enrolled runner identity file has been altered; an enrolled runner identity is not a file; and 4 more | `src/oak/adapters/signing/local_ed25519.py:107` |
 | `OAK-RUNNER-ADAPTER` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:441` |
-| `OAK-RUNNER-APPLY` | container labels could not be read; container state could not be read; fixture container creation failed | `src/oak/runner/adapters.py:347` |
+| `OAK-RUNNER-APPLY` | container labels could not be read; container state could not be read; fixture container creation failed | `src/oak/runner/adapters.py:379` |
 | `OAK-RUNNER-APPROVAL` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:494` |
 | `OAK-RUNNER-ATTACHMENT` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:258` |
-| `OAK-RUNNER-BUSY` | another oak-runner run-once is using this runner home | `src/oak/runner/main.py:71` |
-| `OAK-RUNNER-CONFIG` | OAK_RUNNER_TARGET_PROFILE could not be read; OAK_RUNNER_TARGET_PROFILE is not a valid target profile; the runner home is unreadable; and 1 more | `src/oak/runner/main.py:101` |
+| `OAK-RUNNER-BUSY` | another oak-runner run-once is using this runner home | `src/oak/runner/main.py:74` |
+| `OAK-RUNNER-CONFIG` | OAK_RUNNER_TARGET_PROFILE could not be read; OAK_RUNNER_TARGET_PROFILE is not a valid target profile; the runner home is unreadable; and 1 more | `src/oak/runner/main.py:125` |
 | `OAK-RUNNER-DIGEST` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:707` |
 | `OAK-RUNNER-DRIFT` | target state digest drifted during execution | `src/oak/runner/execution.py:271` |
 | `OAK-RUNNER-ENVIRONMENT` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:303` |
-| `OAK-RUNNER-EXECUTABLE` | executable is not allowlisted (some dynamic) | `src/oak/runner/adapters.py:117` |
-| `OAK-RUNNER-FOREIGN` | a container this installation does not own already has the planned name | `src/oak/runner/adapters.py:704` |
-| `OAK-RUNNER-IMAGE` | resolved image does not carry the approved digest | `src/oak/runner/adapters.py:431` |
-| `OAK-RUNNER-ISOLATION` | the container's configuration does not match the approved isolation; the existing container was created under a different isolation | `src/oak/runner/adapters.py:395` |
+| `OAK-RUNNER-EXECUTABLE` | executable is not allowlisted (some dynamic) | `src/oak/runner/adapters.py:141` |
+| `OAK-RUNNER-FOREIGN` | a container this installation does not own already has the planned name | `src/oak/runner/adapters.py:736` |
+| `OAK-RUNNER-IMAGE` | resolved image does not carry the approved digest | `src/oak/runner/adapters.py:463` |
+| `OAK-RUNNER-ISOLATION` | the container's configuration does not match the approved isolation; the existing container was created under a different isolation | `src/oak/runner/adapters.py:427` |
 | `OAK-RUNNER-KEY` | runner key length is invalid; runner key must be a private regular file | `src/oak/runner/identity.py:44` |
-| `OAK-RUNNER-LEASE` | the lease expired before the next side effect | `src/oak/runner/adapters.py:723` |
-| `OAK-RUNNER-MAILBOX` | *dynamic message* | `src/oak/runner/main.py:204` |
+| `OAK-RUNNER-LEASE` | the lease expired before the next side effect | `src/oak/runner/adapters.py:755` |
+| `OAK-RUNNER-MAILBOX` | *dynamic message* | `src/oak/runner/main.py:230` |
 | `OAK-RUNNER-NETWORK` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:480` |
 | `OAK-RUNNER-OPERATION` | operation kind is not supported | `src/oak/runner/execution.py:273` |
-| `OAK-RUNNER-PARAMETERS` | container entry is not permitted; container list is not permitted; container name is not permitted; and 8 more | `src/oak/runner/adapters.py:765` |
+| `OAK-RUNNER-PARAMETERS` | container entry is not permitted; container list is not permitted; container name is not permitted; and 8 more | `src/oak/runner/adapters.py:797` |
 | `OAK-RUNNER-PLAN-EXPIRED` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:323` |
 | `OAK-RUNNER-PLAN-STATE` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:318` |
 | `OAK-RUNNER-POLICY` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:369` |
@@ -263,13 +263,13 @@ documented flow uses it.
 | `OAK-RUNNER-REGISTRY` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:619` |
 | `OAK-RUNNER-REPLAY` | the consumed-nonce ledger is malformed; refusing to treat it as empty; the consumed-nonce ledger is unreadable; refusing to treat it as empty | `src/oak/runner/mailbox.py:198` |
 | `OAK-RUNNER-REVOCATION` | revocation directory contains an entry that is not a notice; revocation directory is missing or unreadable; revocation notice exceeds the mailbox bound; and 4 more | `src/oak/runner/mailbox.py:111` |
-| `OAK-RUNNER-ROLLBACK` | *dynamic message* | `src/oak/runner/adapters.py:631` |
+| `OAK-RUNNER-ROLLBACK` | *dynamic message* | `src/oak/runner/adapters.py:663` |
 | `OAK-RUNNER-SCHEMA` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:716` |
 | `OAK-RUNNER-SECRETS` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:469` |
 | `OAK-RUNNER-SEPARATION` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:355` |
 | `OAK-RUNNER-SIGNATURE` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:112` |
-| `OAK-RUNNER-SMOKE-TEST` | *reason or mapping code; carries no fixed message* | `src/oak/runner/adapters.py:316` |
-| `OAK-RUNNER-SUBPROCESS` | docker invocation failed before completing | `src/oak/runner/adapters.py:737` |
+| `OAK-RUNNER-SMOKE-TEST` | *reason or mapping code; carries no fixed message* | `src/oak/runner/adapters.py:348` |
+| `OAK-RUNNER-SUBPROCESS` | docker invocation failed before completing | `src/oak/runner/adapters.py:769` |
 | `OAK-RUNNER-TARGET` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:288` |
 | `OAK-RUNNER-TARGET-CAPABILITY` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:488` |
 | `OAK-RUNNER-TENANT` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:298` |
@@ -417,8 +417,8 @@ documented flow uses it.
 | `OAK-PRECONDITION-INVALID` | expected version is required; weak entity tags are not accepted | `src/oak/interfaces/api/app.py:418` |
 | `OAK-REQUEST-INVALID` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/api/app.py:693` |
 | `OAK-REQUEST-SIZE` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/api/app.py:190` |
-| `OAK-TENANT-MISMATCH` | repository scope does not match workspace initialization; requested resource was not found; workspace tenant does not match command | `src/oak/adapters/persistence/postgresql.py:102` |
-| `OAK-TIME-INVALID` | timestamp must include a timezone; worker timestamp must include a timezone | `src/oak/adapters/persistence/postgresql.py:930` |
+| `OAK-TENANT-MISMATCH` | repository scope does not match workspace initialization; requested resource was not found; workspace tenant does not match command | `src/oak/adapters/persistence/postgresql.py:114` |
+| `OAK-TIME-INVALID` | timestamp must include a timezone; worker timestamp must include a timezone | `src/oak/adapters/persistence/postgresql.py:942` |
 
 ### Configuration and process startup (3)
 

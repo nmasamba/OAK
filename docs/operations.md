@@ -94,7 +94,7 @@ log or metric for OAK.
 | Signal | Where | What it tells you |
 |---|---|---|
 | Liveness | `GET /healthz` | The process is accepting requests |
-| Readiness | `GET /readyz` | The database answered, or 503 if it did not — including when `OAK_DATABASE_URL` is unset entirely, which is the case `oak-api` will otherwise start happily in. **It does not check the schema revision** — see [Upgrade](#upgrade) |
+| Readiness | `GET /readyz` | The database answered **at the schema revision this release expects**, or 503 — when it did not answer, when `OAK_DATABASE_URL` is unset entirely (the case `oak-api` will otherwise start happily in), and when the database has not been migrated to this release or was migrated by a newer one — see [Upgrade](#upgrade) |
 | Build identity | `GET /version` | Version and `OAK_COMMIT` |
 | Projection lag | `GET /v1/system/outbox-lag` | Pending outbox events and sequence lag for the built-in projection; `latest_sequence` and `indexed_through` are summed over cases, so `sequence_lag` is the number of events not yet indexed across all of them |
 | Work in flight | `GET /v1/operations/{id}` | Status, attempts and checkpoint of one durable operation |
@@ -127,7 +127,7 @@ directory that is not in either.
 | Signing keys and trust anchors | `$OAK_TRUST_DIRECTORY` (default `~/.oak/trust`) | A **separate**, protected copy |
 | Outbound dispatch mailbox | `$OAK_DISPATCH_MAILBOX` (default `~/.oak/mailbox`) | A filesystem copy, if leases are in flight |
 | Extension quarantine and activations | `$OAK_EXTENSIONS_DIRECTORY` (default `~/.oak/extensions`) | A filesystem copy |
-| Runner identity, journal, consumed nonces, the revocation-sequence mark, and `docker-config/`, the empty Docker client configuration the runner's `docker` commands use | `$OAK_RUNNER_HOME` (default `~/.oak/runner`) | A **separate**, protected copy — it holds the runner's own Ed25519 private key |
+| Runner identity, journal, consumed nonces, the revocation-sequence mark, and `docker-config/`, the empty Docker client configuration the runner's `docker` commands use (a `run-*` directory there is a run's private working directory, removed when it ends: nothing to back up) | `$OAK_RUNNER_HOME` (default `~/.oak/runner`) | A **separate**, protected copy — it holds the runner's own Ed25519 private key |
 
 > **A `pg_dump` alone is not a backup.** Artifact bytes are read *only* from the artifact
 > root; the JSONB copy in `artifact_versions.canonical_document` is never read back at
@@ -279,12 +279,13 @@ its `downgrade()` deliberately raises — pinned by
    this for you and `api`/`worker` wait on it).
 5. Start `api` and `worker`, then verify with `scripts/verify_deployment.py`.
 
-> **`/readyz` does not check the schema revision.** It confirms the database answered,
-> nothing more. Nothing stops you starting a new `oak-api` against a database still at an
-> older revision, or an old binary against a newer schema — readiness goes green either
-> way and failures surface later as opaque query errors. The Compose
-> `depends_on: migrate` guard covers the Compose path only, not a hand-run deployment.
-> Recorded as `RR-016`. Step 2 above is the manual substitute.
+> **`/readyz` checks the schema revision.** It answers 503 until the database is at the
+> revision this release's migrations end at: a new `oak-api` against a database that has
+> not been migrated yet, or an old binary against a schema a newer one migrated, stays not
+> ready instead of failing later with opaque query errors (`RR-016`, closed). Run
+> `oak-db-migrate` (step 4) and readiness turns green; the Compose `depends_on: migrate`
+> guard does that for you. Step 2's record of the previous revision is still what a
+> restore-forward needs.
 
 > If you invoke `alembic` directly rather than `oak-db-migrate`, note that
 > `migrations/env.py` reads `OAK_DATABASE_URL` from the environment and **ignores** the

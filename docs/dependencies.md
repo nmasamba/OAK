@@ -84,7 +84,10 @@ Policy Agent, Apache-2.0, CNCF-graduated) through a fixed allowlisted argument v
 `shell=False`, a sanitized environment, timeouts, and bounded output. The binary is never
 downloaded, bundled, or required: `oak policy evaluate` defaults to the deterministic
 built-in engine, engine selection is explicit, and a missing binary is a stable
-`OAK-POLICY-ENGINE-UNAVAILABLE` error. Generated Rego carries pack content only as
+`OAK-POLICY-ENGINE-UNAVAILABLE` error. Since `OAK-V1-010` the binary is resolved once, to an
+absolute path on the absolute entries of `PATH`, and must report version 1.0.0 or later,
+the release whose Rego (`import rego.v1`) the generated module is written in; it has been
+exercised with 1.19.1. Generated Rego carries pack content only as
 JSON-encoded literals, and the engine-equivalence suite proves byte-identical canonical
 evaluations against the built-in engine whenever `opa` is present. The `PolicyEnginePort`
 is the replacement seam; removing the adapter removes the integration completely.
