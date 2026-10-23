@@ -116,7 +116,7 @@ when you harden a runner environment. Recorded as `RR-033`.
 
 | Variable | Default | Meaning | Safety-relevant |
 |---|---|---|---|
-| `OAK_TEST_DATABASE_URL` | *(none)* | Enables the PostgreSQL-gated integration suites. **Unset, those suites skip silently and a green run is not evidence they ran.** See [CONTRIBUTING.md](../CONTRIBUTING.md) | No |
+| `OAK_TEST_DATABASE_URL` | *(none)* | Enables the PostgreSQL-gated integration suites. **Unset, those suites skip silently and a green run is not evidence they ran.** CI sets it, against a migrated PostgreSQL service in the `check` job. See [CONTRIBUTING.md](../CONTRIBUTING.md) | No |
 | `OAK_E2E_DOCKER` | *(none)* | Set by `make web-e2e` to enable the Compose-backed browser specs. They stop the `worker` and delete model settings on the stack Compose reaches, so they run no `docker compose` command beyond a read-only `docker compose port` check until that stack is confirmed to publish `OAK_WEB_BASE_URL` and `OAK_API_BASE_URL` on their own ports and loopback addresses. See [development.md](development.md#browser-end-to-end) | No |
 | `OAK_WEB_BASE_URL` | `http://127.0.0.1:5173` | Origin the Playwright suite drives. Read by `web/playwright.config.ts` and `web/e2e/support.ts`, not by Python. Overriding it or `OAK_API_BASE_URL` needs an exported `COMPOSE_PROJECT_NAME` naming the Compose project that serves both, and hosts written as `127.x.x.x` or `[::1]`; otherwise the Compose-backed specs refuse to run | No |
 | `OAK_API_BASE_URL` | `http://127.0.0.1:8080` | API origin the Playwright suite calls directly. Read by `web/e2e/support.ts`, not by Python. Overriding it needs `COMPOSE_PROJECT_NAME` too, as for `OAK_WEB_BASE_URL` | No |

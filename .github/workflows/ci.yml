@@ -8,17 +8,39 @@ on:
 permissions:
   contents: read
 
+# Every action is pinned by commit SHA, with the release it names in a comment: a tag can
+# be moved to other code, a commit cannot. `make toolchain-check` refuses an unpinned one.
 jobs:
   check:
     runs-on: ubuntu-latest
+    # The PostgreSQL-gated suites skip silently unless OAK_TEST_DATABASE_URL is set, so a
+    # green run without this service proved nothing about the database, tenant-isolation and
+    # interface-conformance suites (RR-019). The image is the one compose.yaml pins; the
+    # database and its local-only credentials live only as long as this job.
+    services:
+      postgres:
+        image: postgres:17.6-alpine@sha256:ef257d85f76e48da1c64832459b59fcaba1a4dac97bf5d7450c77753542eee94
+        env:
+          POSTGRES_DB: oak
+          POSTGRES_USER: oak
+          POSTGRES_PASSWORD: oak-local-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U oak -d oak"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+    env:
+      OAK_TEST_DATABASE_URL: postgresql+psycopg://oak:oak-local-only@127.0.0.1:5432/oak
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           version: "0.10.8"
           enable-cache: true
       - run: corepack enable
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .node-version
           cache: pnpm
@@ -26,11 +48,16 @@ jobs:
       # The real-daemon runner journeys use a pinned stand-in image and never pull it
       # themselves (tests need no network); setup fetches it, as bootstrap does packages.
       - run: docker pull docker.io/rancher/mirrored-pause@sha256:ee6521f290b2168b6e0935a181d4cff9be1ac3f505666ef0e3c98fae8199917a
+      # An unmigrated database fails the gated suites as if the code had regressed.
+      - name: Migrate the test database
+        run: uv run oak-db-migrate
+        env:
+          OAK_DATABASE_URL: ${{ env.OAK_TEST_DATABASE_URL }}
       - run: make check
       - run: make build
       - run: make audit
       - run: make sbom
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: development-sbom
           path: sbom/python.cdx.json

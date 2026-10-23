@@ -1335,8 +1335,8 @@ pnpm --dir web exec node ../docs/manual/build_manual.mjs</code></pre>
     <code>tests/integration/test_report_cli.py</code> rather than the end-to-end suites. Chapter 5's shell commands were run against the <code>0.8.0</code> Compose stack,
     as the tour records. The operations behind them are exercised by the interface conformance and MCP
     suites (<code>tests/integration/test_interface_conformance.py</code>,
-    <code>tests/e2e/test_mcp_interface.py</code>), which need a PostgreSQL database and so
-    run locally rather than in CI (<code>RR-019</code>). The screenshots were re-captured from
+    <code>tests/e2e/test_mcp_interface.py</code>), which need a PostgreSQL database; CI
+    runs them against a throwaway one. The screenshots were re-captured from
     the Sprint 12 workspace, on a stack that still reports <code>0.9.0</code>. The diagrams are inline SVG in the source. This manual
     describes OAK Community 0.9.0 — a local-first developer release with no production
     or customer readiness claim; where this document and

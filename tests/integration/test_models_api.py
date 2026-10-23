@@ -16,12 +16,12 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from fastapi.testclient import TestClient
 
 from oak.application import ModelConfigurationService, validate_key_input
 from oak.bootstrap import create_model_configuration_service
 from oak.domain import OAKError
 from oak.interfaces.api.app import create_app
+from tests.asgi_support import ASGIClient
 from tests.mcp_support import build_file_control_plane
 
 pytestmark = pytest.mark.integration
@@ -54,11 +54,11 @@ SNAPSHOT: dict[str, Any] = {
 
 
 @pytest.fixture
-def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
+def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[ASGIClient]:
     monkeypatch.setenv("OAK_CREDENTIALS_DIRECTORY", str(tmp_path / "credentials"))
     monkeypatch.setenv("OAK_MODELS_DIRECTORY", str(tmp_path / "models"))
     app = create_app(model_token=TOKEN, model_configuration=create_model_configuration_service)
-    with TestClient(app, base_url="http://127.0.0.1") as test_client:
+    with ASGIClient(app, base_url="http://127.0.0.1") as test_client:
         yield test_client
 
 
@@ -66,11 +66,11 @@ def _headers(token: str | None = TOKEN) -> dict[str, str]:
     return {"X-OAK-Model-Token": token} if token is not None else {}
 
 
-def _put_key(client: TestClient, family: str = "huggingface", key: str = KEY) -> Any:
+def _put_key(client: ASGIClient, family: str = "huggingface", key: str = KEY) -> Any:
     return client.put(f"/v1/models/credentials/{family}", json={"api_key": key}, headers=_headers())
 
 
-def test_the_status_resource_shows_every_family_and_no_credential(client: TestClient) -> None:
+def test_the_status_resource_shows_every_family_and_no_credential(client: ASGIClient) -> None:
     assert _put_key(client).status_code == 204
 
     response = client.get("/v1/models", headers=_headers())
@@ -93,7 +93,7 @@ def test_the_status_resource_shows_every_family_and_no_credential(client: TestCl
 
 
 def test_a_key_is_never_echoed_by_any_response_or_stored_outside_its_directory(
-    client: TestClient, tmp_path: Path
+    client: ASGIClient, tmp_path: Path
 ) -> None:
     assert _put_key(client).status_code == 204
     client.put(
@@ -104,7 +104,7 @@ def test_a_key_is_never_echoed_by_any_response_or_stored_outside_its_directory(
 
     for path in ("/v1/models", "/version", "/healthz"):
         assert KEY not in client.get(path, headers=_headers()).text, path
-    assert KEY not in json.dumps(client.app.openapi())  # type: ignore[attr-defined]
+    assert KEY not in json.dumps(client.app.openapi())
 
     holders = [
         path
@@ -116,9 +116,9 @@ def test_a_key_is_never_echoed_by_any_response_or_stored_outside_its_directory(
 
 
 def test_the_openapi_document_marks_the_key_write_only_and_carries_no_example(
-    client: TestClient,
+    client: ASGIClient,
 ) -> None:
-    document = client.app.openapi()  # type: ignore[attr-defined]
+    document = client.app.openapi()
     schema = document["components"]["schemas"]["ModelCredentialRequest"]["properties"]["api_key"]
     assert schema["writeOnly"] is True
     assert schema["format"] == "password"
@@ -131,7 +131,7 @@ def test_the_openapi_document_marks_the_key_write_only_and_carries_no_example(
 
 
 def test_a_malformed_key_body_is_refused_without_echoing_what_was_sent(
-    client: TestClient,
+    client: ASGIClient,
 ) -> None:
     for body in ({"api_key": "short"}, {"api_key": "x" * 600}, {"api_key": 7}, {}):
         response = client.put("/v1/models/credentials/huggingface", json=body, headers=_headers())
@@ -144,7 +144,7 @@ def test_a_malformed_key_body_is_refused_without_echoing_what_was_sent(
             assert "api_key" not in entry["message"] or "value" not in entry["message"].lower()
 
 
-def test_every_model_route_requires_the_capability_token(client: TestClient) -> None:
+def test_every_model_route_requires_the_capability_token(client: ASGIClient) -> None:
     calls = (
         ("GET", "/v1/models", None),
         ("PUT", "/v1/models/credentials/huggingface", {"api_key": KEY}),
@@ -170,7 +170,7 @@ def test_every_model_route_requires_the_capability_token(client: TestClient) -> 
     assert status["selections"] == {"huggingface": None, "local": None}
 
 
-def test_deleting_a_credential_is_idempotent_and_clears_the_status(client: TestClient) -> None:
+def test_deleting_a_credential_is_idempotent_and_clears_the_status(client: ASGIClient) -> None:
     assert _put_key(client).status_code == 204
     route = "/v1/models/credentials/huggingface"
     assert client.delete(route, headers=_headers()).status_code == 204
@@ -183,7 +183,7 @@ def test_deleting_a_credential_is_idempotent_and_clears_the_status(client: TestC
     assert openai["fingerprint"] is None
 
 
-def test_a_selection_needs_a_key_and_is_readable_back(client: TestClient) -> None:
+def test_a_selection_needs_a_key_and_is_readable_back(client: ASGIClient) -> None:
     refused = client.put(
         "/v1/models/selection",
         json={"family": "huggingface", "model_id": "openai/gpt-oss-120b"},
@@ -221,7 +221,7 @@ def test_a_selection_needs_a_key_and_is_readable_back(client: TestClient) -> Non
     assert cleared.json()["modes"]["online"]["pair"]["source"] == "preferred"
 
 
-def test_an_unknown_family_is_refused_with_the_shared_code(client: TestClient) -> None:
+def test_an_unknown_family_is_refused_with_the_shared_code(client: ASGIClient) -> None:
     response = client.put(
         "/v1/models/credentials/deepmind", json={"api_key": KEY}, headers=_headers()
     )
@@ -267,7 +267,7 @@ def test_discovery_reports_its_snapshot_and_marks_staleness(
         return built
 
     app = create_app(model_token=TOKEN, model_configuration=service)
-    with TestClient(app, base_url="http://127.0.0.1") as client:
+    with ASGIClient(app, base_url="http://127.0.0.1") as client:
         response = client.post("/v1/models/huggingface:discover", headers=_headers())
         assert response.status_code == 200
         assert response.headers["Cache-Control"] == "no-store"
@@ -288,12 +288,12 @@ def test_discovery_reports_its_snapshot_and_marks_staleness(
         assert empty.status_code == 200 and empty.json()["discovery"] is None
 
 
-def test_discovery_without_a_discoverer_is_an_explicit_refusal(client: TestClient) -> None:
+def test_discovery_without_a_discoverer_is_an_explicit_refusal(client: ASGIClient) -> None:
     app = create_app(
         model_token=TOKEN,
         model_configuration=lambda: _service_without_discovery(),
     )
-    with TestClient(app, base_url="http://127.0.0.1") as bare:
+    with ASGIClient(app, base_url="http://127.0.0.1") as bare:
         response = bare.post("/v1/models/huggingface:discover", headers=_headers())
     assert response.status_code == 422
     assert response.json()["code"] == "OAK-MODEL-DISCOVERY-UNAVAILABLE"
@@ -312,7 +312,7 @@ def test_the_mcp_surface_gains_no_model_configuration_tool() -> None:
     assert len(TOOL_NAMES) == 11
 
 
-def test_a_provider_failure_during_discovery_keeps_its_code(client: TestClient) -> None:
+def test_a_provider_failure_during_discovery_keeps_its_code(client: ASGIClient) -> None:
     def failing() -> ModelConfigurationService:
         service = create_model_configuration_service()
 
@@ -325,7 +325,7 @@ def test_a_provider_failure_during_discovery_keeps_its_code(client: TestClient) 
         return service
 
     app = create_app(model_token=TOKEN, model_configuration=failing)
-    with TestClient(app, base_url="http://127.0.0.1") as rate_limited:
+    with ASGIClient(app, base_url="http://127.0.0.1") as rate_limited:
         response = rate_limited.post("/v1/models/huggingface:discover", headers=_headers())
     assert response.status_code == 429
     assert response.json()["code"] == "OAK-MODEL-RATE-LIMITED"
@@ -358,7 +358,7 @@ def test_an_unchanged_client_keeps_working_after_a_model_is_selected(
         model_token=TOKEN,
         model_configuration=create_model_configuration_service,
     )
-    with TestClient(app, base_url="http://127.0.0.1") as client:
+    with ASGIClient(app, base_url="http://127.0.0.1") as client:
         created = client.post(
             "/v1/design-cases",
             headers={"Idempotency-Key": "compat-create-0001"},
@@ -390,7 +390,7 @@ def test_asking_for_the_model_by_name_still_requires_the_token(
         model_token=TOKEN,
         model_configuration=create_model_configuration_service,
     )
-    with TestClient(app, base_url="http://127.0.0.1") as client:
+    with ASGIClient(app, base_url="http://127.0.0.1") as client:
         created = client.post(
             "/v1/design-cases",
             headers={"Idempotency-Key": "explicit-create-0001"},
@@ -406,11 +406,11 @@ def test_asking_for_the_model_by_name_still_requires_the_token(
 
 
 def test_the_document_declares_the_token_required_where_the_server_requires_it(
-    client: TestClient,
+    client: ASGIClient,
 ) -> None:
     """Describing a header as optional while always refusing without it is a false contract."""
 
-    document = client.app.openapi()  # type: ignore[attr-defined]
+    document = client.app.openapi()
     for path, method in (
         ("/v1/models", "get"),
         ("/v1/models/credentials/{family}", "put"),
@@ -437,7 +437,7 @@ def test_the_document_declares_the_token_required_where_the_server_requires_it(
 
 
 def test_the_status_resource_is_on_the_same_loopback_footing_as_the_rest(
-    client: TestClient,
+    client: ASGIClient,
 ) -> None:
     """It names the store paths and every stored key's fingerprint."""
 
@@ -458,7 +458,7 @@ def test_the_status_resource_is_on_the_same_loopback_footing_as_the_rest(
 
 
 def test_verification_records_a_verdict_with_its_time_and_never_the_account(
-    client: TestClient, monkeypatch: pytest.MonkeyPatch
+    client: ASGIClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from oak import bootstrap
 

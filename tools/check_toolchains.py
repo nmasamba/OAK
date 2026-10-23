@@ -36,6 +36,43 @@ def _match_version(
     return match.group("version")
 
 
+# One `uses:` step: the action, the ref it is fetched at, and the release named in a comment.
+_USES_LINE = re.compile(r"^\s*(?:-\s+)?uses:")
+_USES = re.compile(
+    r"^\s*(?:-\s+)?uses:\s*(?P<action>[^@\s#]+)@(?P<ref>[^\s#]+)"
+    r"(?:\s+#\s*(?P<release>\S+))?\s*$"
+)
+_COMMIT_SHA = re.compile(r"[0-9a-f]{40}")
+_RELEASE = re.compile(r"v\d+(?:\.\d+){0,2}")
+
+
+def _pinned_actions(text: str, source: str, failures: list[str]) -> dict[str, str]:
+    """Return each action a workflow uses, mapped to the release its pin names.
+
+    Every action must be fetched at a full commit SHA. A tag such as `@v4` is whatever the
+    action's repository says it is on the day the job runs, and a compromised repository
+    can move it to other code; a commit cannot be moved. The trailing comment names the
+    release the SHA was taken from, so a reviewer can read what the pin is.
+    """
+
+    actions: dict[str, str] = {}
+    for number, line in enumerate(text.splitlines(), start=1):
+        if _USES_LINE.match(line) is None:
+            continue
+        match = _USES.match(line)
+        if match is None:
+            failures.append(f"{source}: line {number} names an action without a ref")
+            continue
+        action = match.group("action")
+        release = match.group("release")
+        if _COMMIT_SHA.fullmatch(match.group("ref")) is None:
+            failures.append(f"{source}: {action} is not pinned by commit SHA")
+        elif release is None or _RELEASE.fullmatch(release) is None:
+            failures.append(f"{source}: {action} must name the release its SHA was taken from")
+        actions[action] = release or ""
+    return actions
+
+
 def _load_package(text: str, failures: list[str]) -> dict[str, Any]:
     try:
         value = json.loads(text)
@@ -195,16 +232,33 @@ def check(root: Path = ROOT) -> list[str]:
     if pnpm_version and engines.get("pnpm") != pnpm_version:
         failures.append("pnpm version differs between packageManager and engines")
 
-    if "uses: astral-sh/setup-uv@v6" not in workflow:
+    ci_actions = _pinned_actions(workflow, ".github/workflows/ci.yml", failures)
+    release_actions = _pinned_actions(release_workflow, ".github/workflows/release.yml", failures)
+    if "astral-sh/setup-uv" not in ci_actions:
         failures.append("CI workflow: setup-uv action is missing")
     if uv_version and f'version: "{uv_version}"' not in workflow:
         failures.append("uv version differs between CI and API container")
     if "node-version-file: .node-version" not in workflow:
         failures.append("CI workflow: Node must come from .node-version")
 
+    # The PostgreSQL-gated suites skip silently without OAK_TEST_DATABASE_URL, so a CI run
+    # that stops setting it, or skips the migration, would go green on nothing (RR-019).
+    # The service runs the very image compose.yaml pins.
+    compose_postgres = re.search(r"^    image: (postgres:\S+)$", compose, flags=re.MULTILINE)
+    ci_postgres = re.search(r"^        image: (postgres:\S+)$", workflow, flags=re.MULTILINE)
+    if compose_postgres is not None and (
+        ci_postgres is None or ci_postgres.group(1) != compose_postgres.group(1)
+    ):
+        failures.append("CI workflow: the database service must run compose.yaml's postgres image")
+    if "OAK_TEST_DATABASE_URL:" not in workflow or "oak-db-migrate" not in workflow:
+        failures.append(
+            "CI workflow: the PostgreSQL-gated suites must run "
+            "(OAK_TEST_DATABASE_URL and oak-db-migrate)"
+        )
+
     # The release builder must be the pinned builder. A release produced by a different
     # uv than the one CI and the container use is not the artifact anyone reviewed.
-    if "uses: astral-sh/setup-uv@v6" not in release_workflow:
+    if "astral-sh/setup-uv" not in release_actions:
         failures.append("release workflow: setup-uv action is missing")
     if uv_version and f'version: "{uv_version}"' not in release_workflow:
         failures.append("uv version differs between the release workflow and API container")

@@ -38,7 +38,8 @@ arm64 through a full backup-and-restore. The `0.8.0` and `0.7.0` rehearsals
 "Expected" means every dependency publishes a wheel or image for the platform but nobody ran
 it end to end; treat it as unsupported until someone does and records it. A row is downgraded
 to "Expected" rather than argued up — the Linux x86_64 control-plane row is Expected because
-CI provisions no database and never starts Compose, so nothing has ever run that combination.
+CI never starts Compose or the installed services: it runs the PostgreSQL-gated suites
+against a database service, in process, which is not the control plane an operator runs.
 
 | OS | Architecture | CLI only | Control plane | Signed runner | Notes |
 |---|---|---|---|---|---|
