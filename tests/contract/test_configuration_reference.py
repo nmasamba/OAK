@@ -57,9 +57,11 @@ def test_the_reference_documents_nothing_the_source_does_not_read() -> None:
 
     read_anywhere = _read_by_source() | WEB_ONLY
     # Read by the test suite, which is not a source root. OAK_LIVE_MODEL_TESTS gates the
-    # live provider smoke tests, which spend real credit and never run in `make check`.
+    # live provider smoke tests, which spend real credit, and OAK_LIVE_RESEARCH_TESTS the
+    # hand-run research check, which sends anonymous requests; neither runs in `make check`.
     read_anywhere.add("OAK_TEST_DATABASE_URL")
     read_anywhere.add("OAK_LIVE_MODEL_TESTS")
+    read_anywhere.add("OAK_LIVE_RESEARCH_TESTS")
 
     invented = sorted(_documented() - read_anywhere)
 
