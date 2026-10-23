@@ -121,8 +121,7 @@ replaceable and owned by its own project. OAK compiles *to* them; it doesn't abs
 
 - Logging and metrics that leak nothing (`RR-015`). **Discuss first**, because of the data
   boundary.
-- A readiness check that notices an un-migrated database (`RR-016`), and a file-workspace
-  format migration before the format ever changes (`RR-017`).
+- A file-workspace format migration before the format ever changes (`RR-017`).
 - Byte-reproducible container images (`RR-006`), and bounding how workspace reads grow
   with history (`RR-030`).
 - Release signing (`RR-005`) needs a named key holder, which is a maintainer decision. The
