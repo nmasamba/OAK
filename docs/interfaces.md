@@ -52,11 +52,11 @@ curl --fail http://127.0.0.1:8080/version   # --build is not optional; see opera
 ```
 
 The committed contract is [openapi/oak.openapi.json](../openapi/oak.openapi.json), and a
-running `oak-api` also serves it live at `/openapi.json`, with FastAPI's interactive
-browsers at `/docs` and `/redoc`. Those three are **not** part of the `/v1` contract and
-are not covered by the compatibility policy — they are debugging affordances that come
-with the framework. They bind to the same address as everything else, so on a non-loopback
-bind they are exposed too.
+running `oak-api` also serves it live at `/openapi.json`. That route is **not** part of the
+`/v1` contract and is not covered by the compatibility policy — it is a debugging
+affordance that comes with the framework, and it binds to the same address as everything
+else, so on a non-loopback bind it is exposed too. FastAPI's interactive `/docs` and
+`/redoc` pages are switched off: they load scripts from a public CDN into the API's origin.
 
 ### Remote CLI
 

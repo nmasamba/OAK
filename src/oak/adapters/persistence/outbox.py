@@ -220,18 +220,22 @@ class PostgreSQLOutboxStore:
                 .mappings()
                 .one()
             )
+            # Sequences are per case, so each total is summed over cases: one case fully
+            # indexed must not hide another's unindexed events, as maxima across cases did
+            # (F2-12). The difference of the sums is the sum of each case's lag.
+            per_case = (
+                select(func.max(outbox_events.c.aggregate_sequence).label("latest"))
+                .where(self._scope(outbox_events))
+                .group_by(outbox_events.c.aggregate_id)
+                .subquery()
+            )
             latest = int(
-                connection.scalar(
-                    select(func.coalesce(func.max(outbox_events.c.aggregate_sequence), 0)).where(
-                        self._scope(outbox_events)
-                    )
-                )
-                or 0
+                connection.scalar(select(func.coalesce(func.sum(per_case.c.latest), 0))) or 0
             )
             indexed = int(
                 connection.scalar(
                     select(
-                        func.coalesce(func.max(projection_positions.c.indexed_through), 0)
+                        func.coalesce(func.sum(projection_positions.c.indexed_through), 0)
                     ).where(self._projection_scope(projection_name))
                 )
                 or 0

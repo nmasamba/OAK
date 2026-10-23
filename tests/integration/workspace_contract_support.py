@@ -13,10 +13,11 @@ def initial_mutation(
     *,
     workspace_id: str = "workspace.workspace-test",
     idempotency_key: str = "design-workspace-test-0001",
+    name: str = "workspace-test",
     input_digest: str = f"sha256:{'1' * 64}",
 ) -> WorkspaceMutation:
     brief = Artifact(
-        id="brief.workspace-test",
+        id=f"brief.{name}",
         version="0.1.0",
         kind="brief_source",
         media_type="text/plain",
@@ -25,13 +26,13 @@ def initial_mutation(
     event_document = audit_event_document(
         sequence=1,
         previous_event_digest=None,
-        case_id="design-case.workspace-test",
+        case_id=f"design-case.{name}",
         case_version="0.1.0",
         event_type="brief_interpreted",
         actor="local-user",
         tenant_id="local",
         interface_origin="cli",
-        correlation_id="correlation-workspace-test",
+        correlation_id=f"correlation-{name}",
         idempotency_key=idempotency_key,
         input_digest=input_digest,
         occurred_at=NOW,
@@ -46,7 +47,7 @@ def initial_mutation(
         document=event_document,
     )
     case = DesignCase(
-        id="design-case.workspace-test",
+        id=f"design-case.{name}",
         version="0.1.0",
         status=DesignCaseStatus.DRAFT,
         title="Workspace test",

@@ -96,9 +96,9 @@ log or metric for OAK.
 | Liveness | `GET /healthz` | The process is accepting requests |
 | Readiness | `GET /readyz` | The database answered, or 503 if it did not — including when `OAK_DATABASE_URL` is unset entirely, which is the case `oak-api` will otherwise start happily in. **It does not check the schema revision** — see [Upgrade](#upgrade) |
 | Build identity | `GET /version` | Version and `OAK_COMMIT` |
-| Projection lag | `GET /v1/system/outbox-lag` | Pending outbox events and sequence lag for the built-in projection |
+| Projection lag | `GET /v1/system/outbox-lag` | Pending outbox events and sequence lag for the built-in projection; `latest_sequence` and `indexed_through` are summed over cases, so `sequence_lag` is the number of events not yet indexed across all of them |
 | Work in flight | `GET /v1/operations/{id}` | Status, attempts and checkpoint of one durable operation |
-| Contract | `GET /openapi.json`, `/docs`, `/redoc` | The live OpenAPI document and FastAPI's interactive browsers. Useful for debugging; **not** part of the `/v1` contract, not covered by the compatibility policy, and exposed on whatever address the API binds |
+| Contract | `GET /openapi.json` | The live OpenAPI document. Useful for debugging; **not** part of the `/v1` contract, not covered by the compatibility policy, and exposed on whatever address the API binds. FastAPI's interactive `/docs` and `/redoc` pages are switched off: they load scripts from a public CDN into the API's origin |
 
 ```bash
 curl --fail --silent http://127.0.0.1:8080/readyz

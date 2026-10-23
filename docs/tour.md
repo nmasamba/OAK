@@ -455,9 +455,9 @@ jq -n --rawfile c examples/briefs/public-manual-qa.yaml \
 ```
 
 The committed contract is [`openapi/oak.openapi.json`](../openapi/oak.openapi.json). A
-running API also serves a clickable explorer at <http://127.0.0.1:8080/docs>, which is
-handy for poking around. It comes from the web framework and isn't part of the versioned
-contract.
+running API also serves it live at <http://127.0.0.1:8080/openapi.json>, which any OpenAPI
+viewer can open. The framework's clickable explorer is switched off, because it loads
+scripts from a public CDN into the API's own origin.
 
 > **A shell gotcha.** In `zsh`, the default shell on macOS, `"$CASE:confirm"` doesn't mean
 > "the variable, then `:confirm`". `zsh` reads `:c` as an instruction to modify the

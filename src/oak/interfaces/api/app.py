@@ -548,6 +548,11 @@ def create_app(
         ),
         version=information.version,
         openapi_version="3.1.0",
+        # FastAPI's /docs and /redoc pages load unpinned scripts from a public CDN into this
+        # origin, beside a control plane that trusts same-origin requests; the contract
+        # stays at /openapi.json and in the repository (F2-9).
+        docs_url=None,
+        redoc_url=None,
     )
     api.add_middleware(_BoundedRequestMiddleware, maximum_bytes=MAXIMUM_REQUEST_BYTES)
     # Added last so it runs first: nothing is buffered or routed for a refused host/origin.
