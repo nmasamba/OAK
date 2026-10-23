@@ -928,7 +928,11 @@ def import_workspace(
         _emit(
             {"case": current.case, "intent": current.intent},
             output,
-            human=(f"Imported {current.case['id']}@{current.case['version']} into {root_path}"),
+            # Printed normalised (`a/../b` as `b`), without resolving symlinks.
+            human=(
+                f"Imported {current.case['id']}@{current.case['version']} into "
+                f"{os.path.normpath(root_path)}"
+            ),
         )
     except (OAKError, ContractValidationError, OSError, RuntimeError, ValueError) as error:
         _abort(error)
@@ -946,7 +950,7 @@ def serve(
         ),
     ] = False,
 ) -> None:
-    """Serve the read-only local API harness."""
+    """Serve the REST API on this machine; design cases need OAK_DATABASE_URL."""
 
     if _REMOTE_SERVER is not None:
         _abort(OAKError("OAK-REMOTE-UNSUPPORTED", "serve is local-only"))
@@ -1602,8 +1606,16 @@ def _research_plan_lines(plan: dict[str, Any]) -> list[str]:
         json.dumps(plan.get("terms", {}).get("sent", {}), indent=2, sort_keys=True),
         "Used on this machine only:",
         json.dumps(plan.get("terms", {}).get("local", {}), indent=2, sort_keys=True),
-        f"To run: oak research --consent {plan.get('terms_digest')}",
     ]
+    if plan.get("allowed"):
+        lines.append(f"To run: oak research --consent {plan.get('terms_digest')}")
+    else:
+        # The terms follow the confirmed intent, so a digest read at another status is
+        # not one to consent to: say when research can run instead of offering it now.
+        lines.append(
+            "Research runs only while the case is ready_for_candidates: after its "
+            "questions are confirmed and before its candidates are generated."
+        )
     return lines
 
 
@@ -2237,6 +2249,8 @@ def _models_status_text(status: dict[str, Any]) -> str:
                 f"  {family}: key stored in {credential['source']} "
                 f"(fingerprint {credential['fingerprint']}, {credential['length']} characters)"
             )
+        elif credential.get("source"):
+            lines.append(f"  {family}: no key can be read from {credential['source']}")
         verification = credential.get("verification")
         if verification is not None:
             stale = " — stale; run `oak models verify`" if verification.get("stale") else ""
@@ -2357,10 +2371,22 @@ def _load_answers(path: Path) -> dict[str, Any]:
     return _load_bounded_mapping(path, prefix="OAK-CONFIRM")
 
 
+def _unreadable_path(absolute: Path, code: str) -> OAKError:
+    """The refusal for a path that is not a regular file: missing, or unsafe to read.
+
+    One code for both, as before, with a message that says which, so a mistyped name is
+    not reported as a security refusal.
+    """
+
+    if not absolute.is_symlink() and not absolute.exists():
+        return OAKError(code, f"input file does not exist: {absolute.name}")
+    return OAKError(code, "input must be a regular non-symlink file")
+
+
 def _load_bounded_mapping(path: Path, *, prefix: str) -> dict[str, Any]:
     absolute = path.absolute()
     if absolute.is_symlink() or not absolute.is_file():
-        raise OAKError(f"{prefix}-UNSAFE-PATH", "input must be a regular non-symlink file")
+        raise _unreadable_path(absolute, f"{prefix}-UNSAFE-PATH")
     if absolute.suffix.lower() not in {".yaml", ".yml", ".json"}:
         raise OAKError(f"{prefix}-TYPE", "input must be YAML or JSON")
     content = _read_bounded_file(absolute, prefix=prefix, maximum_bytes=65_536)
@@ -2389,7 +2415,7 @@ def _load_bounded_mapping(path: Path, *, prefix: str) -> dict[str, Any]:
 def _read_bounded_file(path: Path, *, prefix: str, maximum_bytes: int) -> bytes:
     absolute = path.absolute()
     if absolute.is_symlink() or not absolute.is_file():
-        raise OAKError(f"{prefix}-UNSAFE-PATH", "input must be a regular non-symlink file")
+        raise _unreadable_path(absolute, f"{prefix}-UNSAFE-PATH")
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
     try:
         descriptor = os.open(absolute, flags)
@@ -2410,7 +2436,7 @@ def _read_bounded_file(path: Path, *, prefix: str, maximum_bytes: int) -> bytes:
 def _load_bounded_text(path: Path, *, code: str) -> str:
     absolute = path.absolute()
     if absolute.is_symlink() or not absolute.is_file():
-        raise OAKError(code, "input must be a regular non-symlink file")
+        raise _unreadable_path(absolute, code)
     try:
         flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
         descriptor = os.open(absolute, flags)

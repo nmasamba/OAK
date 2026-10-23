@@ -61,6 +61,14 @@ summary:focus-visible,
   outline-offset: var(--focus-offset);
 }
 
+/* The page heading receives focus after each navigation so a screen reader announces
+   the new page; it is not a control (tabindex -1, out of the tab order), so it shows
+   no focus box. Every control keeps its ring. */
+#page-heading[tabindex="-1"]:focus,
+#page-heading[tabindex="-1"]:focus-visible {
+  outline: none;
+}
+
 /* Masthead */
 .masthead {
   display: flex;
@@ -968,7 +976,7 @@ legend {
   margin-top: 0;
 }
 
-.candidate-detail .explanation-requirements {
+.explanation-requirements {
   display: block;
 }
 
@@ -1471,6 +1479,7 @@ summary {
 
 .moment-body > p a.keycap {
   display: inline-flex;
+  align-items: center;
   height: var(--target);
   min-height: var(--target);
   padding: 0 18px;

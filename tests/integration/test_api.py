@@ -140,3 +140,31 @@ async def test_chunked_or_sized_request_body_is_bounded(
 
     assert response.status_code == 413
     assert response.json()["code"] == "OAK-REQUEST-SIZE"
+
+
+async def test_a_server_without_a_database_refuses_design_cases_with_a_reason(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """OAK-V1-005 (walkthrough V-1): `oak serve` or `oak-api` started without
+    OAK_DATABASE_URL answers the routes that need no database, and refuses every
+    design-case route with a stable 503 rather than a 500 and a traceback."""
+
+    monkeypatch.delenv("OAK_DATABASE_URL", raising=False)
+    transport = httpx.ASGITransport(app=create_app(_service()), raise_app_exceptions=False)
+    async with httpx.AsyncClient(transport=transport, base_url="http://127.0.0.1") as client:
+        version = await client.get("/version")
+        listed = await client.get("/v1/design-cases")
+        created = await client.post(
+            "/v1/design-cases",
+            headers={"Idempotency-Key": "no-database-create-0001"},
+            json={"original_name": "brief.md", "content": "A brief."},
+        )
+
+    assert version.status_code == 200
+    for response in (listed, created):
+        assert response.status_code == 503
+        assert response.headers["content-type"].startswith(PROBLEM_MEDIA_TYPE)
+        body = response.json()
+        assert body["code"] == "OAK-DATABASE-UNCONFIGURED"
+        assert "OAK_DATABASE_URL" in body["detail"]
+        assert "traceback" not in response.text.lower()

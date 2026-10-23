@@ -32,6 +32,9 @@ SAFE_ID = re.compile(r"[^a-z0-9]+")
 class LocalBriefIntake:
     def read(self, path: Path) -> IngestedBrief:
         absolute = path.absolute()
+        if not absolute.is_symlink() and not absolute.exists():
+            # The same code as an unsafe path, but a message that says what is wrong.
+            raise OAKError("OAK-INTAKE-UNSAFE-PATH", f"brief file does not exist: {absolute.name}")
         if absolute.is_symlink() or not absolute.is_file():
             raise OAKError("OAK-INTAKE-UNSAFE-PATH", "brief must be a regular non-symlink file")
         raw = self._read_bounded_regular_file(absolute)

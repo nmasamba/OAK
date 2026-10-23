@@ -7,6 +7,7 @@ export { Keycap, type KeycapTone } from "./Keycap";
 export { Led, type LedState } from "./Led";
 export { ProvenanceMark } from "./ProvenanceMark";
 export { RangeBar, formatQuantity } from "./RangeBar";
+export { TextWithCode } from "./TextWithCode";
 export { Tile } from "./Tile";
 export {
   RESEARCHED_SUFFIX,

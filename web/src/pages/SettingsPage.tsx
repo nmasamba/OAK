@@ -23,7 +23,7 @@ import {
 import { ProblemAlert, toActionFailure, type ActionFailure } from "../problems";
 import { Link } from "../router";
 import { ageOf, asArray, asObject, asString } from "../support";
-import { Chip, CopyPlate, Keycap } from "../ui";
+import { Chip, CopyPlate, Keycap, TextWithCode } from "../ui";
 
 type LoadState =
   | { readonly kind: "no-token" }
@@ -445,7 +445,10 @@ export function SettingsPage() {
                 ) : (
                   <>
                     Not ready:{" "}
-                    {asString(online?.["reason"] ?? null) ?? "unknown"}.
+                    <TextWithCode
+                      text={asString(online?.["reason"] ?? null) ?? "unknown"}
+                    />
+                    .
                   </>
                 )}
               </p>
@@ -615,8 +618,12 @@ export function SettingsPage() {
                 ) : (
                   <>
                     Not ready:{" "}
-                    {asString(local?.["reason"] ?? null) ??
-                      "no model is pinned"}
+                    <TextWithCode
+                      text={
+                        asString(local?.["reason"] ?? null) ??
+                        "no model is pinned"
+                      }
+                    />
                     .
                   </>
                 )}

@@ -13,6 +13,23 @@ import { newIdempotencyKey } from "../support";
 import { Keycap, Led, type LedState } from "../ui";
 
 const TERMINAL_STATES = new Set(["succeeded", "failed", "cancelled"]);
+
+/** The heading for each operation kind; an unknown kind is capitalised, not hidden. */
+const KIND_TITLES: Readonly<Record<string, string>> = {
+  generate_candidates: "Generating candidates",
+  evaluate_candidate: "Evaluating a candidate",
+  compile_bundle: "Compiling the bundle",
+  research_catalogue: "Researching newer options",
+};
+
+function kindTitle(kind: string): string {
+  const known = KIND_TITLES[kind];
+  if (known !== undefined) {
+    return known;
+  }
+  const words = kind.replaceAll("_", " ");
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
 const POLL_INTERVAL_MILLISECONDS = 1500;
 
 const LIGHTS: Readonly<Record<string, LedState>> = {
@@ -104,7 +121,7 @@ export function OperationPage({
   return (
     <div className="convo">
       <div className="thread">
-        <h1 id="page-heading">{operation.kind.replaceAll("_", " ")}</h1>
+        <h1 id="page-heading">{kindTitle(operation.kind)}</h1>
         <p className="case-id">{operation.operation_id}</p>
 
         <Moment fresh>

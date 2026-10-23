@@ -142,3 +142,20 @@ def test_a_deeply_nested_brief_is_refused_rather_than_blowing_the_stack(
         LocalBriefIntake().read_content(original_name=name, content=payload)
 
     assert refusal.value.code == "OAK-INTAKE-COMPLEXITY"
+
+
+def test_a_missing_brief_says_it_does_not_exist_under_the_same_code(tmp_path: Path) -> None:
+    """OAK-V1-005 (walkthrough V-4): a mistyped name is not reported as a security refusal."""
+
+    with pytest.raises(OAKError) as missing:
+        LocalBriefIntake().read(tmp_path / "no-such-brief.yaml")
+    assert missing.value.code == "OAK-INTAKE-UNSAFE-PATH"
+    assert missing.value.message == "brief file does not exist: no-such-brief.yaml"
+
+    target = tmp_path / "real.yaml"
+    target.write_text("title: x\n", encoding="utf-8")
+    link = tmp_path / "link.yaml"
+    link.symlink_to(target)
+    with pytest.raises(OAKError) as unsafe:
+        LocalBriefIntake().read(link)
+    assert unsafe.value.message == "brief must be a regular non-symlink file"

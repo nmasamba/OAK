@@ -1,5 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
+/**
+ * A JSON pointer as a person reads it: each segment unescaped (`~1` is `/`, `~0` is `~`).
+ * For display only; the exact pointer stays available, for example as a title.
+ */
+export function readablePointer(pointer: string): string {
+  return pointer.replaceAll("~1", "/").replaceAll("~0", "~");
+}
+
 export function resolvePointer(document: unknown, pointer: string): unknown {
   if (pointer === "") {
     return document;

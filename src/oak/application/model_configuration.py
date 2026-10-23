@@ -90,6 +90,16 @@ def validate_key_input(value: str) -> SecretValue:
     return SecretValue(candidate)
 
 
+# The refusals a credential store raises when this environment cannot reach it at all.
+UNREACHABLE_STORE_CODES = frozenset({"OAK-MODEL-KEYCHAIN-UNAVAILABLE", "OAK-MODEL-KEYCHAIN-UNSAFE"})
+# What each recorded store is called in a sentence.
+STORE_WORDS = {
+    "keychain": "operating-system keychain",
+    "file": "owner-only credentials file",
+    "env": "environment variable",
+}
+
+
 class ModelConfigurationService:
     def __init__(
         self,
@@ -162,7 +172,15 @@ class ModelConfigurationService:
             return CredentialStatus(
                 family=family, configured=False, source=None, fingerprint=None, length=None
             )
-        secret = self._credentials[source].get(family)
+        try:
+            secret = self._credentials[source].get(family)
+        except OAKError as error:
+            if error.code not in UNREACHABLE_STORE_CODES:
+                raise
+            # A status read reports a store this environment cannot reach (the keychain
+            # library absent, a headless session) as holding no readable key, instead of
+            # failing; using the key still refuses with the store's own code.
+            secret = None
         if secret is None:
             return CredentialStatus(
                 family=family, configured=False, source=source, fingerprint=None, length=None
@@ -342,9 +360,15 @@ class ModelConfigurationService:
         pair = self.online_pair()
         verification = self.verification_status("huggingface")
         online["verification"] = verification
-        if not self.credential_status("huggingface").configured:
+        credential = self.credential_status("huggingface")
+        if not credential.configured and credential.source is None:
             online["reason"] = (
                 "no Hugging Face token is stored; run `oak models set-key` or store one in Settings"
+            )
+        elif not credential.configured:
+            online["reason"] = (
+                f"no Hugging Face token can be read from the {STORE_WORDS[credential.source]} "
+                "this configuration names; store one again with `oak models set-key` or in Settings"
             )
         elif verification is not None and verification["verdict"] == "rejected":
             online["reason"] = (

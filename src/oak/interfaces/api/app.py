@@ -472,6 +472,8 @@ def _error_status(error: OAKError) -> int:
         return 400
     if error.code == "OAK-MODEL-RATE-LIMITED":
         return 429
+    if error.code == "OAK-DATABASE-UNCONFIGURED":
+        return 503
     if error.code in {
         "OAK-CASE-NOT-FOUND",
         "OAK-CANDIDATE-NOT-FOUND",
@@ -577,7 +579,17 @@ def create_app(
     def plane() -> CommunityControlPlane:
         nonlocal persistent_service
         if persistent_service is None:
-            persistent_service = create_persistent_control_plane()
+            try:
+                persistent_service = create_persistent_control_plane()
+            except RuntimeError as error:
+                # Started without OAK_DATABASE_URL: /version, the health checks and the
+                # model settings still answer, and every design-case route says why it
+                # cannot, instead of a 500 and a traceback in the server log.
+                raise OAKError(
+                    "OAK-DATABASE-UNCONFIGURED",
+                    "this server has no database configured; set OAK_DATABASE_URL to the "
+                    "PostgreSQL database that holds the design cases, then restart it",
+                ) from error
         return persistent_service
 
     def command_context(

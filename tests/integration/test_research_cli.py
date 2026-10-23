@@ -248,3 +248,30 @@ def test_the_remote_cli_plans_runs_with_the_token_reviews_and_generates(
     assert generated.exit_code == 0, _output(generated)
     ids = [item["id"] for item in json.loads(generated.output)["candidates"]]
     assert "candidate-05" in ids and "candidate-06" in ids
+
+
+def test_the_plan_offers_the_consent_command_only_when_research_is_allowed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """OAK-V1-005 (walkthrough V-2): before the questions are confirmed the plan is still a
+    read, but it does not offer a `--consent` command it would refuse."""
+
+    from oak.bootstrap import create_design_case_service
+    from tests.runner_support import _context, _stamp
+
+    workspace = tmp_path / "workspace"
+    design = create_design_case_service(workspace)
+    design.initialize(workspace_id="workspace.fixture", tenant_id="local", created_at=_stamp(0))
+    design.design(
+        ROOT / "examples/briefs/public-manual-qa.yaml",
+        _context(_stamp(0), "harness-design-000001", None),
+    )
+    monkeypatch.chdir(workspace)
+    monkeypatch.setenv("OAK_RESEARCH_FIXTURES", str(FIXTURES))
+
+    human = runner.invoke(cli_app, ["research", "--plan"])
+
+    assert human.exit_code == 0, _output(human)
+    assert "not allowed at this status" in human.output
+    assert "oak research --consent" not in human.output
+    assert "Research runs only while the case is ready_for_candidates" in human.output

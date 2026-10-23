@@ -8,7 +8,7 @@ import {
   getDesignCase,
   type JsonObject,
 } from "../generated/api";
-import { formatValue, resolvePointer } from "../jsonpointer";
+import { formatValue, readablePointer, resolvePointer } from "../jsonpointer";
 import { ProblemAlert, toActionFailure, type ActionFailure } from "../problems";
 import { Link, useRouter } from "../router";
 import {
@@ -361,8 +361,11 @@ export function ConfirmPage({ caseId }: { readonly caseId: string }) {
                         />
                       </legend>
                       <p className="timeline-meta">
-                        {id} · affects <code>{path}</code> · blocks{" "}
-                        {asString(question["blocking_stage"])}
+                        {id} · affects{" "}
+                        <code title={path ?? undefined}>
+                          {readablePointer(path ?? "")}
+                        </code>{" "}
+                        · blocks {asString(question["blocking_stage"])}
                       </p>
                       {isCollapsed && decision !== undefined ? (
                         <div className="bubble bubble-reply rise">
