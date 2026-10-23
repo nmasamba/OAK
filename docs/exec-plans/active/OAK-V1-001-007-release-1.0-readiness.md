@@ -306,6 +306,48 @@ manual's sample), the rest as described in the commit, each behaviour change wit
 `tests/unit/test_intake.py`, `test_model_configuration.py`); the workspace changes are
 checked by `tsc`, the G1–G5 guards and, at M6, the browser suite and the recaptured figures.
 
+### The 1.0 readiness list (M5, 2026-10-23)
+
+What remains to cut 1.0 is the owner's to decide or do; nothing below was done by this pass.
+Each item names what it takes.
+
+1. **The version.** Bump `VERSION` to `1.0.0` and follow
+   [release-process.md](../../release-process.md) § Versioning: `pyproject.toml`,
+   `STATUS.md`, `package.json`, `web/package.json` and `openapi/oak.openapi.json` must agree,
+   and `make validate` names any that do not. The bump also moves bytes that carry the
+   version: the report golden's `oak_version` (ADR-0002's note), the `User-Agent` research
+   sends, and the manual's cover line and chapter 7, which today say this tree reports
+   `0.9.0` and holds unreleased work.
+2. **What 1.0 promises.** [compatibility.md](../../compatibility.md) states its rules "from
+   `0.7.0`" with a one-minor-release deprecation period. Whether 1.0 adopts semantic
+   versioning proper (a breaking change needs `2.0`), and from which surfaces (REST, CLI,
+   MCP, schemas, the export format), is a product decision; the OpenAPI baseline is
+   rewritten at the release either way, retiring the unreleased lists.
+3. **The decision record.** `docs/release/1.0.0/release-decision.md` with the three
+   approval rows (maintainer, security, licence), which no agent may sign. It must cover
+   all 54 register entries: `RR-044` to `RR-054` have been accepted by no release decision
+   (the report, research and this pass's `RR-054`). `RR-005` (unsigned artifacts) needs an
+   explicit answer for a public 1.0: accept again, or sign the artifacts.
+4. **The release evidence.** `make scan-images` (fixable CRITICAL/HIGH fail it),
+   `make release`, `make verify-release`, a clean-room rehearsal and an upgrade rehearsal
+   from `0.9.0` (an existing install must enroll its runner before its first ingest after
+   upgrading; nothing else changes on disk), recorded under `docs/release/1.0.0/`.
+5. **Publication.** The channels: a GitHub Release as before, and whether PyPI or a
+   container registry follows (each a separate decision, with `RR-005` in view).
+6. **Open product decisions carried from earlier kickoffs.** K2, the product variant
+   rename (the CLI still prints `balanced_enterprise` where the web says "Balanced"); K3,
+   a light theme; K4, one thread route; and the draft harness list
+   (`catalogue/research/harness-repositories.yaml`), whose `reviewed_by` and
+   `reviewed_at` are still null, so every harness research finds is unvetted.
+7. **Ownership placeholders.** All 19 ADRs and `spec-manifest.yaml` still name owners as
+   `@role` placeholders; the governance README says to replace them before a formal
+   release.
+8. **An external security review** (`RR-028`): whether one is commissioned before 1.0, or
+   1.0 ships, as `0.9.0` did, with the project's own review only.
+9. **Housekeeping.** Delete merged remote branches; bump the Node-20 GitHub Actions and
+   pin third-party actions by commit SHA (F4-14's note); move off the deprecated Starlette
+   test client.
+
 ### Review findings (M3, 2026-10-23)
 
 Four independent finders (local CLI F1, server and upgrades F2, web F3, runner and release
