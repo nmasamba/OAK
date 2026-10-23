@@ -36,6 +36,7 @@ from oak.adapters.signing import (
     enroll_runner,
     initialize_trust_directory,
     load_runner_identities,
+    read_trust_directory,
 )
 from oak.adapters.targets import LocalTargetProfile
 from oak.application import (
@@ -805,6 +806,14 @@ def initialize_local_trust() -> tuple[dict[str, str], ...]:
 
     return tuple(
         identity.to_document() for identity in initialize_trust_directory(default_trust_directory())
+    )
+
+
+def show_local_trust() -> tuple[dict[str, str], ...]:
+    """The local signing identities, read only; refuses when none exists yet."""
+
+    return tuple(
+        identity.to_document() for identity in read_trust_directory(default_trust_directory())
     )
 
 

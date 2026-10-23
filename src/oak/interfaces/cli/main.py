@@ -1074,7 +1074,10 @@ def mcp_serve() -> None:
 
 @app.command()
 def keys(
-    action: Annotated[str, typer.Argument(help="init, show or enroll-runner.")],
+    action: Annotated[
+        str,
+        typer.Argument(help="init (create the keys), show (read them) or enroll-runner."),
+    ],
     identity: Annotated[
         Path | None,
         typer.Option(
@@ -1086,11 +1089,14 @@ def keys(
         OutputFormat, typer.Option("--output", help="Output format.")
     ] = OutputFormat.HUMAN,
 ) -> None:
-    """Create or inspect the local development signing identities, or enroll a runner."""
+    """Create (init) or read (show) the local development signing identities, or enroll a runner.
+
+    Only `init` writes keys: `show` refuses with OAK-KEYS-UNINITIALIZED when none exist.
+    """
 
     try:
         _require_local("keys")
-        from oak.bootstrap import enroll_local_runner, initialize_local_trust
+        from oak.bootstrap import enroll_local_runner, initialize_local_trust, show_local_trust
 
         if action not in {"init", "show", "enroll-runner"}:
             raise OAKError("OAK-KEYS-ACTION", "keys action must be init, show or enroll-runner")
@@ -1113,7 +1119,7 @@ def keys(
                 ),
             )
             return
-        identities = initialize_local_trust()
+        identities = initialize_local_trust() if action == "init" else show_local_trust()
         _emit(
             {"identities": list(identities)},
             output,

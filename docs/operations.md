@@ -395,9 +395,10 @@ edge into the bundle spine.
   anchors, so keep the retired public identities as long as you need to read old
   envelopes.
 - **Treat `OAK_DATABASE_URL` as a secret.** The Compose default embeds a password.
-- **Note that `oak keys show` writes.** It creates the trust directory and three private
-  keys if they do not exist, despite reading like a query — so it will recreate exactly
-  what you just deleted (`RR-018`).
+- **`oak keys show` only reads.** It prints the three identities, and refuses with
+  `OAK-KEYS-UNINITIALIZED` when none exists (`OAK-SIGNING-KEY-MISSING` when one of the
+  three is gone), so it cannot recreate what an uninstall deleted. Only `oak keys init`
+  creates keys (`RR-018`, closed; `show` created them until the 1.0 batch).
 
 ---
 
