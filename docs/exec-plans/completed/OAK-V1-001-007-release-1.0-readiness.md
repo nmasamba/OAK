@@ -12,8 +12,8 @@ version, cuts a tag or publishes anything.
 
 - Owner/agent: owner-directed coding agent
 - Started: 2026-10-23
-- Last updated: 2026-10-23 (M1–M4 in progress)
-- State: in-progress
+- Last updated: 2026-10-23 (M6, gates and PR)
+- State: complete (PR open; the merge is the owner's)
 - Claimed tasks: `OAK-V1-001`–`OAK-V1-007`
 
 One plan covers seven task IDs because they are one pass over one tree, judged by one set of
@@ -154,6 +154,13 @@ existing contracts, and tests.
 - The browser suite on a fresh throwaway stack; the hand-run live research check only if a
   fix touches research egress.
 
+Results (2026-10-23): every gate above is green, as M6 records. The live research check was
+not run: two fixes touch research (the consent digest now covers the destination, and a
+router error answer refuses the run), but neither changes a request that is sent when the
+sources answer normally, and both are pinned against the recorded fixtures; the owner may
+run `OAK_LIVE_RESEARCH_TESTS=1 uv run pytest tests/live/test_research_live.py` before the
+release.
+
 ## Security, privacy and authority review
 
 The pass changes no authority, no egress and no data boundary by design. Every fix is
@@ -174,12 +181,26 @@ group and can be reverted alone. No migration, no flag, no release.
   Sprint 14 recorded as merged everywhere it was "awaiting the merge" or "in progress", and
   the governance STATUS's stale `active/` path for its plan corrected. `validate_repo.py`,
   `make validate` and `tools/check_repository.py` green.
-- [ ] M1 — documentation coherence.
-- [ ] M2 — walkthrough.
-- [ ] M3 — review.
-- [ ] M4 — fixes and polish.
-- [ ] M5 — the 1.0 readiness list.
-- [ ] M6 — gates and PR.
+- [x] 2026-10-23 M1 — documentation coherence: the mechanical checks (below) and four
+  independent readers (new-user journeys, reference, security records, governance) raised
+  86 findings (A 23, B 19, C 23, D 21); each was checked against the code before it was
+  fixed, in the implementation in a worktree and in the governance repository in place.
+- [x] 2026-10-23 M2 — walkthrough: every documented journey run on the tree; the log and its
+  fixes (V-1–V-4, W-1–W-10) are below.
+- [x] 2026-10-23 M3 — review: four independent finders reproduced 64 defects, 8 high (the
+  findings table below).
+- [x] 2026-10-23 M4 — fixes and polish: every finding fixed with a test or, for three,
+  documented; each disposition names its commit. One golden moved, declared in Decisions
+  (the researched report, with the consent digest); the four reference digests did not.
+- [x] 2026-10-23 M5 — the 1.0 readiness list (below).
+- [x] 2026-10-23 M6 — gates and PR: `make check` with `OAK_TEST_DATABASE_URL` on a fresh,
+  migrated throwaway PostgreSQL 17.6 (port 15433) green once on the final tree, with zero
+  `make: ***` lines (1,175 unit and contract, 417 integration with 4 skipped, 43
+  end-to-end); `make audit` clean (pip-audit and pnpm audit); the `oak-v1` throwaway stack
+  rebuilt from the merged tree and `make web-e2e` 33 passed, 2 skipped (the gated captures),
+  then recreated from nothing, the suite run once more (33 passed) and the twelve changed
+  manual figures captured from it, and the manual PDF rebuilt. The plan moved to
+  `completed/`; the branch pushed and the PR opened; the merge is the owner's.
 
 ## Decisions
 
@@ -423,3 +444,15 @@ column is updated as each lands.
 | F4-14 | low | The scanner image is pinned by a mutable tag | fixed (`b0f3cc1`): tag and digest, recorded in the evidence |
 
 ## Self-review
+
+- The pattern of the last four sprints held again: every gate was green before the review,
+  and four independent finders still reproduced 64 defects, eight of them high. Reviewing a
+  finished tree by subsystem, with every finding reproduced before it is accepted, is worth
+  its cost before a public release.
+- One change asks something of operators: `oak ingest` believes only enrolled runners. It
+  is in the changelog, the compatibility notes, the operations runbook, the runner guide,
+  the manual and both READMEs, and an upgrade from `0.9.0` needs exactly one enrollment.
+- What this pass did not do is listed, not hidden: the live research check, and every item
+  on the 1.0 readiness list, which are the owner's.
+- The web fixes are pinned by the browser suite only (`RR-021`: the web workspace has no
+  unit tests), so `make web-e2e` on a fresh stack remains a release step.
