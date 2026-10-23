@@ -563,16 +563,41 @@ def create_app(
     generated_openapi = api.openapi
 
     def openapi() -> dict[str, Any]:
-        """The generated document, corrected on one point.
+        """The generated document, corrected on two points.
 
         FastAPI derives `required` from the dependency's signature, where the token is
         optional so that a missing one gets a stable refusal rather than a validation error.
         On the model routes the server refuses every request without it, so leaving the
         document saying "optional" would describe a contract the server does not honour and
         would give generated clients an optional argument that never works.
+
+        FastAPI also documents every error as its own validation shape, while the server
+        answers every error, 4xx and 5xx alike, with an `application/problem+json` problem
+        document; a generated client could parse none of them (F2-7). Each operation's 422
+        and a `default` response now name the `Problem` schema. The framework's validation
+        schemas stay listed, unused, so a client generated from the published baseline
+        keeps every name it had.
         """
 
         document = generated_openapi()
+        schemas = document.setdefault("components", {}).setdefault("schemas", {})
+        problem = Problem.model_json_schema(ref_template="#/components/schemas/{model}")
+        for name, definition in problem.pop("$defs", {}).items():
+            schemas.setdefault(name, definition)
+        schemas["Problem"] = problem
+        problem_content = {PROBLEM_MEDIA_TYPE: {"schema": {"$ref": "#/components/schemas/Problem"}}}
+        for path_item in document.get("paths", {}).values():
+            for operation in path_item.values():
+                responses = operation.setdefault("responses", {})
+                if "422" in responses:
+                    responses["422"] = {
+                        "description": "The request was refused: a problem document",
+                        "content": problem_content,
+                    }
+                responses["default"] = {
+                    "description": "Any other refusal or failure: a problem document",
+                    "content": problem_content,
+                }
         for route, operations in document.get("paths", {}).items():
             # The model routes, and `:research`, which always sends requests off the
             # machine; `:interpret` and `:record-report` need the token only in a model mode,

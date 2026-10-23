@@ -147,6 +147,11 @@ mechanical migration; **breaking** otherwise.
 - Sprint 12 adds `GET /v1/design-cases/{case_id}/architecture` and its `ArchitectureFormat`
   query enum. Both are listed as unreleased until the next release rewrites the baseline,
   and carry no compatibility promise before then.
+- The 1.0 readiness pass declares the problem document every error already carried: each
+  operation's `422` and a `default` response name the `Problem` schema
+  (`application/problem+json`), in place of FastAPI's validation shape, which the server
+  never sent. `Problem` and `FieldProblem` are listed as unreleased; the framework's
+  validation schemas stay in the document, unused, so no published name disappears.
 - Until the baseline was refreshed after `0.9.0` was cut, it still held its Sprint 3
   contents. It did not guard the eight `/v1/models` operations. Nor did it guard two
   operations `0.7.1` published: the case list (`GET /v1/design-cases`) and the audit

@@ -42,6 +42,10 @@ UNRELEASED_SCHEMAS: frozenset[str] = frozenset(
         "ResearchPlanResponse",
         "ResearchReviewRequest",
         "ResearchReviewResponse",
+        # The 1.0 readiness pass (F2-7, 2026-10-23): the problem document every error
+        # response already carried, now declared.
+        "FieldProblem",
+        "Problem",
     }
 )
 
