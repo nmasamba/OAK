@@ -76,10 +76,12 @@ The governing requirement (`OAK-NFR-PERF-001`) asks for three variants within 12
 full journey producing four candidate variants takes about 8.7 seconds here, roughly an
 order of magnitude inside that budget.
 
-Where the time goes: schema validation dominates. A fresh validator is constructed and
-`check_schema` re-run on every `validate` call, and every artifact read revalidates. That
-is the identified hot spot, named here so the number is explainable — it is not a Sprint 8
-deliverable to fix.
+Where the time went at `0.7.0`: schema validation dominated. A fresh validator was
+constructed and `check_schema` re-run on every `validate` call, and every artifact read
+revalidates. That was the identified hot spot, named here so the number is explainable —
+it was not a Sprint 8 deliverable to fix. Since Sprint 13 `SchemaRegistry` meta-validates
+each schema once and reuses its validator, so the figures above, `0.9.0`'s included,
+predate that change and have not been re-measured.
 
 ## Interactive API reads
 

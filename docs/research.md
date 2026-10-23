@@ -113,8 +113,10 @@ it rests on.
 
 ## The fixture source
 
-Set `OAK_RESEARCH_FIXTURES=<directory>` and the worker answers every research request from
-recorded JSON in that directory instead of contacting any host. It exists for the test
+Set `OAK_RESEARCH_FIXTURES=<directory>` for the API and the worker (or for a local CLI run)
+and every research request is answered from recorded JSON in that directory instead of
+contacting any host; set on the worker alone, every run is refused with
+`OAK-RESEARCH-CONSENT`, because the API's plan would still name the live hosts. It exists for the test
 suites and the throwaway Compose stack; a snapshot it produces says `source_mode: fixture`,
 lists no host, and every figure from it reads "synthetic estimate" in a report. The
 variable is safety-relevant and documented in [configuration.md](configuration.md). The

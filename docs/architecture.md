@@ -96,8 +96,11 @@ Outbox delivery is at least once. Leased delivery can repeat after expiry; consu
 deduplicate by stable event ID, and projection positions expose indexed-through lag. These
 projections are rebuildable and never authorize transitions. Durable Operations similarly
 use bounded attempts, deterministic backoff, leases, checkpoints, cooperative cancellation,
-and explicit terminal failure. `oak-worker` may run only the three compiler/evaluation
-application operations and has no runner authority.
+and explicit terminal failure. `oak-worker` runs only four application operations —
+candidate generation, evaluation, bundle compilation and, after a user's consent, the
+`research_catalogue` run, the one path on which it makes outbound requests (anonymous reads
+of `huggingface.co`, `router.huggingface.co` and `api.github.com`, never retried; see
+[research.md](research.md)) — and has no runner authority.
 
 The Alembic `0001_sprint3_baseline` revision starts from an empty database. Storage migration
 rollback is restore-forward from backup; no destructive down-migration is supplied. Canonical

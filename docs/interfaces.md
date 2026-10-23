@@ -72,7 +72,7 @@ oak --server http://127.0.0.1:8080 evaluate candidate-03 --case design-case.publ
 `OAK_SERVER` sets the server for a session. `OAK_REMOTE_TIMEOUT` bounds how long
 an asynchronous command polls a durable operation (default 120 s). Remote mode
 requires an explicit design-case identifier (positional, or `--case` on
-`evaluate`/`select`/`assure`/`plan`/`architecture`).
+`evaluate`/`select`/`assure`/`plan`/`architecture`/`report`/`research`/`research review`).
 
 ### MCP server
 
@@ -145,7 +145,7 @@ prohibition).
 | Compile bundle | ● | ● | ● | ● | ● |
 | Read the chosen architecture (`oak architecture`; `GET …/architecture`) | ○ | ○ | ○ | — | ○ |
 | Record the architecture report (`oak report --record`; `POST …:record-report`) | ● | ● | ● | — | ● |
-| Read the research plan (`oak research --plan`; `GET …/research-plan`) | ● | ● | ● | — | ● |
+| Read the research plan (`oak research --plan`; `GET …/research-plan`) | ○ | ○ | ○ | — | ○ |
 | Run research (`oak research --consent <digest>`; `POST …:research`, with `X-OAK-Model-Token`) | ● | ● | ● | — | ● |
 | Review a research item (`oak research review`; `POST …:review-research-item`) | ● | ● | ● | — | ● |
 | Read the recorded report, as JSON or PDF (`oak report`; the artifact read) | ○ | ○ | ○ | — | ○ |

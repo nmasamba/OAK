@@ -43,7 +43,7 @@ does not resolve to a file here.
 
 **The two series share a number space, so a bare number is ambiguous.** `ADR-0002` is
 "release versioning" here and "modular monolith" in the governance repository. Cite with a
-link, not a number. Shipped documents do not yet all follow this — `extension-sdk.md`, `dependencies.md`, `interfaces.md`, `architecture.md` and `platforms.md` still cite the architecture series by bare number, and `tests/contract/test_adr_references.py` checks resolution, not disambiguation, so nothing catches it. New citations use the link form:
+link, not a number. Shipped documents do not yet all follow this — `extension-sdk.md`, `dependencies.md`, `interfaces.md`, `architecture.md`, `platforms.md`, `compatibility.md`, `docs/README.md`, `security/residual-risk.md` and `security/threat-coverage.md` still cite the architecture series by bare number, and `tests/contract/test_adr_references.py` checks resolution, not disambiguation, so nothing catches it. New citations use the link form:
 
 Link the number to its file rather than writing the number alone. From a document in
 `docs/`, the two targets are:

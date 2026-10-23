@@ -35,8 +35,8 @@ the stack came up serving `0.5.0.dev5` from a three-day-old image without any wa
 `/version` is what caught it, and it is the only thing that would have.
 
 The worker is not optional if you intend to use the API: candidate generation,
-evaluation and compilation are durable operations, and without a worker they stay
-queued forever with no error.
+evaluation, compilation and a consented research run are durable operations, and without
+a worker they stay queued forever with no error.
 
 The images apply their distribution's security updates at build time, so **rebuilding
 picks up patches**. `make scan-images` reports what a build currently carries. As of
@@ -82,7 +82,8 @@ directory whose location depends on where someone happened to be standing.
 
 Be realistic about what is available: OAK Community emits **no application logs and no
 metrics**. `oak-api` runs uvicorn with `access_log=False`
-(`src/oak/interfaces/api/server.py:36`), and nothing in `src/` configures a logger. What
+(`run_server` in `src/oak/interfaces/api/server.py`), and nothing in `src/` configures a
+logger. What
 you have is a handful of endpoints and the database.
 
 This section is about observing the OAK services themselves. `oak observe` is a different
@@ -155,8 +156,9 @@ by the same identity, and anything pinned to those anchors must be re-pinned.
 
 **A canonical export is not a deployment backup.** `oak export` carries workspace state,
 artifacts, audit and idempotency records. It does not carry operations, job checkpoints,
-outbox events, consumer receipts, projection positions or approvals, and it does not
-carry your keys. It is the portability path, not the recovery path.
+outbox events, consumer receipts or projection positions, and it does not carry your
+keys: the plan signature and the approvals of a file workspace travel as signed documents,
+verifiable only against the anchors that signed them. It is the portability path, not the recovery path.
 
 ---
 
@@ -300,6 +302,11 @@ rescued after the fact
 `0.9.0` does not move any manifest `schema_version`, so upgrading to it needs nothing.
 Going back is different: once `0.9.0` records an observation in a workspace, the new
 `observation_record` kind means `0.8.0` can no longer validate that workspace's manifest.
+The same holds again for this tree: once it records a report (`architecture_report`,
+`report_narrative`, `report_rendering`) or research (`research_snapshot`,
+`research_review`) in a workspace, the published `0.9.0` cannot validate its manifest — on
+every command, including `export` — although this tree also reports `0.9.0`. Export before
+running an older build against a workspace.
 Make exporting first a habit before an upgrade ever needs it. Recorded as `RR-017`.
 
 ### Rollback limits
@@ -327,7 +334,7 @@ success, `2` refusal or invalid input, `4` version or idempotency conflict.
 | `OAK-REMOTE-UNSUPPORTED` | A local-only command was run with `--server` | Signing, approval (including `approve architecture`), dispatch, ingest, observation (`oak observe`), keys, model-provider configuration, extensions, policy, rendering and validation are local-only by design; the full list is in [interfaces.md](interfaces.md). `oak architecture` works in remote mode |
 | `OAK-REMOTE-UNAVAILABLE` | The control plane is unreachable | Check the URL and that `oak-api` is up |
 | Server refuses to start | `OAK_DATABASE_URL` unset (`oak-worker`, `oak-db-migrate`, `oak-mcp`), or a non-loopback bind without `OAK_ALLOW_NON_LOOPBACK` | See [configuration.md](configuration.md) |
-| `oak-api` runs but every `/v1` call returns 500 | `OAK_DATABASE_URL` unset — `oak-api` starts regardless | `curl /readyz`: it returns 503 in exactly this case |
+| `oak-api` runs but every design-case or operation call under `/v1` returns 503 `OAK-DATABASE-UNCONFIGURED` | `OAK_DATABASE_URL` unset — `oak-api` and `oak serve` start regardless, and say so at startup | Set it to the PostgreSQL database, then restart; `curl /readyz` returns 503 in exactly this case |
 | Artifact reads fail after a restore | The artifact root was not restored with the database | See [Restore](#restore) |
 | Dependency install fails on macOS | An Intel or Rosetta interpreter | See [platforms.md](platforms.md#prerequisites) |
 | `OAK-APPROVAL-ARCHITECTURE` from `oak approve apply` | No current architecture approval for this plan: never recorded, expired, revoked, or the plan was recompiled | Run `oak approve architecture` first, then `oak approve apply` |
@@ -364,7 +371,8 @@ edge into the bundle spine.
   `127.0.0.1` on the host. Setting it on a host interface publishes an unauthenticated
   control plane. The actor and tenant are headers; anyone who can reach the port can
   claim any actor. What the API does defend against is a web page: it refuses any request
-  whose `Host` is not a loopback name or an exact `OAK_ALLOWED_HOSTS` entry, and any
+  other than `/healthz` and `/readyz` whose `Host` is not a loopback name or an exact
+  `OAK_ALLOWED_HOSTS` entry, and any
   request whose `Origin` or `Sec-Fetch-Site` header comes from another site
   (`OAK-HOST-DENIED`, `OAK-ORIGIN-DENIED`). If you acknowledge a non-loopback bind, list
   the names clients will use in `OAK_ALLOWED_HOSTS`; the server warns when it is empty.

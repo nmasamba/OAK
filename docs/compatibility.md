@@ -38,8 +38,9 @@ an image registry.
   There is no single current number — schemas sit at `0.1.0`, `0.3.0` or `0.4.0`
   depending on when each was introduced and last changed; see
   [schemas/README.md](../schemas/README.md). `SUPPORTED_SCHEMA_VERSIONS` in
-  `src/oak/bootstrap.py` lists the versions the **workspace manifest** may carry, which is
-  a narrower thing than every readable document version.
+  `src/oak/bootstrap.py` is what `/version` reports as `schema_versions`; the workspace
+  manifest itself is pinned to `0.4.0` (a `const` in `workspace-manifest.schema.json`),
+  and a manifest at any other version is refused with `OAK-WORKSPACE-CORRUPT`.
 - **Interface protocol versions**: the MCP server pins its supported protocol revisions
   in `SUPPORTED_PROTOCOL_VERSIONS`; the runner protocol carries `protocol_version` in
   every message; the canonical export carries `export_version`.
@@ -161,12 +162,22 @@ mechanical migration; **breaking** otherwise.
   introduced with and on `:interpret` when the request asks for `online` or `local`; it is
   never a required parameter of a pre-existing operation, and an `:interpret` that names no
   interpreter never needs it. The same holds for `:record-report` (Sprint 13), which needs
-  it only when `narrative` is `online` or `local`.
+  it only when `narrative` is `online` or `local`. `POST …:research` (Sprint 14) is a new
+  operation that always requires it, because every run leaves the machine; a request
+  without it is refused with `OAK-MODEL-TOKEN-REQUIRED` before the body is read, and the
+  published contract marks it required there.
 - Sprint 13 adds `POST /v1/design-cases/{case_id}:record-report` with the `NarrativeMode`
   and `ReportResponse` schemas, listed as unreleased in
   `tests/unit/test_openapi_compatibility.py` until the next release rewrites the baseline.
   It changes no existing operation. The report's files are served by the existing artifact
   read.
+- Sprint 14 adds `GET /v1/design-cases/{case_id}/research-plan`,
+  `POST /v1/design-cases/{case_id}:research` (`202`, an operation) and
+  `POST /v1/design-cases/{case_id}:review-research-item`, with the `ResearchConsent`,
+  `ResearchRequest`, `ResearchPlanResponse`, `ResearchReviewRequest` and
+  `ResearchReviewResponse` schemas, listed as unreleased in
+  `tests/unit/test_openapi_compatibility.py` until the next release rewrites the baseline.
+  It changes no existing operation.
 - The loopback guard (Sprint 9) — `Host` allowlist, `Origin` and `Sec-Fetch-Site` checks —
   runs as middleware before routing. It adds no parameter to the OpenAPI contract and is
   therefore outside this baseline; its behaviour is documented in
@@ -207,6 +218,10 @@ mechanical migration; **breaking** otherwise.
   `OAK-REPORT-MISSING` when nothing is recorded, `OAK-REPORT-OUTPUT` when a PDF is
   requested without `--output`, and `OAK-REPORT-STATE` before `candidate_selected`. It
   changes no existing command.
+- Sprint 14 adds `oak research` (`--plan`, `--consent <digest>`, `--case`,
+  `--idempotency-key`, `--output`) and `oak research review <item> --accept|--reject
+  --rationale-file <file>`. Neither is local-only; a usage error exits `2` with
+  `OAK-RESEARCH-USAGE`. It changes no existing command.
 
 ## MCP
 

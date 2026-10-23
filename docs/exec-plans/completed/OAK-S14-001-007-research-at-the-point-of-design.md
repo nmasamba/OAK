@@ -729,8 +729,9 @@ Each milestone ends with one commit, its exit check green and a line under Progr
   (fixed in 13.0.0) and one certifi 2026.7.22 advisory (fixed in 2026.10.19); `pnpm audit`
   named vite 7.3.6 (GHSA-587h-7wmj-h5pm, fixed in 7.3.7). Cause: environment, not product:
   advisories published since Sprint 13's scan against transitive and build-time dependencies
-  (Pillow via reportlab, `RR-047`; certifi via the transport's TLS roots; vite is the web
-  build tool). Fix: `uv lock --upgrade-package pillow`, `… certifi`, vite pinned to 7.3.7,
+  (Pillow via reportlab, `RR-047`; certifi, a development dependency through `httpx` and
+  `pip-audit` [corrected 2026-10-23: not the transport's TLS roots, which come from the
+  operating system]; vite is the web build tool). Fix: `uv lock --upgrade-package pillow`, `… certifi`, vite pinned to 7.3.7,
   no new dependency; `make audit` green, `make web-build` green; the throwaway stack is
   rebuilt before the final browser run so the images carry the same locks.
 
