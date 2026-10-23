@@ -126,6 +126,10 @@ class DesignCaseService:
         self, brief_path: Path, context: CommandContext, *, interpreter: str = "deterministic"
     ) -> DesignResult:
         brief = self._intake.read(brief_path)
+        if context.idempotency_key:
+            # The create step hashes the key, so a bad one used to be refused only by the
+            # interpret step after the case was created, stranding it (F1-5).
+            self._check_key(context.idempotency_key)
         create_identity = context.idempotency_key or content_digest(brief.content)
         create_context = replace(
             context,
@@ -169,6 +173,16 @@ class DesignCaseService:
         duplicate_case = self._repository.idempotent_case(context.idempotency_key, input_digest)
         if duplicate_case is not None:
             return CreateCaseResult(case=duplicate_case, duplicate=True)
+        existing = self._repository.current_case()
+        if existing is not None:
+            # Not a concurrency conflict to retry: the workspace holds one design case,
+            # and an edited or different brief is a new case (F1-6, F2-10).
+            raise OAKError(
+                "OAK-CASE-EXISTS",
+                f"design case {existing['id']} already exists here; a different or edited "
+                "brief needs a workspace of its own (oak init <directory>), or, on a "
+                "server, a brief id of its own",
+            )
         raw_artifact = Artifact(
             id=brief.id,
             version=brief.version,
@@ -306,6 +320,14 @@ class DesignCaseService:
             )
         if current.status is not DesignCaseStatus.DRAFT:
             raise OAKError("OAK-INTERPRET-STATE", "only a draft case can be interpreted")
+        if context.expected_version is not None and context.expected_version != current.version:
+            # Before the model is asked anything: a stale request must not send the brief
+            # or spend credit only to be refused at the commit (F2-6).
+            raise OAKError(
+                "OAK-EXPECTED-VERSION",
+                "expected case version does not match current version",
+                retriable=True,
+            )
         brief = self._intake.read_content(
             original_name=str(source_document["original_name"]),
             content=source_content,
@@ -705,11 +727,7 @@ class DesignCaseService:
 
     @staticmethod
     def _check_context(context: CommandContext) -> None:
-        if len(context.idempotency_key) < 16:
-            raise OAKError(
-                "OAK-IDEMPOTENCY-KEY",
-                "idempotency key must contain at least 16 characters",
-            )
+        DesignCaseService._check_key(context.idempotency_key)
         if len(context.correlation_id) < 8:
             raise OAKError(
                 "OAK-CORRELATION-ID",
@@ -726,6 +744,14 @@ class DesignCaseService:
             idempotency_key=(context.idempotency_key or f"{operation}:{digest_hex}"),
             correlation_id=(context.correlation_id or f"correlation:{digest_hex[:24]}"),
         )
+
+    @staticmethod
+    def _check_key(key: str) -> None:
+        if not 16 <= len(key) <= 240:
+            raise OAKError(
+                "OAK-IDEMPOTENCY-KEY",
+                "idempotency key must contain 16 to 240 characters",
+            )
 
     @staticmethod
     def _derived_id(prefix: str, brief_id: str) -> str:

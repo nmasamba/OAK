@@ -147,6 +147,10 @@ class LocalBriefIntake:
                     "OAK-INTAKE-IDENTITY",
                     "structured brief requires string id, brief_version, and title",
                 )
+            if ".." in str(brief_id):
+                # The id names the case, its dispatches and their mailbox directories,
+                # where `..` is never a safe name (F4-6).
+                raise OAKError("OAK-INTAKE-IDENTITY", "a brief id must not contain '..'")
             return str(brief_id), str(version), str(title)
         stem = SAFE_ID.sub("-", path.stem.casefold()).strip("-") or "brief"
         first_line = next((line.strip("# ") for line in text.splitlines() if line.strip()), stem)

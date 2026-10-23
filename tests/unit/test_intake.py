@@ -197,3 +197,13 @@ def test_a_stored_brief_may_carry_exactly_the_media_types_intake_reads() -> None
     from oak.domain.intake import BRIEF_MEDIA_TYPES
 
     assert {media_type for _format, media_type in SUPPORTED_FORMATS.values()} == BRIEF_MEDIA_TYPES
+
+
+def test_a_brief_id_with_two_dots_is_refused(tmp_path: Path) -> None:
+    """F4-6: the id names dispatch directories, where `..` is never a safe name."""
+
+    path = tmp_path / "dots.yaml"
+    path.write_text("id: brief.manual..qa\nbrief_version: 0.1.0\ntitle: t\n", encoding="utf-8")
+    with pytest.raises(OAKError) as refused:
+        LocalBriefIntake().read(path)
+    assert refused.value.code == "OAK-INTAKE-IDENTITY"

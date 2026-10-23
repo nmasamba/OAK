@@ -117,6 +117,12 @@ class ResearchService:
 
     def plan(self) -> ResearchPlan:
         case = self._require_case()
+        if not isinstance(case.get("intent_ref"), dict):
+            # A draft has no intent to derive terms from (F2-4).
+            raise OAKError(
+                "OAK-RESEARCH-STATE",
+                "research needs an interpreted case; this case has no intent yet",
+            )
         intent = self._repository.read_json_artifact(
             ArtifactReference.from_document(case["intent_ref"])
         )

@@ -123,7 +123,17 @@ class CommunityControlPlane:
         context: CommandContext,
     ) -> CreateCaseResult:
         brief = self._intake.read_content(original_name=original_name, content=content)
-        workspace_id = f"workspace.{brief.id.removeprefix('brief.')}"
+        try:
+            workspace_id = self._workspace_id(f"design-case.{brief.id.removeprefix('brief.')}")
+        except OAKError as error:
+            # Every later read reaches a case through this rule, so a case it refuses was
+            # created and then unreachable; it is refused here, before anything is stored
+            # (F2-5).
+            raise OAKError(
+                "OAK-INTAKE-IDENTITY",
+                "a server design case id is at most 160 characters of lower-case letters, "
+                "digits, '.', '_' and '-'; give the brief an id of that form",
+            ) from error
         service = self._design_service(workspace_id, context.tenant_id)
         try:
             service.initialize(

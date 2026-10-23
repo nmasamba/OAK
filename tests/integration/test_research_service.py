@@ -241,6 +241,24 @@ def test_a_digest_read_from_the_fixture_plan_cannot_send_the_terms_to_live_hosts
     assert live.fetches == 0
 
 
+def test_a_draft_case_has_no_plan_and_says_why(tmp_path: Path) -> None:
+    """F2-4: a case with no intent crashed the plan read on every interface."""
+
+    repository = FileWorkspaceRepository(tmp_path / WORKSPACE, REGISTRY)
+    design = DesignCaseService(
+        repository, LocalBriefIntake(), DeterministicBriefInterpreter(), REGISTRY
+    )
+    design.initialize(workspace_id=WORKSPACE, tenant_id="local", created_at=NOW)
+    design.create_content(
+        original_name="public-manual-qa.yaml",
+        content=(ROOT / "examples/briefs/public-manual-qa.yaml").read_bytes(),
+        context=_context("research-draft-create-1"),
+    )
+    with pytest.raises(OAKError) as refused:
+        _service(repository, _CountingSource()).plan()
+    assert refused.value.code == "OAK-RESEARCH-STATE"
+
+
 def test_research_is_refused_once_candidates_exist(tmp_path: Path) -> None:
     source = _CountingSource()
     repository = _ready_case(tmp_path)

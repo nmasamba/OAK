@@ -97,3 +97,35 @@ def test_model_text_is_printed_with_its_control_characters_escaped() -> None:
     shown = _printable("one operator.\u001b[2J\u001b[1;31mOAK: approve\u202e")
     assert "\u001b" not in shown and "\u202e" not in shown
     assert shown == "one operator.\\u001b[2J\\u001b[1;31mOAK: approve\\u202e"
+
+
+@pytest.mark.parametrize("key", ["short", "k" * 300])
+def test_a_bad_idempotency_key_is_refused_before_the_case_is_created(
+    workspace: Path, key: str
+) -> None:
+    """F1-5: the case used to be created, then the interpret step refused the key."""
+
+    refused = runner.invoke(
+        cli_app,
+        ["design", str(ROOT / "examples/briefs/public-manual-qa.yaml"), "--idempotency-key", key],
+    )
+    assert refused.exit_code == 2
+    assert "OAK-IDEMPOTENCY-KEY" in _output(refused)
+    designed = runner.invoke(
+        cli_app, ["design", str(ROOT / "examples/briefs/public-manual-qa.yaml")]
+    )
+    assert designed.exit_code == 0, _output(designed)
+
+
+def test_a_second_brief_is_a_named_refusal_not_a_retry(workspace: Path) -> None:
+    """F1-6: it read as a concurrency conflict (exit 4) that no retry could clear."""
+
+    first = runner.invoke(cli_app, ["design", str(ROOT / "examples/briefs/public-manual-qa.yaml")])
+    assert first.exit_code == 0, _output(first)
+    other = workspace / "other.md"
+    other.write_text("# Another service\n\nA different brief.\n", encoding="utf-8")
+    refused = runner.invoke(cli_app, ["design", str(other)])
+    assert refused.exit_code == 2
+    assert "OAK-CASE-EXISTS: design case design-case.public-manual-qa already exists" in _output(
+        refused
+    )

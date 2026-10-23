@@ -35,6 +35,7 @@ from oak.bootstrap import (
     create_system_information_service,
     read_model_token,
 )
+from oak.contracts import ContractValidationError
 from oak.domain import OAKError
 from oak.interfaces.api.models import (
     ArtifactListResponse,
@@ -489,6 +490,7 @@ def _error_status(error: OAKError) -> int:
         "OAK-EXPECTED-VERSION",
         "OAK-IDEMPOTENCY-CONFLICT",
         "OAK-CASE-CONFLICT",
+        "OAK-CASE-EXISTS",
         "OAK-OPERATION-CONFLICT",
         "OAK-RESEARCH-CONSENT",
     } or error.code.endswith("-STATE"):
@@ -631,6 +633,22 @@ def create_app(
                 detail=detail,
                 correlation_id=getattr(request.state, "correlation_id", None),
                 retriable=error.retriable,
+            )
+        )
+
+    @api.exception_handler(ContractValidationError)
+    async def contract_error_handler(
+        request: Request, _error: ContractValidationError
+    ) -> JSONResponse:
+        # A schema-invalid input (an import manifest, confirmation answers) answered 500
+        # with a traceback in the log; the CLI and MCP already called it what it is (F2-3).
+        return _problem_response(
+            Problem(
+                title="OAK request failed",
+                status=422,
+                code="OAK-CONTRACT-INVALID",
+                detail="input failed canonical contract validation",
+                correlation_id=getattr(request.state, "correlation_id", None),
             )
         )
 

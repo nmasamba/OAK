@@ -131,6 +131,28 @@ def test_a_stale_expected_version_is_refused(tmp_path: Path) -> None:
     assert refused.value.code == "OAK-EXPECTED-VERSION"
 
 
+def test_a_stale_version_is_refused_before_the_model_is_asked_anything(tmp_path: Path) -> None:
+    """F2-6: a stale online request used to send the slides and spend credit first."""
+
+    class _Counting:
+        calls = 0
+
+        def __getattr__(self, name: str) -> object:
+            def call(*_arguments: object, **_keywords: object) -> object:
+                _Counting.calls += 1
+                raise AssertionError("the model must not be asked anything")
+
+            return call
+
+    workspace = build_reference_case(tmp_path, "bundle_compiled")
+    with pytest.raises(OAKError) as refused:
+        _service(workspace, narrator=_Counting()).record(
+            _context("report-record-000011", "0.1.6"), narrative="online"
+        )
+    assert refused.value.code == "OAK-EXPECTED-VERSION"
+    assert _Counting.calls == 0
+
+
 def test_a_case_without_a_selection_is_too_early_and_names_the_step(tmp_path: Path) -> None:
     workspace = build_case_with_candidates(tmp_path)
     before = _manifest(workspace)
