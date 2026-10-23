@@ -366,8 +366,9 @@ class ModelConfigurationService:
                 "no Hugging Face token is stored; run `oak models set-key` or store one in Settings"
             )
         elif not credential.configured:
+            store = STORE_WORDS.get(credential.source or "", "store")
             online["reason"] = (
-                f"no Hugging Face token can be read from the {STORE_WORDS[credential.source]} "
+                f"no Hugging Face token can be read from the {store} "
                 "this configuration names; store one again with `oak models set-key` or in Settings"
             )
         elif verification is not None and verification["verdict"] == "rejected":
