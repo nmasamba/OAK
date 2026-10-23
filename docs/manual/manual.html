@@ -474,7 +474,8 @@ uv run oak report --output ../report.json</code></pre>
     it, <code>oak report</code> reads the latest report and writes the file only after
     checking its bytes against the digest the case names, and it says so when the case has
     moved on since. By default no model is involved. <code>--narrative online</code> or
-    <code>local</code> also asks the model you configured for one short note per main slide,
+    <code>local</code>, with <code>--record</code> (on its own it only earns a warning), also
+    asks the model you configured for one short note per main slide,
     which the report prints under <em>Proposed by model</em> beside its own words; OAK drops
     any note that claims an approval or holds a number its slide does not hold. The PDF uses
     the standard Helvetica and Courier, so a character they lack prints as <code>?</code>; the

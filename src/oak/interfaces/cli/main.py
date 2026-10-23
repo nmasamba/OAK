@@ -1414,6 +1414,13 @@ def report(
     """Record or read the architecture report; recording authorizes nothing."""
 
     try:
+        if narrative is not InterpreterChoice.DETERMINISTIC and not record:
+            # Reading never calls a model, so the choice would otherwise vanish silently.
+            typer.echo(
+                f"--narrative {narrative.value} applies only with --record; "
+                "showing the recorded report as it is.",
+                err=True,
+            )
         if document_format is ReportFormat.PDF and output_file is None:
             raise OAKError("OAK-REPORT-OUTPUT", "a PDF needs --output <file>")
         to_stdout = output_file is not None and str(output_file) == "-"
@@ -1886,11 +1893,11 @@ def policy(
 
     try:
         _require_local("policy")
-        from oak.bootstrap import create_policy_service
+        from oak.bootstrap import create_policy_service, list_policy_packs
 
-        service = create_policy_service(FileWorkspaceRoot.discover(Path.cwd()))
         if action == "packs":
-            packs = service.list_packs()
+            # Listing reads the pack store, not a case, so it needs no workspace.
+            packs = list_policy_packs()
             _emit(
                 {"packs": list(packs)},
                 output,
@@ -1906,6 +1913,7 @@ def policy(
             raise OAKError("OAK-POLICY-ACTION", "policy action must be evaluate or packs")
         if not pack:
             raise OAKError("OAK-POLICY-PACK-REQUIRED", "--pack is required to evaluate")
+        service = create_policy_service(FileWorkspaceRoot.discover(Path.cwd()))
         current = _workspace_service().current().case
         result = service.evaluate(
             pack,
@@ -2170,6 +2178,13 @@ def models(
         if family is None:
             family = "huggingface"
         if action == "set-key":
+            # Checked before the key is asked for: a mistyped --store used to prompt for the
+            # secret, read it, and only then refuse.
+            if store not in {"auto", "keychain", "file", "env"}:
+                raise OAKError(
+                    "OAK-MODEL-CREDENTIAL-SOURCE",
+                    "--store must be auto, keychain, file, or env",
+                )
             chosen = store
             if store == "env":
                 # Nothing is read or stored: the backend checks the documented variable is set.
@@ -2190,13 +2205,8 @@ def models(
                         )
                         status_document = service.set_key(family, secret, source="file")
                         chosen = "file"
-                elif chosen in {"keychain", "file"}:
-                    status_document = service.set_key(family, secret, source=chosen)
                 else:
-                    raise OAKError(
-                        "OAK-MODEL-CREDENTIAL-SOURCE",
-                        "--store must be auto, keychain, file, or env",
-                    )
+                    status_document = service.set_key(family, secret, source=chosen)
             document = status_document.to_document()
             stored_line = (
                 f"Stored the {family} key in the {document['source']} backend "

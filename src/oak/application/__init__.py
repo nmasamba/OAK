@@ -31,7 +31,7 @@ from oak.application.operations import (
     OperationWorker,
     WorkerCycleResult,
 )
-from oak.application.policy import PolicyEvaluationResult, PolicyService
+from oak.application.policy import PolicyEvaluationResult, PolicyService, pack_summaries
 from oak.application.release import IngestResult, ReleaseResult, ReleaseService
 from oak.application.report.service import ReportResult, ReportService
 from oak.application.research import (
@@ -78,5 +78,6 @@ __all__ = [
     "SystemInformationService",
     "VerificationReport",
     "WorkerCycleResult",
+    "pack_summaries",
     "validate_key_input",
 ]

@@ -50,6 +50,24 @@ def operation_timeout_seconds() -> float:
     return parsed
 
 
+def _unknown_case(problem: OAKError, path: str) -> OAKError:
+    """Report a case the server does not hold as the code the local CLI uses for it.
+
+    The server stores each case as its own workspace, so an unknown case id answers
+    `OAK-WORKSPACE-NOT-FOUND`, whose remedy ("run oak init") is wrong for a server. The
+    client names the case it asked for; the server's opaque detail stays opaque.
+    """
+
+    if problem.code != "OAK-WORKSPACE-NOT-FOUND":
+        return problem
+    case_id = urllib.parse.unquote(
+        re.split(r"[/:?]", path.removeprefix("/v1/design-cases/"), maxsplit=1)[0]
+    )
+    if not path.startswith("/v1/design-cases/") or not case_id:
+        return OAKError("OAK-CASE-NOT-FOUND", "the server holds no such design case")
+    return OAKError("OAK-CASE-NOT-FOUND", f"the server holds no design case {case_id}")
+
+
 class RemoteClient:
     """Bounded JSON client for one OAK control plane."""
 
@@ -62,6 +80,10 @@ class RemoteClient:
         model_token: str | None = None,
     ) -> None:
         normalized = base_url.strip().rstrip("/")
+        # Every route the client calls starts with /v1, so a URL copied from a REST example
+        # with /v1 on the end used to send /v1/v1/... and read as not found.
+        if normalized.endswith("/v1"):
+            normalized = normalized.removesuffix("/v1").rstrip("/")
         if not normalized.startswith(("http://", "https://")):
             raise OAKError("OAK-REMOTE-SERVER", "--server must be an http or https URL")
         self._base_url = normalized
@@ -111,7 +133,7 @@ class RemoteClient:
             with urllib.request.urlopen(request, timeout=self._timeout) as response:
                 content = response.read(MAXIMUM_RESPONSE_BYTES + 1)
         except urllib.error.HTTPError as error:
-            raise self._problem(error) from error
+            raise _unknown_case(self._problem(error), path) from error
         except (urllib.error.URLError, TimeoutError, OSError) as error:
             raise OAKError(
                 "OAK-REMOTE-UNAVAILABLE",
@@ -202,7 +224,7 @@ class RemoteClient:
             with urllib.request.urlopen(request, timeout=self._timeout) as response:
                 content = bytes(response.read(MAXIMUM_RESPONSE_BYTES + 1))
         except urllib.error.HTTPError as error:
-            raise self._problem(error) from error
+            raise _unknown_case(self._problem(error), f"/v1/design-cases/{case_id}") from error
         except (urllib.error.URLError, TimeoutError, OSError) as error:
             raise OAKError(
                 "OAK-REMOTE-UNAVAILABLE",
