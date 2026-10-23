@@ -193,4 +193,57 @@ group and can be reverted alone. No migration, no flag, no release.
 
 ## Discoveries and follow-ups
 
+### Walkthrough log (M2, 2026-10-23)
+
+Run on `release-1.0-readiness` at `e23d005`, with a throwaway Compose project `oak-v1`
+(API on 18080, web on 15174, the fixture research source on `api` and `worker`).
+
+| Journey | Result |
+|---|---|
+| Tour Part 1, offline CLI, brief to bundle and export | Every printed line matches `docs/tour.md`; semantic fingerprint `sha256:2ef34758…34d63` |
+| Tour Part 2, browser/REST, `curl`, remote CLI, MCP over `docker compose exec` | Every printed line matches; the audit trail and the export fingerprint are identical to Part 1 |
+| Tour Part 3, the MCP tool list | The eleven tools, exactly |
+| Tour Part 4, REST headers, `/docs`, ETag | As described; the 16-character idempotency key and the stale-version refusal hold |
+| Manual ch. 6, the signed runner on the mutation fixture | Keys, sign, four approvals, dispatch, `run-once`, ingest, `oak-runner status`, revoke: as printed (dispatch numbers 14 and 12 reproduce) |
+| Manual ch. 6, install, observe and rollback on the started fixture | Containers installed, smoke-tested, observed and removed; nothing left behind |
+| Manual ch. 3, the report and export/import | `oak report --record`, the PDF and JSON downloads (digests match), export and import work |
+| CLI failure paths (outside a workspace, wrong state, missing inputs, local-only over `--server`, server down) | Stable codes, no tracebacks, apart from the findings below |
+| REST failure paths (unknown case or route, bad JSON, short idempotency key) | Stable codes and statuses |
+
+Findings from the walkthrough (verified by running them; fixed in M4 unless noted):
+
+- **W-1 (docs, low).** Manual ch. 6: the sample `oak observe` output shows the repeated
+  install (`EV-DEP-02 pass (1/1)`, smoke test `2/2`) that the prose makes optional and no
+  code block runs; following the blocks prints `unknown` and `1/1`.
+- **W-2 (docs, low).** Manual ch. 3: the export example prints `@0.1.7`, but the step
+  before it (recording the report) moves the case to `0.1.8`.
+- **W-3 (CLI, low).** `oak import` prints the destination unnormalised
+  (`…/tour-offline/../restored`).
+- **W-4 (web, low).** A page opened directly shows the browser's focus box around its
+  `h1` (the programmatic focus after navigation): the home page and Models.
+- **W-5 (web, low).** The brass link keycap inside a moment ("Answer the 5 ranked
+  questions") sits its label against the top edge instead of centring it.
+- **W-6 (web, low).** Candidate cards run each satisfied requirement's reason straight into
+  its requirement ids ("…snapshot policy.Requirements: OAK-FR-CAT-001").
+- **W-7 (web, low).** The Online AI "not ready" reason shows literal backticks around
+  `oak models set-key` and tells a reader on Settings to "store one in Settings".
+- **W-8 (web, low).** Question cards and the claims table show raw escaped JSON pointers
+  (`/spec/data/extensions/oak.community~1production_data_permitted`).
+- **W-9 (web, low).** The operation page's heading is the raw kind in lower case
+  ("generate candidates").
+- **W-10 (docs, low).** The tour's REST summary lists generate, evaluate and compile as the
+  slow jobs; research is one too.
+- **V-1 (API, medium).** `oak serve` (and `oak-api`) without `OAK_DATABASE_URL` starts,
+  then answers every design-case request with `500 OAK-INTERNAL` and logs a traceback: the
+  control plane raises a bare `RuntimeError`. Its help still calls it "the read-only local
+  API harness"; it serves the full REST API.
+- **V-2 (CLI, low).** `oak research --plan` ends with "To run: oak research --consent …"
+  even when its first line says research is not allowed at the case's status.
+- **V-3 (CLI, low).** `oak models status`, a read, aborts with
+  `OAK-MODEL-KEYCHAIN-UNAVAILABLE` when the configuration names the keychain but the
+  keychain library is absent from the running environment.
+- **V-4 (CLI, low).** A missing brief or answers file is reported as
+  `OAK-INTAKE-UNSAFE-PATH` / `OAK-CONFIRM-UNSAFE-PATH` "must be a regular non-symlink file";
+  the code is right, the message never says the file does not exist.
+
 ## Self-review
