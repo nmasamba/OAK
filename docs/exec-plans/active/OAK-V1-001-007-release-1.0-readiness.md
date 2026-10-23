@@ -348,23 +348,23 @@ column is updated as each lands.
 | F2-11 | low | An idempotency key reused with a different create or import body never conflicts | documented (`0065bc0`): create and import keys are scoped to the case the body names |
 | F2-12 | low | `sequence_lag` compares maxima of different cases | fixed (`fa02854`): lag summed per case |
 | F2-13 | low | A local export cannot be imported into a server (`OAK-IMPORT-SCOPE`), undocumented | documented (`0065bc0`), with the workaround |
-| F3-1 | high | Decision shows the last-evaluated design's evaluation as the selected design's evidence | fix: the selected candidate's own evaluation, named |
-| F3-2 | high | Reload after a conflict on the questions screen discards every draft | fix: drafts kept by question id |
-| F3-3 | medium | The operation screen shows `unknown code` for every failure | fix: reads `problem.code`; no next attempt once terminal |
-| F3-4 | medium | A stale model token strands the Models screen | fix: the token can be replaced or forgotten; wording by purpose |
-| F3-5 | medium | The research card's Settings link is a dead route | fix |
-| F3-6 | medium | Reusing a brief name is reported as a stale view | fix: names the existing case (with F1-6) |
-| F3-7 | medium | Focus falls to body on every in-app move to a case screen | fix: the heading is focused when the page is ready |
-| F3-8 | medium | Done, Edit and Clear decision drop keyboard focus | fix |
-| F3-9 | medium | Interpret and Create the assurance plan reload the page | fix: refreshed in place and announced |
-| F3-10 | medium | Confirm and Accept the risk send the placeholder `(not set)` | fix: the claim's own value; unavailable for an unset claim |
-| F3-11 | medium | One failed poll ends the operation screen | fix: keeps polling with backoff |
-| F3-12 | medium | A refused Select or Evaluate is reported far below the button | fix: shown in the card |
-| F3-13 | medium | The home screen lists only the first page of cases | fix: follows the cursor |
-| F3-14 | medium | A refused or failed download is never announced | fix: one announced outcome everywhere |
-| F3-15 | medium | Long identifiers overflow cards and phone-width screens | fix |
-| F3-16 | low | The target profile hint names a YAML file; the field takes JSON | fix: a visible JSON example |
-| F3-17 | low | Raw document views render raw variant ids | fix: the raw views go; the Take it sheet hands over the files |
+| F3-1 | high | Decision shows the last-evaluated design's evaluation as the selected design's evidence | fixed (`d95bc85`): the selected candidate's own evaluation, named |
+| F3-2 | high | Reload after a conflict on the questions screen discards every draft | fixed (`d95bc85`): drafts kept by question id |
+| F3-3 | medium | The operation screen shows `unknown code` for every failure | fixed (`d95bc85`): reads `problem.code`; no next attempt once terminal |
+| F3-4 | medium | A stale model token strands the Models screen | fixed (`d95bc85`): the token can be replaced or forgotten; wording by purpose |
+| F3-5 | medium | The research card's Settings link is a dead route | fixed (`d95bc85`) |
+| F3-6 | medium | Reusing a brief name is reported as a stale view | fixed (`d95bc85`): names the existing case (with F1-6) |
+| F3-7 | medium | Focus falls to body on every in-app move to a case screen | fixed (`d95bc85`): the heading is focused when the page is ready |
+| F3-8 | medium | Done, Edit and Clear decision drop keyboard focus | fixed (`d95bc85`) |
+| F3-9 | medium | Interpret and Create the assurance plan reload the page | fixed (`d95bc85`): refreshed in place and announced |
+| F3-10 | medium | Confirm and Accept the risk send the placeholder `(not set)` | fixed (`d95bc85`): the claim's own value; unavailable for an unset claim |
+| F3-11 | medium | One failed poll ends the operation screen | fixed (`d95bc85`): keeps polling with backoff |
+| F3-12 | medium | A refused Select or Evaluate is reported far below the button | fixed (`d95bc85`): shown in the card |
+| F3-13 | medium | The home screen lists only the first page of cases | fixed (`d95bc85`): follows the cursor |
+| F3-14 | medium | A refused or failed download is never announced | fixed (`d95bc85`): one announced outcome everywhere |
+| F3-15 | medium | Long identifiers overflow cards and phone-width screens | fixed (`d95bc85`) |
+| F3-16 | low | The target profile hint names a YAML file; the field takes JSON | fixed (`d95bc85`): a visible JSON example |
+| F3-17 | low | Raw document views render raw variant ids | fixed (`d95bc85`): the raw views go; the Take it sheet hands over the files |
 | F4-1 | high | `oak ingest` accepts a completion signed by any key and believes its claims | fixed (`f995c5b, 7bcf96c`): the runner key is enrolled and pinned; a completion is bound to its envelope |
 | F4-2 | high | A later revocation re-signs whatever notices are in the mailbox | fixed (`f995c5b`): the manifest is built from the case's own record |
 | F4-3 | medium | Separation of duties compares role-scoped ids, so it never fires | fixed (`f995c5b`): compares key material; refused at pinning and at approve |
