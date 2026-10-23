@@ -398,7 +398,7 @@ edge into the bundle spine.
 - **`oak keys show` only reads.** It prints the three identities, and refuses with
   `OAK-KEYS-UNINITIALIZED` when none exists (`OAK-SIGNING-KEY-MISSING` when one of the
   three is gone), so it cannot recreate what an uninstall deleted. Only `oak keys init`
-  creates keys (`RR-018`, closed; `show` created them until the 1.0 batch).
+  creates keys (`RR-018`, closed: before this change `show` created missing keys).
 
 ---
 

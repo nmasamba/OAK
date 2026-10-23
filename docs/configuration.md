@@ -82,7 +82,8 @@ schemas, catalogue entries or policy packs.
 
 ## Runner (`oak-runner`)
 
-The runner is a separate trust domain and reads only its own variables, plus `PATH`. It
+The runner is a separate trust domain and reads only its own `OAK_RUNNER_*` variables,
+plus `PATH` and, for its default home, `HOME`. It
 validates the target profile and, through `verify_dispatch`, the envelope, lease, approval
 and signature documents against the schemas installed with it, and ignores
 `OAK_SCHEMA_DIRECTORY`, so its environment cannot swap the rules it verifies against

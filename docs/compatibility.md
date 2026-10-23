@@ -152,6 +152,11 @@ mechanical migration; **breaking** otherwise.
   (`application/problem+json`), in place of FastAPI's validation shape, which the server
   never sent. `Problem` and `FieldProblem` are listed as unreleased; the framework's
   validation schemas stay in the document, unused, so no published name disappears.
+- The pre-1.0 engineering batch makes `GET /readyz` answer `503` while the database is not
+  at the schema revision this release's migrations end at (behind, ahead of it, or never
+  migrated), where it answered `200` whenever the database answered. The contract and the
+  response shapes are unchanged; a deployment that runs `oak-db-migrate` first, as the
+  Compose stack does, sees no difference.
 - Until the baseline was refreshed after `0.9.0` was cut, it still held its Sprint 3
   contents. It did not guard the eight `/v1/models` operations. Nor did it guard two
   operations `0.7.1` published: the case list (`GET /v1/design-cases`) and the audit
@@ -243,6 +248,21 @@ mechanical migration; **breaking** otherwise.
     so re-running a remote step converges on its first result, as local mode does.
   - A research consent's digest covers the source mode and the hosts as well as the terms,
     so a digest printed before this release no longer matches; read the plan again.
+- The pre-1.0 engineering batch changes these, each recorded in the changelog:
+  - **Breaking for a script that relied on it:** `oak keys show` no longer creates keys.
+    With none it exits `2` with `OAK-KEYS-UNINITIALIZED`, and with one of the three gone
+    with `OAK-SIGNING-KEY-MISSING`, where it created them and exited `0`; `oak keys init`
+    creates them, as it has since Sprint 5.
+  - `oak validate bundle` on an export directory, and `oak validate export` on a bundle
+    directory, exit `2` with `OAK-VALIDATE-KIND`, where they exited `2` with
+    `OAK-VALIDATE-UNSAFE-PATH` and `OAK-VALIDATE-MALFORMED`.
+  - Remote mode reports a case the server does not hold as `OAK-CASE-NOT-FOUND` (exit `2`),
+    naming it, where it printed the server's `OAK-WORKSPACE-NOT-FOUND`; REST and MCP are
+    unchanged. A `--server` URL may end in `/v1`.
+  - `oak policy evaluate --engine opa` refuses an `opa` older than `1.0.0`, or one that
+    reports no version, with `OAK-POLICY-ENGINE-UNAVAILABLE`.
+  - `oak policy packs` no longer needs a workspace, and `oak models set-key` refuses an
+    unknown `--store` before it asks for the key; the codes are unchanged.
 
 ## MCP
 
