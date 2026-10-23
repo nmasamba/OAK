@@ -12,7 +12,7 @@ version, cuts a tag or publishes anything.
 
 - Owner/agent: owner-directed coding agent
 - Started: 2026-10-23
-- Last updated: 2026-10-23 (M0)
+- Last updated: 2026-10-23 (M1–M4 in progress)
 - State: in-progress
 - Claimed tasks: `OAK-V1-001`–`OAK-V1-007`
 
@@ -187,11 +187,42 @@ group and can be reverted alone. No migration, no flag, no release.
   following `OAK-PL` and `OAK-FS`: the backlog's planned Sprint 15 (selecting a researched
   design) keeps its number, and `spec-manifest.yaml` names no `next_task`, since every
   sprint task is delivered and the validator allows null in exactly that case.
+- 2026-10-23 M1. While the independent readers and finders read the main checkout, every
+  edit goes to a separate worktree on branch `v1-fixes`, merged into `release-1.0-readiness`
+  once they report: their line numbers stay valid and nothing they read changes under them.
+- 2026-10-23 M4. A server started without `OAK_DATABASE_URL` keeps starting (readiness
+  already reports 503 then, and `/version`, the health checks and the model settings need
+  no database), and every design-case route now refuses with a new code,
+  `OAK-DATABASE-UNCONFIGURED`, answered as 503. `OAK-DATABASE-CONFIG` stays the startup-only
+  refusal of `oak-db-migrate`, as `docs/error-codes.md` describes it.
+- 2026-10-23 M4. A missing input file keeps its existing `…-UNSAFE-PATH` code (scripts may
+  match on it) and gains a message that says the file does not exist.
 - 2026-10-23 M0. No version bump, tag, decision record or publication, and no change to the
   compatibility policy: the owner asked for this pass "in anticipation of" 1.0, and each of
   those is an owner act. They are prepared as the readiness list instead.
 
 ## Discoveries and follow-ups
+
+### Mechanical documentation checks (M1, 2026-10-23)
+
+A read-only script over the 151 Markdown and HTML documents in both repositories: local
+links and anchors, cited test files and test names, cited source paths and line ranges,
+`oak` commands and options against the CLI's own command tree, `OAK_*` variables against
+the code that reads them, and AI-vendor names. What it found, after removing false
+positives (MCP method names read as paths, the Vite entry script, a negative mention of
+`oak apply`, vendor names that are Sprint 9 provider facts inside dated records):
+
+- `docs/security/threat-coverage.md` TM-13 attributed
+  `test_a_deterministic_report_never_imports_a_hosted_model_module` to
+  `test_model_preflight.py`; it lives in `test_offline_boundary.py`. Fixed.
+- TM-20 cited a nonexistent `tests/unit/test_secrets.py` "equivalent coverage inside"
+  `test_model_configuration.py`; the redaction tests are
+  `tests/unit/test_credential_store.py::test_secret_value_never_renders_its_content`. Fixed.
+- The governance `STATUS.md` reading-order paragraph still had Sprint 14 in progress with its
+  plan under `active/`. Fixed with the governance findings below.
+- `OAK_LIVE_RESEARCH_TESTS`, the hand-run research check's gate, was documented nowhere public;
+  `docs/configuration.md` and `CONTRIBUTING.md` now name it, and the configuration contract
+  test knows it is read by the test suite.
 
 ### Walkthrough log (M2, 2026-10-23)
 
@@ -245,5 +276,12 @@ Findings from the walkthrough (verified by running them; fixed in M4 unless note
 - **V-4 (CLI, low).** A missing brief or answers file is reported as
   `OAK-INTAKE-UNSAFE-PATH` / `OAK-CONFIRM-UNSAFE-PATH` "must be a regular non-symlink file";
   the code is right, the message never says the file does not exist.
+
+All fourteen are fixed on `v1-fixes` (`71015b7`, `edb20e6`, `a16d160`): W-1 by showing the
+repeated install the sample assumes (run on the started fixture, it prints exactly the
+manual's sample), the rest as described in the commit, each behaviour change with a test
+(`tests/integration/test_api.py`, `test_research_cli.py`, `test_cli_inputs.py`,
+`tests/unit/test_intake.py`, `test_model_configuration.py`); the workspace changes are
+checked by `tsc`, the G1–G5 guards and, at M6, the browser suite and the recaptured figures.
 
 ## Self-review
