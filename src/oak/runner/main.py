@@ -94,7 +94,12 @@ def _run_directory(home: Path) -> Iterator[Path]:
     for stale in home.glob("run-*"):
         if stale.is_dir() and not stale.is_symlink():
             shutil.rmtree(stale, ignore_errors=True)
-    directory = Path(tempfile.mkdtemp(prefix="run-", dir=home))
+    try:
+        directory = Path(tempfile.mkdtemp(prefix="run-", dir=home))
+    except OSError as error:
+        raise OAKError(
+            "OAK-RUNNER-CONFIG", "the runner home has no room for a working directory"
+        ) from error
     try:
         yield directory
     finally:

@@ -60,10 +60,10 @@ def _unknown_case(problem: OAKError, path: str) -> OAKError:
 
     if problem.code != "OAK-WORKSPACE-NOT-FOUND":
         return problem
-    case_id = urllib.parse.unquote(
-        re.split(r"[/:?]", path.removeprefix("/v1/design-cases/"), maxsplit=1)[0]
-    )
-    if not path.startswith("/v1/design-cases/") or not case_id:
+    prefix = "/v1/design-cases/"
+    named = path.startswith(prefix)
+    case_id = urllib.parse.unquote(re.split(r"[/:?]", path[len(prefix) :], maxsplit=1)[0])
+    if not named or not case_id:
         return OAKError("OAK-CASE-NOT-FOUND", "the server holds no such design case")
     return OAKError("OAK-CASE-NOT-FOUND", f"the server holds no design case {case_id}")
 
