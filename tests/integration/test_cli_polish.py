@@ -91,3 +91,39 @@ def test_a_failed_remote_operation_carries_the_servers_own_message() -> None:
         client.wait_for_operation("operation.x")
     assert failed.value.code == "OAK-CANDIDATES-STATE"
     assert failed.value.message == "candidates require a case that is ready for candidates"
+
+
+def test_a_remote_export_is_owner_only_and_never_left_half_written(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """F1-15: the export was written in place, 0755, and an interruption blocked the retry."""
+
+    import base64
+    import stat
+
+    from oak.domain import content_digest
+
+    content = b'{"id": "x"}'
+    digest = content_digest(content)
+    document = {
+        "manifest": {"artifact_index": [{"digest": digest}]},
+        "objects": [{"digest": digest, "content_base64": base64.b64encode(content).decode()}],
+    }
+    destination = tmp_path / "export"
+    real_write = Path.write_bytes
+
+    def interrupted(self: Path, data: bytes) -> int:
+        if self.name == "manifest.json":
+            raise KeyboardInterrupt
+        return real_write(self, data)
+
+    monkeypatch.setattr(Path, "write_bytes", interrupted)
+    with pytest.raises(KeyboardInterrupt):
+        remote_mode.write_export_directory(destination, document)
+    assert sorted(path.name for path in tmp_path.iterdir()) == []
+    monkeypatch.setattr(Path, "write_bytes", real_write)
+
+    remote_mode.write_export_directory(destination, document)
+    for path in (destination, destination / "objects", destination / "objects" / "sha256"):
+        assert stat.S_IMODE(path.stat().st_mode) == 0o700, path
+    assert (destination / "manifest.json").is_file()

@@ -18,6 +18,8 @@ import hashlib
 import json
 import os
 import re
+import shutil
+import tempfile
 import time
 import urllib.error
 import urllib.parse
@@ -540,17 +542,30 @@ def write_export_directory(destination: Path, export_document: dict[str, Any]) -
     absolute = destination.absolute()
     if absolute.exists() or absolute.is_symlink():
         raise OAKError("OAK-EXPORT-OUTPUT", "output directory already exists")
-    object_directory = absolute / "objects" / "sha256"
-    object_directory.mkdir(parents=True, mode=0o700)
-    for digest, content in decoded.items():
-        match = DIGEST_HEX.fullmatch(digest)
-        assert match is not None  # guarded above
-        path = object_directory / match.group(1)
-        path.write_bytes(content)
-        path.chmod(0o600)
-    manifest_path = absolute / "manifest.json"
-    manifest_path.write_bytes(canonical_json_bytes(manifest))
-    manifest_path.chmod(0o600)
+    absolute.parent.mkdir(parents=True, exist_ok=True)
+    # Staged beside the destination, owner-only like a local export, and renamed into
+    # place: an interrupted write leaves nothing that blocks the retry (F1-15).
+    staging = Path(tempfile.mkdtemp(prefix=f".{absolute.name}.tmp-", dir=absolute.parent))
+    try:
+        os.chmod(staging, 0o700)
+        object_directory = staging / "objects" / "sha256"
+        object_directory.mkdir(parents=True, mode=0o700)
+        os.chmod(staging / "objects", 0o700)
+        for digest, content in decoded.items():
+            match = DIGEST_HEX.fullmatch(digest)
+            assert match is not None  # guarded above
+            path = object_directory / match.group(1)
+            path.write_bytes(content)
+            path.chmod(0o600)
+        manifest_path = staging / "manifest.json"
+        manifest_path.write_bytes(canonical_json_bytes(manifest))
+        manifest_path.chmod(0o600)
+        if absolute.exists() or absolute.is_symlink():
+            raise OAKError("OAK-EXPORT-OUTPUT", "output directory already exists")
+        os.replace(staging, absolute)
+    finally:
+        if staging.exists():
+            shutil.rmtree(staging)
 
 
 def read_export_directory(source: Path) -> dict[str, Any]:
