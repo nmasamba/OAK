@@ -69,10 +69,12 @@ oak --server http://127.0.0.1:8080 questions design-case.public-manual-qa
 oak --server http://127.0.0.1:8080 evaluate candidate-03 --case design-case.public-manual-qa
 ```
 
-`OAK_SERVER` sets the server for a session. `OAK_REMOTE_TIMEOUT` bounds how long
-an asynchronous command polls a durable operation (default 120 s). Remote mode
-requires an explicit design-case identifier (positional, or `--case` on
-`evaluate`/`select`/`assure`/`plan`/`architecture`/`report`/`research`/`research review`).
+`OAK_SERVER` sets the server for a session; the URL may end in `/v1` or not.
+`OAK_REMOTE_TIMEOUT` bounds how long an asynchronous command polls a durable operation
+(default 120 s). Remote mode requires an explicit design-case identifier (positional, or
+`--case` on `evaluate`/`select`/`assure`/`plan`/`architecture`/`report`/`research`/`research
+review`); a case the server does not hold is reported as `OAK-CASE-NOT-FOUND`, naming it, as
+the local CLI does, where REST and MCP answer `OAK-WORKSPACE-NOT-FOUND`.
 
 ### MCP server
 

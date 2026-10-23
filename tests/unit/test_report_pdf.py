@@ -44,11 +44,30 @@ def rendered() -> bytes:
     return PdfReportRenderer().render(_golden(), PDF_MEDIA_TYPE)
 
 
+# reportlab reads `RL_<setting>` variables when it is imported, and each of these would
+# change the bytes if the renderer did not pin the setting itself (OAK-V1-015).
+RL_SETTINGS = {
+    "RL_useA85": "0",
+    "RL_pageCompression": "0",
+    "RL_invariant": "0",
+    "RL_pdfComments": "1",
+    "RL_pdfMultiLine": "1",
+    "RL_documentLang": "fr-FR",
+    "RL_canvas_basefontname": "Courier",
+    "RL_defaultEncoding": "MacRomanEncoding",
+}
+
+
 def test_two_processes_draw_the_same_bytes(rendered: bytes) -> None:
     here = hashlib.sha256(rendered).hexdigest()
     digests = set()
-    for seed in ("1", "2"):
-        environment = {**os.environ, "PYTHONHASHSEED": seed, "TZ": f"Etc/GMT+{seed}"}
+    for seed, settings in (("1", {}), ("2", RL_SETTINGS)):
+        environment = {
+            **{key: value for key, value in os.environ.items() if not key.startswith("RL_")},
+            "PYTHONHASHSEED": seed,
+            "TZ": f"Etc/GMT+{seed}",
+            **settings,
+        }
         run = subprocess.run(
             [sys.executable, "-c", RENDER, str(GOLDEN_REPORT)],
             capture_output=True,

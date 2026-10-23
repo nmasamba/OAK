@@ -166,7 +166,7 @@ documented flow uses it.
 | `OAK-PRECONDITION-INVALID` | Your `If-Match` header is unusable — weak entity tag, or empty | Send a strong ETag. **Retrying will not help**; this is deliberately not a 409 for that reason |
 | `OAK-IDEMPOTENCY-CONFLICT` | An idempotency key was reused with different input | Use a new key, or resend the original input |
 | `OAK-IDEMPOTENCY-KEY` | The key is shorter than 16 characters | Lengthen it. Longer keys are fine |
-| `OAK-WORKSPACE-NOT-FOUND` | There is no workspace at this location | Check the working directory, or run `oak init` |
+| `OAK-WORKSPACE-NOT-FOUND` | There is no workspace at this location. Over REST or MCP, the case id names no case the server holds (each server case is stored as its own workspace) | Check the working directory, or run `oak init`; on a server, check the case id. The remote CLI reports an unknown case as `OAK-CASE-NOT-FOUND` |
 | `OAK-ARTIFACT-NOT-FOUND` | The workspace is present; this artifact reference did not match | Check the id, version and digest triple. The workspace is fine |
 | `OAK-WORKSPACE-CORRUPT` | The manifest or an indexed object failed verification | Run `python scripts/verify_deployment.py --workspace <dir>`. See [operations.md](operations.md#restore) |
 | `OAK-REMOTE-UNSUPPORTED` | A local-only command was run with `--server` | Signing, approval, dispatch, keys, model-provider configuration, extensions and policy are local-only by design |

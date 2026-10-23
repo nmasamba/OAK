@@ -173,11 +173,10 @@ async def test_a_server_without_a_database_refuses_design_cases_with_a_reason(
 def test_the_interactive_docs_that_load_third_party_scripts_are_off() -> None:
     """F2-9: /docs and /redoc loaded unpinned CDN JavaScript into the API's origin."""
 
-    from fastapi.testclient import TestClient
-
     from oak.interfaces.api.app import create_app
+    from tests.asgi_support import ASGIClient
 
-    with TestClient(create_app(), base_url="http://127.0.0.1") as client:
+    with ASGIClient(create_app()) as client:
         assert client.get("/docs").status_code == 404
         assert client.get("/redoc").status_code == 404
         assert client.get("/openapi.json").status_code == 200

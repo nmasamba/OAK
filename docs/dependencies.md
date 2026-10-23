@@ -84,7 +84,10 @@ Policy Agent, Apache-2.0, CNCF-graduated) through a fixed allowlisted argument v
 `shell=False`, a sanitized environment, timeouts, and bounded output. The binary is never
 downloaded, bundled, or required: `oak policy evaluate` defaults to the deterministic
 built-in engine, engine selection is explicit, and a missing binary is a stable
-`OAK-POLICY-ENGINE-UNAVAILABLE` error. Generated Rego carries pack content only as
+`OAK-POLICY-ENGINE-UNAVAILABLE` error. Since `OAK-V1-010` the binary is resolved once, to an
+absolute path on the absolute entries of `PATH`, and must report version 1.0.0 or later,
+the release whose Rego (`import rego.v1`) the generated module is written in; it has been
+exercised with 1.19.1. Generated Rego carries pack content only as
 JSON-encoded literals, and the engine-equivalence suite proves byte-identical canonical
 evaluations against the built-in engine whenever `opa` is present. The `PolicyEnginePort`
 is the replacement seam; removing the adapter removes the integration completely.
@@ -206,7 +209,12 @@ metrics and nothing else:
 - no platypus layout, no embedded font, no image, no hyperlink;
 - invariant mode for a byte-stable file, with the document dates taken from the report's
   own `generated_at` rather than the clock;
-- the two processes in `tests/unit/test_report_pdf.py` must produce the same bytes.
+- every ReportLab setting the canvas reads, and the standard fonts' encoding, set by the
+  renderer before each rendering, because ReportLab otherwise takes them from `RL_*`
+  environment variables, a `reportlab_settings` module or `~/.reportlab_settings`, and
+  several of them change the bytes (`OAK-V1-015`);
+- the two processes in `tests/unit/test_report_pdf.py` must produce the same bytes, one of
+  them with `RL_*` variables set.
 
 Its closure adds **Pillow 13.0.0** (MIT-CMU/HPND; 12.3.0 was pinned at Sprint 13 and lifted on
 2026-10-22 when `pip-audit` named seven advisories against it, all fixed in 13.0.0), which

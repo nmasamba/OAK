@@ -589,8 +589,8 @@ Some ways in, from a first afternoon to a bigger project:
   (`RR-014`). Native Windows support would start with replacing a Unix-only file lock (see
   [platforms.md](docs/platforms.md)).
 - **Harden the operations side.** Useful work includes logging and metrics that leak
-  nothing (`RR-015`), a readiness check that notices an un-migrated database (`RR-016`),
-  and reproducible container images (`RR-006`).
+  nothing (`RR-015`), a file-workspace format migration (`RR-017`), and reproducible
+  container images (`RR-006`).
 
 [CONTRIBUTING.md](CONTRIBUTING.md#where-you-could-help) has the full map, how to set up,
 and how changes are reviewed.

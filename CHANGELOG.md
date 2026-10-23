@@ -6,6 +6,62 @@ All notable changes to OAK Community are recorded here.
 
 ## Unreleased
 
+### Pre-1.0 engineering batch (`OAK-V1-008`–`016`)
+
+The cheap, high-value items from the top of the owner's cost-benefit ranking of the
+backlog before 1.0. Six residual-risk entries close (`RR-002`, `RR-016`, `RR-018`,
+`RR-019`, `RR-027`, `RR-033`); no contract changes and no digest moves.
+
+#### Security
+
+- **The runner verifies against its own schemas.** `oak-runner` ignores
+  `OAK_SCHEMA_DIRECTORY`, which configures the control plane only, so its environment can
+  no longer substitute the rules a dispatch is verified against (`RR-033`).
+- **Executables are resolved once.** The runner resolves `docker`, and the OPA engine
+  `opa`, once, to an absolute path on the absolute entries of `PATH`, and every later call
+  runs that path; an `opa` older than `1.0.0`, or one that reports no version, is refused
+  with `OAK-POLICY-ENGINE-UNAVAILABLE` before anything is evaluated (`RR-002`).
+- **Children start in a private directory.** Each runner run, and each OPA evaluation,
+  gives its child a private, owner-only working directory that is removed afterwards
+  (`RR-027`).
+- Every GitHub Action in both workflows is pinned by commit SHA, and `make toolchain-check`
+  refuses one named by a movable tag.
+
+#### Changed
+
+- **CI runs the PostgreSQL-gated suites** against a migrated `postgres:17.6-alpine`
+  service on the digest `compose.yaml` pins (`RR-019`); the actions move to their Node-24
+  releases.
+- **`/readyz` checks the schema revision**: it answers 503 until the database is at the
+  revision this release's migrations end at, and for a database migrated by a newer one
+  (`RR-016`). Run `oak-db-migrate` and it turns green.
+- **`oak keys show` only reads.** It refuses with the new code `OAK-KEYS-UNINITIALIZED`
+  when no key exists and creates nothing; `oak keys init` creates (`RR-018`).
+- The remote CLI reports a case the server does not hold as `OAK-CASE-NOT-FOUND`, naming
+  it, as the local CLI does (REST and MCP still answer `OAK-WORKSPACE-NOT-FOUND`).
+- `oak validate bundle` on an export directory, and `oak validate export` on a bundle
+  directory, say which they were given (`OAK-VALIDATE-KIND`).
+
+#### Fixed
+
+- `oak models set-key` refuses an unknown `--store` before it asks for the key;
+  `oak policy packs` works outside a workspace; a `--server` URL ending in `/v1` works;
+  `oak report --narrative online|local` without `--record` warns that the choice applies
+  only when recording.
+- The Report screen keeps focus on the pager's first and last buttons, the Take it sheet's
+  Report tile on the Report screen hands focus to the record control instead of doing
+  nothing, and recording refreshes the screen in place with the first slide focused.
+- The PDF renderer pins every ReportLab setting it reads, so `RL_*` variables and
+  ReportLab settings files can no longer change a rendering's bytes.
+- The tests no longer use Starlette's deprecated test client.
+- **Two first writers of one case on a server no longer fail with a false collision.** The
+  PostgreSQL store created each artifact object in place and then filled it, so a second
+  writer of the same object could read it half-written and refuse with
+  `OAK-ARTIFACT-COLLISION` instead of losing the race with `OAK-EXPECTED-VERSION`. CI found
+  it as soon as it ran the PostgreSQL suites (three runs in five). Each object is now written
+  under a private temporary name and linked into place, and a torn leftover is replaced, as
+  the file workspace does.
+
 ### 1.0 readiness pass (`OAK-V1-001`–`007`)
 
 A documentation coherence pass, a walkthrough of every documented journey, and four

@@ -12,6 +12,10 @@ import {
   type ArtifactReference,
 } from "./generated/api";
 
+/** The Report screen's record control. Opened on that screen, the Take it sheet's Report
+ * tile hands focus to it rather than opening the screen it is already on. */
+export const REPORT_RECORD_CONTROL = "report-record";
+
 /** `verified` means the bytes hashed to the server's digest; `saved` means a file with no
  * digest of its own (the composed document, the drawn diagram) was written, unchecked. */
 export type DownloadState =

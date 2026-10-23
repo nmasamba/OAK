@@ -6,6 +6,7 @@ from oak.adapters.signing.local_ed25519 import (
     enroll_runner,
     initialize_trust_directory,
     load_runner_identities,
+    read_trust_directory,
 )
 
 __all__ = [
@@ -13,4 +14,5 @@ __all__ = [
     "enroll_runner",
     "initialize_trust_directory",
     "load_runner_identities",
+    "read_trust_directory",
 ]

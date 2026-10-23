@@ -306,3 +306,57 @@ def test_release_builder_uv_drift_is_rejected(tmp_path: Path) -> None:
 
     failures = check(tree)
     assert "uv version differs between the release workflow and API container" in failures
+
+
+def test_an_action_fetched_at_a_movable_tag_is_rejected(tmp_path: Path) -> None:
+    """OAK-V1-009: a tag is whatever the action's repository says on the day the job runs."""
+
+    tree = _mirror(ROOT, tmp_path)
+    workflow = tree / ".github/workflows/release.yml"
+    text = workflow.read_text(encoding="utf-8")
+    pinned = re.search(r"uses: actions/checkout@[0-9a-f]{40} # v\S+", text)
+    assert pinned is not None
+    workflow.write_text(text.replace(pinned.group(0), "uses: actions/checkout@v7"), "utf-8")
+
+    assert ".github/workflows/release.yml: actions/checkout is not pinned by commit SHA" in (
+        check(tree)
+    )
+
+
+def test_a_pinned_action_must_name_the_release_it_was_taken_from(tmp_path: Path) -> None:
+    tree = _mirror(ROOT, tmp_path)
+    workflow = tree / ".github/workflows/ci.yml"
+    text = workflow.read_text(encoding="utf-8")
+    assert "# v7.1.0" in text
+    workflow.write_text(text.replace(" # v7.1.0", ""), encoding="utf-8")
+
+    assert (
+        ".github/workflows/ci.yml: actions/setup-node must name the release its SHA was taken from"
+        in check(tree)
+    )
+
+
+def test_ci_that_would_skip_the_database_suites_is_rejected(tmp_path: Path) -> None:
+    """OAK-V1-008 (RR-019): without the variable the gated suites skip and CI goes green."""
+
+    tree = _mirror(ROOT, tmp_path)
+    workflow = tree / ".github/workflows/ci.yml"
+    text = workflow.read_text(encoding="utf-8")
+    assert "OAK_TEST_DATABASE_URL:" in text
+    workflow.write_text(text.replace("OAK_TEST_DATABASE_URL:", "OAK_UNUSED_URL:"), "utf-8")
+
+    assert (
+        "CI workflow: the PostgreSQL-gated suites must run "
+        "(OAK_TEST_DATABASE_URL and oak-db-migrate)"
+    ) in check(tree)
+
+
+def test_ci_database_image_drift_from_compose_is_rejected(tmp_path: Path) -> None:
+    tree = _mirror(ROOT, tmp_path)
+    compose = tree / "compose.yaml"
+    text = compose.read_text(encoding="utf-8")
+    pinned = "postgres:17.6-alpine@sha256:ef"
+    assert pinned in text
+    compose.write_text(text.replace(pinned, "postgres:17.6-alpine@sha256:fe"), encoding="utf-8")
+
+    assert "CI workflow: the database service must run compose.yaml's postgres image" in check(tree)

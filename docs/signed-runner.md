@@ -269,7 +269,13 @@ adapter's identity digest. No create carries a volume, an environment variable o
   `DOCKER_CONFIG` set, and `DOCKER_CONFIG` is the empty, runner-owned
   `$OAK_RUNNER_HOME/docker-config`. The operator's registry credentials, credential
   helpers and CLI contexts are never used, public images are pulled anonymously, and only
-  the default daemon socket is reached (`RR-013`).
+  the default daemon socket is reached (`RR-013`). `docker` is resolved once per run, to an
+  absolute path on the absolute entries of `PATH`, and every command of that run uses it
+  (`RR-002`); each command starts in the run's private working directory,
+  `$OAK_RUNNER_HOME/run-*`, which is removed when the run ends (`RR-027`).
+- **Bundled schemas.** The runner verifies every document against the schemas installed
+  with it and ignores `OAK_SCHEMA_DIRECTORY`, which configures the control plane only
+  (`RR-033`).
 
 ## Reading `oak-runner status`
 

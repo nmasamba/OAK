@@ -114,6 +114,23 @@ def _read_runner_identity(path: Path) -> dict[str, str]:
     return runner_identity_document(document)
 
 
+def read_trust_directory(trust_directory: Path) -> tuple[SignerIdentity, ...]:
+    """Every role identity, read without creating anything.
+
+    `oak keys show` used to create the directory and three private keys as a side effect,
+    so it recreated exactly what an uninstall had just deleted (RR-018). Reading refuses
+    when no key exists; one missing key among the three is `OAK-SIGNING-KEY-MISSING`.
+    """
+
+    if not any(os.path.lexists(trust_directory / f"{role}.key") for role in SIGNING_ROLES):
+        raise OAKError(
+            "OAK-KEYS-UNINITIALIZED", "no signing keys exist yet; run oak keys init to create them"
+        )
+    return tuple(
+        LocalEd25519Signer.load(trust_directory, role).identity() for role in SIGNING_ROLES
+    )
+
+
 def initialize_trust_directory(trust_directory: Path) -> tuple[SignerIdentity, ...]:
     """Create missing role keys and return every role identity."""
 

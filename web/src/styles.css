@@ -2676,7 +2676,10 @@ summary {
   cursor: pointer;
 }
 
-.slide-step:disabled {
+/* The pager's ends say they are unavailable without disabling the button, so focus stays
+   on it when it reaches the first or last slide. */
+.slide-step:disabled,
+.slide-step[aria-disabled="true"] {
   color: var(--text-faint);
   cursor: default;
 }
