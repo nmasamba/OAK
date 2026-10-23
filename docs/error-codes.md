@@ -41,7 +41,7 @@ documented flow uses it.
 
 ## Full index
 
-367 codes across 17 families.
+366 codes across 17 families.
 
 ### Workspace, artifacts and import/export (22)
 
@@ -215,12 +215,12 @@ documented flow uses it.
 | `OAK-EXTENSION-VERSION` | version has no comparable numbers | `src/oak/application/extensions.py:476` |
 | `OAK-EXTENSION-VERSION-ACTIVE` | *dynamic message* | `src/oak/adapters/extensions/store.py:154` |
 
-### Runner, signing, approval and dispatch (56)
+### Runner, signing, approval and dispatch (55)
 
 | Code | Meaning | First raise site |
 |---|---|---|
 | `OAK-APPROVAL-ACTION` | approval action is not recognized | `src/oak/application/release.py:172` |
-| `OAK-APPROVAL-ARCHITECTURE` | approve the architecture before approving its installation; the architecture approval is not current for this plan | `src/oak/application/release.py:840` |
+| `OAK-APPROVAL-ARCHITECTURE` | approve the architecture before approving its installation; the architecture approval is not current for this plan | `src/oak/application/release.py:843` |
 | `OAK-APPROVAL-EXPIRY` | approval expiry must be in the future | `src/oak/application/release.py:206` |
 | `OAK-APPROVAL-MISSING` | no approval exists for that action | `src/oak/application/release.py:305` |
 | `OAK-APPROVAL-REVOKED` | approval is already revoked | `src/oak/application/release.py:309` |
@@ -235,8 +235,7 @@ documented flow uses it.
 | `OAK-GITOPS-OUTPUT` | --output is required | `src/oak/interfaces/cli/main.py:1804` |
 | `OAK-INGEST-RUNNER-UNENROLLED` | no runner is enrolled, so no runner message can be believed; pin the runner's public identity with `oak keys enroll-runner` first | `src/oak/application/release.py:550` |
 | `OAK-KEYS-ACTION` | keys action must be init, show or enroll-runner | `src/oak/interfaces/cli/main.py:1079` |
-| `OAK-KEYS-RUNNER-ENROLLED` | *dynamic message* | `src/oak/adapters/signing/local_ed25519.py:77` |
-| `OAK-KEYS-RUNNER-IDENTITY` | a runner identity must be a JSON object; enroll-runner needs --identity: the file `oak-runner identity` printed; the enrolled runner identity is not a file; and 3 more | `src/oak/adapters/signing/local_ed25519.py:100` |
+| `OAK-KEYS-RUNNER-IDENTITY` | a runner identity must be a JSON object; an enrolled runner identity file has been altered; an enrolled runner identity is not a file; and 4 more | `src/oak/adapters/signing/local_ed25519.py:107` |
 | `OAK-RUNNER-ADAPTER` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:441` |
 | `OAK-RUNNER-APPLY` | container labels could not be read; container state could not be read; fixture container creation failed | `src/oak/runner/adapters.py:347` |
 | `OAK-RUNNER-APPROVAL` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:494` |
@@ -460,9 +459,9 @@ documented flow uses it.
 | `OAK-NARRATIVE-MODE` | narrative must be deterministic, online or local | `src/oak/application/report/service.py:114` |
 | `OAK-NARRATIVE-UNAVAILABLE` | the provider did not answer; the provider did not answer within the request deadline | `src/oak/adapters/models/fake_narrator.py:33` |
 | `OAK-NOT-FOUND` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/api/app.py:654` |
-| `OAK-OBSERVE-DUPLICATE` | no runner result has arrived since the last observation record | `src/oak/application/release.py:672` |
-| `OAK-OBSERVE-EVIDENCE` | the case holds no accepted runner result | `src/oak/application/release.py:665` |
-| `OAK-OBSERVE-STATE` | observation requires an installed case; ingest a successful install first | `src/oak/application/release.py:655` |
+| `OAK-OBSERVE-DUPLICATE` | no runner result has arrived since the last observation record | `src/oak/application/release.py:675` |
+| `OAK-OBSERVE-EVIDENCE` | the case holds no accepted runner result | `src/oak/application/release.py:668` |
+| `OAK-OBSERVE-STATE` | observation requires an installed case; ingest a successful install first | `src/oak/application/release.py:658` |
 | `OAK-OUTPUT-EXISTS` | GitOps output directory already exists; output directory already exists; render output directory already exists | `src/oak/application/gitops.py:38` |
 | `OAK-REPORT-MISSING` | no report is recorded for this case; run `oak report --record` first | `src/oak/interfaces/cli/main.py:1683` |
 | `OAK-REPORT-OUTPUT` | a PDF needs --output <file> | `src/oak/interfaces/cli/main.py:1394` |
@@ -487,11 +486,11 @@ documented flow uses it.
 | `OAK-RESEARCH-UNREACHABLE` | *reason or mapping code; carries no fixed message* | `src/oak/adapters/models/research_sources.py:197` |
 | `OAK-RESEARCH-USAGE` | a review needs --rationale-file <file>; use exactly one of --accept or --reject; use exactly one of --plan or --consent <digest> | `src/oak/interfaces/cli/main.py:1502` |
 | `OAK-RESEARCH-VOCABULARY` | freshness window must be 1 to 365 days; hardware classes have no fallback; no research binding yields a capability; and 8 more (some dynamic) | `src/oak/adapters/catalogue/research_vocabulary.py:50` |
-| `OAK-REVOCATION-CHANNEL` | the mailbox's revocation manifest is not one this control plane signed; restore the mailbox's revocations directory before publishing again | `src/oak/application/release.py:919` |
+| `OAK-REVOCATION-CHANNEL` | the mailbox's revocation manifest is not one this control plane signed; restore the mailbox's revocations directory before publishing again | `src/oak/application/release.py:922` |
 | `OAK-REVOCATION-REASON` | revocation requires a reason | `src/oak/application/release.py:290` |
 | `OAK-SAFE-BIND` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/api/server.py:110` |
-| `OAK-SIGNING-KEY-INVALID` | signing key length is invalid; signing key must be a regular file | `src/oak/adapters/signing/local_ed25519.py:152` |
-| `OAK-SIGNING-KEY-MISSING` | signing key does not exist; run oak keys init | `src/oak/adapters/signing/local_ed25519.py:147` |
-| `OAK-SIGNING-KEY-PERMISSIONS` | signing key must not be group or world accessible | `src/oak/adapters/signing/local_ed25519.py:154` |
-| `OAK-SIGNING-ROLE` | signing role is not recognized | `src/oak/adapters/signing/local_ed25519.py:176` |
+| `OAK-SIGNING-KEY-INVALID` | signing key length is invalid; signing key must be a regular file | `src/oak/adapters/signing/local_ed25519.py:164` |
+| `OAK-SIGNING-KEY-MISSING` | signing key does not exist; run oak keys init | `src/oak/adapters/signing/local_ed25519.py:159` |
+| `OAK-SIGNING-KEY-PERMISSIONS` | signing key must not be group or world accessible | `src/oak/adapters/signing/local_ed25519.py:166` |
+| `OAK-SIGNING-ROLE` | signing role is not recognized | `src/oak/adapters/signing/local_ed25519.py:188` |
 

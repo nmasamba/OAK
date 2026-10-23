@@ -1091,7 +1091,7 @@ def keys(
                 {"runner": enrolled},
                 output,
                 human=(
-                    f"Enrolled runner {enrolled['key_id']}; oak ingest believes only its messages"
+                    f"Enrolled runner {enrolled['key_id']}; oak ingest believes only enrolled runners"
                 ),
             )
             return

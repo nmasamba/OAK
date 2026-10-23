@@ -183,4 +183,3 @@ def test_the_sbom_stamp_survives_a_file_the_process_cannot_write(tmp_path: Path)
         {"name": "oak:image", "value": "oak-community/api:0.7.1=sha256:feedface"}
     ]
     assert not list(tmp_path.glob("*.stamping")), "the temporary stamp file must not survive"
-

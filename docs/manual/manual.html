@@ -900,6 +900,20 @@ uv run oak dispatch apply verify rollback
     every attachment into the mailbox — delivery, not execution.
   </p>
 
+  <h2>Enroll the runner</h2>
+  <pre><code>OAK_RUNNER_HOME=$PWD/runner-home uv run oak-runner identity &gt; ../runner.identity.json
+uv run oak keys enroll-runner --identity ../runner.identity.json
+<span class="out">Enrolled runner sha256:…; oak ingest believes only enrolled runners</span></code></pre>
+  <p>
+    The runner signs what it reports with its own key, which it creates in its home the
+    first time it is used. Enrolling pins that key's public half in the control plane's
+    trust directory, once per runner: <code>oak ingest</code> then believes a message only
+    when an enrolled runner signed it, it answers a lease the case dispatched, and it reports only the kinds
+    that dispatch requested. Until a runner is enrolled, <code>ingest</code> refuses with
+    <code>OAK-INGEST-RUNNER-UNENROLLED</code>. Enrolling writes no case record, so the
+    dispatch numbers below are unchanged.
+  </p>
+
   <h2>Run the runner</h2>
   <pre><code>OAK_RUNNER_MAILBOX=$OAK_DISPATCH_MAILBOX \
 OAK_RUNNER_TRUST_ANCHORS=$OAK_TRUST_DIRECTORY \
@@ -961,7 +975,7 @@ uv run oak-runner run-once
   </p>
   <table>
     <tr><th>Denial family</th><th>Codes</th><th>What it means</th></tr>
-    <tr><td>Revocation set</td><td><code>OAK-RUNNER-REVOCATION</code></td><td>The signed revocation manifest is missing, does not match the notices on disk, or its sequence regressed. Re-publish from the control plane; do not hand-edit the mailbox (Figure 4)</td></tr>
+    <tr><td>Revocation set</td><td><code>OAK-RUNNER-REVOCATION</code></td><td>The signed revocation manifest is missing, does not match the notices on disk, or its sequence regressed. Restore the mailbox's <code>revocations/</code> directory from a backup; a later revocation keeps every entry the last manifest listed, so it does not paper over a deleted notice. Do not hand-edit the mailbox (Figure 4)</td></tr>
     <tr><td>Protocol and schema</td><td><code>OAK-RUNNER-PROTOCOL</code>, <code>OAK-RUNNER-SCHEMA</code></td><td>The envelope's protocol version is unsupported, or an attachment is not schema-valid — usually a version mismatch between control plane and runner</td></tr>
     <tr><td>Attachment integrity</td><td><code>OAK-RUNNER-ATTACHMENT</code>, <code>OAK-RUNNER-DIGEST</code></td><td>An attachment's bytes do not match the digest the envelope references — the mailbox was altered or truncated. Re-dispatch</td></tr>
     <tr><td>Signatures and trust</td><td><code>OAK-RUNNER-SIGNATURE</code>, <code>OAK-RUNNER-TRUST</code></td><td>A signature does not verify against the runner's own pinned anchors — never against a key carried in the document itself</td></tr>
@@ -1063,6 +1077,12 @@ Read from the design case. Producing this compiled, signed, approved and install
     is all you want, this is the place to stop: nothing has been signed, approved or
     installed. To install it:
   </p>
+  <p>
+    This workspace's runner keeps its home here, so it has a key of its own; enroll it
+    beside the first one (the identity file is written over, and both stay enrolled):
+  </p>
+  <pre><code>OAK_RUNNER_HOME=$PWD/runner-home uv run oak-runner identity &gt; ../runner.identity.json
+uv run oak keys enroll-runner --identity ../runner.identity.json</code></pre>
   <pre><code>uv run oak sign
 <span class="out">Signed plan for design-case.public-manual-qa@0.1.8</span>
 uv run oak approve architecture
@@ -1251,7 +1271,7 @@ rm -rf ~/.oak
 
 # 3 · Workspaces you created (you chose these paths; OAK does not track them),
 #     and chapter 6's trust directory and mailboxes; trust/ holds DEVELOPMENT PRIVATE KEYS
-rm -rf ./workspace ./runner-demo ./runner-started ./case-export ./restored ./report.pdf ./report.json ./trust ./mailbox ./mailbox-started
+rm -rf ./workspace ./runner-demo ./runner-started ./case-export ./restored ./report.pdf ./report.json ./runner.identity.json ./trust ./mailbox ./mailbox-started
 
 # 4 · Build output, venv and caches inside the checkout
 make clean-all

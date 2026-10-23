@@ -14,7 +14,7 @@ from oak.adapters.persistence import FileWorkspaceRepository
 from oak.adapters.signing import (
     LocalEd25519Signer,
     initialize_trust_directory,
-    load_runner_identity,
+    load_runner_identities,
 )
 from oak.application import CommandContext, ReleaseService
 from oak.bootstrap import (
@@ -106,7 +106,7 @@ def build_compiled_case(
         registry,
         lambda role: LocalEd25519Signer.load(trust_directory, role),
         FilesystemMailbox(mailbox_root),
-        runner_identity=lambda: load_runner_identity(trust_directory),
+        runner_identities=lambda: load_runner_identities(trust_directory),
     )
     return ReleaseHarness(
         workspace=workspace,

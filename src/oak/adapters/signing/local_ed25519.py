@@ -24,7 +24,9 @@ from oak.ports.signing import SignerIdentity
 ALGORITHM = "ed25519"
 TRUST_LEVEL = "development"
 SIGNING_ROLES = ("plan-signer", "approver", "extension-steward")
-RUNNER_IDENTITY_NAME = "runner.identity.json"
+# One file per enrolled runner, named by its key id: an operator may run several runners
+# (one per target, one per machine), and ingest believes each one enrolled here.
+RUNNER_IDENTITY_DIRECTORY = "runners"
 
 
 def runner_identity_document(document: Any) -> dict[str, str]:
@@ -61,23 +63,21 @@ def runner_identity_document(document: Any) -> dict[str, str]:
 
 
 def enroll_runner(trust_directory: Path, document: Any) -> dict[str, str]:
-    """Pin the one runner whose signed messages `oak ingest` will believe.
+    """Pin a runner whose signed messages `oak ingest` will believe; idempotent.
 
-    Re-enrolling the same runner is a no-op; a different one is refused until the pinned
-    identity is removed on purpose, so a mailbox writer can never swap it in.
+    Only the operator enrolls, from the identity `oak-runner identity` printed; nothing a
+    runner sends through the mailbox can enroll a key.
     """
 
     identity = runner_identity_document(document)
-    trust_directory.mkdir(parents=True, exist_ok=True, mode=0o700)
-    path = trust_directory / RUNNER_IDENTITY_NAME
-    existing = load_runner_identity(trust_directory)
-    if existing is not None:
-        if existing == identity:
+    directory = trust_directory / RUNNER_IDENTITY_DIRECTORY
+    directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+    path = directory / f"{identity['key_id'].removeprefix('sha256:')}.json"
+    if path.exists() or path.is_symlink():
+        if _read_runner_identity(path) == identity:
             return identity
         raise OAKError(
-            "OAK-KEYS-RUNNER-ENROLLED",
-            f"a different runner is already enrolled; remove {RUNNER_IDENTITY_NAME} from the "
-            "trust directory first to enroll another",
+            "OAK-KEYS-RUNNER-IDENTITY", "an enrolled runner identity file has been altered"
         )
     descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
@@ -85,19 +85,31 @@ def enroll_runner(trust_directory: Path, document: Any) -> dict[str, str]:
     return identity
 
 
-def load_runner_identity(trust_directory: Path) -> dict[str, str] | None:
-    """The enrolled runner identity, or None when no runner is enrolled."""
+def load_runner_identities(trust_directory: Path) -> tuple[dict[str, str], ...]:
+    """Every enrolled runner's public identity, by key id; empty when none is enrolled."""
 
-    path = trust_directory / RUNNER_IDENTITY_NAME
-    if not path.exists() and not path.is_symlink():
-        return None
+    directory = trust_directory / RUNNER_IDENTITY_DIRECTORY
+    if not directory.is_dir() or directory.is_symlink():
+        return ()
+    identities = []
+    for path in sorted(directory.glob("*.json")):
+        identity = _read_runner_identity(path)
+        if path.stem != identity["key_id"].removeprefix("sha256:"):
+            raise OAKError(
+                "OAK-KEYS-RUNNER-IDENTITY", "an enrolled runner identity file has been altered"
+            )
+        identities.append(identity)
+    return tuple(identities)
+
+
+def _read_runner_identity(path: Path) -> dict[str, str]:
     if path.is_symlink() or not path.is_file():
-        raise OAKError("OAK-KEYS-RUNNER-IDENTITY", "the enrolled runner identity is not a file")
+        raise OAKError("OAK-KEYS-RUNNER-IDENTITY", "an enrolled runner identity is not a file")
     try:
         document = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as error:
         raise OAKError(
-            "OAK-KEYS-RUNNER-IDENTITY", "the enrolled runner identity is unreadable"
+            "OAK-KEYS-RUNNER-IDENTITY", "an enrolled runner identity is unreadable"
         ) from error
     return runner_identity_document(document)
 

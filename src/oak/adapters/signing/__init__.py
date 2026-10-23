@@ -5,12 +5,12 @@ from oak.adapters.signing.local_ed25519 import (
     LocalEd25519Signer,
     enroll_runner,
     initialize_trust_directory,
-    load_runner_identity,
+    load_runner_identities,
 )
 
 __all__ = [
     "LocalEd25519Signer",
     "enroll_runner",
     "initialize_trust_directory",
-    "load_runner_identity",
+    "load_runner_identities",
 ]

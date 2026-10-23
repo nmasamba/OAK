@@ -35,7 +35,7 @@ from oak.adapters.signing import (
     LocalEd25519Signer,
     enroll_runner,
     initialize_trust_directory,
-    load_runner_identity,
+    load_runner_identities,
 )
 from oak.adapters.targets import LocalTargetProfile
 from oak.application import (
@@ -823,7 +823,7 @@ def create_release_service(workspace: Path) -> ReleaseService:
         registry,
         lambda role: LocalEd25519Signer.load(trust_directory, role),
         FilesystemMailbox(default_mailbox_directory()),
-        runner_identity=lambda: load_runner_identity(trust_directory),
+        runner_identities=lambda: load_runner_identities(trust_directory),
     )
 
 

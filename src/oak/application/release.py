@@ -85,15 +85,15 @@ class ReleaseService:
         signer_loader: Callable[[str], SigningPort],
         transport: DispatchTransport,
         *,
-        runner_identity: Callable[[], dict[str, str] | None],
+        runner_identities: Callable[[], tuple[dict[str, str], ...]],
     ) -> None:
         self._repository = repository
         self._registry = registry
         self._signer_loader = signer_loader
         self._transport = transport
-        # The enrolled runner's public identity (`oak keys enroll-runner`): the only key
+        # The enrolled runners' public identities (`oak keys enroll-runner`): the only keys
         # whose signed messages ingest believes (F4-1).
-        self._runner_identity = runner_identity
+        self._runner_identities = runner_identities
 
     def sign_plan(self, context: CommandContext) -> ReleaseResult:
         input_digest = self._request_digest(context, {"action": "sign_plan"})
@@ -545,8 +545,8 @@ class ReleaseService:
     def ingest_runner_messages(self, context: CommandContext) -> IngestResult:
         self._check_tenant(context)
         current_document = self._require_case()
-        runner = self._runner_identity()
-        if runner is None:
+        runners = self._runner_identities()
+        if not runners:
             raise OAKError(
                 "OAK-INGEST-RUNNER-UNENROLLED",
                 "no runner is enrolled, so no runner message can be believed; pin the "
@@ -557,7 +557,7 @@ class ReleaseService:
         result_case = current_document
         for message in self._transport.read_messages():
             message_id = str(message.get("id", ""))
-            if not self._believable(message, runner, context):
+            if not self._believable(message, runners, context):
                 rejected.append(message_id or "(unidentified)")
                 continue
             if message["kind"] in {"completion", "evidence"}:
@@ -578,12 +578,15 @@ class ReleaseService:
         )
 
     def _believable(
-        self, message: dict[str, Any], runner: dict[str, str], context: CommandContext
+        self,
+        message: dict[str, Any],
+        runners: tuple[dict[str, str], ...],
+        context: CommandContext,
     ) -> bool:
         """Signed by the enrolled runner, for a lease this case dispatched, within its kinds.
 
-        A key embedded in the message proves only that someone holds that key; the
-        enrolled runner's pinned key is the only one believed. A completion may report
+        A key embedded in the message proves only that someone holds that key; only the
+        enrolled runners' pinned keys are believed. A completion may report
         only kinds its own envelope requested, so it cannot turn a read-only dispatch
         into an install (F4-1).
         """
@@ -593,11 +596,11 @@ class ReleaseService:
         except Exception:
             return False
         signature = message.get("signature")
+        enrolled = {(runner["key_id"], runner["public_key_base64"]) for runner in runners}
         if (
             not isinstance(signature, dict)
             or signature.get("role") != "runner"
-            or signature.get("public_key_base64") != runner["public_key_base64"]
-            or signature.get("key_id") != runner["key_id"]
+            or (signature.get("key_id"), signature.get("public_key_base64")) not in enrolled
             or not _key_id_derives_from_key(signature)
             or not verify_signed_document(message)
         ):
