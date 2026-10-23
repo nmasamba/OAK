@@ -183,12 +183,15 @@ class OperationWorker:
             result = handler(lease.operation.request)
         except OAKError as error:
             retry_at = _retry_time(now, lease.operation.attempt_count)
+            # OAK's own message for a refusal it knows, as a synchronous refusal shows it;
+            # an unexpected exception keeps the generic one below (F1-20).
             return self._store.fail(
                 lease,
                 error_code=error.code,
                 retriable=error.retriable,
                 failed_at=now,
                 retry_at=retry_at,
+                message=error.message,
             )
         except Exception:
             return self._store.fail(

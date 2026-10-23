@@ -220,6 +220,7 @@ class MemoryOperationStore:
         retriable: bool,
         failed_at: str,
         retry_at: str,
+        message: str = "operation failed safely",
     ) -> OperationRecord:
         with self._lock:
             return self._fail(
@@ -228,6 +229,7 @@ class MemoryOperationStore:
                 retriable=retriable,
                 failed_at=failed_at,
                 retry_at=retry_at,
+                message=message,
             )
 
     def _fail(
@@ -238,13 +240,14 @@ class MemoryOperationStore:
         retriable: bool,
         failed_at: str,
         retry_at: str,
+        message: str = "operation failed safely",
     ) -> OperationRecord:
         current = self.get(lease.operation.operation_id)
         exhausted = current.attempt_count >= current.max_attempts
         record = replace(
             current,
             state="queued" if retriable and not exhausted else "failed",
-            problem={"code": error_code, "retriable": retriable},
+            problem={"code": error_code, "message": message, "retriable": retriable},
             next_attempt_at=retry_at,
             leased_by=None,
             lease_expires_at=None,

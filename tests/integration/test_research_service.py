@@ -335,6 +335,9 @@ def test_a_review_is_recorded_bound_to_the_snapshot_and_the_item(tmp_path: Path)
         (HARNESS, "approve", "fine", "OAK-RESEARCH-REVIEW-DECISION"),
         (HARNESS, "accept", "   ", "OAK-RESEARCH-REVIEW-RATIONALE"),
         (HARNESS, "accept", "x" * 4001, "OAK-RESEARCH-REVIEW-SIZE"),
+        # F1-11: the rule a selection rationale meets, on every interface.
+        (HARNESS, "accept", "ok\u001b[31mred", "OAK-RESEARCH-REVIEW-RATIONALE"),
+        (HARNESS, "accept", "ok \u202eevil", "OAK-RESEARCH-REVIEW-RATIONALE"),
     ],
 )
 def test_a_review_outside_its_rules_is_refused(

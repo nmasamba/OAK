@@ -348,6 +348,7 @@ class PostgreSQLOperationStore:
         retriable: bool,
         failed_at: str,
         retry_at: str,
+        message: str = "operation failed safely",
     ) -> OperationRecord:
         self._validate_error_code(error_code)
         failed = _parse_time(failed_at)
@@ -373,7 +374,7 @@ class PostgreSQLOperationStore:
                         version=int(row["version"]) + 1,
                         problem={
                             "code": error_code,
-                            "message": "operation failed safely",
+                            "message": message[:400],
                             "retriable": will_retry,
                         },
                         next_attempt_at=retry if will_retry else failed,

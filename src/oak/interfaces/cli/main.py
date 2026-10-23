@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Local-first command-line entrypoint."""
 
+import contextlib
 import hashlib
 import json
 import os
@@ -324,10 +325,15 @@ def _remote_design(
     from oak.interfaces.cli import remote as remote_mode
 
     content = _read_bounded_file(brief, prefix="OAK-INTAKE", maximum_bytes=262_144)
+    try:
+        text = content.decode("utf-8")
+    except UnicodeDecodeError as error:
+        # The same refusal the local CLI gives, not OAK-INPUT-INVALID (F1-20).
+        raise OAKError("OAK-INTAKE-ENCODING", "brief must be valid UTF-8") from error
     identity = idempotency_key or remote_mode.content_identity(content)
     created = remote.create_design_case(
         original_name=brief.name,
-        content=content.decode("utf-8"),
+        content=text,
         idempotency_key=remote_mode.derived_key("create", identity),
     )
     # Both sub-calls derive their idempotency key from the same identity so a
@@ -1542,14 +1548,14 @@ def research(
                 raise OAKError("OAK-REMOTE-PROTOCOL", "remote research result is invalid")
             _emit(result, output, human="\n".join(_research_result_lines(result["snapshot"])))
             return
+        current = _workspace_service().current().case
+        if design_case is not None and design_case != current["id"]:
+            raise OAKError("OAK-CASE-NOT-FOUND", "requested design case is not current")
         service = _research_service()
         plan_document = service.plan().to_document()
         if plan:
             _emit(plan_document, output, human="\n".join(_research_plan_lines(plan_document)))
             return
-        current = _workspace_service().current().case
-        if design_case is not None and design_case != current["id"]:
-            raise OAKError("OAK-CASE-NOT-FOUND", "requested design case is not current")
         result = service.run(
             _context(idempotency_key=idempotency_key, expected_version=str(current["version"])),
             consent={"hosts": list(plan_document["hosts"]), "terms_digest": consent},
@@ -1590,7 +1596,7 @@ def research_review(
             raise OAKError("OAK-RESEARCH-USAGE", "use exactly one of --accept or --reject")
         if rationale_file is None:
             raise OAKError("OAK-RESEARCH-USAGE", "a review needs --rationale-file <file>")
-        rationale = rationale_file.read_text(encoding="utf-8").strip()
+        rationale = _load_bounded_text(rationale_file, code="OAK-RESEARCH-REVIEW-RATIONALE").strip()
         decision = "accept" if accept else "reject"
         remote = _remote()
         if remote is not None:
@@ -2589,6 +2595,8 @@ def _emit(document: dict[str, Any], output: OutputFormat, *, human: str) -> None
 
 
 def _abort(error: Exception) -> NoReturn:
+    if isinstance(error, BrokenPipeError):
+        _closed_pipe()
     if isinstance(error, OAKError):
         code = error.code
         message = error.message
@@ -2605,8 +2613,27 @@ def _abort(error: Exception) -> NoReturn:
     raise typer.Exit(code=exit_code)
 
 
+def _closed_pipe() -> NoReturn:
+    """The reader went away (`oak report | head`): stop quietly, as Unix tools do (F1-19)."""
+
+    _silence_stdout()
+    raise typer.Exit(code=141)
+
+
+def _silence_stdout() -> None:
+    # Further writes, and the interpreter's final flush, go nowhere instead of raising
+    # again; a stream with no descriptor (a test capture) needs nothing.
+    with contextlib.suppress(OSError, ValueError):
+        devnull = os.open(os.devnull, os.O_WRONLY)
+        os.dup2(devnull, sys.stdout.fileno())
+
+
 def main() -> None:
-    app()
+    try:
+        app()
+    except BrokenPipeError:
+        _silence_stdout()
+        raise SystemExit(141) from None
 
 
 if __name__ == "__main__":  # pragma: no cover

@@ -333,7 +333,13 @@ class FileWorkspaceRepository:
             self._write_new_file(temporary / "manifest.json", canonical_json_bytes(manifest))
             try:
                 self._validate_export_tree(temporary, manifest)
-            except OAKError:
+            except OAKError as error:
+                if error.code in {"OAK-ARTIFACT-INVALID", "OAK-ARTIFACT-KIND"}:
+                    # An index entry whose kind or media type does not fit its object is
+                    # a refused import, under the import's own code (F2-1).
+                    raise OAKError(
+                        "OAK-IMPORT-INVALID", "an imported artifact does not fit its indexed kind"
+                    ) from error
                 raise
             except (ContractValidationError, ValueError) as error:
                 # A tampered index entry (a kind that does not fit its object) is a refusal,

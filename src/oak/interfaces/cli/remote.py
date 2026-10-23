@@ -425,9 +425,12 @@ class RemoteClient:
                 problem = operation.get("problem")
                 if state == "failed" and isinstance(problem, dict):
                     code = problem.get("code")
+                    message = problem.get("message")
                     raise OAKError(
                         code if isinstance(code, str) and code else "OAK-OPERATION-FAILED",
-                        "the remote operation failed",
+                        message
+                        if isinstance(message, str) and message
+                        else "the remote operation failed",
                         retriable=bool(problem.get("retriable", False)),
                     )
                 if state == "cancelled":
@@ -567,10 +570,14 @@ def read_export_directory(source: Path) -> dict[str, Any]:
         raise OAKError("OAK-IMPORT-INVALID", "import manifest is invalid") from error
     if not isinstance(manifest, dict):
         raise OAKError("OAK-IMPORT-INVALID", "import manifest must be an object")
+    index = manifest.get("artifact_index")
+    if not isinstance(index, list):
+        # A null or numeric index crashed with a TypeError traceback (F1-13).
+        raise OAKError("OAK-IMPORT-INVALID", "import manifest index is invalid")
     objects: list[dict[str, str]] = []
     seen: set[str] = set()
     total = 0
-    for entry in manifest.get("artifact_index", ()):
+    for entry in index:
         if not isinstance(entry, dict):
             raise OAKError("OAK-IMPORT-INVALID", "import manifest index is invalid")
         digest = str(entry.get("digest", ""))

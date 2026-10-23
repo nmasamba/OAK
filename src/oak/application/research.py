@@ -37,6 +37,7 @@ from oak.domain import (
 )
 from oak.domain.audit import audit_event_document
 from oak.domain.design_case import DesignCase, DesignCaseStatus
+from oak.domain.intake import holds_control_character
 from oak.ports import CataloguePort, ResearchVocabularyPort, WorkspaceRepository
 from oak.ports.research import ResearchRunner, ResearchSourceFactory, ResearchSourceMode
 
@@ -276,6 +277,12 @@ class ResearchService:
             raise OAKError("OAK-RESEARCH-REVIEW-DECISION", "a review is accept or reject")
         if not isinstance(rationale, str) or not rationale.strip():
             raise OAKError("OAK-RESEARCH-REVIEW-RATIONALE", "a review needs a rationale")
+        if holds_control_character(rationale):
+            # The same rule a selection rationale already met (F1-11).
+            raise OAKError(
+                "OAK-RESEARCH-REVIEW-RATIONALE",
+                "a rationale must not hold a control or formatting character",
+            )
         if len(rationale) > MAXIMUM_RATIONALE:
             raise OAKError(
                 "OAK-RESEARCH-REVIEW-SIZE",
