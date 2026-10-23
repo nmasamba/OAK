@@ -156,7 +156,7 @@ there is a product decision, not a pull request.
 | `tests/contract` | Agreements that must not drift: schemas against runtime models, the toolchain, the MCP registry, generated documents | none |
 | `tests/integration` | Real adapters wired together — file workspaces, live loopback servers, real MCP frames | `integration` |
 | `tests/e2e` | The installed entrypoints, as a subprocess | `e2e` |
-| `tests/live` | Real requests to whatever model provider this machine is configured for. **Spends real credit.** Skipped unless `OAK_LIVE_MODEL_TESTS=1`, and never collected by `make check` or CI | `live` |
+| `tests/live` | Real requests. The provider smoke tests call whatever model provider this machine is configured for and **spend real credit** (`OAK_LIVE_MODEL_TESTS=1`); the research check sends anonymous requests to the Hub, its router and GitHub (`OAK_LIVE_RESEARCH_TESTS=1`). Each is skipped unless its variable is set, and neither is collected by `make check` or CI | `live` |
 
 Only `integration`, `e2e` and `live` are registered, and `--strict-markers` is on, so an
 invented marker fails collection. Shared harnesses are `tests/runner_support.py`

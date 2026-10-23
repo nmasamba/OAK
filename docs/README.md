@@ -65,7 +65,8 @@
 
 ## Release evidence
 
-[release/0.9.0/](release/0.9.0/) holds the artefacts for the release this tree builds:
+[release/0.9.0/](release/0.9.0/) holds the artefacts for the latest published release (this
+tree reports `0.9.0` and adds the work the changelog lists as unreleased):
 the image scan with its per-image SBOMs and provenance, the clean-room rehearsal, and a
 decision record approved by `nmasamba` on 2026-10-01 in all three roles. `0.9.0` is
 published as a GitHub Release. [release/0.8.0/](release/0.8.0/) holds the `0.8.0` set, approved by `nmasamba` on

@@ -630,3 +630,28 @@ def test_a_verdict_method_outside_the_schema_is_refused_before_it_is_saved(tmp_p
     assert service.verification_status("huggingface") is None
     local = service.record_verdict("local", "unreachable", method="models_list")
     assert local["verdict"] == "unreachable"
+
+
+def test_a_status_read_reports_a_key_store_it_cannot_reach_instead_of_failing(
+    tmp_path: Path,
+) -> None:
+    """OAK-V1-005 (walkthrough V-3): the configuration names the OS keychain, but this
+    environment has no keychain library. `status` and the modes still answer, saying the
+    key cannot be read there; using the key still refuses with the store's own code."""
+
+    service = _service(tmp_path)
+    configuration = tmp_path / "models" / "model-configuration.json"
+    service.set_key("huggingface", SecretValue(KEY), source="file")
+    document = json.loads(configuration.read_text(encoding="utf-8"))
+    document["credential_sources"] = {"huggingface": "keychain"}
+    configuration.write_text(json.dumps(document), encoding="utf-8")
+
+    status = service.status()
+
+    credential = status["credentials"]["huggingface"]
+    assert credential["configured"] is False and credential["source"] == "keychain"
+    assert status["modes"]["online"]["available"] is False
+    assert "operating-system keychain" in status["modes"]["online"]["reason"]
+    with pytest.raises(OAKError) as refused:
+        service.credential_for("huggingface")
+    assert refused.value.code == "OAK-MODEL-KEYCHAIN-UNAVAILABLE"

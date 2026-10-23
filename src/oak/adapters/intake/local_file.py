@@ -32,6 +32,9 @@ SAFE_ID = re.compile(r"[^a-z0-9]+")
 class LocalBriefIntake:
     def read(self, path: Path) -> IngestedBrief:
         absolute = path.absolute()
+        if not absolute.is_symlink() and not absolute.exists():
+            # The same code as an unsafe path, but a message that says what is wrong.
+            raise OAKError("OAK-INTAKE-UNSAFE-PATH", f"brief file does not exist: {absolute.name}")
         if absolute.is_symlink() or not absolute.is_file():
             raise OAKError("OAK-INTAKE-UNSAFE-PATH", "brief must be a regular non-symlink file")
         raw = self._read_bounded_regular_file(absolute)
@@ -144,6 +147,10 @@ class LocalBriefIntake:
                     "OAK-INTAKE-IDENTITY",
                     "structured brief requires string id, brief_version, and title",
                 )
+            if ".." in str(brief_id):
+                # The id names the case, its dispatches and their mailbox directories,
+                # where `..` is never a safe name (F4-6).
+                raise OAKError("OAK-INTAKE-IDENTITY", "a brief id must not contain '..'")
             return str(brief_id), str(version), str(title)
         stem = SAFE_ID.sub("-", path.stem.casefold()).strip("-") or "brief"
         first_line = next((line.strip("# ") for line in text.splitlines() if line.strip()), stem)
@@ -180,6 +187,9 @@ class LocalBriefIntake:
                         raise OAKError(
                             "OAK-INTAKE-KEY-TYPE", "structured brief keys must be strings"
                         )
+                    # An escape (`\u202e`, `\e`) decodes to the character the raw-text
+                    # check refuses, so a parsed key or string is held to the same rule.
+                    LocalBriefIntake._reject_control_characters(key)
                     visit(child, depth + 1)
                 active.remove(identity)
                 return
@@ -192,6 +202,8 @@ class LocalBriefIntake:
                     visit(child, depth + 1)
                 active.remove(identity)
                 return
+            if isinstance(value, str):
+                LocalBriefIntake._reject_control_characters(value)
             if isinstance(value, float) and not math.isfinite(value):
                 raise OAKError("OAK-INTAKE-NUMBER", "structured brief numbers must be finite")
             if value is not None and not isinstance(value, (str, int, float, bool)):

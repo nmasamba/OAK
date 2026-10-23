@@ -159,6 +159,14 @@ class ReportService:
                 if missing
                 else "a closed case takes no new report",
             )
+        if context.expected_version is not None and context.expected_version != current.version:
+            # Before any note is asked for: a stale request used to send the slides to the
+            # model and spend credit, then be refused at the commit (F2-6).
+            raise OAKError(
+                "OAK-EXPECTED-VERSION",
+                "expected case version does not match current version",
+                retriable=True,
+            )
         if self._renderer is None or PDF_MEDIA_TYPE not in self._renderer.formats():
             raise OAKError("OAK-REPORT-RENDER", "no PDF report renderer is configured")
         records = gather_records(self._repository)

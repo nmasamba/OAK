@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +17,8 @@ DISPATCH_DIRECTORY = "dispatches"
 REVOCATION_DIRECTORY = "revocations"
 REVOCATION_MANIFEST_NAME = "manifest.json"
 MESSAGE_DIRECTORY = "messages"
+ACKNOWLEDGED_DIRECTORY = "acknowledged"
+SAFE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$")
 PROCESSED_MARKER = ".processed"
 
 
@@ -40,6 +43,10 @@ class RunnerMailbox:
         for dispatch_dir in sorted(directory.iterdir()):
             if not dispatch_dir.is_dir() or (dispatch_dir / PROCESSED_MARKER).exists():
                 continue
+            if not is_safe_name(dispatch_dir.name):
+                # A name no control plane delivers (`a..b`) is left alone rather than
+                # taken up: its bookkeeping would fail, and every later dispatch with it.
+                continue
             envelope = _read_document(dispatch_dir / "envelope.json")
             if envelope is None:
                 continue
@@ -52,6 +59,30 @@ class RunnerMailbox:
                     attachments[path.stem] = document
             results.append((dispatch_dir.name, envelope, attachments))
         return tuple(results)
+
+    def unsafe_dispatch_names(self) -> tuple[str, ...]:
+        directory = self._root / DISPATCH_DIRECTORY
+        if not directory.is_dir():
+            return ()
+        return tuple(
+            sorted(
+                path.name
+                for path in directory.iterdir()
+                if path.is_dir()
+                and not is_safe_name(path.name)
+                and not (path / PROCESSED_MARKER).exists()
+            )
+        )
+
+    def completion_published(self, message_id: str) -> bool:
+        """Whether a message with this id is in the mailbox, read or not yet read."""
+
+        if not is_safe_name(message_id):
+            return False
+        return any(
+            (self._root / directory / f"{message_id}.json").exists()
+            for directory in (MESSAGE_DIRECTORY, ACKNOWLEDGED_DIRECTORY)
+        )
 
     def mark_processed(self, dispatch_id: str) -> None:
         _check_component(dispatch_id)
@@ -220,6 +251,9 @@ class RunnerMailbox:
             "extensions": {},
         }
         message["signature"] = identity.signature_block(canonical_json_bytes(message))
+        # The id names the file; a correlation copied from an unverified envelope must
+        # never build a path (F4-11).
+        _check_component(str(message["id"]))
         directory = self._root / MESSAGE_DIRECTORY
         directory.mkdir(parents=True, exist_ok=True, mode=0o700)
         payload_bytes = canonical_json_bytes(message)
@@ -233,10 +267,16 @@ class RunnerMailbox:
         return message
 
 
+def is_safe_name(value: object) -> bool:
+    """A name that can only ever name one entry inside its own directory."""
+
+    return isinstance(value, str) and bool(SAFE_NAME.fullmatch(value)) and ".." not in value
+
+
 def _check_component(value: str) -> None:
     """Refuse any self-declared name that could escape its directory."""
 
-    if not value or "/" in value or "\\" in value or value.startswith(".") or ".." in value:
+    if not is_safe_name(value):
         raise ValueError("mailbox document name is unsafe")
 
 

@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Bounded local policy-pack loading from bundled and activated sources."""
 
+import json
 import os
 import stat
 from pathlib import Path
@@ -9,7 +10,7 @@ from typing import Any
 import yaml
 
 from oak.contracts import SchemaRegistry, load_yaml_document
-from oak.domain import OAKError
+from oak.domain import OAKError, canonical_json_bytes, content_digest
 
 MAXIMUM_FILES = 128
 MAXIMUM_DOCUMENT_BYTES = 524_288
@@ -43,7 +44,9 @@ class LocalPolicyPackStore:
         for root in self._nested_directories:
             if not root.is_dir() or root.is_symlink():
                 continue
-            candidates.extend(sorted(root.glob("*/pack.yaml")))
+            candidates.extend(
+                path for path in sorted(root.glob("*/pack.yaml")) if self._activated(path)
+            )
         for count, path in enumerate(candidates, start=1):
             if count > MAXIMUM_FILES:
                 raise OAKError("OAK-POLICY-PACK-COUNT", "too many policy pack files")
@@ -59,6 +62,51 @@ class LocalPolicyPackStore:
             if str(document["id"]) == pack_id:
                 return document
         raise OAKError("OAK-POLICY-PACK-NOT-FOUND", "policy pack is not available")
+
+    def _activated(self, path: Path) -> bool:
+        """Whether this extension's pack is the one verified and activated, unchanged.
+
+        A `pack.yaml` copied under the active root without install, verify and activate is
+        not a pack OAK uses, and one edited after activation is refused (F4-13): the pack's
+        bytes must still match the digest its manifest lists, and the manifest must still
+        be the one the activation record bound.
+        """
+
+        directory = path.parent
+        activation_path = directory / "activation.json"
+        if not activation_path.exists() and not activation_path.is_symlink():
+            return False
+        try:
+            activation = json.loads(_bounded_bytes(activation_path).decode("utf-8"))
+            manifest_text = _bounded_bytes(directory / "extension.yaml").decode("utf-8")
+            if any(
+                isinstance(token, (yaml.AliasToken, yaml.AnchorToken))
+                for token in yaml.scan(manifest_text)
+            ):
+                raise ValueError("aliases")
+            manifest = load_yaml_document(manifest_text)
+            pack_bytes = _bounded_bytes(path)
+        except (OSError, ValueError, yaml.YAMLError, OAKError) as error:
+            raise OAKError(
+                "OAK-POLICY-PACK-UNVERIFIED", "an activated policy pack's records are unreadable"
+            ) from error
+        payload = manifest.get("payload") if isinstance(manifest, dict) else None
+        files = payload.get("files") if isinstance(payload, dict) else None
+        listed = {
+            str(item.get("path")): str(item.get("digest"))
+            for item in (files if isinstance(files, list) else [])
+            if isinstance(item, dict)
+        }
+        if (
+            not isinstance(activation, dict)
+            or activation.get("manifest_digest") != content_digest(canonical_json_bytes(manifest))
+            or listed.get("pack.yaml") != content_digest(pack_bytes)
+        ):
+            raise OAKError(
+                "OAK-POLICY-PACK-UNVERIFIED",
+                "an activated policy pack no longer matches what was verified at activation",
+            )
+        return True
 
     def _load_document(self, path: Path) -> dict[str, Any]:
         try:
@@ -89,3 +137,18 @@ class LocalPolicyPackStore:
             raise OAKError(
                 "OAK-POLICY-PACK-INVALID", "policy pack failed bounded validation"
             ) from error
+
+
+def _bounded_bytes(path: Path) -> bytes:
+    if path.is_symlink():
+        raise OAKError("OAK-POLICY-PACK-PATH", "policy pack path must not be a symlink")
+    descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+    try:
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            raise OAKError("OAK-POLICY-PACK-PATH", "policy pack must be a regular file")
+        content = os.read(descriptor, MAXIMUM_DOCUMENT_BYTES + 1)
+    finally:
+        os.close(descriptor)
+    if not content or len(content) > MAXIMUM_DOCUMENT_BYTES:
+        raise OAKError("OAK-POLICY-PACK-INVALID", "policy pack size is out of bounds")
+    return content

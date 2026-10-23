@@ -34,11 +34,32 @@ function Routes() {
   const { path } = useRouter();
 
   useEffect(() => {
-    const heading = document.getElementById("page-heading");
-    if (heading !== null) {
+    const focusHeading = (): boolean => {
+      const heading = document.getElementById("page-heading");
+      if (heading === null) {
+        return false;
+      }
       heading.setAttribute("tabindex", "-1");
       heading.focus();
+      return true;
+    };
+    if (focusHeading()) {
+      return undefined;
     }
+    // A case screen draws its heading only once its case has loaded, after this effect
+    // has run, so focus used to stay on the page body and the new screen went
+    // unannounced (F3-7). Wait for the heading, briefly.
+    const observer = new MutationObserver(() => {
+      if (focusHeading()) {
+        observer.disconnect();
+      }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+    const giveUp = window.setTimeout(() => observer.disconnect(), 10_000);
+    return () => {
+      observer.disconnect();
+      window.clearTimeout(giveUp);
+    };
   }, [path]);
 
   const reviewMatch = matchPath("/cases/:caseId/review", path);

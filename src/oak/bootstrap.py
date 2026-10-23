@@ -31,7 +31,12 @@ from oak.adapters.persistence import (
     create_postgresql_engine,
 )
 from oak.adapters.policies import BuiltinPolicyEngine, LocalPolicyPackStore
-from oak.adapters.signing import LocalEd25519Signer, initialize_trust_directory
+from oak.adapters.signing import (
+    LocalEd25519Signer,
+    enroll_runner,
+    initialize_trust_directory,
+    load_runner_identities,
+)
 from oak.adapters.targets import LocalTargetProfile
 from oak.application import (
     CandidatePlanningService,
@@ -803,6 +808,12 @@ def initialize_local_trust() -> tuple[dict[str, str], ...]:
     )
 
 
+def enroll_local_runner(document: object) -> dict[str, str]:
+    """Pin a runner's public identity in the local trust directory."""
+
+    return enroll_runner(default_trust_directory(), document)
+
+
 def create_release_service(workspace: Path) -> ReleaseService:
     registry = SchemaRegistry.from_directory(canonical_schema_directory())
     repository = FileWorkspaceRepository(workspace, registry)
@@ -812,6 +823,7 @@ def create_release_service(workspace: Path) -> ReleaseService:
         registry,
         lambda role: LocalEd25519Signer.load(trust_directory, role),
         FilesystemMailbox(default_mailbox_directory()),
+        runner_identities=lambda: load_runner_identities(trust_directory),
     )
 
 

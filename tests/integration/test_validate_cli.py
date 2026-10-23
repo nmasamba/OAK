@@ -86,6 +86,22 @@ def test_a_real_bundle_validates_and_tampering_is_refused(
     assert denial.value.code == "OAK-VALIDATE-DIGEST"
 
 
+def test_an_edited_semantic_manifest_is_refused(compiled_workspace: Path, tmp_path: Path) -> None:
+    """F1-4: the bundle and every plan operation pin the semantic manifest's digest."""
+
+    bundle_directory = tmp_path / "bundle"
+    _write_bundle(compiled_workspace, bundle_directory)
+    semantic = json.loads((bundle_directory / "semantic-manifest.json").read_text())
+    components = semantic["content"]["candidate"]["components"]
+    components[0]["purpose"] = "TAMPERED: unbounded autonomous agent with production data"
+    (bundle_directory / "semantic-manifest.json").write_bytes(
+        canonical_json_bytes(semantic) + b"\n"
+    )
+    with pytest.raises(OAKError) as denial:
+        validate_bundle(bundle_directory)
+    assert denial.value.code == "OAK-VALIDATE-DIGEST"
+
+
 def test_an_injected_execution_field_is_refused(compiled_workspace: Path, tmp_path: Path) -> None:
     bundle_directory = tmp_path / "bundle"
     _write_bundle(compiled_workspace, bundle_directory)

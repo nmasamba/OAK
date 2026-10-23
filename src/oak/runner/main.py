@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import fcntl
 import json
 import os
 import sys
@@ -24,7 +25,7 @@ from oak.runner.adapters import ContainerFixtureAdapter, isolated_executor
 from oak.runner.execution import execute_dispatch
 from oak.runner.identity import RunnerIdentity
 from oak.runner.journal import RunnerJournal
-from oak.runner.mailbox import RunnerMailbox
+from oak.runner.mailbox import RunnerMailbox, is_safe_name
 from oak.runner.schemas import load_registry
 from oak.runner.verification import (
     RunnerDenialError,
@@ -53,10 +54,37 @@ def run_once(
     cancellation_requested: bool = False,
     adapter: ContainerFixtureAdapter | None = None,
 ) -> int:
-    """Process pending dispatches once. ``adapter`` is a test seam, never a CLI option."""
+    """Process pending dispatches once. ``adapter`` is a test seam, never a CLI option.
 
-    mailbox_root = _environment_path("OAK_RUNNER_MAILBOX")
+    One run at a time per runner home: a second run started while an install is still
+    in its readiness wait would otherwise take the first run's journal for an interrupted
+    one and report it, mid-install, as needing recovery (F4-5).
+    """
+
     home = _environment_path("OAK_RUNNER_HOME", str(Path.home() / ".oak" / "runner"))
+    home.mkdir(parents=True, exist_ok=True, mode=0o700)
+    lock = os.open(home / "run.lock", os.O_RDWR | os.O_CREAT, 0o600)
+    try:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as error:
+            raise OAKError(
+                "OAK-RUNNER-BUSY", "another oak-runner run-once is using this runner home"
+            ) from error
+        return _run_once_locked(
+            home, cancellation_requested=cancellation_requested, adapter=adapter
+        )
+    finally:
+        os.close(lock)
+
+
+def _run_once_locked(
+    home: Path,
+    *,
+    cancellation_requested: bool,
+    adapter: ContainerFixtureAdapter | None,
+) -> int:
+    mailbox_root = _environment_path("OAK_RUNNER_MAILBOX")
     trust_directory = _environment_path("OAK_RUNNER_TRUST_ANCHORS")
     target_path = _environment_path("OAK_RUNNER_TARGET_PROFILE")
     runner_id = os.getenv("OAK_RUNNER_ID", "runner.local-fixture-runner")
@@ -89,6 +117,8 @@ def run_once(
             "OAK-RUNNER-CONFIG", "the runner home, mailbox or trust anchors are unreadable"
         ) from error
     processed_any = False
+    for unsafe in mailbox.unsafe_dispatch_names():
+        print(f"skipped {unsafe!r}: not a dispatch name a control plane delivers", file=sys.stderr)
     for dispatch_id, envelope, attachments in mailbox.pending_dispatches():
         # Each dispatch is judged at the moment it is taken up, not at the start of the
         # run: an earlier long install must not stretch a later dispatch's lease.
@@ -104,7 +134,8 @@ def run_once(
         # outside the try, killing the runner before it could deny anything.
         lease = envelope.get("lease")
         lease_id = lease.get("lease_id") if isinstance(lease, dict) else None
-        correlation = str(lease_id or dispatch_id) if isinstance(lease_id, str) else dispatch_id
+        safe_lease = lease_id if is_safe_name(lease_id) else None
+        correlation = safe_lease or dispatch_id
         try:
             manifest, notices = mailbox.revocation_documents()
             revocations = verified_revocations(
@@ -126,7 +157,7 @@ def run_once(
                 now=now,
             )
         except (RunnerDenialError, OAKError) as denial:
-            _publish_denial(mailbox, identity, envelope, denial, now, correlation)
+            _publish_denial(mailbox, identity, envelope, denial, now, correlation, safe_lease)
             mailbox.mark_processed(dispatch_id)
             processed_any = True
             print(f"denied {dispatch_id}: {denial}", file=sys.stderr)
@@ -142,29 +173,39 @@ def run_once(
             cancellation_requested=cancellation_requested,
             adapter=adapter or ContainerFixtureAdapter(isolated_executor(home / "docker-config")),
         )
-        mailbox.publish_message(
-            identity,
-            kind="completion",
-            tenant_id=str(envelope["tenant_id"]),
-            environment=str(envelope["environment"]),
-            correlation_id=correlation,
-            sequence=1,
-            lease_id=str(envelope["lease"]["lease_id"]),
-            operation_id=None,
-            occurred_at=_now(),
-            payload={
-                "outcome": outcome.outcome,
-                # What was asked for and what failed, so a completion alone says whether
-                # an install was attempted even when nothing was applied (OAK-FR-DEP-004).
-                "requested_kinds": list(verified.requested_kinds),
-                "applied_kinds": list(outcome.applied_kinds),
-                "failed_kind": outcome.failed_kind,
-                "journal_digest": outcome.journal_digest,
-                "detail": outcome.detail,
-                "evidence": list(outcome.evidence),
-            },
-        )
-        mailbox.mark_processed(dispatch_id)
+        try:
+            mailbox.publish_message(
+                identity,
+                kind="completion",
+                tenant_id=str(envelope["tenant_id"]),
+                environment=str(envelope["environment"]),
+                correlation_id=correlation,
+                sequence=1,
+                lease_id=str(envelope["lease"]["lease_id"]),
+                operation_id=None,
+                occurred_at=_now(),
+                payload={
+                    "outcome": outcome.outcome,
+                    # What was asked for and what failed, so a completion alone says
+                    # whether an install was attempted even when nothing was applied
+                    # (OAK-FR-DEP-004).
+                    "requested_kinds": list(verified.requested_kinds),
+                    "applied_kinds": list(outcome.applied_kinds),
+                    "failed_kind": outcome.failed_kind,
+                    "journal_digest": outcome.journal_digest,
+                    "detail": outcome.detail,
+                    "evidence": list(outcome.evidence),
+                },
+            )
+            mailbox.mark_processed(dispatch_id)
+        except (OSError, ValueError) as error:
+            # After side effects, a filesystem error is a stable code, never a
+            # traceback; the journal holds the outcome and the next run reports it.
+            raise OAKError(
+                "OAK-RUNNER-MAILBOX",
+                f"the completion for {dispatch_id} could not be published; its journal "
+                "records the outcome",
+            ) from error
         processed_any = True
         print(f"completed {dispatch_id}: {outcome.outcome}")
     if not processed_any:
@@ -195,6 +236,18 @@ def _resume_interrupted(
         entries = ()
     if not entries:
         return False
+    lease = envelope.get("lease")
+    lease_id = lease.get("lease_id") if isinstance(lease, dict) else None
+    safe_lease = lease_id if is_safe_name(lease_id) else None
+    correlation = safe_lease or dispatch_id
+    if entries[-1].entry_type == "completion_recorded" and mailbox.completion_published(
+        f"runner-message.completion.{correlation}.1"
+    ):
+        # The dispatch finished and said so; only its processed marker went missing (a
+        # crash after publishing, or a deleted marker). Nothing was interrupted.
+        mailbox.mark_processed(dispatch_id)
+        print(f"already completed {dispatch_id}", file=sys.stderr)
+        return True
     requested: list[str] = []
     for entry in entries:
         if entry.entry_type == "lease_accepted":
@@ -212,17 +265,17 @@ def _resume_interrupted(
                     **(interrupted or {}),
                 },
             )
-    lease = envelope.get("lease")
-    lease_id = lease.get("lease_id") if isinstance(lease, dict) else None
     with contextlib.suppress(OSError, ValueError, OAKError):
         mailbox.publish_message(
             identity,
             kind="completion",
             tenant_id=str(envelope.get("tenant_id", "local")),
             environment=str(envelope.get("environment", "development")),
-            correlation_id=str(lease_id or dispatch_id),
-            sequence=1,
-            lease_id=str(lease_id) if isinstance(lease_id, str) else None,
+            correlation_id=correlation,
+            # Sequence 2: a recovery report never takes the id of a completion an
+            # earlier run may already have published for this lease.
+            sequence=2,
+            lease_id=safe_lease,
             operation_id=None,
             occurred_at=now,
             payload={
@@ -248,7 +301,15 @@ def _publish_denial(
     denial: OAKError,
     now: str,
     correlation: str,
+    lease_id: str | None,
 ) -> None:
+    """Publish a signed denial; it names the lease when the envelope's is a safe name.
+
+    The lease ties the denial to a dispatch the control plane issued, so `oak ingest`
+    records it instead of reporting it as rejected (F4-8); the lease id is still only a
+    claim of the unverified envelope, and the control plane checks it against its own.
+    """
+
     with contextlib.suppress(OSError, ValueError):
         mailbox.publish_message(
             identity,
@@ -257,7 +318,7 @@ def _publish_denial(
             environment=str(envelope.get("environment", "development")),
             correlation_id=correlation or "correlation-denied",
             sequence=1,
-            lease_id=None,
+            lease_id=lease_id,
             operation_id=None,
             occurred_at=now,
             payload={
@@ -267,6 +328,19 @@ def _publish_denial(
                 "detail": str(denial),
             },
         )
+
+
+def identity() -> int:
+    """Print this runner's public identity, for the control plane to enroll."""
+
+    home = _environment_path("OAK_RUNNER_HOME", str(Path.home() / ".oak" / "runner"))
+    runner_id = os.getenv("OAK_RUNNER_ID", "runner.local-fixture-runner")
+    try:
+        runner = RunnerIdentity.load_or_create(home, runner_id)
+    except OSError as error:
+        raise OAKError("OAK-RUNNER-CONFIG", "the runner home is unreadable") from error
+    print(json.dumps(runner.public_identity(), indent=2, sort_keys=True))
+    return 0
 
 
 def status() -> int:
@@ -326,10 +400,15 @@ def main() -> int:
         help="observe a cooperative cancellation before the next operation",
     )
     subcommands.add_parser("status", help="report journal integrity and recovery state")
+    subcommands.add_parser(
+        "identity", help="print this runner's public identity for `oak keys enroll-runner`"
+    )
     arguments = parser.parse_args()
     try:
         if arguments.command == "run-once":
             return run_once(cancellation_requested=bool(arguments.cancel))
+        if arguments.command == "identity":
+            return identity()
         return status()
     except OAKError as error:
         print(f"{error.code}: {error}", file=sys.stderr)

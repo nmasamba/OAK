@@ -6,6 +6,93 @@ All notable changes to OAK Community are recorded here.
 
 ## Unreleased
 
+### 1.0 readiness pass (`OAK-V1-001`–`007`)
+
+A documentation coherence pass, a walkthrough of every documented journey, and four
+independent reviews (local CLI, server and upgrades, web workspace, runner and release
+integrity) that reproduced 64 defects; each is fixed with a test or documented, as the
+plan's findings table records (`docs/exec-plans/`). Highlights:
+
+#### Security
+
+- **Runner messages are believed only from an enrolled runner.** `oak ingest` checked a
+  message against the key the message itself carried, so anyone who could write the
+  mailbox could mint a completion that moved a case to `deployed`. Each runner's public
+  identity is now enrolled once (`oak-runner identity`, then
+  `oak keys enroll-runner --identity <file>`), and a completion may report only kinds its
+  own envelope requested.
+- **A deleted revocation notice stays revoked.** A later revocation re-signed whatever
+  notices the mailbox held; each new manifest now keeps every entry the last signed one
+  listed, and a manifest this control plane did not sign is refused (`RR-001`).
+- **Imported bytes cannot become a web page.** An export could label any artifact
+  `text/html`, and the artifact read served it inline in the API and web origins. Each
+  kind is bound to its media type on import, and every artifact is served as an
+  attachment under a sandbox policy.
+- **Escapes no longer smuggle control characters.** A JSON or YAML `\u202e` or `\e` in a
+  brief, an answers file or a target, and a control character in a model-proposed claim,
+  are refused or dropped as the raw characters always were.
+- **A research consent covers where the terms go.** The digest covers the source mode
+  and the hosts as well as the terms, so a digest read while the fixture source answered
+  cannot send the terms to the live hosts.
+- Separation of duties compares key material (one key pinned as both signer and approver
+  is refused); the container read-back is an allowlist over the whole host configuration;
+  an activated policy pack is read only as it was verified; the release scanner is pinned
+  by digest; FastAPI's `/docs` and `/redoc`, which loaded CDN scripts into the API's
+  origin, are off.
+
+#### Changed
+
+- **`oak ingest` refuses until a runner is enrolled** (`OAK-INGEST-RUNNER-UNENROLLED`).
+  After upgrading, enroll each runner once before the first ingest.
+- A second or edited brief in a workspace, and a server create for an existing case, are
+  `OAK-CASE-EXISTS` (exit `2`, `409`), not a retriable stale-version conflict.
+- `oak report --output` refuses an existing file, a directory or a missing parent before
+  recording, and `-` writes to stdout; `oak assure` and `oak plan` check `--output` first.
+- Remote mode derives its default idempotency keys from the request, not the case
+  version, so a re-run converges on its first result as local mode's does.
+- The worker's lease is 120 seconds, and one failed cycle no longer ends the worker. A step
+  that completed while cancellation was requested is recorded as succeeded.
+- Every error response in the OpenAPI contract names the `Problem` document the server
+  sends; `sequence_lag` is summed per case.
+
+#### Fixed
+
+- REST answers a schema-invalid input with `422 OAK-CONTRACT-INVALID`, refuses a brief id
+  it could never read back before storing anything, says `OAK-RESEARCH-STATE` for research
+  on a draft, refuses a stale `:record-report` or `:interpret` before the model is asked,
+  and answers `503 OAK-DATABASE-UNCONFIGURED` without a database instead of a 500.
+- The CLI: `oak validate bundle` checks the semantic manifest's digest; a bad
+  `--idempotency-key` no longer strands a created case; hints name steps that work; a
+  torn object from an interrupted write is repaired; `oak research review` reads its
+  rationale bounded; a remote import with a malformed index, research `--plan` for
+  another case, a closed pipe and a non-UTF-8 remote brief all give stable answers, and a
+  failed remote operation carries OAK's own message; GitOps output and remote exports are
+  staged and renamed into place; a second policy engine is a new request; an active policy
+  pack is not a duplicate of itself.
+- The runner: one run per runner home; a finished journal missing its marker is only
+  marked again; an unsafe dispatch name is skipped, never delivered; a denial names its
+  lease and is recorded; ingest records each message before acknowledging it; a dispatch
+  id the mailbox already holds is refused before the case records it; the GitOps
+  description states each approval as revoked or valid until its expiry.
+- The web workspace: Decision shows the selected design's own evaluation; a refused
+  submission keeps every draft; the operation screen shows the failure's own code and
+  keeps polling through a failed read; a stale model token can be replaced; an existing
+  case name is named; focus follows every screen change and action; Confirm, Accept and
+  Reject send the claim's own value; refusals appear in the card acted on; the home screen
+  lists every case; every download outcome is announced; long identifiers wrap; and the
+  raw document views, which showed raw variant ids, are gone.
+- Research: a router error or unreadable answer refuses the run, as the Hub listing's
+  does, rather than reading as "no live route".
+
+#### Documentation
+
+- Coherence across both repositories: the manual's research and report excerpts match
+  real runs; the network inventories name research and report notes; the version wording
+  says this tree holds unreleased work; the security records say what a research run
+  reveals and which register entries post-date `0.9.0` (54 entries, `RR-054` new); the
+  developer guide's e2e recipe serves the fixture research source; and the governance
+  STATUS, sprint backlog, interface contract and architecture are current.
+
 ### Added
 
 - **Research at the point of design** (Sprint 14, `OAK-S14-001`–`007`, authorized
@@ -25,7 +112,8 @@ All notable changes to OAK Community are recorded here.
     `oak.compiler.derive_research_terms` with its digest, proven over every committed
     brief's intent and the synthetic intents under `tests/fixtures/research/intents/` to
     emit only vocabulary terms. Residual risks `RR-048`–`RR-053`; threat-coverage gap rows
-    for `RR-044`–`RR-053`; the README, `STATUS.md` safety boundary and threat coverage now
+    for `RR-045`, `RR-047`–`RR-051` and `RR-053` (`RR-044`, `RR-046` and `RR-052` have no
+    threat row); the README, `STATUS.md` safety boundary and threat coverage now
     disclose the report-note egress Sprint 13 added.
   - **Contract and unknown estimates** (`OAK-S14-002`). `research-snapshot` and
     `research-review` schemas (`0.1.0`) with examples; the kinds `research_snapshot` and
@@ -257,8 +345,27 @@ All notable changes to OAK Community are recorded here.
     the single JSON document the REST import accepts, while `oak import` reads the
     directory `oak export` writes.
 
+### Changed — compatibility
+
+- A published `0.9.0` reader cannot validate what this tree can now write: an audit event
+  `report_recorded`, `research_completed` or `research_item_reviewed`; a manifest listing
+  `architecture_report`, `report_narrative`, `report_rendering`, `research_snapshot` or
+  `research_review`; or a candidate whose objective `value` is null with its
+  `unknown_reason` (`common.schema.json`; only a researched candidate carries one). A
+  workspace or export that records a report or a research run therefore cannot go back to
+  `0.9.0` (`RR-017`). Every `0.9.0` document still validates, and `0.9.0` exports import.
+- New error codes: `OAK-REPORT-*` (5), `OAK-NARRATIVE-*` (5), `OAK-RESEARCH-*` (18),
+  `OAK-CAT-RESEARCH-*` (15), and from the 1.0 readiness pass `OAK-DATABASE-UNCONFIGURED`,
+  `OAK-CASE-EXISTS`, `OAK-CONFIRM-CONTROL`, `OAK-INGEST-RUNNER-UNENROLLED`,
+  `OAK-KEYS-RUNNER-IDENTITY`, `OAK-POLICY-PACK-UNVERIFIED`, `OAK-REVOCATION-CHANNEL`,
+  `OAK-RUNNER-BUSY` and `OAK-RUNNER-MAILBOX`; each is listed with its message in
+  [docs/error-codes.md](docs/error-codes.md).
+
 ### Fixed
 
+- **A tampered import is refused, not a crash.** An export whose index entry names a kind
+  its object does not fit is refused with `OAK-IMPORT-INVALID`; in `0.9.0` the validation
+  error escaped, and REST answered `500 OAK-INTERNAL`.
 - **The REST compatibility gate now guards what has shipped.**
   `openapi/oak.compatibility-baseline.json` had held its Sprint 3 contents ever since.
   `make openapi-compatibility` therefore could not catch the removal of:

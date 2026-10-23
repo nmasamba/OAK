@@ -8,12 +8,13 @@ list, the hardware class, the capabilities) is used on this machine only. A lice
 never sent: GitHub's ``license:`` qualifier takes one keyword, combining several needs
 ``OR`` operators whose precedence beside other qualifiers is undocumented, and the search
 answer already carries each repository's detected licence. The consent card shows this
-document verbatim and the audit event records its digest, so what the user agreed to and
-what was sent are one object.
+document verbatim with the hosts it would go to, and the audit event records the digest of
+both, so what the user agreed to and what was sent are one object.
 """
 
 import hashlib
 import json
+from collections.abc import Iterable
 from typing import Any
 
 from oak.domain import OAKError, ResearchVocabulary
@@ -89,10 +90,17 @@ def derive_research_terms(
     return terms
 
 
-def terms_digest(terms: dict[str, Any]) -> str:
-    """The digest the consent carries: ``sha256:`` over the canonical JSON of the terms."""
+def terms_digest(terms: dict[str, Any], *, source_mode: str, hosts: Iterable[str]) -> str:
+    """The digest the consent carries: ``sha256:`` over the canonical JSON of the terms, the
+    source mode and the sorted hosts they would go to.
 
-    canonical = json.dumps(terms, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    The destination is inside the digest, so a consent read from one plan cannot carry the
+    same terms anywhere else: a digest read while the fixture source answered is refused by
+    a live run, and the reverse, before anything is sent.
+    """
+
+    document = {"terms": terms, "source_mode": source_mode, "hosts": sorted(hosts)}
+    canonical = json.dumps(document, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
     return "sha256:" + hashlib.sha256(canonical.encode("ascii")).hexdigest()
 
 

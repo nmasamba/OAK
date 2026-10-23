@@ -15,6 +15,7 @@ from typing import Any
 from oak.contracts import ContractValidationError, SchemaRegistry, load_json_document
 from oak.domain import OAKError
 from oak.domain.artifacts import Artifact, ArtifactReference, canonical_json_bytes, content_digest
+from oak.domain.intake import BRIEF_MEDIA_TYPES
 from oak.domain.report import RENDERING_KIND, RENDERING_MAGIC, REPORT_EXTENSION
 from oak.ports.workspace import WorkspaceCommit, WorkspaceMutation
 
@@ -85,11 +86,24 @@ OPAQUE_KINDS = frozenset({"brief_source", RENDERING_KIND})
 ReplaceFile = Callable[[Path, Path], None]
 
 
+def validate_json_media_type(artifact: Artifact) -> None:
+    """A schema-bound kind is stored under its own JSON media type and no other.
+
+    The type is what the artifact read serves the bytes as, so an index entry that pairs a
+    kind with any other type (`text/html`, say) is refused before anything is stored.
+    """
+
+    if JSON_MEDIA_KIND.get(artifact.media_type) != artifact.kind:
+        raise OAKError("OAK-ARTIFACT-INVALID", "artifact media type does not fit its kind")
+
+
 def validate_opaque_artifact(artifact: Artifact) -> None:
     """Accept an artifact without a schema only if its kind is one stored as bytes."""
 
     if artifact.kind not in OPAQUE_KINDS:
         raise OAKError("OAK-ARTIFACT-KIND", "artifact kind is not supported")
+    if artifact.kind == "brief_source" and artifact.media_type not in BRIEF_MEDIA_TYPES:
+        raise OAKError("OAK-ARTIFACT-INVALID", "a brief source must carry a brief media type")
     if artifact.kind == RENDERING_KIND:
         magic = RENDERING_MAGIC.get(artifact.media_type)
         if magic is None or not artifact.content.startswith(magic):
@@ -319,7 +333,13 @@ class FileWorkspaceRepository:
             self._write_new_file(temporary / "manifest.json", canonical_json_bytes(manifest))
             try:
                 self._validate_export_tree(temporary, manifest)
-            except OAKError:
+            except OAKError as error:
+                if error.code in {"OAK-ARTIFACT-INVALID", "OAK-ARTIFACT-KIND"}:
+                    # An index entry whose kind or media type does not fit its object is
+                    # a refused import, under the import's own code (F2-1).
+                    raise OAKError(
+                        "OAK-IMPORT-INVALID", "an imported artifact does not fit its indexed kind"
+                    ) from error
                 raise
             except (ContractValidationError, ValueError) as error:
                 # A tampered index entry (a kind that does not fit its object) is a refusal,
@@ -413,6 +433,7 @@ class FileWorkspaceRepository:
         if schema_name is None:
             validate_opaque_artifact(artifact)
             return
+        validate_json_media_type(artifact)
         try:
             document = json.loads(artifact.content)
         except json.JSONDecodeError as error:
@@ -514,10 +535,26 @@ class FileWorkspaceRepository:
             raise OAKError("OAK-ARTIFACT-SIZE", "artifact exceeds the local size limit")
         path = self.objects / self._digest_hex(artifact.digest)
         if path.exists():
-            if path.read_bytes() != artifact.content:
+            existing = path.read_bytes()
+            if existing == artifact.content:
+                return
+            if content_digest(existing) == artifact.digest:
                 raise OAKError("OAK-ARTIFACT-COLLISION", "artifact digest collision detected")
-            return
-        self._write_new_file(path, artifact.content)
+            # Bytes that do not hash to their own name are a write an interruption tore:
+            # objects are written before the manifest pointer moves, so no committed
+            # manifest refers to it, and it is replaced rather than blocking every retry
+            # with a collision (F1-10).
+        descriptor, name = tempfile.mkstemp(dir=self.objects, prefix=".object-", suffix=".tmp")
+        temporary = Path(name)
+        try:
+            with os.fdopen(descriptor, "wb") as stream:
+                stream.write(artifact.content)
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.chmod(temporary, 0o600)
+            os.replace(temporary, path)
+        finally:
+            temporary.unlink(missing_ok=True)
         self._fsync_directory(self.objects)
 
     def _read_object(self, digest: str) -> bytes:

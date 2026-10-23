@@ -142,3 +142,68 @@ def test_a_deeply_nested_brief_is_refused_rather_than_blowing_the_stack(
         LocalBriefIntake().read_content(original_name=name, content=payload)
 
     assert refusal.value.code == "OAK-INTAKE-COMPLEXITY"
+
+
+def test_a_missing_brief_says_it_does_not_exist_under_the_same_code(tmp_path: Path) -> None:
+    """OAK-V1-005 (walkthrough V-4): a mistyped name is not reported as a security refusal."""
+
+    with pytest.raises(OAKError) as missing:
+        LocalBriefIntake().read(tmp_path / "no-such-brief.yaml")
+    assert missing.value.code == "OAK-INTAKE-UNSAFE-PATH"
+    assert missing.value.message == "brief file does not exist: no-such-brief.yaml"
+
+    target = tmp_path / "real.yaml"
+    target.write_text("title: x\n", encoding="utf-8")
+    link = tmp_path / "link.yaml"
+    link.symlink_to(target)
+    with pytest.raises(OAKError) as unsafe:
+        LocalBriefIntake().read(link)
+    assert unsafe.value.message == "brief must be a regular non-symlink file"
+
+
+@pytest.mark.parametrize(
+    ("name", "text"),
+    [
+        (
+            "escaped.json",
+            '{"id": "brief.x", "brief_version": "0.1.0", '
+            '"title": "Cited answers \\u202eevil\\u202c \\u001b[31mRED\\u001b[0m"}',
+        ),
+        ("escaped.yaml", 'id: brief.x\nbrief_version: 0.1.0\ntitle: "Cited \\e[2J answers"\n'),
+        (
+            "escaped-key.json",
+            '{"id": "brief.x", "brief_version": "0.1.0", "title": "t", "k\\u200f": 1}',
+        ),
+    ],
+)
+def test_an_escaped_control_character_is_refused_like_a_raw_one(
+    tmp_path: Path, name: str, text: str
+) -> None:
+    """F1-2: a JSON or YAML escape decodes to the character the raw-text check refuses."""
+
+    assert all(
+        ord(character) < 127 and (character.isprintable() or character == "\n")
+        for character in text
+    )
+    path = tmp_path / name
+    path.write_text(text, encoding="utf-8")
+    with pytest.raises(OAKError) as refused:
+        LocalBriefIntake().read(path)
+    assert refused.value.code == "OAK-INTAKE-UNICODE-CONTROL"
+
+
+def test_a_stored_brief_may_carry_exactly_the_media_types_intake_reads() -> None:
+    from oak.adapters.intake.local_file import SUPPORTED_FORMATS
+    from oak.domain.intake import BRIEF_MEDIA_TYPES
+
+    assert {media_type for _format, media_type in SUPPORTED_FORMATS.values()} == BRIEF_MEDIA_TYPES
+
+
+def test_a_brief_id_with_two_dots_is_refused(tmp_path: Path) -> None:
+    """F4-6: the id names dispatch directories, where `..` is never a safe name."""
+
+    path = tmp_path / "dots.yaml"
+    path.write_text("id: brief.manual..qa\nbrief_version: 0.1.0\ntitle: t\n", encoding="utf-8")
+    with pytest.raises(OAKError) as refused:
+        LocalBriefIntake().read(path)
+    assert refused.value.code == "OAK-INTAKE-IDENTITY"

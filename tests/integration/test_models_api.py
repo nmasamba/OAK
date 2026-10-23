@@ -424,6 +424,16 @@ def test_the_document_declares_the_token_required_where_the_server_requires_it(
         parameters = document["paths"][path][method]["parameters"]
         token = next(p for p in parameters if p["name"] == "X-OAK-Model-Token")
         assert token["required"] is True, (path, method)
+    # OAK-V1-005 (review B-6): research always leaves the machine, so its token is required;
+    # interpretation and the report need it only in a model mode, so theirs stays optional.
+    for path, required in (
+        ("/v1/design-cases/{case_id}:research", True),
+        ("/v1/design-cases/{case_id}:interpret", False),
+        ("/v1/design-cases/{case_id}:record-report", False),
+    ):
+        parameters = document["paths"][path]["post"]["parameters"]
+        token = next(p for p in parameters if p["name"] == "X-OAK-Model-Token")
+        assert token.get("required", False) is required, path
 
 
 def test_the_status_resource_is_on_the_same_loopback_footing_as_the_rest(

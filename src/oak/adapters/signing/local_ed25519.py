@@ -14,6 +14,7 @@ import os
 import stat
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
@@ -23,6 +24,94 @@ from oak.ports.signing import SignerIdentity
 ALGORITHM = "ed25519"
 TRUST_LEVEL = "development"
 SIGNING_ROLES = ("plan-signer", "approver", "extension-steward")
+# One file per enrolled runner, named by its key id: an operator may run several runners
+# (one per target, one per machine), and ingest believes each one enrolled here.
+RUNNER_IDENTITY_DIRECTORY = "runners"
+
+
+def runner_identity_document(document: Any) -> dict[str, str]:
+    """The public identity of a runner, checked: an Ed25519 key and the id derived from it."""
+
+    if not isinstance(document, dict):
+        raise OAKError("OAK-KEYS-RUNNER-IDENTITY", "a runner identity must be a JSON object")
+    public_key = document.get("public_key_base64")
+    try:
+        raw = base64.b64decode(str(public_key), validate=True)
+    except (ValueError, TypeError) as error:
+        raise OAKError("OAK-KEYS-RUNNER-IDENTITY", "the runner public key is not base64") from error
+    identity = {
+        "role": "runner",
+        "algorithm": ALGORITHM,
+        "public_key_base64": str(public_key),
+        "key_id": content_digest(
+            canonical_json_bytes(
+                {"algorithm": ALGORITHM, "public_key_base64": str(public_key), "role": "runner"}
+            )
+        ),
+    }
+    if (
+        len(raw) != 32
+        or document.get("role") != "runner"
+        or document.get("algorithm") != ALGORITHM
+        or document.get("key_id") != identity["key_id"]
+    ):
+        raise OAKError(
+            "OAK-KEYS-RUNNER-IDENTITY",
+            "this is not a runner identity: print one with `oak-runner identity`",
+        )
+    return identity
+
+
+def enroll_runner(trust_directory: Path, document: Any) -> dict[str, str]:
+    """Pin a runner whose signed messages `oak ingest` will believe; idempotent.
+
+    Only the operator enrolls, from the identity `oak-runner identity` printed; nothing a
+    runner sends through the mailbox can enroll a key.
+    """
+
+    identity = runner_identity_document(document)
+    directory = trust_directory / RUNNER_IDENTITY_DIRECTORY
+    directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+    path = directory / f"{identity['key_id'].removeprefix('sha256:')}.json"
+    if path.exists() or path.is_symlink():
+        if _read_runner_identity(path) == identity:
+            return identity
+        raise OAKError(
+            "OAK-KEYS-RUNNER-IDENTITY", "an enrolled runner identity file has been altered"
+        )
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+        stream.write(json.dumps(identity, indent=2, sort_keys=True) + "\n")
+    return identity
+
+
+def load_runner_identities(trust_directory: Path) -> tuple[dict[str, str], ...]:
+    """Every enrolled runner's public identity, by key id; empty when none is enrolled."""
+
+    directory = trust_directory / RUNNER_IDENTITY_DIRECTORY
+    if not directory.is_dir() or directory.is_symlink():
+        return ()
+    identities = []
+    for path in sorted(directory.glob("*.json")):
+        identity = _read_runner_identity(path)
+        if path.stem != identity["key_id"].removeprefix("sha256:"):
+            raise OAKError(
+                "OAK-KEYS-RUNNER-IDENTITY", "an enrolled runner identity file has been altered"
+            )
+        identities.append(identity)
+    return tuple(identities)
+
+
+def _read_runner_identity(path: Path) -> dict[str, str]:
+    if path.is_symlink() or not path.is_file():
+        raise OAKError("OAK-KEYS-RUNNER-IDENTITY", "an enrolled runner identity is not a file")
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        raise OAKError(
+            "OAK-KEYS-RUNNER-IDENTITY", "an enrolled runner identity is unreadable"
+        ) from error
+    return runner_identity_document(document)
 
 
 def initialize_trust_directory(trust_directory: Path) -> tuple[SignerIdentity, ...]:

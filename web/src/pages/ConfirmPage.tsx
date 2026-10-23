@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import { CaseRail, Moment } from "../CaseRail";
 import { ClaimBadge, MaterialityBadge, claimClassForSource } from "../claims";
@@ -8,7 +8,7 @@ import {
   getDesignCase,
   type JsonObject,
 } from "../generated/api";
-import { formatValue, resolvePointer } from "../jsonpointer";
+import { formatValue, readablePointer, resolvePointer } from "../jsonpointer";
 import { ProblemAlert, toActionFailure, type ActionFailure } from "../problems";
 import { Link, useRouter } from "../router";
 import {
@@ -148,6 +148,15 @@ export function ConfirmPage({ caseId }: { readonly caseId: string }) {
   const [failure, setFailure] = useState<ActionFailure | null>(null);
   const [validation, setValidation] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // An element to focus once the next render has drawn it: a collapsed card's Edit, a
+  // reopened card's decision, the first question after a refresh (F3-2, F3-8).
+  const pendingFocus = useRef<string | null>(null);
+  useEffect(() => {
+    if (pendingFocus.current !== null) {
+      document.getElementById(pendingFocus.current)?.focus();
+      pendingFocus.current = null;
+    }
+  });
 
   const load = () => {
     setState({ kind: "loading" });
@@ -169,6 +178,39 @@ export function ConfirmPage({ caseId }: { readonly caseId: string }) {
   };
 
   useEffect(load, [caseId]);
+
+  // After a refused submission: read the case again in place, keeping every draft whose
+  // question is still open. Reloading from scratch used to throw away every answer and
+  // rationale typed on the screen (F3-2).
+  const refresh = () => {
+    setFailure(null);
+    setValidation(null);
+    getDesignCase(caseId)
+      .then((response) => {
+        const stillOpen = asArray(response.case["unresolved_questions"])
+          .map(asObject)
+          .filter((question): question is JsonObject => question !== null)
+          .filter((question) => asString(question["status"]) === "open")
+          .map((question) => asString(question["id"]) ?? "");
+        setDrafts((current) =>
+          Object.fromEntries(
+            Object.entries(current).filter(([id]) => stillOpen.includes(id)),
+          ),
+        );
+        setCollapsed((current) =>
+          current.filter((id) => stillOpen.includes(id)),
+        );
+        setState({
+          kind: "ready",
+          caseDocument: response.case,
+          intent: response.intent,
+        });
+        if (stillOpen[0] !== undefined) {
+          pendingFocus.current = `question-${stillOpen[0]}`;
+        }
+      })
+      .catch((error: unknown) => setFailure(toActionFailure(error)));
+  };
 
   if (state.kind === "loading") {
     return (
@@ -215,15 +257,19 @@ export function ConfirmPage({ caseId }: { readonly caseId: string }) {
   const presented = openQuestions.slice(0, QUESTIONS_PER_ROUND);
   const deferred = openQuestions.length - presented.length;
 
-  const draftFor = (questionId: string, path: string | null): AnswerDraft =>
-    drafts[questionId] ?? {
-      decision: "",
-      value:
-        intent !== null && path !== null
-          ? formatValue(resolvePointer(intent, path))
-          : "",
-      rationale: "",
-    };
+  const currentValue = (path: string | null): unknown =>
+    intent !== null && path !== null ? resolvePointer(intent, path) : undefined;
+
+  const draftFor = (questionId: string, path: string | null): AnswerDraft => {
+    const current = currentValue(path);
+    return (
+      drafts[questionId] ?? {
+        decision: "",
+        value: current === undefined ? "" : formatValue(current),
+        rationale: "",
+      }
+    );
+  };
 
   const updateDraft = (
     questionId: string,
@@ -264,10 +310,17 @@ export function ConfirmPage({ caseId }: { readonly caseId: string }) {
         setValidation(`${id} needs a rationale, or clear its decision.`);
         return;
       }
+      const current = currentValue(path);
+      if (draft.decision !== "correct" && current === undefined) {
+        setValidation(`${id} has no value yet: correct it with one.`);
+        return;
+      }
       answers.push({
         question_id: id,
         decision: draft.decision,
-        value: parseValue(draft.value),
+        // Confirm, accept and reject speak about the claim as it stands, so they carry its
+        // own value, never the text of the edit box ("(not set)" was sent, F3-10).
+        value: draft.decision === "correct" ? parseValue(draft.value) : current,
         rationale: draft.rationale.trim(),
       } as JsonObject);
     }
@@ -351,9 +404,15 @@ export function ConfirmPage({ caseId }: { readonly caseId: string }) {
                   : index === currentIndex
                     ? "current"
                     : "upcoming";
+                const unset = currentValue(path) === undefined;
                 return (
                   <li key={id}>
-                    <fieldset className="question" data-state={dataState}>
+                    <fieldset
+                      className="question"
+                      data-state={dataState}
+                      id={`question-${id}`}
+                      tabIndex={-1}
+                    >
                       <legend>
                         {asString(question["question"])}{" "}
                         <MaterialityBadge
@@ -361,8 +420,11 @@ export function ConfirmPage({ caseId }: { readonly caseId: string }) {
                         />
                       </legend>
                       <p className="timeline-meta">
-                        {id} · affects <code>{path}</code> · blocks{" "}
-                        {asString(question["blocking_stage"])}
+                        {id} · affects{" "}
+                        <code title={path ?? undefined}>
+                          {readablePointer(path ?? "")}
+                        </code>{" "}
+                        · blocks {asString(question["blocking_stage"])}
                       </p>
                       {isCollapsed && decision !== undefined ? (
                         <div className="bubble bubble-reply rise">
@@ -371,11 +433,13 @@ export function ConfirmPage({ caseId }: { readonly caseId: string }) {
                           <button
                             type="button"
                             className="chipb"
-                            onClick={() =>
+                            id={`edit-${id}`}
+                            onClick={() => {
+                              pendingFocus.current = `decision-${id}-${draft.decision}`;
                               setCollapsed((current) =>
                                 current.filter((entry) => entry !== id),
-                              )
-                            }
+                              );
+                            }}
                           >
                             Edit
                           </button>
@@ -406,8 +470,10 @@ export function ConfirmPage({ caseId }: { readonly caseId: string }) {
                               >
                                 <input
                                   type="radio"
+                                  id={`decision-${id}-${option.value}`}
                                   name={`decision-${id}`}
                                   value={option.value}
+                                  disabled={unset && option.value !== "correct"}
                                   checked={draft.decision === option.value}
                                   onChange={() =>
                                     updateDraft(id, path, {
@@ -422,6 +488,12 @@ export function ConfirmPage({ caseId }: { readonly caseId: string }) {
                               </label>
                             ))}
                           </div>
+                          {unset ? (
+                            <p className="timeline-meta">
+                              This value is not set yet, so there is nothing to
+                              confirm, accept or reject: correct it with one.
+                            </p>
+                          ) : null}
                           {draft.decision !== "" && (
                             <div className="question-answer rise">
                               {draft.decision === "correct" && (
@@ -462,18 +534,20 @@ export function ConfirmPage({ caseId }: { readonly caseId: string }) {
                                   type="button"
                                   className="chipb"
                                   disabled={!isAnswered(draft)}
-                                  onClick={() =>
-                                    setCollapsed((current) => [...current, id])
-                                  }
+                                  onClick={() => {
+                                    pendingFocus.current = `edit-${id}`;
+                                    setCollapsed((current) => [...current, id]);
+                                  }}
                                 >
                                   Done
                                 </button>
                                 <button
                                   type="button"
                                   className="chipb"
-                                  onClick={() =>
-                                    updateDraft(id, path, { decision: "" })
-                                  }
+                                  onClick={() => {
+                                    pendingFocus.current = `decision-${id}-${unset ? "correct" : "confirm"}`;
+                                    updateDraft(id, path, { decision: "" });
+                                  }}
                                 >
                                   Clear decision
                                 </button>
@@ -505,7 +579,7 @@ export function ConfirmPage({ caseId }: { readonly caseId: string }) {
               </p>
             )}
             {failure !== null && (
-              <ProblemAlert failure={failure} onReload={load} />
+              <ProblemAlert failure={failure} onReload={refresh} />
             )}
           </div>
         </section>

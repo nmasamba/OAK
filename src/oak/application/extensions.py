@@ -28,7 +28,7 @@ from oak.domain.extension_sdk import (
 )
 from oak.domain.policy_rules import pack_effective_window
 from oak.domain.runner_adapters import ADAPTER_IDENTITY_BY_ID
-from oak.ports.extensions import ExtensionEntry, ExtensionStorePort
+from oak.ports.extensions import ACTIVE, ExtensionEntry, ExtensionStorePort
 from oak.ports.policy import PolicyEnginePort
 from oak.ports.signing import SigningPort
 
@@ -105,6 +105,11 @@ class ExtensionService:
         occurred_at: str,
     ) -> dict[str, Any]:
         entry = self._store.entry(extension_id, version)
+        if entry.state == ACTIVE:
+            # A retried activation succeeds with the record it already has (F1-12).
+            existing = self._store.activation_record(entry)
+            if existing is not None:
+                return existing
         report = self._verify_entry(entry, occurred_at=occurred_at)
         self._store.store_report(entry, report.to_document())
         if not report.passed:
@@ -385,7 +390,9 @@ class ExtensionService:
         # A duplicate pack id makes the bounded pack store ambiguous, which would
         # take down every policy read rather than just this pack. Refuse the
         # colliding extension at the gate instead.
-        if str(pack["id"]) in self._available_pack_ids():
+        # An active entry's own pack is already among the available ids; it is not a
+        # duplicate of itself (F1-12).
+        if entry.state != ACTIVE and str(pack["id"]) in self._available_pack_ids():
             record(
                 "payload-content",
                 False,

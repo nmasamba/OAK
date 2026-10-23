@@ -61,6 +61,14 @@ summary:focus-visible,
   outline-offset: var(--focus-offset);
 }
 
+/* The page heading receives focus after each navigation so a screen reader announces
+   the new page; it is not a control (tabindex -1, out of the tab order), so it shows
+   no focus box. Every control keeps its ring. */
+#page-heading[tabindex="-1"]:focus,
+#page-heading[tabindex="-1"]:focus-visible {
+  outline: none;
+}
+
 /* Masthead */
 .masthead {
   display: flex;
@@ -968,7 +976,7 @@ legend {
   margin-top: 0;
 }
 
-.candidate-detail .explanation-requirements {
+.explanation-requirements {
   display: block;
 }
 
@@ -1471,6 +1479,7 @@ summary {
 
 .moment-body > p a.keycap {
   display: inline-flex;
+  align-items: center;
   height: var(--target);
   min-height: var(--target);
   padding: 0 18px;
@@ -1739,6 +1748,12 @@ summary {
   border: 1px solid var(--hairline-2);
 }
 
+/* A researched design's ids and reasons are long and unbroken; they wrap inside the card
+   rather than running over the next one (F3-15). */
+.design > * {
+  min-width: 0;
+}
+
 .design[draggable="true"] {
   cursor: grab;
 }
@@ -1768,6 +1783,7 @@ summary {
 
 .design-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
@@ -1870,6 +1886,15 @@ summary {
   margin: 0;
   font-size: 14px;
   color: var(--bad-text);
+  overflow-wrap: anywhere;
+}
+
+/* Pointers, digests and ids in a meta line break anywhere on a phone-width screen; a slash
+   is no break point, so they used to widen the page (F3-15). */
+.timeline-meta code,
+.timeline-meta .mono,
+.design-id {
+  overflow-wrap: anywhere;
 }
 
 .design-bars {

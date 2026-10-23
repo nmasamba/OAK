@@ -449,6 +449,30 @@ def test_postgresql_outbox_redelivery_deduplication_and_lag(
     assert final_lag.indexed_through == 1
     assert final_lag.sequence_lag == 0
 
+    # F2-12: a second case's unindexed event is lag, although the first case is fully
+    # indexed at the same sequence number; maxima across cases used to read 0.
+    second = PostgreSQLWorkspaceRepository(
+        repository_harness.engine,
+        _registry(),
+        repository_harness.artifact_root,
+        workspace_id="workspace.second-case",
+        tenant_id="local",
+        environment_id=repository_harness.environment_id,
+    )
+    second.initialize(
+        workspace_id="workspace.second-case", tenant_id="local", created_at="2026-08-17T10:04:00Z"
+    )
+    second.commit(
+        initial_mutation(
+            workspace_id="workspace.second-case",
+            idempotency_key="design-second-case-0001",
+            name="second-case",
+        )
+    )
+    two_cases = restarted.lag(projection_name="case-index")
+    assert two_cases.pending_events == 1
+    assert two_cases.sequence_lag == 1
+
 
 def test_postgresql_export_restores_to_file_and_fresh_postgresql_scope(
     repository_harness: RepositoryHarness,

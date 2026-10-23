@@ -316,15 +316,16 @@ class PostgreSQLOperationStore:
         completed = _parse_time(completed_at)
         with self._engine.begin() as connection:
             row = self._require_lease(connection, lease, now=completed)
-            cancelled = bool(row["cancel_requested"])
+            # A step that completed is recorded as succeeded even when cancellation was
+            # requested while it ran; the request stays visible on the record (F2-8).
             updated_row = (
                 connection.execute(
                     update(operations)
                     .where(self._identity(lease.operation.operation_id))
                     .values(
-                        state="cancelled" if cancelled else "succeeded",
+                        state="succeeded",
                         version=int(row["version"]) + 1,
-                        result=None if cancelled else result,
+                        result=result,
                         problem=None,
                         leased_by=None,
                         lease_expires_at=None,
@@ -347,6 +348,7 @@ class PostgreSQLOperationStore:
         retriable: bool,
         failed_at: str,
         retry_at: str,
+        message: str = "operation failed safely",
     ) -> OperationRecord:
         self._validate_error_code(error_code)
         failed = _parse_time(failed_at)
@@ -372,7 +374,7 @@ class PostgreSQLOperationStore:
                         version=int(row["version"]) + 1,
                         problem={
                             "code": error_code,
-                            "message": "operation failed safely",
+                            "message": message[:400],
                             "retriable": will_retry,
                         },
                         next_attempt_at=retry if will_retry else failed,

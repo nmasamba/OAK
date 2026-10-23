@@ -7,6 +7,10 @@ from typing import Any, Protocol
 class DispatchTransport(Protocol):
     """Deliver signed canonical documents to a runner it never connects into."""
 
+    def check_unused(self, dispatch_id: str) -> None:
+        """Refuse a dispatch id already delivered, before anything is committed."""
+        ...
+
     def deliver(
         self,
         envelope: dict[str, Any],

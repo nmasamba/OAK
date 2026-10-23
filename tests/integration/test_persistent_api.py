@@ -375,6 +375,10 @@ async def test_rest_worker_reference_journey_is_durable_idempotent_and_tenant_sa
         )
         assert artifact_content.status_code == 200
         assert artifact_content.headers["x-oak-artifact-digest"] == artifact_entry["digest"]
+        # F2-1: stored bytes are a download under a sandbox, never a page in this origin.
+        assert artifact_content.headers["content-disposition"] == "attachment"
+        assert artifact_content.headers["content-security-policy"] == "default-src 'none'; sandbox"
+        assert artifact_content.headers["x-content-type-options"] == "nosniff"
 
         exported = await client.get("/v1/design-cases/design-case.public-manual-qa/export")
         assert exported.status_code == 200, exported.text

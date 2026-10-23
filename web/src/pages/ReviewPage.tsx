@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { CaseRail, Moment } from "../CaseRail";
 import { ClaimBadge, MaterialityBadge, claimClassForSource } from "../claims";
 import { getDesignCase, type JsonObject } from "../generated/api";
-import { formatValue, resolvePointer } from "../jsonpointer";
+import { formatValue, readablePointer, resolvePointer } from "../jsonpointer";
 import { ProblemAlert, toActionFailure, type ActionFailure } from "../problems";
 import { Link } from "../router";
 import { asArray, asNumber, asObject, asString } from "../support";
@@ -125,7 +125,9 @@ export function ReviewPage({ caseId }: { readonly caseId: string }) {
                   return (
                     <tr key={pointer}>
                       <th scope="row">
-                        <code className="pointer">{pointer}</code>
+                        <code className="pointer" title={pointer}>
+                          {readablePointer(pointer)}
+                        </code>
                       </th>
                       <td>
                         <pre className="value">{formatValue(value)}</pre>
@@ -181,7 +183,10 @@ export function ReviewPage({ caseId }: { readonly caseId: string }) {
                     </p>
                     <p>{asString(entry["question"])}</p>
                     <p className="timeline-meta">
-                      {id} · affects <code>{asString(entry["path"])}</code>
+                      {id} · affects{" "}
+                      <code title={asString(entry["path"]) ?? undefined}>
+                        {readablePointer(asString(entry["path"]) ?? "")}
+                      </code>
                     </p>
                   </li>
                 );

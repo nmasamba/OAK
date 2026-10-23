@@ -25,7 +25,8 @@ A plan alone never authorizes execution; an approval alone never dispatches. A m
 operation needs a current approval for exactly that action. `apply` also needs a current
 `architecture` approval, recorded first, which names the architecture decision and the
 digest of what `apply` installs; `rollback` and `destroy` never need it. The runner refuses
-when the approval and envelope signatures share one identity.
+when the approval and envelope signatures share one identity, judged on the key material:
+one public key pinned as both plan signer and approver is refused when the anchors are read.
 
 ## Local journey
 
@@ -47,17 +48,39 @@ oak-runner run-once
 oak-runner status                   # journal integrity and recovery state
 ```
 
+Before the first ingest, enroll the runner: it signs what it reports with its own key,
+created in its home on first use, and the control plane believes only enrolled keys. Pin
+each runner's public half once (several runners may be enrolled, one file each under the
+trust directory's `runners/`):
+
+```bash
+oak-runner identity > runner.identity.json      # the public identity; nothing secret
+oak keys enroll-runner --identity runner.identity.json
+```
+
 Then ingest the result; delivery is never treated as success:
 
 ```bash
 oak ingest --output json
 ```
 
+`oak ingest` refuses until a runner is enrolled (`OAK-INGEST-RUNNER-UNENROLLED`). It
+believes a message only when an enrolled runner signed it, it answers a lease this case
+dispatched, and it reports only kinds that dispatch requested; anything else is listed as
+rejected and left in the mailbox. Each message is recorded and only then acknowledged, so
+one that cannot be recorded is reported and offered again rather than lost. A denial
+names its lease and is recorded too, with its denial code. Only one `oak-runner run-once`
+runs per runner home at a time (`OAK-RUNNER-BUSY`).
+
 `oak revoke-approval apply --reason "..."` re-signs the approval as revoked and publishes
 a **signed revocation notice** plus a **signed revocation manifest** — an inventory of
 the complete notice set by canonical digest, with a strictly monotonic sequence — into
 the mailbox's `revocations/` directory; the runner honors them on its next verification
-pass. The channel fails closed: every notice and the manifest must be schema-valid and
+pass. Each new manifest keeps every entry the last signed one listed, whether or not that
+notice's file is still in the mailbox, so deleting a notice and waiting for the next
+revocation no longer restores the approval: the set stays mismatched, and the runner denies
+every dispatch until the notice is restored. A manifest this control plane did not sign is
+refused before anything is revoked (`OAK-REVOCATION-CHANNEL`). The channel fails closed: every notice and the manifest must be schema-valid and
 verify against a pinned `approver` anchor, the notice set must match the manifest
 exactly, the sequence may never regress below the high-water mark the runner records in
 its own home, and a missing manifest on a dispatched mailbox, a missing directory, an

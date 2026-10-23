@@ -11,7 +11,11 @@ from typing import Any
 
 from oak.adapters.dispatch import FilesystemMailbox
 from oak.adapters.persistence import FileWorkspaceRepository
-from oak.adapters.signing import LocalEd25519Signer, initialize_trust_directory
+from oak.adapters.signing import (
+    LocalEd25519Signer,
+    initialize_trust_directory,
+    load_runner_identities,
+)
 from oak.application import CommandContext, ReleaseService
 from oak.bootstrap import (
     create_candidate_planning_service,
@@ -102,6 +106,7 @@ def build_compiled_case(
         registry,
         lambda role: LocalEd25519Signer.load(trust_directory, role),
         FilesystemMailbox(mailbox_root),
+        runner_identities=lambda: load_runner_identities(trust_directory),
     )
     return ReleaseHarness(
         workspace=workspace,
@@ -111,6 +116,19 @@ def build_compiled_case(
         release=release,
         now=stamp,
     )
+
+
+def enroll_test_runner(
+    trust_directory: Path, runner_home: Path, runner_id: str = "runner.local-fixture-runner"
+) -> dict[str, str]:
+    """Create the runner's key in its home and pin its public identity, as an operator would
+    with `oak-runner identity` and `oak keys enroll-runner`."""
+
+    from oak.adapters.signing import enroll_runner
+    from oak.runner.identity import RunnerIdentity
+
+    identity = RunnerIdentity.load_or_create(runner_home, runner_id)
+    return enroll_runner(trust_directory, identity.public_identity())
 
 
 def _context(stamp: str, key: str, version: str | None) -> CommandContext:

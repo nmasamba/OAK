@@ -35,6 +35,7 @@ from oak.bootstrap import (
     create_system_information_service,
     read_model_token,
 )
+from oak.contracts import ContractValidationError
 from oak.domain import OAKError
 from oak.interfaces.api.models import (
     ArtifactListResponse,
@@ -93,6 +94,8 @@ LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
 # Routes that store, remove, discover, or select model-provider credentials: loopback `Host`
 # only, whatever the allowlist says, and a browser must be same-origin, not merely same-site.
 HOST_CHECK_EXEMPT_PATHS = frozenset({"/healthz", "/readyz"})
+# Routes outside `/v1/models` that refuse every request without the capability token.
+ALWAYS_TOKEN_ROUTES = frozenset({"/v1/design-cases/{case_id}:research"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -472,6 +475,8 @@ def _error_status(error: OAKError) -> int:
         return 400
     if error.code == "OAK-MODEL-RATE-LIMITED":
         return 429
+    if error.code == "OAK-DATABASE-UNCONFIGURED":
+        return 503
     if error.code in {
         "OAK-CASE-NOT-FOUND",
         "OAK-CANDIDATE-NOT-FOUND",
@@ -485,6 +490,7 @@ def _error_status(error: OAKError) -> int:
         "OAK-EXPECTED-VERSION",
         "OAK-IDEMPOTENCY-CONFLICT",
         "OAK-CASE-CONFLICT",
+        "OAK-CASE-EXISTS",
         "OAK-OPERATION-CONFLICT",
         "OAK-RESEARCH-CONSENT",
     } or error.code.endswith("-STATE"):
@@ -542,6 +548,11 @@ def create_app(
         ),
         version=information.version,
         openapi_version="3.1.0",
+        # FastAPI's /docs and /redoc pages load unpinned scripts from a public CDN into this
+        # origin, beside a control plane that trusts same-origin requests; the contract
+        # stays at /openapi.json and in the repository (F2-9).
+        docs_url=None,
+        redoc_url=None,
     )
     api.add_middleware(_BoundedRequestMiddleware, maximum_bytes=MAXIMUM_REQUEST_BYTES)
     # Added last so it runs first: nothing is buffered or routed for a refused host/origin.
@@ -552,18 +563,46 @@ def create_app(
     generated_openapi = api.openapi
 
     def openapi() -> dict[str, Any]:
-        """The generated document, corrected on one point.
+        """The generated document, corrected on two points.
 
         FastAPI derives `required` from the dependency's signature, where the token is
         optional so that a missing one gets a stable refusal rather than a validation error.
         On the model routes the server refuses every request without it, so leaving the
         document saying "optional" would describe a contract the server does not honour and
         would give generated clients an optional argument that never works.
+
+        FastAPI also documents every error as its own validation shape, while the server
+        answers every error, 4xx and 5xx alike, with an `application/problem+json` problem
+        document; a generated client could parse none of them (F2-7). Each operation's 422
+        and a `default` response now name the `Problem` schema. The framework's validation
+        schemas stay listed, unused, so a client generated from the published baseline
+        keeps every name it had.
         """
 
         document = generated_openapi()
+        schemas = document.setdefault("components", {}).setdefault("schemas", {})
+        problem = Problem.model_json_schema(ref_template="#/components/schemas/{model}")
+        for name, definition in problem.pop("$defs", {}).items():
+            schemas.setdefault(name, definition)
+        schemas["Problem"] = problem
+        problem_content = {PROBLEM_MEDIA_TYPE: {"schema": {"$ref": "#/components/schemas/Problem"}}}
+        for path_item in document.get("paths", {}).values():
+            for operation in path_item.values():
+                responses = operation.setdefault("responses", {})
+                if "422" in responses:
+                    responses["422"] = {
+                        "description": "The request was refused: a problem document",
+                        "content": problem_content,
+                    }
+                responses["default"] = {
+                    "description": "Any other refusal or failure: a problem document",
+                    "content": problem_content,
+                }
         for route, operations in document.get("paths", {}).items():
-            if not is_credential_route(route):
+            # The model routes, and `:research`, which always sends requests off the
+            # machine; `:interpret` and `:record-report` need the token only in a model mode,
+            # so their documents keep it optional.
+            if not is_credential_route(route) and route not in ALWAYS_TOKEN_ROUTES:
                 continue
             for operation in operations.values():
                 for parameter in operation.get("parameters", []):
@@ -577,7 +616,17 @@ def create_app(
     def plane() -> CommunityControlPlane:
         nonlocal persistent_service
         if persistent_service is None:
-            persistent_service = create_persistent_control_plane()
+            try:
+                persistent_service = create_persistent_control_plane()
+            except RuntimeError as error:
+                # Started without OAK_DATABASE_URL: /version, the health checks and the
+                # model settings still answer, and every design-case route says why it
+                # cannot, instead of a 500 and a traceback in the server log.
+                raise OAKError(
+                    "OAK-DATABASE-UNCONFIGURED",
+                    "this server has no database configured; set OAK_DATABASE_URL to the "
+                    "PostgreSQL database that holds the design cases, then restart it",
+                ) from error
         return persistent_service
 
     def command_context(
@@ -614,6 +663,22 @@ def create_app(
                 detail=detail,
                 correlation_id=getattr(request.state, "correlation_id", None),
                 retriable=error.retriable,
+            )
+        )
+
+    @api.exception_handler(ContractValidationError)
+    async def contract_error_handler(
+        request: Request, _error: ContractValidationError
+    ) -> JSONResponse:
+        # A schema-invalid input (an import manifest, confirmation answers) answered 500
+        # with a traceback in the log; the CLI and MCP already called it what it is (F2-3).
+        return _problem_response(
+            Problem(
+                title="OAK request failed",
+                status=422,
+                code="OAK-CONTRACT-INVALID",
+                detail="input failed canonical contract validation",
+                correlation_id=getattr(request.state, "correlation_id", None),
             )
         )
 
@@ -1287,9 +1352,10 @@ def create_app(
     ) -> ModelDiscoveryResponse:
         """Refresh one family's catalogue.
 
-        This and `:interpret` in model mode are the only operations in this API that make an
-        outbound request; every other route is answered from local state. Discovery is
-        explicit: nothing refreshes a catalogue on its own.
+        One of the operations in this API that can cause an outbound request, with `:verify`,
+        `:interpret` and `:record-report` in a model mode, and a consented `:research`; every
+        other route is answered from local state. Discovery is explicit: nothing refreshes a
+        catalogue on its own.
         """
 
         del auth, _token
@@ -1410,6 +1476,11 @@ def create_app(
                 "ETag": f'"{artifact.reference.digest}"',
                 "X-OAK-Artifact-Digest": artifact.reference.digest,
                 "X-Content-Type-Options": "nosniff",
+                # Stored bytes are a download, never a page: a browser that opens this URL
+                # saves the file, and nothing in it can run in the API's (or the web
+                # proxy's) origin, whatever the type an export claimed for it.
+                "Content-Disposition": "attachment",
+                "Content-Security-Policy": "default-src 'none'; sandbox",
             },
         )
 

@@ -138,8 +138,17 @@ def test_the_terms_are_deterministic_and_their_digest_is_stable() -> None:
     second = derive_research_terms(copy.deepcopy(intent), _vocabulary(), _patterns())
 
     assert first == second
-    assert terms_digest(first) == terms_digest(second)
-    assert terms_digest(first).startswith("sha256:")
+    assert terms_digest(first, source_mode="live", hosts=["b", "a"]) == terms_digest(
+        second, source_mode="live", hosts=["a", "b"]
+    )
+    assert terms_digest(first, source_mode="live", hosts=[]).startswith("sha256:")
+    # The destination is part of what is consented to (F1-1).
+    assert terms_digest(first, source_mode="fixture", hosts=[]) != terms_digest(
+        first, source_mode="live", hosts=[]
+    )
+    assert terms_digest(first, source_mode="live", hosts=["a"]) != terms_digest(
+        first, source_mode="live", hosts=["a", "b"]
+    )
     assert first["version"] == "community-research-terms-1.0.0"
     assert first["local"]["capabilities"] == ["citation_drafting", "independent_verification"]
     assert first["sent"]["hub"]["pipeline_tags"] == ["text-generation"]

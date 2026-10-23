@@ -1,10 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
 """Local-first command-line entrypoint."""
 
+import contextlib
 import hashlib
 import json
 import os
 import re
+import shlex
 import shutil
 import stat
 import sys
@@ -37,6 +39,7 @@ from oak.bootstrap import (
 )
 from oak.contracts import ContractValidationError, load_json_document, load_yaml_document
 from oak.domain import OAKError, SecretValue
+from oak.domain.intake import holds_control_character
 
 
 class OutputFormat(StrEnum):
@@ -229,9 +232,10 @@ def design(
         ):
             typer.echo(
                 "Hint: this prose brief was interpreted deterministically, which maps only "
-                "what it states outright. Re-run with `--interpreter online` (after `oak "
-                "models set-key` and `oak models discover`) or `--interpreter local` to have "
-                "a model propose the rest.",
+                "what it states outright. To have a model propose the rest, design it again "
+                "in a new workspace (`oak init <directory>`) with `--interpreter online` "
+                "(after `oak models set-key` and `oak models discover`) or "
+                "`--interpreter local`; a case is interpreted once.",
                 err=True,
             )
     except (OAKError, ContractValidationError, OSError, RuntimeError, ValueError) as error:
@@ -249,7 +253,8 @@ def _note_created_case(service: DesignCaseService, brief: Path) -> None:
         return
     typer.echo(
         f"Design case {case['id']}@{case['version']} was created; interpretation with the "
-        f"model did not complete. Re-run `oak design {brief} --interpreter deterministic` "
+        f"model did not complete. Re-run `oak design {shlex.quote(str(brief))} "
+        "--interpreter deterministic` "
         "to continue without the model, or fix the model configuration and re-run.",
         err=True,
     )
@@ -295,8 +300,19 @@ def _model_annotation(intent: dict[str, Any] | None, path: str) -> list[str]:
     lowest_path, lowest = min(records, key=lambda item: (confidence(item), item[0]))
     return [
         f"  proposed by model (confidence {confidence((lowest_path, lowest)):.2f}): "
-        f"{lowest.get('rationale', '')}"
+        f"{_printable(str(lowest.get('rationale', '')))}"
     ]
+
+
+def _printable(text: str) -> str:
+    """Model text with every control or format character shown as an escape, never printed raw."""
+
+    return "".join(
+        f"\\u{ord(character):04x}"
+        if unicodedata.category(character) in {"Cc", "Cf", "Cs"}
+        else character
+        for character in text
+    )
 
 
 def _remote_design(
@@ -309,10 +325,15 @@ def _remote_design(
     from oak.interfaces.cli import remote as remote_mode
 
     content = _read_bounded_file(brief, prefix="OAK-INTAKE", maximum_bytes=262_144)
+    try:
+        text = content.decode("utf-8")
+    except UnicodeDecodeError as error:
+        # The same refusal the local CLI gives, not OAK-INPUT-INVALID (F1-20).
+        raise OAKError("OAK-INTAKE-ENCODING", "brief must be valid UTF-8") from error
     identity = idempotency_key or remote_mode.content_identity(content)
     created = remote.create_design_case(
         original_name=brief.name,
-        content=content.decode("utf-8"),
+        content=text,
         idempotency_key=remote_mode.derived_key("create", identity),
     )
     # Both sub-calls derive their idempotency key from the same identity so a
@@ -499,8 +520,7 @@ def candidates(
             submission = remote.generate_candidates(
                 case_id,
                 expected_version=version,
-                idempotency_key=idempotency_key
-                or remote_mode.derived_key("candidates", f"{case_id}@{version}"),
+                idempotency_key=idempotency_key or remote_mode.derived_key("candidates", case_id),
             )
             operation = remote.wait_for_operation(
                 str(remote_mode.require_field(submission, "operation_id"))
@@ -562,7 +582,7 @@ def evaluate(
                 case_id=case_id,
                 expected_version=version,
                 idempotency_key=idempotency_key
-                or remote_mode.derived_key("evaluate", f"{case_id}@{version}:{candidate_id}"),
+                or remote_mode.derived_key("evaluate", f"{case_id}:{candidate_id}"),
             )
             operation = remote.wait_for_operation(
                 str(remote_mode.require_field(submission, "operation_id"))
@@ -638,7 +658,11 @@ def select(
                 rationale=rationale,
                 expected_version=version,
                 idempotency_key=idempotency_key
-                or remote_mode.derived_key("select", f"{case_id}@{version}:{candidate_id}"),
+                or remote_mode.derived_key(
+                    "select",
+                    f"{case_id}:{candidate_id}:"
+                    + remote_mode.content_identity(rationale.encode("utf-8")),
+                ),
             )
             _emit(
                 document,
@@ -693,6 +717,7 @@ def assure(
     try:
         if output is None:
             raise OAKError("OAK-ASSURE-OUTPUT", "--output is required")
+        _require_new_output(output)
         remote = _remote()
         if remote is not None:
             from oak.interfaces.cli import remote as remote_mode
@@ -704,7 +729,7 @@ def assure(
                 candidate_id=candidate_id,
                 expected_version=version,
                 idempotency_key=idempotency_key
-                or remote_mode.derived_key("assure", f"{case_id}@{version}:{candidate_id}"),
+                or remote_mode.derived_key("assure", f"{case_id}:{candidate_id}"),
             )
             assurance_plan = remote_mode.require_field(document, "assurance_plan")
             case = remote_mode.require_field(document, "case")
@@ -764,6 +789,7 @@ def plan(
     try:
         if target is None or output is None:
             raise OAKError("OAK-PLAN-INPUT", "--target and --output are required")
+        _require_new_output(output)
         remote = _remote()
         if remote is not None:
             _remote_plan(remote, candidate_id, target, output, design_case, idempotency_key)
@@ -816,7 +842,10 @@ def _remote_plan(
         target=target_document,
         expected_version=version,
         idempotency_key=idempotency_key
-        or remote_mode.derived_key("plan", f"{case_id}@{version}:{candidate_id}"),
+        or remote_mode.derived_key(
+            "plan",
+            f"{case_id}:{candidate_id}:" + remote_mode.document_identity(target_document),
+        ),
     )
     operation = remote.wait_for_operation(
         str(remote_mode.require_field(submission, "operation_id"))
@@ -928,7 +957,11 @@ def import_workspace(
         _emit(
             {"case": current.case, "intent": current.intent},
             output,
-            human=(f"Imported {current.case['id']}@{current.case['version']} into {root_path}"),
+            # Printed normalised (`a/../b` as `b`), without resolving symlinks.
+            human=(
+                f"Imported {current.case['id']}@{current.case['version']} into "
+                f"{os.path.normpath(root_path)}"
+            ),
         )
     except (OAKError, ContractValidationError, OSError, RuntimeError, ValueError) as error:
         _abort(error)
@@ -946,7 +979,7 @@ def serve(
         ),
     ] = False,
 ) -> None:
-    """Serve the read-only local API harness."""
+    """Serve the REST API on this machine; design cases need OAK_DATABASE_URL."""
 
     if _REMOTE_SERVER is not None:
         _abort(OAKError("OAK-REMOTE-UNSUPPORTED", "serve is local-only"))
@@ -1041,19 +1074,45 @@ def mcp_serve() -> None:
 
 @app.command()
 def keys(
-    action: Annotated[str, typer.Argument(help="init or show.")],
+    action: Annotated[str, typer.Argument(help="init, show or enroll-runner.")],
+    identity: Annotated[
+        Path | None,
+        typer.Option(
+            "--identity",
+            help="For enroll-runner: the file `oak-runner identity` printed.",
+        ),
+    ] = None,
     output: Annotated[
         OutputFormat, typer.Option("--output", help="Output format.")
     ] = OutputFormat.HUMAN,
 ) -> None:
-    """Create or inspect the local development signing identities."""
+    """Create or inspect the local development signing identities, or enroll a runner."""
 
     try:
         _require_local("keys")
-        from oak.bootstrap import initialize_local_trust
+        from oak.bootstrap import enroll_local_runner, initialize_local_trust
 
-        if action not in {"init", "show"}:
-            raise OAKError("OAK-KEYS-ACTION", "keys action must be init or show")
+        if action not in {"init", "show", "enroll-runner"}:
+            raise OAKError("OAK-KEYS-ACTION", "keys action must be init, show or enroll-runner")
+        if action == "enroll-runner":
+            if identity is None:
+                raise OAKError(
+                    "OAK-KEYS-RUNNER-IDENTITY",
+                    "enroll-runner needs --identity: the file `oak-runner identity` printed",
+                )
+            document = load_json_document(
+                _load_bounded_text(identity, code="OAK-KEYS-RUNNER-IDENTITY")
+            )
+            enrolled = enroll_local_runner(document)
+            _emit(
+                {"runner": enrolled},
+                output,
+                human=(
+                    f"Enrolled runner {enrolled['key_id']}; "
+                    "oak ingest believes only enrolled runners"
+                ),
+            )
+            return
         identities = initialize_local_trust()
         _emit(
             {"identities": list(identities)},
@@ -1351,6 +1410,11 @@ def report(
     try:
         if document_format is ReportFormat.PDF and output_file is None:
             raise OAKError("OAK-REPORT-OUTPUT", "a PDF needs --output <file>")
+        to_stdout = output_file is not None and str(output_file) == "-"
+        if output_file is not None and not to_stdout:
+            # Checked before anything is recorded: a bad destination used to fail after
+            # --record had committed, and an existing file was silently replaced (F1-14).
+            _require_report_destination(output_file)
         field = "document_ref" if document_format is ReportFormat.JSON else "pdf_ref"
         remote = _remote()
         if remote is not None:
@@ -1402,8 +1466,12 @@ def report(
                 f"{case.get('version')}. Record again with --record.",
                 err=True,
             )
-        if output_file is None:
-            typer.echo(content.decode("utf-8"))
+        if output_file is None or to_stdout:
+            if document_format is ReportFormat.JSON:
+                typer.echo(content.decode("utf-8"))
+            else:
+                sys.stdout.buffer.write(content)
+                sys.stdout.buffer.flush()
             return
         _write_report_file(output_file, content)
         typer.echo(f"Wrote {output_file} ({reference['digest']}, digest matches)")
@@ -1486,14 +1554,14 @@ def research(
                 raise OAKError("OAK-REMOTE-PROTOCOL", "remote research result is invalid")
             _emit(result, output, human="\n".join(_research_result_lines(result["snapshot"])))
             return
+        current = _workspace_service().current().case
+        if design_case is not None and design_case != current["id"]:
+            raise OAKError("OAK-CASE-NOT-FOUND", "requested design case is not current")
         service = _research_service()
         plan_document = service.plan().to_document()
         if plan:
             _emit(plan_document, output, human="\n".join(_research_plan_lines(plan_document)))
             return
-        current = _workspace_service().current().case
-        if design_case is not None and design_case != current["id"]:
-            raise OAKError("OAK-CASE-NOT-FOUND", "requested design case is not current")
         result = service.run(
             _context(idempotency_key=idempotency_key, expected_version=str(current["version"])),
             consent={"hosts": list(plan_document["hosts"]), "terms_digest": consent},
@@ -1534,7 +1602,7 @@ def research_review(
             raise OAKError("OAK-RESEARCH-USAGE", "use exactly one of --accept or --reject")
         if rationale_file is None:
             raise OAKError("OAK-RESEARCH-USAGE", "a review needs --rationale-file <file>")
-        rationale = rationale_file.read_text(encoding="utf-8").strip()
+        rationale = _load_bounded_text(rationale_file, code="OAK-RESEARCH-REVIEW-RATIONALE").strip()
         decision = "accept" if accept else "reject"
         remote = _remote()
         if remote is not None:
@@ -1602,8 +1670,16 @@ def _research_plan_lines(plan: dict[str, Any]) -> list[str]:
         json.dumps(plan.get("terms", {}).get("sent", {}), indent=2, sort_keys=True),
         "Used on this machine only:",
         json.dumps(plan.get("terms", {}).get("local", {}), indent=2, sort_keys=True),
-        f"To run: oak research --consent {plan.get('terms_digest')}",
     ]
+    if plan.get("allowed"):
+        lines.append(f"To run: oak research --consent {plan.get('terms_digest')}")
+    else:
+        # The terms follow the confirmed intent, so a digest read at another status is
+        # not one to consent to: say when research can run instead of offering it now.
+        lines.append(
+            "Research runs only while the case is ready_for_candidates: after its "
+            "questions are confirmed and before its candidates are generated."
+        )
     return lines
 
 
@@ -1645,6 +1721,26 @@ def _report_recorded_line(entry: dict[str, Any], duplicate: bool) -> None:
         + (" (idempotent retry)" if duplicate else ""),
         err=True,
     )
+
+
+def _require_report_destination(path: Path) -> None:
+    """A new file in a directory that exists; never a format word, a directory or a file."""
+
+    if not path.suffix and path.name.casefold() in {"json", "pdf", "yaml", "human", "table"}:
+        raise OAKError(
+            "OAK-REPORT-OUTPUT",
+            f"--output names the file to write, and {path.name!r} looks like a format; "
+            "choose the format with --format",
+        )
+    target = path.expanduser().absolute()
+    if target.is_dir():
+        raise OAKError("OAK-REPORT-OUTPUT", "--output names a directory; give a file name")
+    if target.exists() or target.is_symlink():
+        raise OAKError(
+            "OAK-REPORT-OUTPUT", f"{path.name} already exists; choose another name or remove it"
+        )
+    if not target.parent.is_dir():
+        raise OAKError("OAK-REPORT-OUTPUT", "the directory --output names does not exist")
 
 
 def _write_report_file(path: Path, content: bytes) -> None:
@@ -2237,6 +2333,8 @@ def _models_status_text(status: dict[str, Any]) -> str:
                 f"  {family}: key stored in {credential['source']} "
                 f"(fingerprint {credential['fingerprint']}, {credential['length']} characters)"
             )
+        elif credential.get("source"):
+            lines.append(f"  {family}: no key can be read from {credential['source']}")
         verification = credential.get("verification")
         if verification is not None:
             stale = " — stale; run `oak models verify`" if verification.get("stale") else ""
@@ -2357,10 +2455,22 @@ def _load_answers(path: Path) -> dict[str, Any]:
     return _load_bounded_mapping(path, prefix="OAK-CONFIRM")
 
 
+def _unreadable_path(absolute: Path, code: str) -> OAKError:
+    """The refusal for a path that is not a regular file: missing, or unsafe to read.
+
+    One code for both, as before, with a message that says which, so a mistyped name is
+    not reported as a security refusal.
+    """
+
+    if not absolute.is_symlink() and not absolute.exists():
+        return OAKError(code, f"input file does not exist: {absolute.name}")
+    return OAKError(code, "input must be a regular non-symlink file")
+
+
 def _load_bounded_mapping(path: Path, *, prefix: str) -> dict[str, Any]:
     absolute = path.absolute()
     if absolute.is_symlink() or not absolute.is_file():
-        raise OAKError(f"{prefix}-UNSAFE-PATH", "input must be a regular non-symlink file")
+        raise _unreadable_path(absolute, f"{prefix}-UNSAFE-PATH")
     if absolute.suffix.lower() not in {".yaml", ".yml", ".json"}:
         raise OAKError(f"{prefix}-TYPE", "input must be YAML or JSON")
     content = _read_bounded_file(absolute, prefix=prefix, maximum_bytes=65_536)
@@ -2375,21 +2485,27 @@ def _load_bounded_mapping(path: Path, *, prefix: str) -> dict[str, Any]:
         raise OAKError(f"{prefix}-CONTROL", "input contains disallowed control characters")
     try:
         if absolute.suffix.lower() == ".json":
-            return load_json_document(text)
-        tokens = tuple(yaml.scan(text))
-        if any(
-            isinstance(token, (yaml.tokens.AliasToken, yaml.tokens.AnchorToken)) for token in tokens
-        ):
-            raise OAKError(f"{prefix}-ALIAS", "aliases and anchors are not accepted")
-        return load_yaml_document(text)
+            document = load_json_document(text)
+        else:
+            tokens = tuple(yaml.scan(text))
+            if any(
+                isinstance(token, (yaml.tokens.AliasToken, yaml.tokens.AnchorToken))
+                for token in tokens
+            ):
+                raise OAKError(f"{prefix}-ALIAS", "aliases and anchors are not accepted")
+            document = load_yaml_document(text)
     except (ValueError, yaml.YAMLError, ContractValidationError) as error:
         raise OAKError(f"{prefix}-MALFORMED", "input is malformed") from error
+    if holds_control_character(document):
+        # An escape decodes to the character the raw-text check above refuses.
+        raise OAKError(f"{prefix}-CONTROL", "input contains disallowed control characters")
+    return document
 
 
 def _read_bounded_file(path: Path, *, prefix: str, maximum_bytes: int) -> bytes:
     absolute = path.absolute()
     if absolute.is_symlink() or not absolute.is_file():
-        raise OAKError(f"{prefix}-UNSAFE-PATH", "input must be a regular non-symlink file")
+        raise _unreadable_path(absolute, f"{prefix}-UNSAFE-PATH")
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
     try:
         descriptor = os.open(absolute, flags)
@@ -2410,7 +2526,7 @@ def _read_bounded_file(path: Path, *, prefix: str, maximum_bytes: int) -> bytes:
 def _load_bounded_text(path: Path, *, code: str) -> str:
     absolute = path.absolute()
     if absolute.is_symlink() or not absolute.is_file():
-        raise OAKError(code, "input must be a regular non-symlink file")
+        raise _unreadable_path(absolute, code)
     try:
         flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
         descriptor = os.open(absolute, flags)
@@ -2430,6 +2546,14 @@ def _load_bounded_text(path: Path, *, code: str) -> str:
     ):
         raise OAKError(code, "input contains disallowed control characters")
     return text
+
+
+def _require_new_output(destination: Path) -> None:
+    """Refuse an existing destination before the case is advanced, not after (F1-9)."""
+
+    absolute = destination.absolute()
+    if absolute.exists() or absolute.is_symlink():
+        raise OAKError("OAK-OUTPUT-EXISTS", "output directory already exists")
 
 
 def _write_output_directory(destination: Path, documents: dict[str, dict[str, Any]]) -> None:
@@ -2477,6 +2601,8 @@ def _emit(document: dict[str, Any], output: OutputFormat, *, human: str) -> None
 
 
 def _abort(error: Exception) -> NoReturn:
+    if isinstance(error, BrokenPipeError):
+        _closed_pipe()
     if isinstance(error, OAKError):
         code = error.code
         message = error.message
@@ -2493,8 +2619,27 @@ def _abort(error: Exception) -> NoReturn:
     raise typer.Exit(code=exit_code)
 
 
+def _closed_pipe() -> NoReturn:
+    """The reader went away (`oak report | head`): stop quietly, as Unix tools do (F1-19)."""
+
+    _silence_stdout()
+    raise typer.Exit(code=141)
+
+
+def _silence_stdout() -> None:
+    # Further writes, and the interpreter's final flush, go nowhere instead of raising
+    # again; a stream with no descriptor (a test capture) needs nothing.
+    with contextlib.suppress(OSError, ValueError):
+        devnull = os.open(os.devnull, os.O_WRONLY)
+        os.dup2(devnull, sys.stdout.fileno())
+
+
 def main() -> None:
-    app()
+    try:
+        app()
+    except BrokenPipeError:
+        _silence_stdout()
+        raise SystemExit(141) from None
 
 
 if __name__ == "__main__":  # pragma: no cover

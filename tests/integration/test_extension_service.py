@@ -134,6 +134,15 @@ def test_contributor_journey_sign_install_verify_activate(harness: Harness, tmp_
     contributed = pack_store.load("pack.contributed-baseline")
     assert contributed["id"] == "pack.contributed-baseline"
 
+    # F1-12: an active pack is not a duplicate of itself, and a retried activate succeeds.
+    assert harness.service.verify("extension.contributed-baseline", None, occurred_at=NOW).passed
+    assert (
+        harness.service.activate(
+            "extension.contributed-baseline", None, actor="local-user", occurred_at=NOW
+        )
+        == activation
+    )
+
     deactivated = harness.service.deactivate("extension.contributed-baseline", None)
     assert deactivated.state == "quarantined"
     with pytest.raises(OAKError) as missing:
@@ -472,3 +481,35 @@ def test_colliding_pack_id_is_refused_at_the_gate(harness: Harness, tmp_path: Pa
             "extension.contributed-baseline", None, actor="local-user", occurred_at=NOW
         )
     assert denial.value.code == "OAK-EXTENSION-QUARANTINED"
+
+
+def test_only_an_activated_unchanged_pack_is_ever_read(harness: Harness, tmp_path: Path) -> None:
+    """F4-13: a pack under the active root is used only as it was verified and activated."""
+
+    pack_store = LocalPolicyPackStore(
+        (), harness.registry, nested_directories=(harness.store_root / "active",)
+    )
+    rogue = harness.store_root / "active" / "rogue@1.0.0"
+    rogue.mkdir(parents=True)
+    baseline = (ROOT / "policy-packs" / "community-baseline.yaml").read_text(encoding="utf-8")
+    (rogue / "pack.yaml").write_text(
+        baseline.replace("id: pack.community-baseline", "id: pack.rogue-unverified"),
+        encoding="utf-8",
+    )
+    assert [pack["id"] for pack in pack_store.list_packs()] == []
+    shutil.rmtree(rogue)
+
+    source = _pack_extension_source(tmp_path)
+    harness.service.sign_source(source, harness.steward())
+    harness.service.install(source)
+    harness.service.activate(
+        "extension.contributed-baseline", None, actor="local-user", occurred_at=NOW
+    )
+    assert pack_store.load("pack.contributed-baseline")["id"] == "pack.contributed-baseline"
+    [active] = list((harness.store_root / "active").iterdir())
+    pack = active / "pack.yaml"
+    pack.write_text(pack.read_text(encoding="utf-8") + "\n# edited after activation\n")
+
+    with pytest.raises(OAKError) as refused:
+        pack_store.list_packs()
+    assert refused.value.code == "OAK-POLICY-PACK-UNVERIFIED"

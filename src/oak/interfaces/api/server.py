@@ -64,6 +64,13 @@ def run_server(
     )
     if warning is not None:
         print(warning, file=sys.stderr)
+    if not os.getenv("OAK_DATABASE_URL"):
+        print(
+            "OAK_DATABASE_URL is not set: /version, the health checks and the model settings "
+            "answer, but every design-case route refuses with OAK-DATABASE-UNCONFIGURED until "
+            "it names the PostgreSQL database (docs/development.md)",
+            file=sys.stderr,
+        )
     if model_token is None:
         mint_model_token()
     print(

@@ -20,7 +20,7 @@ deterministic gates, and records everything as a research snapshot beside the ca
 you then generate candidates, at most two **researched designs** join the four curated
 ones, numbered from `candidate-05` and labelled like "Balanced, new". Each is shown with
 its source, its date, the class of evidence behind every claim, and the plain reason it
-cannot be selected this sprint.
+cannot be selected in this release.
 
 ## What leaves the machine
 
@@ -29,9 +29,11 @@ cannot be selected this sprint.
 | Search terms drawn from closed vocabularies: for the Hub, the pipeline tags, the filters, the sort order and the inference-provider flag; for GitHub, the topics per harness kind, the archived flag and the freshness window | `huggingface.co` (model listings), `router.huggingface.co` (live routes and published prices), `api.github.com` (repository search, releases, tag commits) | The brief, the intent, your answers, your Hugging Face token, any name from your organisation; the capability keywords, the hardware class and the licence ids, which are applied on this machine only |
 
 The plan is a read: `GET /v1/design-cases/{case_id}/research-plan` (or `oak research
---plan`) returns the hosts, the terms and their digest. A run must consent to exactly
-those hosts and that digest; if the intent changed in between, the consent is refused
-(`OAK-RESEARCH-CONSENT`) and nothing is sent. The requests are anonymous: no credential
+--plan`) returns the hosts, the terms and their digest. The digest covers the terms, the
+source mode and the hosts together, so a consent starts only the run it was read for. A run
+must consent to exactly those hosts and that digest; if the intent or the source changed in
+between (a plan read while the fixture source answered, then a live run, or the reverse),
+the consent is refused (`OAK-RESEARCH-CONSENT`) and nothing is sent. The requests are anonymous: no credential
 goes to any of the three hosts, so the run shares the public rate limit of your address.
 
 A run is bounded: at most thirty requests within sixty seconds, a size cap on every
@@ -86,7 +88,7 @@ it rests on.
 - Under the compare-only rule (`community-compare-only-1.0.0`) a researched design whose
   only failures are pending reviews or unpublished values joins the frontier comparison,
   with its estimates where they exist, but `select` refuses it (`OAK-SELECT-INFEASIBLE`).
-  Making a reviewed researched design selectable is the next sprint's work.
+  Making a reviewed researched design selectable is planned work, not part of this release.
 - It is never the baseline. Only the curated `simpler_baseline` candidate is.
 - Nothing installs it. The runner, the bundle and the architecture document only ever
   describe the selected, curated design.
@@ -109,12 +111,14 @@ it rests on.
 - **The CLI and REST**: `oak research --plan`, `oak research --consent <digest>`,
   `oak research review`; `GET …/research-plan`, `POST …:research` (`202`, an operation),
   `POST …:review-research-item`. All work locally and with `--server`, passing the token
-  as `oak report --narrative` does. MCP is unchanged this sprint.
+  as `oak report --narrative` does. MCP has no research tools.
 
 ## The fixture source
 
-Set `OAK_RESEARCH_FIXTURES=<directory>` and the worker answers every research request from
-recorded JSON in that directory instead of contacting any host. It exists for the test
+Set `OAK_RESEARCH_FIXTURES=<directory>` for the API and the worker (or for a local CLI run)
+and every research request is answered from recorded JSON in that directory instead of
+contacting any host; set on the worker alone, every run is refused with
+`OAK-RESEARCH-CONSENT`, because the API's plan would still name the live hosts. It exists for the test
 suites and the throwaway Compose stack; a snapshot it produces says `source_mode: fixture`,
 lists no host, and every figure from it reads "synthetic estimate" in a report. The
 variable is safety-relevant and documented in [configuration.md](configuration.md). The

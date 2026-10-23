@@ -52,11 +52,11 @@ curl --fail http://127.0.0.1:8080/version   # --build is not optional; see opera
 ```
 
 The committed contract is [openapi/oak.openapi.json](../openapi/oak.openapi.json), and a
-running `oak-api` also serves it live at `/openapi.json`, with FastAPI's interactive
-browsers at `/docs` and `/redoc`. Those three are **not** part of the `/v1` contract and
-are not covered by the compatibility policy — they are debugging affordances that come
-with the framework. They bind to the same address as everything else, so on a non-loopback
-bind they are exposed too.
+running `oak-api` also serves it live at `/openapi.json`. That route is **not** part of the
+`/v1` contract and is not covered by the compatibility policy — it is a debugging
+affordance that comes with the framework, and it binds to the same address as everything
+else, so on a non-loopback bind it is exposed too. FastAPI's interactive `/docs` and
+`/redoc` pages are switched off: they load scripts from a public CDN into the API's origin.
 
 ### Remote CLI
 
@@ -72,7 +72,7 @@ oak --server http://127.0.0.1:8080 evaluate candidate-03 --case design-case.publ
 `OAK_SERVER` sets the server for a session. `OAK_REMOTE_TIMEOUT` bounds how long
 an asynchronous command polls a durable operation (default 120 s). Remote mode
 requires an explicit design-case identifier (positional, or `--case` on
-`evaluate`/`select`/`assure`/`plan`/`architecture`).
+`evaluate`/`select`/`assure`/`plan`/`architecture`/`report`/`research`/`research review`).
 
 ### MCP server
 
@@ -113,10 +113,13 @@ and replies.
   receives `OAK-ACTOR-DENIED`. `interface_origin` is set by the transport
   (`cli`, `api`, `mcp`, `web`, `portal`, `import`) and is audit metadata only.
 - **Idempotency and versions.** Mutations require an idempotency key
-  (≥16 characters); case successors require an expected version
+  (16 to 240 characters); case successors require an expected version
   (REST `If-Match`, MCP/CLI derive or pass it). Reusing a key with the same
   normalized input converges on one result; reusing it with different input is a
-  conflict.
+  conflict. A key is scoped to the case it acts on, and creating or importing a case
+  names that case in its body: the same key sent with a different brief or a different
+  export creates or imports a different case rather than conflicting, so a client that
+  retries must resend the same body.
 - **Separation of duties.** Proposal, confirmation, selection, compilation,
   signing, approval, and target mutation are distinct steps and no single call
   collapses them (build security invariants, ADR-0015). This is why candidate
@@ -145,7 +148,7 @@ prohibition).
 | Compile bundle | ● | ● | ● | ● | ● |
 | Read the chosen architecture (`oak architecture`; `GET …/architecture`) | ○ | ○ | ○ | — | ○ |
 | Record the architecture report (`oak report --record`; `POST …:record-report`) | ● | ● | ● | — | ● |
-| Read the research plan (`oak research --plan`; `GET …/research-plan`) | ● | ● | ● | — | ● |
+| Read the research plan (`oak research --plan`; `GET …/research-plan`) | ○ | ○ | ○ | — | ○ |
 | Run research (`oak research --consent <digest>`; `POST …:research`, with `X-OAK-Model-Token`) | ● | ● | ● | — | ● |
 | Review a research item (`oak research review`; `POST …:review-research-item`) | ● | ● | ● | — | ● |
 | Read the recorded report, as JSON or PDF (`oak report`; the artifact read) | ○ | ○ | ○ | — | ○ |
@@ -210,6 +213,11 @@ Notes:
   downloads the canonical export, each stored artifact (saved only when its SHA-256
   matches `X-OAK-Artifact-Digest`) and the architecture document, but cannot import an
   export.
+- A server keeps one workspace per case, named from the case, while a local workspace is
+  named from its directory. An export from a local workspace therefore carries an identity
+  the server refuses (`oak --server import` answers `OAK-IMPORT-SCOPE`); an export taken
+  from a server imports into a local workspace. To move a local case onto a server, create
+  it there from the same brief and confirm the same answers.
 - `oak validate` is a server-free read-only checker (export, bundle, webhook)
   intended for CI and portals. It checks schema validity, digest integrity, and
   the execution-field ban across all three kinds. For a compiled bundle it

@@ -407,10 +407,12 @@ def run_research(
         raw_models.extend(
             _hub_models(listing, requester.last_digest(), terms, requester.last_stamp())
         )
-    routes: dict[str, tuple[dict[str, Any], str]] = {}
     router = requester.read("router", router_url())
-    if router is not None:
-        routes = _router_routes(router, requester.last_digest(), requester.last_stamp())
+    if router is None:
+        raise ResearchRefusedError(
+            "OAK-RESEARCH-UNREACHABLE", "the router's model list was not readable"
+        )
+    routes = _router_routes(router, requester.last_digest(), requester.last_stamp())
 
     # 2. GitHub: a bounded search per kind and topic, then each hit's releases.
     raw_harnesses: list[dict[str, Any]] = []

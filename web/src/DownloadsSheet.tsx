@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 
 import {
   downloadArchitecture,
+  downloadOutcome,
   downloadVerified,
   extensionFor,
   saveBlob,
@@ -281,6 +282,7 @@ export function DownloadsSheet({
   const items = useDownloads(caseId, caseDocument);
   const [states, setStates] = useState<Record<string, DownloadState>>({});
   const [failure, setFailure] = useState<string | null>(null);
+  const [announcement, setAnnouncement] = useState("");
   const closeButton = useRef<HTMLButtonElement>(null);
   const sheet = useRef<HTMLDivElement>(null);
   const diagram = diagramOnPage();
@@ -351,15 +353,22 @@ export function DownloadsSheet({
 
   const run = (item: DownloadItem) => {
     setFailure(null);
+    setAnnouncement("");
     setStates((current) => ({ ...current, [item.key]: "fetching" }));
     item
       .run()
-      .then((state) =>
-        setStates((current) => ({ ...current, [item.key]: state })),
-      )
+      .then((state) => {
+        setStates((current) => ({ ...current, [item.key]: state }));
+        const outcome = downloadOutcome(item.word, state) ?? "";
+        if (state === "mismatch" || state === "failed") {
+          setFailure(outcome);
+        } else {
+          setAnnouncement(outcome);
+        }
+      })
       .catch(() => {
         setStates((current) => ({ ...current, [item.key]: "failed" }));
-        setFailure(`${item.word} could not be fetched.`);
+        setFailure(downloadOutcome(item.word, "failed"));
       });
   };
 
@@ -432,6 +441,9 @@ export function DownloadsSheet({
               {failure}
             </p>
           )}
+          <p className="visually-hidden" role="status">
+            {announcement}
+          </p>
         </div>
         <p className="sheet-note">
           Stored files are checked in your browser. A download authorises

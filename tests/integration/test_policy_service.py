@@ -173,3 +173,20 @@ def test_expired_pack_refuses_even_for_a_previously_evaluated_request(
     with pytest.raises(OAKError) as denial:
         expired.evaluate(PACK_ID, compiled_case.context(key, _version(compiled_case)))
     assert denial.value.code == "OAK-POLICY-PACK-EXPIRED"
+
+
+def test_a_second_engine_is_a_new_request_not_a_replay(tmp_path: Path) -> None:
+    """F1-16: asking another engine after the builtin one replayed the builtin decision."""
+
+    harness = build_compiled_case(tmp_path)
+    registry = harness.registry
+    service = PolicyService(
+        FileWorkspaceRepository(harness.workspace, registry),
+        registry,
+        LocalPolicyPackStore((PACK_DIRECTORY,), registry),
+        {"builtin": BuiltinPolicyEngine, "second": BuiltinPolicyEngine},
+    )
+    first = service.evaluate(PACK_ID, harness.context("", _version(harness)))
+    second = service.evaluate(PACK_ID, harness.context("", _version(harness)), engine="second")
+    assert first.duplicate is False
+    assert second.duplicate is False

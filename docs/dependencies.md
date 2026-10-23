@@ -247,6 +247,11 @@ vulnerable range, so `pnpm-workspace.yaml` carries an `overrides` entry forcing
 lifts it, at which point the override can go. The web build and the browser suite were
 rerun on the override; nothing else changed.
 
+The same audit lifted certifi 2026.7.22 to 2026.10.19 (PYSEC-2026-4320). It is a
+development dependency only, reached through `httpx` and `pip-audit`'s `requests`, and is in
+no runtime artifact: the model and research transport verifies TLS against the operating
+system's trust store (`ssl.create_default_context()`).
+
 Reviews outside a sprint boundary are recorded here, newest first, under the same standard
 as a sprint dependency review.
 
@@ -312,7 +317,8 @@ capability gap is assessing the OS packages inside the images OAK ships — `pip
 `pnpm audit` cover the Python and web language closures and never look inside a built
 layer.
 
-`aquasec/trivy` was selected and **pinned to `0.74.0`** in `scripts/scan_images.py`. It is
+`aquasec/trivy` was selected and **pinned to `0.74.0` by tag and index digest** in
+`scripts/scan_images.py`, and the scan evidence records both. It is
 Apache-2.0, actively maintained, and reads both Debian and Alpine package databases, which
 is what the two images need. Alternatives considered: `grype` (equivalent, no advantage
 here), and `docker scout`, rejected because it requires a Docker Hub account — a hosted

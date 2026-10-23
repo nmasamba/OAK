@@ -86,6 +86,9 @@ def test_signed_read_only_dispatch_completes_without_touching_a_target(tmp_path:
     assert report["journals"][0]["chain"] == "verified"
     assert report["journals"][0]["manual_recovery_required"] is False
 
+    unenrolled = _run([str(OAK), "ingest"], workspace, environment)
+    assert unenrolled.returncode == 2 and "OAK-INGEST-RUNNER-UNENROLLED" in unenrolled.stderr
+    _enroll(workspace, environment, runner_environment, tmp_path)
     ingested = _run([str(OAK), "ingest", "--output", "json"], workspace, environment)
     assert ingested.returncode == 0, ingested.stderr
     document = json.loads(ingested.stdout)
@@ -163,6 +166,21 @@ def _docker_answers() -> bool:
 
 
 DOCKER_ANSWERS = _docker_answers()
+
+
+def _enroll(
+    workspace: Path, environment: dict[str, str], runner_environment: dict[str, str], tmp_path: Path
+) -> None:
+    """Pin the runner as an operator does: `oak-runner identity`, then `oak keys enroll-runner`."""
+
+    printed = _run([str(OAK_RUNNER), "identity"], ROOT, runner_environment)
+    assert printed.returncode == 0, printed.stderr
+    identity = tmp_path / "runner.identity.json"
+    identity.write_text(printed.stdout, encoding="utf-8")
+    enrolled = _run(
+        [str(OAK), "keys", "enroll-runner", "--identity", str(identity)], workspace, environment
+    )
+    assert enrolled.returncode == 0, enrolled.stderr
 
 
 def _runner_environment(environment: dict[str, str], tmp_path: Path, target: Path) -> dict:
@@ -263,6 +281,7 @@ def test_the_exit_demonstration_installs_tests_observes_and_removes(tmp_path: Pa
     } == {"architecture": "absent", "apply": "absent"}
 
     oak("keys", "init")
+    _enroll(workspace, environment, runner_environment, tmp_path)
     oak("sign")
     refused = _run([str(OAK), "approve", "apply"], workspace, environment)
     assert refused.returncode == 2 and "OAK-APPROVAL-ARCHITECTURE" in refused.stderr

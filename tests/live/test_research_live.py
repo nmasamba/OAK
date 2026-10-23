@@ -61,7 +61,7 @@ def test_a_live_run_stays_inside_its_budget_and_validates() -> None:
         run = run_research(
             transport.send,
             terms=terms,
-            terms_digest=terms_digest(terms),
+            terms_digest=terms_digest(terms, source_mode="live", hosts=RESEARCH_HOSTS),
             vocabulary=vocabulary,
             trusted_namespaces=TRUSTED_NAMESPACES,
             intent_ref={

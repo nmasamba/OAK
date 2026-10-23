@@ -20,6 +20,7 @@ from oak.domain import (
     OAKError,
     json_artifact,
 )
+from oak.domain.artifacts import content_digest
 from oak.domain.audit import audit_event_document
 from oak.ports import WorkspaceMutation
 
@@ -237,6 +238,46 @@ def test_import_rejects_metadata_identity_tampering_without_publishing_workspace
     assert not imported.control.exists()
 
 
+@pytest.mark.parametrize("relabel", ["extra_brief", "json_kind"])
+def test_import_refuses_a_media_type_that_does_not_fit_its_kind(
+    tmp_path: Path, relabel: str
+) -> None:
+    """F2-1: an index entry cannot make stored bytes servable as a web page."""
+
+    source = _repository(tmp_path / "source")
+    source.initialize(workspace_id="workspace.workspace-test", tenant_id="local", created_at=NOW)
+    source.commit(_initial_mutation())
+    export = tmp_path / "portable-export"
+    source.export_to(export)
+    manifest_path = export / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if relabel == "extra_brief":
+        page = b"<script>document.title='owned'</script>"
+        digest = content_digest(page)
+        (export / "objects" / "sha256" / digest.removeprefix("sha256:")).write_bytes(page)
+        manifest["artifact_index"].append(
+            {
+                "id": "brief.note",
+                "version": "0.1.0",
+                "kind": "brief_source",
+                "media_type": "text/html",
+                "digest": digest,
+                "size_bytes": len(page),
+            }
+        )
+    else:
+        entry = next(e for e in manifest["artifact_index"] if e["kind"] == "design_case")
+        entry["media_type"] = "text/html"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    imported = _repository(tmp_path / "imported")
+
+    with pytest.raises(OAKError) as captured:
+        imported.import_from(export)
+
+    assert captured.value.code in {"OAK-ARTIFACT-INVALID", "OAK-IMPORT-INVALID"}
+    assert not imported.control.exists()
+
+
 def test_import_rejects_audit_idempotency_tampering_and_symlinked_store(
     tmp_path: Path,
 ) -> None:
@@ -285,3 +326,24 @@ def test_concurrent_first_commits_serialize_and_only_one_wins(tmp_path: Path) ->
     assert sorted(outcomes) == ["OAK-EXPECTED-VERSION", "committed"]
     assert repository.manifest()["version"] == 1
     assert len(repository.manifest()["audit_events"]) == 1
+
+
+def test_a_torn_object_from_an_interrupted_write_is_repaired_not_a_collision(
+    tmp_path: Path,
+) -> None:
+    """F1-10: an interrupted write left a short object, and every retry reported a collision."""
+
+    repository = _repository(tmp_path / "workspace")
+    repository.initialize(
+        workspace_id="workspace.workspace-test", tenant_id="local", created_at=NOW
+    )
+    mutation = _initial_mutation()
+    artifact = mutation.artifacts[0]
+    torn = repository.objects / artifact.digest.removeprefix("sha256:")
+    repository.objects.mkdir(parents=True, exist_ok=True)
+    torn.write_bytes(artifact.content[: len(artifact.content) // 2])
+
+    repository.commit(mutation)
+
+    assert torn.read_bytes() == artifact.content
+    assert [path.name for path in repository.objects.iterdir() if path.name.endswith(".tmp")] == []

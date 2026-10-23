@@ -163,6 +163,30 @@ def test_operation_cancellation_is_durable_and_cooperative(
     assert cancelled.state == "cancelled"
     assert cancelled.result is None
 
+    # F2-8: a step that completed while cancellation was requested is recorded as what it
+    # was, succeeded with its result; the request stays on the record.
+    finished = _spec("operation.cancel-too-late", key="operation-cancel-late-00001")
+    operation_store.enqueue(finished)
+    late = operation_store.claim(
+        worker_id="worker-a",
+        now="2026-08-17T11:00:05Z",
+        lease_expires_at="2026-08-17T11:02:05Z",
+    )
+    assert late is not None
+    operation_store.cancel(
+        finished.operation_id,
+        actor="local-user",
+        idempotency_key="cancel-operation-late-00001",
+        correlation_id="correlation-cancel-late",
+        requested_at="2026-08-17T11:00:06Z",
+    )
+    succeeded = operation_store.succeed(
+        late, result={"case_version": "0.1.3"}, completed_at="2026-08-17T11:00:07Z"
+    )
+    assert succeeded.state == "succeeded"
+    assert succeeded.result == {"case_version": "0.1.3"}
+    assert succeeded.cancel_requested is True
+
 
 def test_operation_lease_expiry_retry_backoff_and_terminal_failure(
     operation_store: PostgreSQLOperationStore,

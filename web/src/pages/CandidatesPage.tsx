@@ -341,7 +341,7 @@ function ReleaseDateCell({ candidate }: { readonly candidate: JsonObject }) {
 
 /**
  * What research says about a researched design: its source, tier and date, the
- * evidence class of every claim behind it, and why it cannot be selected this sprint
+ * evidence class of every claim behind it, and why it cannot be selected in this release
  * (ADR-0018: compare-only). Nothing here is a judgement; each word is a closed class.
  */
 function ResearchFacts({
@@ -401,6 +401,9 @@ export function CandidatesPage({ caseId }: { readonly caseId: string }) {
   const [pending, setPending] = useState<string | null>(null);
   const [rationales, setRationales] = useState<Record<string, string>>({});
   const [validation, setValidation] = useState<string | null>(null);
+  // The design a refusal belongs to, so it is said in that design's card rather than
+  // after every card and the bench, out of view (F3-12).
+  const [actedOn, setActedOn] = useState<string | null>(null);
   const [view, setView] = useState<View>("cards");
   const [bench, setBench] = useState<readonly string[]>([]);
   const [dragging, setDragging] = useState<string | null>(null);
@@ -455,6 +458,8 @@ export function CandidatesPage({ caseId }: { readonly caseId: string }) {
   const onEvaluate = (candidateId: string) => {
     setPending(`evaluate-${candidateId}`);
     setFailure(null);
+    setValidation(null);
+    setActedOn(candidateId);
     evaluateCandidate(caseId, candidateId, {
       idempotencyKey: newIdempotencyKey("evaluate"),
       etag: etagFor(version),
@@ -468,8 +473,13 @@ export function CandidatesPage({ caseId }: { readonly caseId: string }) {
 
   const onSelect = (candidateId: string) => {
     const rationale = (rationales[candidateId] ?? "").trim();
+    setActedOn(candidateId);
     if (rationale === "") {
+      setFailure(null);
       setValidation(`${candidateId} needs a selection rationale.`);
+      window.requestAnimationFrame(() =>
+        document.getElementById(`rationale-${candidateId}`)?.focus(),
+      );
       return;
     }
     setPending(`select-${candidateId}`);
@@ -810,12 +820,6 @@ export function CandidatesPage({ caseId }: { readonly caseId: string }) {
                       "No sensitivity summary."}
                   </p>
                 </details>
-                <details>
-                  <summary>Raw candidate document</summary>
-                  <pre className="value">
-                    {JSON.stringify(candidate, null, 1)}
-                  </pre>
-                </details>
                 <div className="actions">
                   <Keycap
                     tone="quiet"
@@ -835,6 +839,14 @@ export function CandidatesPage({ caseId }: { readonly caseId: string }) {
                     <textarea
                       id={`rationale-${id}`}
                       rows={2}
+                      aria-invalid={
+                        actedOn === id && validation !== null ? true : undefined
+                      }
+                      aria-describedby={
+                        actedOn === id && validation !== null
+                          ? `refusal-${id}`
+                          : undefined
+                      }
                       value={rationales[id] ?? ""}
                       onChange={(event) =>
                         setRationales((current) => ({
@@ -855,6 +867,16 @@ export function CandidatesPage({ caseId }: { readonly caseId: string }) {
                     </Keycap>
                   </div>
                 )}
+                <div aria-live="polite" id={`refusal-${id}`}>
+                  {actedOn === id && validation !== null && (
+                    <p className="problem" role="alert">
+                      {validation}
+                    </p>
+                  )}
+                  {actedOn === id && failure !== null && (
+                    <ProblemAlert failure={failure} onReload={load} />
+                  )}
+                </div>
               </section>
             );
           })}
@@ -939,12 +961,12 @@ export function CandidatesPage({ caseId }: { readonly caseId: string }) {
         ) : null}
 
         <div aria-live="polite">
-          {validation !== null && (
+          {actedOn === null && validation !== null && (
             <p className="problem" role="alert">
               {validation}
             </p>
           )}
-          {failure !== null && (
+          {actedOn === null && failure !== null && (
             <ProblemAlert failure={failure} onReload={load} />
           )}
         </div>

@@ -49,7 +49,12 @@ ROOT = Path(__file__).resolve().parents[1]
 VERSION = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
 # Pinned: a scanner is a dependency like any other, and "latest" would make the gate's
 # verdict depend on when it ran.
-SCANNER = "aquasec/trivy:0.74.0"
+# Tag and index digest: the scanner decides the release gate and writes the image SBOMs, so
+# a re-pointed tag must not change either silently (F4-14). The digest is the one the tag
+# resolved to for the 0.9.0 scan.
+SCANNER = (
+    "aquasec/trivy:0.74.0@sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969"
+)
 BLOCKING = ("CRITICAL", "HIGH")
 SEVERITIES = ("CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN")
 

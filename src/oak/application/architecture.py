@@ -28,10 +28,18 @@ def select_candidate_reference(case: dict[str, Any], candidate_id: str | None) -
     if candidate_id is None:
         selected = case.get("selected_candidate_ref")
         if not isinstance(selected, dict):
+            candidates = [
+                str(reference["id"])
+                for reference in case.get("candidate_refs", [])
+                if isinstance(reference, dict) and "id" in reference
+            ]
             raise OAKError(
                 "OAK-ARCHITECTURE-UNSELECTED",
-                "no candidate is selected yet; name one, for example `oak architecture "
-                "candidate-03`",
+                f"no candidate is selected yet; name one, for example `oak architecture "
+                f"{candidates[0]}`"
+                if candidates
+                else "no candidate is selected yet, and none has been generated; run "
+                "`oak candidates` first",
             )
         return selected
     for reference in case.get("candidate_refs", []):

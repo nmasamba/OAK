@@ -224,6 +224,13 @@ def test_invalid_confirmation_and_reused_key_leave_workspace_unchanged(tmp_path:
     assert malformed.value.code == "OAK-CONFIRM-MALFORMED"
     assert FileWorkspaceRepository(workspace, _registry()).manifest() == before
 
+    escaped = copy.deepcopy(answers)
+    escaped["answers"][0]["rationale"] = "Confirmed \u202eby\u202c the \u001b[2J operator"
+    with pytest.raises(OAKError) as control:
+        service.confirm(escaped, context)
+    assert control.value.code == "OAK-CONFIRM-CONTROL", "F1-2: every interface, not the CLI alone"
+    assert FileWorkspaceRepository(workspace, _registry()).manifest() == before
+
     service.confirm(answers, context)
     changed = copy.deepcopy(answers)
     changed["answers"][0]["rationale"] = "Different normalized input"

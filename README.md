@@ -22,7 +22,7 @@ always gives the same output.
 
 <p align="center">
   <img src="docs/manual/assets/07-candidates.png" width="760"
-       alt="OAK's candidate comparison: four possible designs side by side with estimated cost, reply time and quality, one of them ruled out with the reason shown">
+       alt="OAK's design comparison: three of the four designs as cards (Baseline, Minimal, Balanced), each with quality, latency and energy ranges and the requirements it satisfies">
 </p>
 
 **Contents:**
@@ -183,7 +183,7 @@ This is what `docker compose up` starts:
 |---|---|---|
 | `web` | The browser app: a web page served by a small web server (nginx) | `http://127.0.0.1:5173` |
 | `api` | The REST API that the browser and the remote CLI talk to. The MCP server runs inside this container too | `http://127.0.0.1:8080` |
-| `worker` | Does the slower jobs in the background: generating options, evaluating, compiling | nothing to open |
+| `worker` | Does the slower jobs in the background: generating options, research runs, evaluating, compiling | nothing to open |
 | `postgres` | The database that stores your design cases | inside Docker only |
 | `migrate` | Prepares or upgrades the database, then exits | nothing to open |
 
@@ -346,7 +346,7 @@ say *saved*. A download approves nothing. On the architecture page, **Copy insta
 steps** copies the six terminal commands that install the design; it runs none of them.
 
 **Command line.** Each case is a folder. `cd` into it and carry on where you left off, for
-example with `uv run oak questions`. Two more things are worth making habits:
+example with `uv run oak questions`. Three more things are worth making habits:
 
 - **To take the decision away as a document**, run `uv run oak report --record --format pdf
   --output ../report.pdf` once a design is selected. Later runs without `--record` read
@@ -544,9 +544,10 @@ means:
   quotes what the Hub, the router and GitHub publish and never checks it
   ([`RR-049`](docs/security/residual-risk.md)). A researched design is compared with the
   others but can't be chosen, and nothing installs it
-  ([`RR-053`](docs/security/residual-risk.md)). A harness outside the owner-reviewed list
-  needs your recorded review, and that review is your judgement, not OAK's
-  ([`RR-051`](docs/security/residual-risk.md)). The search is anonymous and shares a public
+  ([`RR-053`](docs/security/residual-risk.md)). Until the owner records a review of the draft
+  harness list (`catalogue/research/harness-repositories.yaml`), every harness research
+  finds needs your recorded review; after that, only one outside the list does. That review
+  is your judgement, not OAK's ([`RR-051`](docs/security/residual-risk.md)). The search is anonymous and shares a public
   rate limit, so it can fail on a busy address ([`RR-050`](docs/security/residual-risk.md)).
   It runs only before candidates exist and each time you consent to the exact hosts and
   terms it shows, and the default path stays offline; [research.md](docs/research.md) has
@@ -623,9 +624,11 @@ enforces.
 ## Verifying a release
 
 The newest **published** release is `0.9.0`, on the
-[Releases page](https://github.com/nmasamba/OAK/releases), published on 2026-10-01. It is
-the version this repository builds. `0.8.0` was approved but never published, so `0.7.1`
-is the published release before it.
+[Releases page](https://github.com/nmasamba/OAK/releases), published on 2026-10-01. This
+tree still reports `0.9.0`, but it also holds the work listed under "Unreleased" in
+[CHANGELOG.md](CHANGELOG.md) (the rebuilt browser workspace, `oak report` and
+`oak research`), which the published `0.9.0` downloads do not contain. `0.8.0` was approved
+but never published, so `0.7.1` is the published release before it.
 
 Each release comes with a `SHA256SUMS` file. It lists a fingerprint (a SHA-256 hash) for
 the wheel, the sdist, the SBOM and the licence list. A fifth file, `build-provenance.json`,

@@ -382,7 +382,7 @@ export function ResearchMoment({
               {!tokenPresent && (
                 <span className="timeline-meta">
                   Needs the model-configuration token:{" "}
-                  <Link to="/settings">paste it in Settings</Link>.
+                  <Link to="/settings/models">paste it in Settings</Link>.
                 </span>
               )}
             </div>

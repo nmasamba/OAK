@@ -49,7 +49,7 @@ def _terms() -> tuple[dict[str, Any], str]:
     intent = load_yaml_document((ROOT / "examples/example-intent.yaml").read_text())
     patterns = LocalCatalogue(ROOT / "catalogue", REGISTRY).load().patterns
     terms = derive_research_terms(intent, _vocabulary(), patterns)
-    return terms, terms_digest(terms)
+    return terms, terms_digest(terms, source_mode="fixture", hosts=())
 
 
 class _Clock:
@@ -74,7 +74,7 @@ def _run(  # type: ignore[no-untyped-def]
     if pipeline_tags is not None:
         terms = copy.deepcopy(terms)
         terms["sent"]["hub"]["pipeline_tags"] = pipeline_tags
-        digest = terms_digest(terms)
+        digest = terms_digest(terms, source_mode="fixture", hosts=())
     keywords: dict[str, Any] = {}
     if clock is not None:
         keywords["clock"] = clock
@@ -460,13 +460,21 @@ def test_a_redirect_carries_its_status_as_a_typed_field() -> None:
     )
 
 
-def test_a_router_outage_keeps_the_models_without_live_routes() -> None:
-    fetch = _Recorded(
-        **{"router.huggingface.co": OAKError("OAK-INTERPRETER-UNAVAILABLE", "down", retriable=True)}
-    )
+@pytest.mark.parametrize(
+    "answer",
+    [
+        OAKError("OAK-INTERPRETER-UNAVAILABLE", "down", retriable=True),
+        TransportResponse(503, {}, b"{}"),
+        TransportResponse(200, {}, b"<html>not json</html>"),
+    ],
+    ids=["unreachable", "error-status", "unreadable"],
+)
+def test_a_router_outage_refuses_the_run_never_reads_as_no_live_route(answer: Any) -> None:
+    fetch = _Recorded(**{"router.huggingface.co": answer})
     with pytest.raises(ResearchRefusedError) as refused:
         _run(fetch)
-    # The router is read second and its refusal is a refusal: an outage is shown as an outage.
+    # The router is read second and its refusal is a refusal: an outage is shown as an
+    # outage, never as models that happen to have no live route.
     assert refused.value.code == "OAK-RESEARCH-UNREACHABLE"
 
 

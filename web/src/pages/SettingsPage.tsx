@@ -23,10 +23,10 @@ import {
 import { ProblemAlert, toActionFailure, type ActionFailure } from "../problems";
 import { Link } from "../router";
 import { ageOf, asArray, asObject, asString } from "../support";
-import { Chip, CopyPlate, Keycap } from "../ui";
+import { Chip, CopyPlate, Keycap, TextWithCode } from "../ui";
 
 type LoadState =
-  | { readonly kind: "no-token" }
+  | { readonly kind: "no-token"; readonly stale?: boolean }
   | { readonly kind: "loading" }
   | { readonly kind: "ready"; readonly status: ModelStatusResponse }
   | { readonly kind: "failed"; readonly failure: ActionFailure };
@@ -172,9 +172,18 @@ export function SettingsPage() {
           .then((response) => setCatalogue(asObject(response.discovery)))
           .catch(() => setCatalogue(null));
       })
-      .catch((error: unknown) =>
-        setState({ kind: "failed", failure: toActionFailure(error) }),
-      );
+      .catch((error: unknown) => {
+        const failure = toActionFailure(error);
+        if (failure.kind === "token") {
+          // A token from before the API restarted strands this screen: forget it and
+          // ask for the current one, saying why (F3-4).
+          forgetModelToken();
+          setToken(null);
+          setState({ kind: "no-token", stale: true });
+          return;
+        }
+        setState({ kind: "failed", failure });
+      });
   }, []);
 
   useEffect(load, [load]);
@@ -237,7 +246,11 @@ export function SettingsPage() {
         <div className="thread">
           <h1 id="page-heading">Models</h1>
           <Moment fresh>
-            <p>This page needs the token the API printed.</p>
+            <p>
+              {state.kind === "no-token" && state.stale === true
+                ? "The token this browser held is not the one the API holds now; it changes each time the API starts. Paste the current one."
+                : "This page needs the token the API printed."}
+            </p>
           </Moment>
           <section aria-labelledby="token-heading" className="card">
             <h2 id="token-heading">Paste the model-configuration token</h2>
@@ -445,7 +458,10 @@ export function SettingsPage() {
                 ) : (
                   <>
                     Not ready:{" "}
-                    {asString(online?.["reason"] ?? null) ?? "unknown"}.
+                    <TextWithCode
+                      text={asString(online?.["reason"] ?? null) ?? "unknown"}
+                    />
+                    .
                   </>
                 )}
               </p>
@@ -615,8 +631,12 @@ export function SettingsPage() {
                 ) : (
                   <>
                     Not ready:{" "}
-                    {asString(local?.["reason"] ?? null) ??
-                      "no model is pinned"}
+                    <TextWithCode
+                      text={
+                        asString(local?.["reason"] ?? null) ??
+                        "no model is pinned"
+                      }
+                    />
                     .
                   </>
                 )}

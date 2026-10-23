@@ -822,20 +822,56 @@ def _installation(parameters: dict[str, Any]) -> _Installation:
 _HARDENED_MEMORY_BYTES = 256 * 1_048_576
 _HARDENED_PIDS = 64
 _HARDENED_USER = "65534:65534"
+_HARDENED_NANO_CPUS = 500_000_000
+# Host configuration that must be empty on a started container: each one is a way out of
+# the isolation (a host path, a device, a published port, another container's volumes, a
+# kernel parameter) that the hardening flags never ask for.
+_MUST_BE_EMPTY = (
+    "CapAdd",
+    "Binds",
+    "Mounts",
+    "Devices",
+    "DeviceRequests",
+    "PortBindings",
+    "VolumesFrom",
+    "Sysctls",
+    "Tmpfs",
+    "ExtraHosts",
+    "Links",
+    "GroupAdd",
+)
 
 
 def _configuration_matches(host: dict[str, Any], user: Any, installation: _Installation) -> bool:
-    if host.get("NetworkMode") != "none":
+    """The daemon's own report, held to an allowlist rather than checked for a few flags.
+
+    A container someone pre-created with the installation's name and labels plus
+    `--privileged`, an added capability, `no-new-privileges:false`, the host's PID
+    namespace or a bind mount used to pass, and was started and reported hardened (F4-4).
+    """
+
+    if host.get("NetworkMode") != "none" or host.get("Privileged") is not False:
         return False
     if not installation.started:
         return True
     capabilities = {str(item).upper() for item in host.get("CapDrop") or []}
     security = [str(item) for item in host.get("SecurityOpt") or []]
     restart = host.get("RestartPolicy") or {}
+    log = host.get("LogConfig") or {}
     return (
         host.get("ReadonlyRootfs") is True
         and "ALL" in capabilities
-        and any(item.startswith("no-new-privileges") for item in security)
+        and bool(security)
+        and all(item in {"no-new-privileges", "no-new-privileges:true"} for item in security)
+        and all(host.get(key) in (None, [], {}, "") for key in _MUST_BE_EMPTY)
+        and host.get("PublishAllPorts") in (None, False)
+        and host.get("PidMode") in (None, "", "private")
+        and host.get("IpcMode") in (None, "", "private", "shareable", "none")
+        and host.get("UsernsMode") in (None, "", "private")
+        and host.get("UTSMode") in (None, "", "private")
+        and host.get("NanoCpus") == _HARDENED_NANO_CPUS
+        and isinstance(log, dict)
+        and log.get("Type") == "none"
         and host.get("Memory") == _HARDENED_MEMORY_BYTES
         and host.get("MemorySwap") == _HARDENED_MEMORY_BYTES
         and host.get("PidsLimit") == _HARDENED_PIDS

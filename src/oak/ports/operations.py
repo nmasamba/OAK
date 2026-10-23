@@ -102,6 +102,7 @@ class OperationStore(Protocol):
         retriable: bool,
         failed_at: str,
         retry_at: str,
+        message: str = "operation failed safely",
     ) -> OperationRecord: ...
 
     def acknowledge_cancellation(

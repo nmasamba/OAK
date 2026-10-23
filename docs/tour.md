@@ -433,9 +433,11 @@ If you're scripting against the API yourself:
   changed case carries its new version in an `ETag` header. A stale version is refused
   with HTTP status `409` (Conflict) and the code `OAK-EXPECTED-VERSION`. Re-read the case
   and try again.
-- **Slow jobs** (generate, evaluate, compile) return HTTP status `202` (Accepted) with an
-  operation. Poll `GET /v1/operations/{operation_id}` until `state` is `succeeded`,
-  `failed` or `cancelled`. Only the `worker` container makes progress on them.
+- **Slow jobs** (generate, evaluate, compile, and research) return HTTP status `202`
+  (Accepted) with an operation. Poll `GET /v1/operations/{operation_id}` until `state` is
+  `succeeded`, `failed` or `cancelled`. Only the `worker` container makes progress on them.
+  Cancelling stops a job that has not started; one already running finishes its step,
+  which cannot be undone, and ends `succeeded` with `cancel_requested: true`.
 - **Identity** comes from the optional `X-OAK-Actor` and `X-OAK-Tenant` headers, which
   default to the local user and tenant. A tenant is a separate space for one
   organisation's data, and Community has just one, called `local`.
@@ -453,9 +455,9 @@ jq -n --rawfile c examples/briefs/public-manual-qa.yaml \
 ```
 
 The committed contract is [`openapi/oak.openapi.json`](../openapi/oak.openapi.json). A
-running API also serves a clickable explorer at <http://127.0.0.1:8080/docs>, which is
-handy for poking around. It comes from the web framework and isn't part of the versioned
-contract.
+running API also serves it live at <http://127.0.0.1:8080/openapi.json>, which any OpenAPI
+viewer can open. The framework's clickable explorer is switched off, because it loads
+scripts from a public CDN into the API's own origin.
 
 > **A shell gotcha.** In `zsh`, the default shell on macOS, `"$CASE:confirm"` doesn't mean
 > "the variable, then `:confirm`". `zsh` reads `:c` as an instruction to modify the
