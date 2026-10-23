@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import re
+import shlex
 import shutil
 import stat
 import sys
@@ -230,9 +231,10 @@ def design(
         ):
             typer.echo(
                 "Hint: this prose brief was interpreted deterministically, which maps only "
-                "what it states outright. Re-run with `--interpreter online` (after `oak "
-                "models set-key` and `oak models discover`) or `--interpreter local` to have "
-                "a model propose the rest.",
+                "what it states outright. To have a model propose the rest, design it again "
+                "in a new workspace (`oak init <directory>`) with `--interpreter online` "
+                "(after `oak models set-key` and `oak models discover`) or "
+                "`--interpreter local`; a case is interpreted once.",
                 err=True,
             )
     except (OAKError, ContractValidationError, OSError, RuntimeError, ValueError) as error:
@@ -250,7 +252,8 @@ def _note_created_case(service: DesignCaseService, brief: Path) -> None:
         return
     typer.echo(
         f"Design case {case['id']}@{case['version']} was created; interpretation with the "
-        f"model did not complete. Re-run `oak design {brief} --interpreter deterministic` "
+        f"model did not complete. Re-run `oak design {shlex.quote(str(brief))} "
+        "--interpreter deterministic` "
         "to continue without the model, or fix the model configuration and re-run.",
         err=True,
     )
@@ -705,6 +708,7 @@ def assure(
     try:
         if output is None:
             raise OAKError("OAK-ASSURE-OUTPUT", "--output is required")
+        _require_new_output(output)
         remote = _remote()
         if remote is not None:
             from oak.interfaces.cli import remote as remote_mode
@@ -776,6 +780,7 @@ def plan(
     try:
         if target is None or output is None:
             raise OAKError("OAK-PLAN-INPUT", "--target and --output are required")
+        _require_new_output(output)
         remote = _remote()
         if remote is not None:
             _remote_plan(remote, candidate_id, target, output, design_case, idempotency_key)
@@ -1393,6 +1398,11 @@ def report(
     try:
         if document_format is ReportFormat.PDF and output_file is None:
             raise OAKError("OAK-REPORT-OUTPUT", "a PDF needs --output <file>")
+        to_stdout = output_file is not None and str(output_file) == "-"
+        if output_file is not None and not to_stdout:
+            # Checked before anything is recorded: a bad destination used to fail after
+            # --record had committed, and an existing file was silently replaced (F1-14).
+            _require_report_destination(output_file)
         field = "document_ref" if document_format is ReportFormat.JSON else "pdf_ref"
         remote = _remote()
         if remote is not None:
@@ -1444,8 +1454,12 @@ def report(
                 f"{case.get('version')}. Record again with --record.",
                 err=True,
             )
-        if output_file is None:
-            typer.echo(content.decode("utf-8"))
+        if output_file is None or to_stdout:
+            if document_format is ReportFormat.JSON:
+                typer.echo(content.decode("utf-8"))
+            else:
+                sys.stdout.buffer.write(content)
+                sys.stdout.buffer.flush()
             return
         _write_report_file(output_file, content)
         typer.echo(f"Wrote {output_file} ({reference['digest']}, digest matches)")
@@ -1695,6 +1709,26 @@ def _report_recorded_line(entry: dict[str, Any], duplicate: bool) -> None:
         + (" (idempotent retry)" if duplicate else ""),
         err=True,
     )
+
+
+def _require_report_destination(path: Path) -> None:
+    """A new file in a directory that exists; never a format word, a directory or a file."""
+
+    if not path.suffix and path.name.casefold() in {"json", "pdf", "yaml", "human", "table"}:
+        raise OAKError(
+            "OAK-REPORT-OUTPUT",
+            f"--output names the file to write, and {path.name!r} looks like a format; "
+            "choose the format with --format",
+        )
+    target = path.expanduser().absolute()
+    if target.is_dir():
+        raise OAKError("OAK-REPORT-OUTPUT", "--output names a directory; give a file name")
+    if target.exists() or target.is_symlink():
+        raise OAKError(
+            "OAK-REPORT-OUTPUT", f"{path.name} already exists; choose another name or remove it"
+        )
+    if not target.parent.is_dir():
+        raise OAKError("OAK-REPORT-OUTPUT", "the directory --output names does not exist")
 
 
 def _write_report_file(path: Path, content: bytes) -> None:
@@ -2500,6 +2534,14 @@ def _load_bounded_text(path: Path, *, code: str) -> str:
     ):
         raise OAKError(code, "input contains disallowed control characters")
     return text
+
+
+def _require_new_output(destination: Path) -> None:
+    """Refuse an existing destination before the case is advanced, not after (F1-9)."""
+
+    absolute = destination.absolute()
+    if absolute.exists() or absolute.is_symlink():
+        raise OAKError("OAK-OUTPUT-EXISTS", "output directory already exists")
 
 
 def _write_output_directory(destination: Path, documents: dict[str, dict[str, Any]]) -> None:

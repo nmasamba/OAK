@@ -129,3 +129,33 @@ def test_a_second_brief_is_a_named_refusal_not_a_retry(workspace: Path) -> None:
     assert "OAK-CASE-EXISTS: design case design-case.public-manual-qa already exists" in _output(
         refused
     )
+
+
+def test_an_existing_output_directory_is_refused_before_the_case_advances(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """F1-9: the case used to advance and then the write was refused."""
+
+    from tests.report_support import build_reference_case
+
+    workspace = build_reference_case(tmp_path, "candidate_selected")
+    monkeypatch.chdir(workspace)
+    monkeypatch.delenv("OAK_SERVER", raising=False)
+    (workspace / "existing").mkdir()
+    manifest = workspace / ".oak" / "manifest.json"
+    before = manifest.read_bytes()
+    for argv in (
+        ["assure", "candidate-03", "--output", "existing"],
+        [
+            "plan",
+            "candidate-03",
+            "--target",
+            str(ROOT / "examples/targets/local-fixture.yaml"),
+            "--output",
+            "existing",
+        ],
+    ):
+        refused = runner.invoke(cli_app, argv)
+        assert refused.exit_code == 2, _output(refused)
+        assert "OAK-OUTPUT-EXISTS" in _output(refused)
+    assert manifest.read_bytes() == before

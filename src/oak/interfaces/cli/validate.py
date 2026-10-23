@@ -164,6 +164,29 @@ def validate_bundle(source: Path) -> dict[str, Any]:
             "OAK-VALIDATE-DIGEST",
             "deployment bundle does not reference this architecture decision",
         )
+    # The semantic manifest is what a reviewer reads, and the bundle and every plan
+    # operation pin its digest; an edited one used to validate (F1-4).
+    semantic = digests["semantic-manifest.json"]
+    pinned = [
+        str(bundle.get("supply_chain", {}).get("bundle_digest")),
+        *(
+            str(reference.get("digest"))
+            for reference in bundle.get("artifacts", [])
+            if isinstance(reference, dict) and str(reference.get("id", "")).startswith("semantic.")
+        ),
+        *(
+            str(reference.get("digest"))
+            for operation in runner_plan.get("operations", [])
+            if isinstance(operation, dict)
+            for reference in operation.get("artifact_refs", [])
+            if isinstance(reference, dict) and str(reference.get("id", "")).startswith("semantic.")
+        ),
+    ]
+    if len(pinned) < 2 or any(digest != semantic for digest in pinned):
+        raise OAKError(
+            "OAK-VALIDATE-DIGEST",
+            "the bundle and the runner plan do not reference this semantic manifest",
+        )
     if str(runner_plan["status"]) != "draft":
         raise OAKError("OAK-VALIDATE-PLAN-STATUS", "runner plan is not an inert draft")
     return {

@@ -216,3 +216,27 @@ def test_a_report_file_is_written_through_a_fresh_temporary_name(tmp_path: Path)
         "report.pdf",
         "victim.txt",
     ]
+
+
+def test_a_bad_report_destination_is_refused_before_anything_is_recorded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """F1-14: an existing file was replaced, and a missing directory failed after --record."""
+
+    workspace = build_reference_case(tmp_path, "candidate_selected")
+    monkeypatch.chdir(workspace)
+    notes = workspace / "NOTES.md"
+    notes.write_text("important notes\n", encoding="utf-8")
+    (workspace / "adir").mkdir()
+    version = _case(workspace)["version"]
+    for destination in ("NOTES.md", "adir", "missing-dir/report.json", "json"):
+        refused = runner.invoke(cli_app, ["report", "--record", "--output", destination])
+        assert refused.exit_code == 2, (destination, _output(refused))
+        assert "OAK-REPORT-OUTPUT" in _output(refused), destination
+    assert notes.read_text(encoding="utf-8") == "important notes\n"
+    assert _case(workspace)["version"] == version, "nothing was recorded"
+
+    recorded = runner.invoke(cli_app, ["report", "--record", "--output", "-"])
+    assert recorded.exit_code == 0, _output(recorded)
+    assert '"sections"' in recorded.output
+    assert not (workspace / "-").exists()
