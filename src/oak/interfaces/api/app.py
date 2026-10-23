@@ -93,6 +93,8 @@ LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
 # Routes that store, remove, discover, or select model-provider credentials: loopback `Host`
 # only, whatever the allowlist says, and a browser must be same-origin, not merely same-site.
 HOST_CHECK_EXEMPT_PATHS = frozenset({"/healthz", "/readyz"})
+# Routes outside `/v1/models` that refuse every request without the capability token.
+ALWAYS_TOKEN_ROUTES = frozenset({"/v1/design-cases/{case_id}:research"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -565,7 +567,10 @@ def create_app(
 
         document = generated_openapi()
         for route, operations in document.get("paths", {}).items():
-            if not is_credential_route(route):
+            # The model routes, and `:research`, which always sends requests off the
+            # machine; `:interpret` and `:record-report` need the token only in a model mode,
+            # so their documents keep it optional.
+            if not is_credential_route(route) and route not in ALWAYS_TOKEN_ROUTES:
                 continue
             for operation in operations.values():
                 for parameter in operation.get("parameters", []):
@@ -1299,9 +1304,10 @@ def create_app(
     ) -> ModelDiscoveryResponse:
         """Refresh one family's catalogue.
 
-        This and `:interpret` in model mode are the only operations in this API that make an
-        outbound request; every other route is answered from local state. Discovery is
-        explicit: nothing refreshes a catalogue on its own.
+        One of the operations in this API that can cause an outbound request, with `:verify`,
+        `:interpret` and `:record-report` in a model mode, and a consented `:research`; every
+        other route is answered from local state. Discovery is explicit: nothing refreshes a
+        catalogue on its own.
         """
 
         del auth, _token

@@ -3202,7 +3202,7 @@
           {
             "in": "header",
             "name": "X-OAK-Model-Token",
-            "required": false,
+            "required": true,
             "schema": {
               "anyOf": [
                 {
@@ -4150,7 +4150,7 @@
     },
     "/v1/models/{family}:discover": {
       "post": {
-        "description": "Refresh one family's catalogue.\n\nThis and `:interpret` in model mode are the only operations in this API that make an\noutbound request; every other route is answered from local state. Discovery is\nexplicit: nothing refreshes a catalogue on its own.",
+        "description": "Refresh one family's catalogue.\n\nOne of the operations in this API that can cause an outbound request, with `:verify`,\n`:interpret` and `:record-report` in a model mode, and a consented `:research`; every\nother route is answered from local state. Discovery is explicit: nothing refreshes a\ncatalogue on its own.",
         "operationId": "discover_models_for_family_v1_models__family__discover_post",
         "parameters": [
           {
