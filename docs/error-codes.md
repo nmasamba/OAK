@@ -387,29 +387,29 @@ documented flow uses it.
 | `OAK-MODEL-ROUTE-UNAVAILABLE` | this provider route is not available for pay-as-you-go on the Hugging Face account; pick another with `oak models select huggingface <model_id> --provider <route>`, or `oak models clear huggingface` for the preferred pair | `src/oak/adapters/models/providers.py:726` |
 | `OAK-MODEL-TOKEN-FILE` | *reason or mapping code; carries no fixed message* | `src/oak/adapters/credentials/api_token.py:19` |
 | `OAK-MODEL-TOKEN-MISSING` | no model-configuration token exists; start `oak serve` or `oak-api` first | `src/oak/interfaces/cli/main.py:2057` |
-| `OAK-MODEL-TOKEN-REQUIRED` | the X-OAK-Model-Token header does not match the token this server minted; run `oak models token` to read the current one; this operation requires the X-OAK-Model-Token header; run `oak models token` to read the token this server minted | `src/oak/interfaces/api/app.py:374` |
+| `OAK-MODEL-TOKEN-REQUIRED` | the X-OAK-Model-Token header does not match the token this server minted; run `oak models token` to read the current one; this operation requires the X-OAK-Model-Token header; run `oak models token` to read the token this server minted | `src/oak/interfaces/api/app.py:376` |
 | `OAK-MODEL-VERIFICATION-UNAVAILABLE` | credential verification is not available in this build; the verdict is not recognised; the verification method is not recognised | `src/oak/application/model_configuration.py:520` |
 
 ### Request host and origin guard (2)
 
 | Code | Meaning | First raise site |
 |---|---|---|
-| `OAK-HOST-DENIED` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/api/app.py:310` |
-| `OAK-ORIGIN-DENIED` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/api/app.py:322` |
+| `OAK-HOST-DENIED` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/api/app.py:312` |
+| `OAK-ORIGIN-DENIED` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/api/app.py:324` |
 
 ### Concurrency, identity and requests (11)
 
 | Code | Meaning | First raise site |
 |---|---|---|
-| `OAK-ACTOR-DENIED` | local actor is not authorized | `src/oak/interfaces/api/app.py:115` |
+| `OAK-ACTOR-DENIED` | local actor is not authorized | `src/oak/interfaces/api/app.py:117` |
 | `OAK-CORRELATION-ID` | correlation ID must contain at least 8 characters; correlation id must contain at least 8 characters | `src/oak/application/candidate_planning.py:829` |
 | `OAK-DIRECTORY-UNAVAILABLE` | design-case directory is unavailable | `src/oak/application/control_plane.py:155` |
 | `OAK-EXPECTED-VERSION` | expected case version does not match current version (some dynamic) | `src/oak/adapters/persistence/file_workspace.py:505` |
 | `OAK-IDEMPOTENCY-CONFLICT` | idempotency key was already used for different input; idempotency key was already used for different operation input; import destination contains different canonical state | `src/oak/adapters/persistence/file_workspace.py:218` |
 | `OAK-IDEMPOTENCY-KEY` | cancellation idempotency key is invalid; idempotency key is required; idempotency key must contain at least 16 characters; and 1 more | `src/oak/adapters/persistence/operations.py:147` |
-| `OAK-PRECONDITION-INVALID` | expected version is required; weak entity tags are not accepted | `src/oak/interfaces/api/app.py:415` |
-| `OAK-REQUEST-INVALID` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/api/app.py:640` |
-| `OAK-REQUEST-SIZE` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/api/app.py:187` |
+| `OAK-PRECONDITION-INVALID` | expected version is required; weak entity tags are not accepted | `src/oak/interfaces/api/app.py:417` |
+| `OAK-REQUEST-INVALID` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/api/app.py:645` |
+| `OAK-REQUEST-SIZE` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/api/app.py:189` |
 | `OAK-TENANT-MISMATCH` | repository scope does not match workspace initialization; requested resource was not found; workspace tenant does not match command | `src/oak/adapters/persistence/postgresql.py:101` |
 | `OAK-TIME-INVALID` | timestamp must include a timezone; worker timestamp must include a timezone | `src/oak/adapters/persistence/postgresql.py:928` |
 
@@ -419,7 +419,7 @@ documented flow uses it.
 |---|---|---|
 | `OAK-DATABASE-CONFIG` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/migrations.py:25` |
 | `OAK-DATABASE-MIGRATION` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/migrations.py:36` |
-| `OAK-DATABASE-UNCONFIGURED` | this server has no database configured; set OAK_DATABASE_URL to the PostgreSQL database that holds the design cases, then restart it | `src/oak/interfaces/api/app.py:475` |
+| `OAK-DATABASE-UNCONFIGURED` | this server has no database configured; set OAK_DATABASE_URL to the PostgreSQL database that holds the design cases, then restart it | `src/oak/interfaces/api/app.py:477` |
 
 ### Everything else (61)
 
@@ -430,9 +430,9 @@ documented flow uses it.
 | `OAK-AUDIT-SEQUENCE` | audit event sequence is not contiguous | `src/oak/adapters/persistence/file_workspace.py:401` |
 | `OAK-CONFIRM` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/cli/main.py:2371` |
 | `OAK-CONTRACT-INVALID` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/cli/main.py:2511` |
-| `OAK-CURSOR-INVALID` | pagination cursor is invalid | `src/oak/interfaces/api/app.py:438` |
+| `OAK-CURSOR-INVALID` | pagination cursor is invalid | `src/oak/interfaces/api/app.py:440` |
 | `OAK-DEPENDENCY-MISSING` | case has no recorded policy decision; rendering requires a compiled bundle; rendering requires a semantic manifest; and 2 more (some dynamic) | `src/oak/application/candidate_planning.py:807` |
-| `OAK-HTTP-ERROR` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/api/app.py:649` |
+| `OAK-HTTP-ERROR` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/api/app.py:654` |
 | `OAK-INPUT-INVALID` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/cli/main.py:2515` |
 | `OAK-INT-CONTRADICTION-PRODUCTION-DATA` | *reason or mapping code; carries no fixed message* | `src/oak/compiler/interpretation.py:586` |
 | `OAK-INT-INFEASIBLE-CAPACITY` | *reason or mapping code; carries no fixed message* | `src/oak/compiler/interpretation.py:602` |
@@ -441,7 +441,7 @@ documented flow uses it.
 | `OAK-INT-PROPOSAL-UNANSWERED` | *reason or mapping code; carries no fixed message* | `src/oak/compiler/interpretation.py:51` |
 | `OAK-INT-UNKNOWN-DECLARED` | *reason or mapping code; carries no fixed message* | `src/oak/compiler/interpretation.py:498` |
 | `OAK-INTAKE` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/cli/main.py:311` |
-| `OAK-INTERNAL` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/api/app.py:671` |
+| `OAK-INTERNAL` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/api/app.py:676` |
 | `OAK-INTERPRET-BRIEF-TYPE` | brief unknowns must be a string array (some dynamic) | `src/oak/compiler/interpretation.py:477` |
 | `OAK-INTERPRET-STATE` | only a draft case can be interpreted | `src/oak/application/design_case.py:307` |
 | `OAK-JOURNAL-ENTRY` | journal entry type is not recognized | `src/oak/runner/journal.py:59` |
@@ -452,7 +452,7 @@ documented flow uses it.
 | `OAK-NARRATIVE-MALFORMED` | the model's answer was longer than allowed; the model's answer was not the requested JSON; the narrator did not name its model | `src/oak/adapters/models/report_narrator.py:121` |
 | `OAK-NARRATIVE-MODE` | narrative must be deterministic, online or local | `src/oak/application/report/service.py:114` |
 | `OAK-NARRATIVE-UNAVAILABLE` | the provider did not answer; the provider did not answer within the request deadline | `src/oak/adapters/models/fake_narrator.py:33` |
-| `OAK-NOT-FOUND` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/api/app.py:649` |
+| `OAK-NOT-FOUND` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/api/app.py:654` |
 | `OAK-OBSERVE-DUPLICATE` | no runner result has arrived since the last observation record | `src/oak/application/release.py:607` |
 | `OAK-OBSERVE-EVIDENCE` | the case holds no accepted runner result | `src/oak/application/release.py:600` |
 | `OAK-OBSERVE-STATE` | observation requires an installed case; ingest a successful install first | `src/oak/application/release.py:590` |
