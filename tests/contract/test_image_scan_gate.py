@@ -12,6 +12,7 @@ unfixable reports — so neither can quietly invert.
 """
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -104,8 +105,9 @@ def test_an_empty_scan_is_not_treated_as_a_finding() -> None:
 def test_the_scanner_is_pinned() -> None:
     """A floating scanner tag makes the gate's verdict depend on when it ran."""
 
-    assert SCANNER.count(":") == 1
-    assert SCANNER.rsplit(":", 1)[1] != "latest"
+    # Tag and index digest (F4-14): a re-pointed tag cannot change the scanner either.
+    assert re.fullmatch(r"aquasec/trivy:[0-9.]+@sha256:[0-9a-f]{64}", SCANNER)
+    assert SCANNER.partition("@")[0].rsplit(":", 1)[1] != "latest"
 
 
 def test_only_critical_and_high_block() -> None:
@@ -181,3 +183,4 @@ def test_the_sbom_stamp_survives_a_file_the_process_cannot_write(tmp_path: Path)
         {"name": "oak:image", "value": "oak-community/api:0.7.1=sha256:feedface"}
     ]
     assert not list(tmp_path.glob("*.stamping")), "the temporary stamp file must not survive"
+

@@ -317,7 +317,8 @@ capability gap is assessing the OS packages inside the images OAK ships — `pip
 `pnpm audit` cover the Python and web language closures and never look inside a built
 layer.
 
-`aquasec/trivy` was selected and **pinned to `0.74.0`** in `scripts/scan_images.py`. It is
+`aquasec/trivy` was selected and **pinned to `0.74.0` by tag and index digest** in
+`scripts/scan_images.py`, and the scan evidence records both. It is
 Apache-2.0, actively maintained, and reads both Debian and Alpine package databases, which
 is what the two images need. Alternatives considered: `grype` (equivalent, no advantage
 here), and `docker scout`, rejected because it requires a Docker Hub account — a hosted

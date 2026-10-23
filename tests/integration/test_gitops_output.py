@@ -50,3 +50,46 @@ def test_gitops_refuses_to_overwrite_existing_output(tmp_path: Path) -> None:
     with pytest.raises(OAKError) as caught:
         _render(harness.workspace, harness.registry, output)
     assert caught.value.code == "OAK-OUTPUT-EXISTS"
+
+
+def test_the_description_states_each_approval_and_never_lists_a_revoked_one_as_on_file(
+    tmp_path: Path,
+) -> None:
+    """F4-10: a revoked approval used to read "Approval on file"."""
+
+    harness = build_compiled_case(tmp_path)
+    harness.release.sign_plan(harness.context("signplan-00000001", "0.1.7"))
+    harness.release.approve("dry_run", harness.context("approve-dryrun-0001", "0.1.8"))
+    harness.release.revoke_approval(
+        "dry_run", "drill", harness.context("revoke-dryrun-00001", "0.1.9")
+    )
+    output = tmp_path / "gitops"
+    _render(harness.workspace, harness.registry, output)
+    description = (output / "PATCH-DESCRIPTION.md").read_text(encoding="utf-8")
+    assert "on file" not in description
+    assert "- Approval for `dry_run`: revoked at " in description
+
+
+def test_an_interrupted_render_leaves_nothing_behind(tmp_path: Path, monkeypatch) -> None:
+    """F1-15: the output is staged and renamed into place."""
+
+    import oak.application.gitops as gitops
+
+    harness = build_compiled_case(tmp_path)
+    calls = {"count": 0}
+    real_write = gitops._write
+
+    def interrupted(path: Path, content: bytes) -> None:
+        calls["count"] += 1
+        if calls["count"] == 3:
+            raise KeyboardInterrupt
+        real_write(path, content)
+
+    monkeypatch.setattr(gitops, "_write", interrupted)
+    output = tmp_path / "gitops"
+    with pytest.raises(KeyboardInterrupt):
+        _render(harness.workspace, harness.registry, output)
+    assert not output.exists()
+    assert [path.name for path in tmp_path.iterdir() if path.name.startswith(".gitops")] == []
+    monkeypatch.setattr(gitops, "_write", real_write)
+    assert _render(harness.workspace, harness.registry, output)

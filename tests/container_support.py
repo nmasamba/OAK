@@ -87,11 +87,33 @@ def host_configuration(argv: tuple[str, ...]) -> tuple[dict[str, Any], str]:
     flags = dict(item.split("=", 1) for item in argv if item.startswith("--") and "=" in item)
     memory = {"256m": 268_435_456}.get(flags.get("--memory", ""), 0)
     swap = {"256m": 268_435_456}.get(flags.get("--memory-swap", ""), 0)
+    # The shape a real daemon reports (Docker Desktop, 2026-10-23, for the hardening flags
+    # on a never-started container), so the read-back allowlist is tested against it.
     host = {
         "NetworkMode": flags.get("--network", "bridge"),
+        "Privileged": "--privileged" in argv,
         "ReadonlyRootfs": "--read-only" in argv,
+        "CapAdd": None,
         "CapDrop": [flags["--cap-drop"]] if "--cap-drop" in flags else None,
         "SecurityOpt": [flags["--security-opt"]] if "--security-opt" in flags else None,
+        "PidMode": "",
+        "IpcMode": "private",
+        "UsernsMode": "",
+        "UTSMode": "",
+        "Binds": None,
+        "Mounts": None,
+        "Devices": [],
+        "DeviceRequests": None,
+        "PortBindings": {},
+        "PublishAllPorts": False,
+        "VolumesFrom": None,
+        "Sysctls": None,
+        "Tmpfs": None,
+        "ExtraHosts": None,
+        "Links": None,
+        "GroupAdd": None,
+        "NanoCpus": int(float(flags["--cpus"]) * 1_000_000_000) if "--cpus" in flags else 0,
+        "LogConfig": {"Type": flags.get("--log-driver", "json-file"), "Config": {}},
         "Memory": memory,
         "MemorySwap": swap,
         "PidsLimit": int(flags["--pids-limit"]) if "--pids-limit" in flags else None,

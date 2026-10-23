@@ -41,7 +41,7 @@ documented flow uses it.
 
 ## Full index
 
-366 codes across 17 families.
+367 codes across 17 families.
 
 ### Workspace, artifacts and import/export (22)
 
@@ -171,7 +171,7 @@ documented flow uses it.
 | `OAK-CATALOGUE-PATTERN` | architecture edge references an unknown role; architecture pattern references a missing component manifest; architecture pattern roles are duplicated; and 2 more | `src/oak/compiler/catalogue.py:180` |
 | `OAK-CATALOGUE-TIME` | catalogue timestamp is invalid | `src/oak/domain/catalogue_rules.py:23` |
 
-### Policy (17)
+### Policy (18)
 
 | Code | Meaning | First raise site |
 |---|---|---|
@@ -180,16 +180,17 @@ documented flow uses it.
 | `OAK-POLICY-ENGINE-FAILED` | opa evaluation failed; opa evaluation omitted a rule verdict; opa evaluation returned an unreadable result; and 2 more | `src/oak/adapters/policies/opa.py:188` |
 | `OAK-POLICY-ENGINE-UNAVAILABLE` | the opa binary is not installed; the built-in engine remains available | `src/oak/adapters/policies/opa.py:95` |
 | `OAK-POLICY-ENGINE-UNKNOWN` | policy engine is not registered | `src/oak/application/policy.py:79` |
-| `OAK-POLICY-PACK-COUNT` | too many policy pack files | `src/oak/adapters/policies/pack_store.py:49` |
-| `OAK-POLICY-PACK-DUPLICATE` | policy pack ID is duplicated | `src/oak/adapters/policies/pack_store.py:53` |
+| `OAK-POLICY-PACK-COUNT` | too many policy pack files | `src/oak/adapters/policies/pack_store.py:52` |
+| `OAK-POLICY-PACK-DUPLICATE` | policy pack ID is duplicated | `src/oak/adapters/policies/pack_store.py:56` |
 | `OAK-POLICY-PACK-EFFECTIVE` | *reason or mapping code; carries no fixed message* | `src/oak/domain/policy_rules.py:105` |
 | `OAK-POLICY-PACK-EXPIRED` | *reason or mapping code; carries no fixed message* | `src/oak/domain/policy_rules.py:104` |
-| `OAK-POLICY-PACK-INVALID` | policy pack failed bounded validation; policy pack must not use YAML aliases; policy pack size is out of bounds | `src/oak/adapters/policies/pack_store.py:76` |
-| `OAK-POLICY-PACK-NOT-FOUND` | policy pack is not available | `src/oak/adapters/policies/pack_store.py:61` |
+| `OAK-POLICY-PACK-INVALID` | policy pack failed bounded validation; policy pack must not use YAML aliases; policy pack size is out of bounds | `src/oak/adapters/policies/pack_store.py:124` |
+| `OAK-POLICY-PACK-NOT-FOUND` | policy pack is not available | `src/oak/adapters/policies/pack_store.py:64` |
 | `OAK-POLICY-PACK-NOT-YET-EFFECTIVE` | *reason or mapping code; carries no fixed message* | `src/oak/domain/policy_rules.py:101` |
-| `OAK-POLICY-PACK-PATH` | policy pack must be a regular file; policy pack path must not be a symlink | `src/oak/adapters/policies/pack_store.py:66` |
+| `OAK-POLICY-PACK-PATH` | policy pack must be a regular file; policy pack path must not be a symlink | `src/oak/adapters/policies/pack_store.py:114` |
 | `OAK-POLICY-PACK-REQUIRED` | --pack is required to evaluate | `src/oak/interfaces/cli/main.py:1855` |
 | `OAK-POLICY-PACK-STATUS` | *reason or mapping code; carries no fixed message* | `src/oak/domain/policy_rules.py:99` |
+| `OAK-POLICY-PACK-UNVERIFIED` | an activated policy pack no longer matches what was verified at activation; an activated policy pack's records are unreadable | `src/oak/adapters/policies/pack_store.py:105` |
 | `OAK-POLICY-SUBJECT` | policy evaluation requires an interpreted intent | `src/oak/application/policy.py:184` |
 | `OAK-POLICY-TIME` | policy timestamp is invalid; policy timestamp must carry a UTC offset | `src/oak/domain/policy_rules.py:258` |
 
@@ -206,12 +207,12 @@ documented flow uses it.
 | `OAK-EXTENSION-NOT-FOUND` | extension file does not exist; extension is not installed | `src/oak/adapters/extensions/store.py:297` |
 | `OAK-EXTENSION-PATH` | extension files must be regular files; extension files must not be symlinks; extension payload path is unsafe | `src/oak/adapters/extensions/store.py:293` |
 | `OAK-EXTENSION-PAYLOAD` | extension file size is out of bounds; extension payload has too many files | `src/oak/adapters/extensions/store.py:118` |
-| `OAK-EXTENSION-QUARANTINED` | extension failed verification and stays quarantined (some dynamic) | `src/oak/application/extensions.py:112` |
-| `OAK-EXTENSION-SIGNER` | extensions are signed by the steward role | `src/oak/application/extensions.py:140` |
+| `OAK-EXTENSION-QUARANTINED` | extension failed verification and stays quarantined (some dynamic) | `src/oak/application/extensions.py:117` |
+| `OAK-EXTENSION-SIGNER` | extensions are signed by the steward role | `src/oak/application/extensions.py:145` |
 | `OAK-EXTENSION-SOURCE` | extension source must be a plain directory | `src/oak/adapters/extensions/store.py:205` |
 | `OAK-EXTENSION-STATE` | extension is not active; only a quarantined extension can activate | `src/oak/adapters/extensions/store.py:139` |
 | `OAK-EXTENSION-TARGET` | *dynamic message* | `src/oak/interfaces/cli/main.py:1951` |
-| `OAK-EXTENSION-VERSION` | version has no comparable numbers | `src/oak/application/extensions.py:469` |
+| `OAK-EXTENSION-VERSION` | version has no comparable numbers | `src/oak/application/extensions.py:476` |
 | `OAK-EXTENSION-VERSION-ACTIVE` | *dynamic message* | `src/oak/adapters/extensions/store.py:154` |
 
 ### Runner, signing, approval and dispatch (56)
@@ -462,7 +463,7 @@ documented flow uses it.
 | `OAK-OBSERVE-DUPLICATE` | no runner result has arrived since the last observation record | `src/oak/application/release.py:672` |
 | `OAK-OBSERVE-EVIDENCE` | the case holds no accepted runner result | `src/oak/application/release.py:665` |
 | `OAK-OBSERVE-STATE` | observation requires an installed case; ingest a successful install first | `src/oak/application/release.py:655` |
-| `OAK-OUTPUT-EXISTS` | GitOps output directory already exists; output directory already exists; render output directory already exists | `src/oak/application/gitops.py:36` |
+| `OAK-OUTPUT-EXISTS` | GitOps output directory already exists; output directory already exists; render output directory already exists | `src/oak/application/gitops.py:38` |
 | `OAK-REPORT-MISSING` | no report is recorded for this case; run `oak report --record` first | `src/oak/interfaces/cli/main.py:1683` |
 | `OAK-REPORT-OUTPUT` | a PDF needs --output <file> | `src/oak/interfaces/cli/main.py:1394` |
 | `OAK-REPORT-RENDER` | no PDF report renderer is configured; the report document could not be drawn; this renderer writes PDF only | `src/oak/adapters/report/pdf.py:1132` |

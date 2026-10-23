@@ -542,6 +542,47 @@ def test_labels_claiming_hardening_are_checked_against_the_real_configuration() 
     assert "start" not in docker.verbs()
 
 
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("Privileged", True),
+        ("CapAdd", ["CAP_SYS_ADMIN"]),
+        ("SecurityOpt", ["no-new-privileges:false"]),
+        ("SecurityOpt", ["no-new-privileges", "label=disable"]),
+        ("PidMode", "host"),
+        ("IpcMode", "host"),
+        ("UsernsMode", "host"),
+        ("Binds", ["/:/host:ro"]),
+        ("Mounts", [{"Type": "bind", "Source": "/", "Target": "/host"}]),
+        ("Devices", [{"PathOnHost": "/dev/kmsg"}]),
+        ("PortBindings", {"80/tcp": [{"HostPort": "8080"}]}),
+        ("VolumesFrom", ["other"]),
+        ("NanoCpus", 0),
+        ("LogConfig", {"Type": "json-file", "Config": {}}),
+    ],
+)
+def test_a_pre_created_container_with_any_escape_in_its_configuration_is_refused(
+    field: str, value: object
+) -> None:
+    """F4-4: the read-back is an allowlist over the whole host configuration."""
+
+    docker = FakeDocker()
+    document = parameters(ISOLATION_STARTED_HARDENED)
+    for entry in document["containers"]:
+        docker.add(
+            entry["container_name"],
+            owned_labels(entry["node_id"], isolation=ISOLATION_STARTED_HARDENED),
+            hardened=True,
+        )
+        docker.containers[entry["container_name"]]["host"][field] = value
+
+    with pytest.raises(AdapterFailureError) as caught:
+        _adapter(docker).apply(document, 120)
+
+    assert caught.value.code == "OAK-RUNNER-ISOLATION"
+    assert "start" not in docker.verbs()
+
+
 def test_a_properly_hardened_container_is_adopted_and_already_running_has_no_startup_time() -> None:
     """S20: a re-apply over a running installation reports no startup time."""
 
