@@ -227,6 +227,22 @@ mechanical migration; **breaking** otherwise.
   `--idempotency-key`, `--output`) and `oak research review <item> --accept|--reject
   --rationale-file <file>`. Neither is local-only; a usage error exits `2` with
   `OAK-RESEARCH-USAGE`. It changes no existing command.
+- The 1.0 readiness pass changes these, each recorded in the changelog:
+  - **Breaking for an operator's script:** `oak ingest` refuses with
+    `OAK-INGEST-RUNNER-UNENROLLED` (exit `2`) until a runner is enrolled. Enroll each
+    runner once with the new `oak-runner identity` and the new `enroll-runner` action of
+    `oak keys` (`--identity <file>`); from then on only enrolled runners' messages are
+    believed.
+  - `oak design` (and a REST create) of a second or edited brief in a workspace that holds
+    a case, or of a case that already exists on a server, exits `2` with `OAK-CASE-EXISTS`
+    where it exited `4` with `OAK-EXPECTED-VERSION`.
+  - `oak report --output` refuses an existing file, a directory or a missing parent with
+    `OAK-REPORT-OUTPUT` before anything is recorded, and `--output -` writes to stdout.
+  - `oak assure` and `oak plan` refuse an existing `--output` before the case advances.
+  - Remote mode's default idempotency keys derive from the request, not the case version,
+    so re-running a remote step converges on its first result, as local mode does.
+  - A research consent's digest covers the source mode and the hosts as well as the terms,
+    so a digest printed before this release no longer matches; read the plan again.
 
 ## MCP
 

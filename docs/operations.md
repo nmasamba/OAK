@@ -382,6 +382,12 @@ edge into the bundle spine.
   `OAK_RUNNER_TRUST_ANCHORS` at the same directory that holds the control plane's private
   keys. Copy only the `*.identity.json` files to a separate directory as soon as the
   runner is not on the same machine (`RR-012`).
+- **Enroll each runner once.** `oak ingest` believes a runner message only when an enrolled
+  runner signed it (`OAK-INGEST-RUNNER-UNENROLLED` until one is): print the runner's public
+  identity with `oak-runner identity`, using its own `OAK_RUNNER_HOME`, and pin it with
+  `oak keys enroll-runner --identity <file>`. Each enrolled runner is a file under the trust
+  directory's `runners/`; delete that file to withdraw one. After upgrading from `0.9.0`,
+  enroll before the first ingest.
 - **Rotate by regenerating and re-pinning.** There is no rotation command. Generate new
   keys into a fresh trust directory, distribute the new `*.identity.json` anchors, and
   re-sign anything that must remain verifiable. Old signatures verify only against old
@@ -459,7 +465,7 @@ environment as in [signed-runner.md](signed-runner.md):
 oak approve rollback
 oak dispatch rollback
 oak-runner run-once
-oak ingest
+oak ingest                 # believes only an enrolled runner (`oak keys enroll-runner`)
 ```
 
 The runner removes only containers that carry the case's labels, and proves each is gone.

@@ -163,6 +163,8 @@ OAK_RUNNER_MAILBOX="$HOME/.oak/mailbox" \
   OAK_RUNNER_TRUST_ANCHORS="$HOME/.oak/trust" \
   OAK_RUNNER_TARGET_PROFILE=examples/targets/local-fixture.yaml \
   oak-runner run-once
+oak-runner identity > runner.identity.json          # once per runner, before the first ingest
+oak keys enroll-runner --identity runner.identity.json
 oak ingest --output json
 ```
 
