@@ -69,6 +69,13 @@ class TrustAnchors:
                 if key_id != derive_key_id(role, public_key):
                     continue
                 anchors[role][key_id] = public_key
+        # A role-scoped key id differs for one key pinned under two roles, so separation
+        # of duties is judged on the key material: one key may not be both.
+        if set(anchors["plan-signer"].values()) & set(anchors["approver"].values()):
+            raise RunnerDenialError(
+                "OAK-RUNNER-SEPARATION",
+                "one public key is pinned as both plan signer and approver",
+            )
         return cls(keys_by_role=anchors)
 
     def public_key(self, role: str, key_id: str) -> str | None:
@@ -342,7 +349,9 @@ def verify_dispatch(
     # 6. Separation of duties between signer and approver identities.
     for approval in approvals:
         _check(
-            approval["signature"]["key_id"] != envelope["signature"]["key_id"],
+            approval["signature"]["key_id"] != envelope["signature"]["key_id"]
+            and approval["signature"]["public_key_base64"]
+            != envelope["signature"]["public_key_base64"],
             "OAK-RUNNER-SEPARATION",
             "approval and plan signatures share one identity",
         )

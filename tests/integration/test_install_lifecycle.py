@@ -19,7 +19,7 @@ import pytest
 from oak.domain import OAKError
 from oak.runner.adapters import ContainerFixtureAdapter
 from tests.container_support import FakeClock, FakeDocker
-from tests.runner_support import ROOT, build_compiled_case
+from tests.runner_support import ROOT, build_compiled_case, enroll_test_runner
 
 pytestmark = pytest.mark.integration
 
@@ -41,6 +41,7 @@ class Journey:
         self.counter = 0
         monkeypatch.setenv("OAK_RUNNER_MAILBOX", str(self.harness.mailbox_root))
         monkeypatch.setenv("OAK_RUNNER_HOME", str(tmp_path / "runner"))
+        enroll_test_runner(self.harness.trust_directory, tmp_path / "runner")
         monkeypatch.setenv("OAK_RUNNER_TRUST_ANCHORS", str(self.harness.trust_directory))
         monkeypatch.setenv("OAK_RUNNER_TARGET_PROFILE", str(TARGET))
 

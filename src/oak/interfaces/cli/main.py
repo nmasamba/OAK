@@ -1057,19 +1057,44 @@ def mcp_serve() -> None:
 
 @app.command()
 def keys(
-    action: Annotated[str, typer.Argument(help="init or show.")],
+    action: Annotated[str, typer.Argument(help="init, show or enroll-runner.")],
+    identity: Annotated[
+        Path | None,
+        typer.Option(
+            "--identity",
+            help="For enroll-runner: the file `oak-runner identity` printed.",
+        ),
+    ] = None,
     output: Annotated[
         OutputFormat, typer.Option("--output", help="Output format.")
     ] = OutputFormat.HUMAN,
 ) -> None:
-    """Create or inspect the local development signing identities."""
+    """Create or inspect the local development signing identities, or enroll a runner."""
 
     try:
         _require_local("keys")
-        from oak.bootstrap import initialize_local_trust
+        from oak.bootstrap import enroll_local_runner, initialize_local_trust
 
-        if action not in {"init", "show"}:
-            raise OAKError("OAK-KEYS-ACTION", "keys action must be init or show")
+        if action not in {"init", "show", "enroll-runner"}:
+            raise OAKError("OAK-KEYS-ACTION", "keys action must be init, show or enroll-runner")
+        if action == "enroll-runner":
+            if identity is None:
+                raise OAKError(
+                    "OAK-KEYS-RUNNER-IDENTITY",
+                    "enroll-runner needs --identity: the file `oak-runner identity` printed",
+                )
+            document = load_json_document(
+                _load_bounded_text(identity, code="OAK-KEYS-RUNNER-IDENTITY")
+            )
+            enrolled = enroll_local_runner(document)
+            _emit(
+                {"runner": enrolled},
+                output,
+                human=(
+                    f"Enrolled runner {enrolled['key_id']}; oak ingest believes only its messages"
+                ),
+            )
+            return
         identities = initialize_local_trust()
         _emit(
             {"identities": list(identities)},

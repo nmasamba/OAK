@@ -47,6 +47,16 @@ class RunnerIdentity:
             raise OAKError("OAK-RUNNER-KEY", "runner key length is invalid")
         return cls(Ed25519PrivateKey.from_private_bytes(raw), runner_id)
 
+    def public_identity(self) -> dict[str, str]:
+        """The public half the control plane pins with `oak keys enroll-runner`."""
+
+        return {
+            "role": "runner",
+            "key_id": self.key_id,
+            "algorithm": "ed25519",
+            "public_key_base64": self.public_key_base64,
+        }
+
     def sign(self, message: bytes) -> str:
         return base64.b64encode(self._private_key.sign(message)).decode("ascii")
 

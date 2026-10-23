@@ -39,6 +39,17 @@ class FilesystemMailbox:
     def __init__(self, root: Path) -> None:
         self._root = root
 
+    def check_unused(self, dispatch_id: str) -> None:
+        """Refuse a dispatch id this mailbox already holds, before the case records it."""
+
+        _check_component(dispatch_id)
+        if (self._root / DISPATCH_DIRECTORY / dispatch_id).exists():
+            raise OAKError(
+                "OAK-DISPATCH-EXISTS",
+                "this mailbox already holds a dispatch with that id (another workspace of "
+                "the same case?); give each workspace its own OAK_DISPATCH_MAILBOX",
+            )
+
     def deliver(
         self,
         envelope: dict[str, Any],
@@ -128,5 +139,6 @@ def _write_document(path: Path, document: dict[str, Any], *, overwrite: bool = F
 
 
 def _check_component(value: str) -> None:
-    if not value or "/" in value or "\\" in value or value.startswith("."):
+    # The runner refuses the same names, so nothing is delivered that it cannot take up.
+    if not value or "/" in value or "\\" in value or value.startswith(".") or ".." in value:
         raise OAKError("OAK-DISPATCH-NAME", "mailbox document name is unsafe")

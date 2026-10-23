@@ -84,11 +84,16 @@ class ReleaseService:
         registry: SchemaRegistry,
         signer_loader: Callable[[str], SigningPort],
         transport: DispatchTransport,
+        *,
+        runner_identity: Callable[[], dict[str, str] | None],
     ) -> None:
         self._repository = repository
         self._registry = registry
         self._signer_loader = signer_loader
         self._transport = transport
+        # The enrolled runner's public identity (`oak keys enroll-runner`): the only key
+        # whose signed messages ingest believes (F4-1).
+        self._runner_identity = runner_identity
 
     def sign_plan(self, context: CommandContext) -> ReleaseResult:
         input_digest = self._request_digest(context, {"action": "sign_plan"})
@@ -324,14 +329,6 @@ class ReleaseService:
             updated_at=context.occurred_at,
             extensions=extensions,
         )
-        published = self._publish(
-            current=current_document,
-            successor=successor,
-            event_type="approval_revoked",
-            context=context,
-            input_digest=input_digest,
-            artifacts=(artifact,),
-        )
         # The notice is signed in the approver role so the runner can refuse anything an
         # anchor did not issue: an unsigned file in the revocation channel used to be
         # honoured on its say-so, and its deletion restored the approval (RR-001). The
@@ -357,9 +354,28 @@ class ReleaseService:
             media_type=REVOCATION_MEDIA_TYPE,
         )
         notice_document = self._artifact_document(notice)
-        previous_manifest, existing_notices = self._transport.revocation_state()
+        # Checked before anything is committed: a channel this control plane cannot vouch
+        # for is refused, not re-signed.
+        previous_manifest, entries = self._notice_set()
+        published = self._publish(
+            current=current_document,
+            successor=successor,
+            event_type="approval_revoked",
+            context=context,
+            input_digest=input_digest,
+            artifacts=(artifact,),
+        )
+        # A later revocation of the same approval id rewrites that notice's file, so its
+        # entry is replaced rather than listed twice.
+        notice_id = str(notice_document["id"])
         manifest = self._revocation_manifest(
-            notices=(*existing_notices, notice_document),
+            entries=(
+                *(entry for entry in entries if entry["id"] != notice_id),
+                {
+                    "id": notice_id,
+                    "digest": content_digest(canonical_json_bytes(notice_document)),
+                },
+            ),
             previous=previous_manifest,
             context=context,
         )
@@ -508,6 +524,9 @@ class ReleaseService:
             updated_at=context.occurred_at,
             extensions=extensions,
         )
+        # A refused delivery must leave no dispatch on the case: a lease the case records
+        # but never delivered would let ingest adopt another workspace's completion for it.
+        self._transport.check_unused(str(envelope["id"]))
         published = self._publish(
             current=current_document,
             successor=successor,
@@ -526,39 +545,85 @@ class ReleaseService:
     def ingest_runner_messages(self, context: CommandContext) -> IngestResult:
         self._check_tenant(context)
         current_document = self._require_case()
+        runner = self._runner_identity()
+        if runner is None:
+            raise OAKError(
+                "OAK-INGEST-RUNNER-UNENROLLED",
+                "no runner is enrolled, so no runner message can be believed; pin the "
+                "runner's public identity with `oak keys enroll-runner` first",
+            )
         accepted: list[dict[str, Any]] = []
         rejected: list[str] = []
+        result_case = current_document
         for message in self._transport.read_messages():
             message_id = str(message.get("id", ""))
-            try:
-                self._registry.validate("runner-message.schema.json", message)
-            except Exception:
+            if not self._believable(message, runner, context):
                 rejected.append(message_id or "(unidentified)")
                 continue
-            if not verify_signed_document(message):
-                rejected.append(message_id)
-                continue
-            if not _key_id_derives_from_key(message.get("signature")):
-                rejected.append(message_id)
-                continue
-            if message["tenant_id"] != context.tenant_id:
-                rejected.append(message_id)
-                continue
-            if not self._is_dispatched_lease(message.get("lease_id")):
-                # A completion must reference a lease this control plane issued;
-                # self-signed messages cannot invent work that was never dispatched.
-                rejected.append(message_id)
-                continue
             if message["kind"] in {"completion", "evidence"}:
+                try:
+                    result_case = self._record_completion(message, context)
+                except OAKError:
+                    # Left where it is and reported, never acknowledged unrecorded: a
+                    # later ingest offers it again (F4-7).
+                    rejected.append(message_id)
+                    continue
                 accepted.append(message)
+            # Acknowledged only once its own commit has landed, one message at a time.
             self._transport.acknowledge(message_id)
-        result_case = current_document
-        for message in accepted:
-            result_case = self._record_completion(message, context)
         return IngestResult(
             case=result_case,
             accepted=tuple(accepted),
             rejected=tuple(rejected),
+        )
+
+    def _believable(
+        self, message: dict[str, Any], runner: dict[str, str], context: CommandContext
+    ) -> bool:
+        """Signed by the enrolled runner, for a lease this case dispatched, within its kinds.
+
+        A key embedded in the message proves only that someone holds that key; the
+        enrolled runner's pinned key is the only one believed. A completion may report
+        only kinds its own envelope requested, so it cannot turn a read-only dispatch
+        into an install (F4-1).
+        """
+
+        try:
+            self._registry.validate("runner-message.schema.json", message)
+        except Exception:
+            return False
+        signature = message.get("signature")
+        if (
+            not isinstance(signature, dict)
+            or signature.get("role") != "runner"
+            or signature.get("public_key_base64") != runner["public_key_base64"]
+            or signature.get("key_id") != runner["key_id"]
+            or not _key_id_derives_from_key(signature)
+            or not verify_signed_document(message)
+        ):
+            return False
+        if message["tenant_id"] != context.tenant_id:
+            return False
+        envelope = self._dispatched_envelope(message.get("lease_id"))
+        if envelope is None:
+            # A message must answer a lease this control plane issued; a self-signed
+            # message cannot invent work that was never dispatched.
+            return False
+        requested = {str(kind) for kind in envelope.get("requested_kinds", [])}
+        payload = message.get("payload")
+        if not isinstance(payload, dict):
+            return False
+        applied = payload.get("applied_kinds", [])
+        failed = payload.get("failed_kind")
+        reported = payload.get("requested_kinds")
+        return (
+            isinstance(applied, list)
+            and {str(kind) for kind in applied} <= requested
+            and (failed is None or str(failed) in requested)
+            and (
+                reported is None
+                or (isinstance(reported, list) and set(map(str, reported)) == requested)
+            )
         )
 
     def record_observation(self, context: CommandContext) -> ReleaseResult:
@@ -674,12 +739,12 @@ class ReleaseService:
                 return reference, document
         return None, None
 
-    def _is_dispatched_lease(self, lease_id: Any) -> bool:
+    def _dispatched_envelope(self, lease_id: Any) -> dict[str, Any] | None:
         if not isinstance(lease_id, str) or not lease_id:
-            return False
+            return None
         case = self._repository.current_case()
         if case is None:
-            return False
+            return None
         extensions = case.get("extensions", {})
         references = list(extensions.get("oak.community/dispatch_refs", []))
         last = extensions.get("oak.community/last_dispatch_ref")
@@ -695,8 +760,8 @@ class ReleaseService:
             except OAKError:
                 continue
             if str(envelope.get("lease", {}).get("lease_id")) == lease_id:
-                return True
-        return False
+                return envelope
+        return None
 
     def _record_completion(
         self,
@@ -827,10 +892,51 @@ class ReleaseService:
         if _parse_time(approval["expires_at"]) <= _parse_time(now):
             raise OAKError("OAK-DISPATCH-APPROVAL", "approval has expired")
 
+    def _notice_set(self) -> tuple[dict[str, Any] | None, tuple[dict[str, str], ...]]:
+        """The entries the next manifest keeps: never fewer than the last signed one lists.
+
+        The mailbox is an untrusted channel, so its directory listing is never signed as
+        it stands: a notice deleted from it used to vanish from the next manifest, and the
+        runner then honoured the approval it revoked (F4-2). Every entry the last manifest
+        listed is kept, whether or not its file is still there (a missing one is a set
+        mismatch, and the runner denies everything until it is restored); a notice the
+        last manifest did not list is added only when this control plane's approver key
+        signed it.
+        """
+
+        previous, present = self._transport.revocation_state()
+        approver = self._signer_loader("approver").identity()
+
+        def signed_here(document: dict[str, Any]) -> bool:
+            signature = document.get("signature")
+            return (
+                isinstance(signature, dict)
+                and signature.get("public_key_base64") == approver.public_key_base64
+                and verify_signed_document(document)
+            )
+
+        if previous is not None and not signed_here(previous):
+            raise OAKError(
+                "OAK-REVOCATION-CHANNEL",
+                "the mailbox's revocation manifest is not one this control plane signed; "
+                "restore the mailbox's revocations directory before publishing again",
+            )
+        entries: dict[str, str] = {}
+        for entry in (previous or {}).get("revoked", []):
+            if isinstance(entry, dict):
+                entries[str(entry.get("id"))] = str(entry.get("digest"))
+        for document in present:
+            identifier = str(document.get("id", ""))
+            if identifier and identifier not in entries and signed_here(document):
+                entries[identifier] = content_digest(canonical_json_bytes(document))
+        return previous, tuple(
+            {"id": identifier, "digest": digest} for identifier, digest in sorted(entries.items())
+        )
+
     def _revocation_manifest(
         self,
         *,
-        notices: tuple[dict[str, Any], ...],
+        entries: tuple[dict[str, str], ...],
         previous: dict[str, Any] | None,
         context: CommandContext,
     ) -> dict[str, Any]:
@@ -841,16 +947,7 @@ class ReleaseService:
         a deleted or substituted notice is a set mismatch, not an absence.
         """
 
-        entries = sorted(
-            (
-                {
-                    "id": str(document["id"]),
-                    "digest": content_digest(canonical_json_bytes(document)),
-                }
-                for document in notices
-            ),
-            key=lambda entry: entry["id"],
-        )
+        entries = tuple(sorted(entries, key=lambda entry: entry["id"]))
         sequence = int(previous["sequence"]) + 1 if isinstance(previous, dict) else 0
         artifact = self._signed_artifact(
             {
@@ -858,7 +955,7 @@ class ReleaseService:
                 "id": "revocation-manifest",
                 "version": "0.1.0",
                 "sequence": sequence,
-                "revoked": entries,
+                "revoked": list(entries),
                 "updated_at": context.occurred_at,
                 "extensions": {},
             },
@@ -870,12 +967,11 @@ class ReleaseService:
         return self._artifact_document(artifact)
 
     def _ensure_revocation_manifest(self, context: CommandContext) -> None:
-        previous_manifest, existing_notices = self._transport.revocation_state()
+        previous_manifest, _notices = self._transport.revocation_state()
         if previous_manifest is not None:
             return
-        manifest = self._revocation_manifest(
-            notices=existing_notices, previous=None, context=context
-        )
+        _previous, entries = self._notice_set()
+        manifest = self._revocation_manifest(entries=entries, previous=None, context=context)
         self._transport.publish_revocation(None, manifest)
 
     def _signed_artifact(
