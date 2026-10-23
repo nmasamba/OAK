@@ -30,6 +30,7 @@ from oak.domain import (
 )
 from oak.domain.audit import audit_event_document
 from oak.domain.design_case import next_patch_version
+from oak.domain.intake import holds_control_character
 from oak.ports import (
     BriefIntakePort,
     ModelInterpreterPort,
@@ -421,6 +422,11 @@ class DesignCaseService:
 
     def confirm(self, answers_document: dict[str, Any], context: CommandContext) -> DesignResult:
         self._registry.validate("confirmation-answers.schema.json", answers_document)
+        if holds_control_character(answers_document):
+            raise OAKError(
+                "OAK-CONFIRM-CONTROL",
+                "answers contain a prohibited control or formatting character",
+            )
         try:
             input_digest = self._request_digest(context, {"answers": answers_document})
         except (TypeError, ValueError) as error:

@@ -183,6 +183,9 @@ class LocalBriefIntake:
                         raise OAKError(
                             "OAK-INTAKE-KEY-TYPE", "structured brief keys must be strings"
                         )
+                    # An escape (`\u202e`, `\e`) decodes to the character the raw-text
+                    # check refuses, so a parsed key or string is held to the same rule.
+                    LocalBriefIntake._reject_control_characters(key)
                     visit(child, depth + 1)
                 active.remove(identity)
                 return
@@ -195,6 +198,8 @@ class LocalBriefIntake:
                     visit(child, depth + 1)
                 active.remove(identity)
                 return
+            if isinstance(value, str):
+                LocalBriefIntake._reject_control_characters(value)
             if isinstance(value, float) and not math.isfinite(value):
                 raise OAKError("OAK-INTAKE-NUMBER", "structured brief numbers must be finite")
             if value is not None and not isinstance(value, (str, int, float, bool)):

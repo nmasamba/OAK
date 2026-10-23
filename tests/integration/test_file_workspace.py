@@ -20,6 +20,7 @@ from oak.domain import (
     OAKError,
     json_artifact,
 )
+from oak.domain.artifacts import content_digest
 from oak.domain.audit import audit_event_document
 from oak.ports import WorkspaceMutation
 
@@ -234,6 +235,46 @@ def test_import_rejects_metadata_identity_tampering_without_publishing_workspace
         imported.import_from(export)
 
     assert captured.value.code == "OAK-IMPORT-INVALID"
+    assert not imported.control.exists()
+
+
+@pytest.mark.parametrize("relabel", ["extra_brief", "json_kind"])
+def test_import_refuses_a_media_type_that_does_not_fit_its_kind(
+    tmp_path: Path, relabel: str
+) -> None:
+    """F2-1: an index entry cannot make stored bytes servable as a web page."""
+
+    source = _repository(tmp_path / "source")
+    source.initialize(workspace_id="workspace.workspace-test", tenant_id="local", created_at=NOW)
+    source.commit(_initial_mutation())
+    export = tmp_path / "portable-export"
+    source.export_to(export)
+    manifest_path = export / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if relabel == "extra_brief":
+        page = b"<script>document.title='owned'</script>"
+        digest = content_digest(page)
+        (export / "objects" / "sha256" / digest.removeprefix("sha256:")).write_bytes(page)
+        manifest["artifact_index"].append(
+            {
+                "id": "brief.note",
+                "version": "0.1.0",
+                "kind": "brief_source",
+                "media_type": "text/html",
+                "digest": digest,
+                "size_bytes": len(page),
+            }
+        )
+    else:
+        entry = next(e for e in manifest["artifact_index"] if e["kind"] == "design_case")
+        entry["media_type"] = "text/html"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    imported = _repository(tmp_path / "imported")
+
+    with pytest.raises(OAKError) as captured:
+        imported.import_from(export)
+
+    assert captured.value.code in {"OAK-ARTIFACT-INVALID", "OAK-IMPORT-INVALID"}
     assert not imported.control.exists()
 
 

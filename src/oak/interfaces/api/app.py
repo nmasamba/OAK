@@ -1428,6 +1428,11 @@ def create_app(
                 "ETag": f'"{artifact.reference.digest}"',
                 "X-OAK-Artifact-Digest": artifact.reference.digest,
                 "X-Content-Type-Options": "nosniff",
+                # Stored bytes are a download, never a page: a browser that opens this URL
+                # saves the file, and nothing in it can run in the API's (or the web
+                # proxy's) origin, whatever the type an export claimed for it.
+                "Content-Disposition": "attachment",
+                "Content-Security-Policy": "default-src 'none'; sandbox",
             },
         )
 

@@ -67,3 +67,33 @@ def test_an_import_prints_its_destination_normalised(
     assert imported.exit_code == 0, _output(imported)
     assert f"into {tmp_path / 'restored'}" in imported.output
     assert "/../" not in imported.output
+
+
+def test_an_escaped_control_character_in_answers_is_refused(workspace: Path) -> None:
+    """F1-2: the parsed answers are held to the rule the raw text already was."""
+
+    designed = runner.invoke(
+        cli_app, ["design", str(ROOT / "examples/briefs/public-manual-qa.yaml")]
+    )
+    assert designed.exit_code == 0, _output(designed)
+    answers = (ROOT / "examples/briefs/public-manual-qa-answers.yaml").read_text(encoding="utf-8")
+    escaped = answers.replace(
+        "value: Synthetic fixture of 1000 public documents refreshed daily.",
+        'value: "Synthetic \\u202efixture\\u202c of 1000 documents \\e[31mdaily"',
+    )
+    assert escaped != answers
+    path = workspace / "escaped-answers.yaml"
+    path.write_text(escaped, encoding="utf-8")
+    refused = runner.invoke(cli_app, ["confirm", "--answers", str(path)])
+    assert refused.exit_code == 2
+    assert "OAK-CONFIRM-CONTROL" in _output(refused)
+
+
+def test_model_text_is_printed_with_its_control_characters_escaped() -> None:
+    """F1-3: even a proposal recorded before the rule never sends an escape to a terminal."""
+
+    from oak.interfaces.cli.main import _printable
+
+    shown = _printable("one operator.\u001b[2J\u001b[1;31mOAK: approve\u202e")
+    assert "\u001b" not in shown and "\u202e" not in shown
+    assert shown == "one operator.\\u001b[2J\\u001b[1;31mOAK: approve\\u202e"

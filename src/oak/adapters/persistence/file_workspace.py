@@ -15,6 +15,7 @@ from typing import Any
 from oak.contracts import ContractValidationError, SchemaRegistry, load_json_document
 from oak.domain import OAKError
 from oak.domain.artifacts import Artifact, ArtifactReference, canonical_json_bytes, content_digest
+from oak.domain.intake import BRIEF_MEDIA_TYPES
 from oak.domain.report import RENDERING_KIND, RENDERING_MAGIC, REPORT_EXTENSION
 from oak.ports.workspace import WorkspaceCommit, WorkspaceMutation
 
@@ -85,11 +86,24 @@ OPAQUE_KINDS = frozenset({"brief_source", RENDERING_KIND})
 ReplaceFile = Callable[[Path, Path], None]
 
 
+def validate_json_media_type(artifact: Artifact) -> None:
+    """A schema-bound kind is stored under its own JSON media type and no other.
+
+    The type is what the artifact read serves the bytes as, so an index entry that pairs a
+    kind with any other type (`text/html`, say) is refused before anything is stored.
+    """
+
+    if JSON_MEDIA_KIND.get(artifact.media_type) != artifact.kind:
+        raise OAKError("OAK-ARTIFACT-INVALID", "artifact media type does not fit its kind")
+
+
 def validate_opaque_artifact(artifact: Artifact) -> None:
     """Accept an artifact without a schema only if its kind is one stored as bytes."""
 
     if artifact.kind not in OPAQUE_KINDS:
         raise OAKError("OAK-ARTIFACT-KIND", "artifact kind is not supported")
+    if artifact.kind == "brief_source" and artifact.media_type not in BRIEF_MEDIA_TYPES:
+        raise OAKError("OAK-ARTIFACT-INVALID", "a brief source must carry a brief media type")
     if artifact.kind == RENDERING_KIND:
         magic = RENDERING_MAGIC.get(artifact.media_type)
         if magic is None or not artifact.content.startswith(magic):
@@ -413,6 +427,7 @@ class FileWorkspaceRepository:
         if schema_name is None:
             validate_opaque_artifact(artifact)
             return
+        validate_json_media_type(artifact)
         try:
             document = json.loads(artifact.content)
         except json.JSONDecodeError as error:

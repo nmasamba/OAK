@@ -23,6 +23,7 @@ from oak.adapters.persistence.file_workspace import (
     OBJECT_DIGEST,
     OPAQUE_KINDS,
     FileWorkspaceRepository,
+    validate_json_media_type,
     validate_opaque_artifact,
 )
 from oak.adapters.persistence.models import (
@@ -839,6 +840,7 @@ class PostgreSQLWorkspaceRepository:
         if schema_name is None:
             validate_opaque_artifact(artifact)
             return
+        validate_json_media_type(artifact)
         document = _json_object(artifact.content, "canonical artifact")
         self._registry.validate(schema_name, document)
         if artifact.kind == "audit_event":

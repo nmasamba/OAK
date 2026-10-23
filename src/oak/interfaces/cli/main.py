@@ -37,6 +37,7 @@ from oak.bootstrap import (
 )
 from oak.contracts import ContractValidationError, load_json_document, load_yaml_document
 from oak.domain import OAKError, SecretValue
+from oak.domain.intake import holds_control_character
 
 
 class OutputFormat(StrEnum):
@@ -295,8 +296,19 @@ def _model_annotation(intent: dict[str, Any] | None, path: str) -> list[str]:
     lowest_path, lowest = min(records, key=lambda item: (confidence(item), item[0]))
     return [
         f"  proposed by model (confidence {confidence((lowest_path, lowest)):.2f}): "
-        f"{lowest.get('rationale', '')}"
+        f"{_printable(str(lowest.get('rationale', '')))}"
     ]
+
+
+def _printable(text: str) -> str:
+    """Model text with every control or format character shown as an escape, never printed raw."""
+
+    return "".join(
+        f"\\u{ord(character):04x}"
+        if unicodedata.category(character) in {"Cc", "Cf", "Cs"}
+        else character
+        for character in text
+    )
 
 
 def _remote_design(
@@ -2401,15 +2413,21 @@ def _load_bounded_mapping(path: Path, *, prefix: str) -> dict[str, Any]:
         raise OAKError(f"{prefix}-CONTROL", "input contains disallowed control characters")
     try:
         if absolute.suffix.lower() == ".json":
-            return load_json_document(text)
-        tokens = tuple(yaml.scan(text))
-        if any(
-            isinstance(token, (yaml.tokens.AliasToken, yaml.tokens.AnchorToken)) for token in tokens
-        ):
-            raise OAKError(f"{prefix}-ALIAS", "aliases and anchors are not accepted")
-        return load_yaml_document(text)
+            document = load_json_document(text)
+        else:
+            tokens = tuple(yaml.scan(text))
+            if any(
+                isinstance(token, (yaml.tokens.AliasToken, yaml.tokens.AnchorToken))
+                for token in tokens
+            ):
+                raise OAKError(f"{prefix}-ALIAS", "aliases and anchors are not accepted")
+            document = load_yaml_document(text)
     except (ValueError, yaml.YAMLError, ContractValidationError) as error:
         raise OAKError(f"{prefix}-MALFORMED", "input is malformed") from error
+    if holds_control_character(document):
+        # An escape decodes to the character the raw-text check above refuses.
+        raise OAKError(f"{prefix}-CONTROL", "input contains disallowed control characters")
+    return document
 
 
 def _read_bounded_file(path: Path, *, prefix: str, maximum_bytes: int) -> bytes:

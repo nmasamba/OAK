@@ -424,6 +424,41 @@ def test_unusable_claims_are_dropped_and_counted_rather_than_failing_the_call() 
     assert proposal["extensions"]["oak.community/model"]["dropped_claims"] == 5
 
 
+def test_a_claim_carrying_a_control_or_format_character_is_dropped() -> None:
+    """F1-3: a terminal escape or a bidirectional override never reaches canonical state."""
+
+    answer = {
+        "proposed_claims": [
+            {
+                "path": "/spec/domain/setting",
+                "value_json": '"Pilot"',
+                "confidence": 0.5,
+                "rationale": "names one operator.\u001b[2J\u001b[1;31mOAK: all resolved\u001b[0m",
+            },
+            {
+                "path": "/spec/domain/countries",
+                "value_json": '"Team lead \\u202eredacted\\u202c"',
+                "confidence": 0.5,
+                "rationale": "r",
+            },
+            {
+                "path": "/spec/domain/languages",
+                "value_json": '"en"',
+                "confidence": 0.5,
+                "rationale": "plain",
+            },
+        ],
+        "unanswered_paths": ["/spec/hardware/ram_gib\u202e", "/spec/hardware/vram_gib"],
+    }
+    proposal = _adapter(_StubTransport(_completion(answer))).propose(
+        SOURCE_RECORD, b"b", ProposalLimits()
+    )
+
+    assert [claim["path"] for claim in proposal["proposed_claims"]] == ["/spec/domain/languages"]
+    assert proposal["unanswered_paths"] == ["/spec/hardware/vram_gib"]
+    assert proposal["extensions"]["oak.community/model"]["dropped_claims"] == 2
+
+
 def test_the_claim_count_and_rationale_length_are_bounded() -> None:
     answer = {
         "proposed_claims": [

@@ -159,3 +159,41 @@ def test_a_missing_brief_says_it_does_not_exist_under_the_same_code(tmp_path: Pa
     with pytest.raises(OAKError) as unsafe:
         LocalBriefIntake().read(link)
     assert unsafe.value.message == "brief must be a regular non-symlink file"
+
+
+@pytest.mark.parametrize(
+    ("name", "text"),
+    [
+        (
+            "escaped.json",
+            '{"id": "brief.x", "brief_version": "0.1.0", '
+            '"title": "Cited answers \\u202eevil\\u202c \\u001b[31mRED\\u001b[0m"}',
+        ),
+        ("escaped.yaml", 'id: brief.x\nbrief_version: 0.1.0\ntitle: "Cited \\e[2J answers"\n'),
+        (
+            "escaped-key.json",
+            '{"id": "brief.x", "brief_version": "0.1.0", "title": "t", "k\\u200f": 1}',
+        ),
+    ],
+)
+def test_an_escaped_control_character_is_refused_like_a_raw_one(
+    tmp_path: Path, name: str, text: str
+) -> None:
+    """F1-2: a JSON or YAML escape decodes to the character the raw-text check refuses."""
+
+    assert all(
+        ord(character) < 127 and (character.isprintable() or character == "\n")
+        for character in text
+    )
+    path = tmp_path / name
+    path.write_text(text, encoding="utf-8")
+    with pytest.raises(OAKError) as refused:
+        LocalBriefIntake().read(path)
+    assert refused.value.code == "OAK-INTAKE-UNICODE-CONTROL"
+
+
+def test_a_stored_brief_may_carry_exactly_the_media_types_intake_reads() -> None:
+    from oak.adapters.intake.local_file import SUPPORTED_FORMATS
+    from oak.domain.intake import BRIEF_MEDIA_TYPES
+
+    assert {media_type for _format, media_type in SUPPORTED_FORMATS.values()} == BRIEF_MEDIA_TYPES

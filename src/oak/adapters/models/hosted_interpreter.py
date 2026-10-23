@@ -28,6 +28,7 @@ from oak.adapters.models.providers import (
 from oak.adapters.models.transport import ModelTransport, TransportRequest, TransportResponse
 from oak.contracts import ADMISSIBLE_INTENT_PATHS
 from oak.domain import OAKError, SecretValue
+from oak.domain.intake import holds_control_character
 from oak.ports.interpreter import ProposalLimits
 
 SOURCE_ARTIFACT_REF_EXTENSION = "oak.community/artifact_ref"
@@ -339,6 +340,11 @@ class HostedModelInterpreter:
             confidence = 0.5 if confidence != confidence else min(1.0, max(0.0, confidence))
             rationale = item.get("rationale")
             rationale = rationale.strip() if isinstance(rationale, str) else ""
+            if holds_control_character(decoded) or holds_control_character(rationale):
+                # A terminal escape or a bidirectional override in a proposed value or its
+                # rationale would reach canonical state and every screen that shows it.
+                dropped += 1
+                continue
             seen.add(path)
             claims.append(
                 {
@@ -356,7 +362,11 @@ class HostedModelInterpreter:
             return []
         paths: list[str] = []
         for item in value:
-            if not isinstance(item, str) or not item.startswith("/spec/"):
+            if (
+                not isinstance(item, str)
+                or not item.startswith("/spec/")
+                or holds_control_character(item)
+            ):
                 continue
             # Truncate first, then de-duplicate: two long paths sharing a prefix used to
             # survive as one entry each and then collide, producing a proposal the
