@@ -60,7 +60,7 @@
     repository.
   </div>
   <div class="meta">
-    Covers OAK Community 0.9.0 · generated from <code>docs/manual/</code> in the
+    Covers OAK Community as this repository builds it: it reports <code>0.9.0</code> and adds the work the changelog lists as unreleased · generated from <code>docs/manual/</code> in the
     repository — see the colophon for how to rebuild this document and re-capture its
     screenshots from a live system.
   </div>
@@ -143,7 +143,7 @@
         <line x1="814" y1="72" x2="834" y2="62" stroke="#38564a" stroke-width="1.6" marker-end="url(#arr)"/>
         <line x1="814" y1="100" x2="834" y2="112" stroke="#38564a" stroke-width="1.6" marker-end="url(#arr)"/>
         <text x="500" y="170" text-anchor="middle" font-size="12" fill="#5a6b63">Every stage writes immutable content-addressed artifacts with an audit trail. All of it is deterministic and offline,</text>
-        <text x="500" y="186" text-anchor="middle" font-size="12" fill="#5a6b63">except interpret when you have configured a model — see chapter 4.</text>
+        <text x="500" y="186" text-anchor="middle" font-size="12" fill="#5a6b63">except interpret and report notes with a configured model, and research when you consent.</text>
       </g>
     </svg>
     <figcaption>Figure 1 — the pipeline. The compiled plan is inert: executing anything requires the separate signing, approval and runner verification described in chapter 6.</figcaption>
@@ -155,8 +155,9 @@
     in this manual needs a hosted service or a model provider, and the whole CLI journey
     runs with the network disabled. The network is used only when the Docker chapters (4
     and 5) pull their pinned base images once, on first build; when chapter 6's first
-    install has Docker pull one pinned placeholder image anonymously from Docker Hub; and
-    by the optional model provider in chapter 4, which nothing requires. <strong>Fail-closed:</strong> anything unknown, malformed, expired, unsigned or
+    install has Docker pull one pinned placeholder image anonymously from Docker Hub; by
+    the optional model provider in chapter 4, which nothing requires; and by research,
+    only when you consent to a run (chapter 3). <strong>Fail-closed:</strong> anything unknown, malformed, expired, unsigned or
     mismatched is refused with a stable <code>OAK-*</code> error code, never skipped.
   </p>
   <h2>What it is not</h2>
@@ -195,7 +196,7 @@
   <h2>Prerequisites</h2>
   <table>
     <tr><th>Requirement</th><th>Version</th><th>Notes</th></tr>
-    <tr><td>macOS or Linux</td><td>macOS 11+ on Apple silicon (arm64) — Intel Macs are not supported; Linux glibc ≥ 2.24 (x86_64) / ≥ 2.27 (aarch64)</td><td>See <code>docs/platforms.md</code> for the authoritative matrix, including why dependency installation fails outright on macOS x86_64. Windows is not supported; WSL2 follows the Linux rows</td></tr>
+    <tr><td>macOS or Linux</td><td>macOS 11+ on Apple silicon (arm64) — Intel Macs are not supported; Linux glibc ≥ 2.27 (x86_64 and aarch64)</td><td>See <code>docs/platforms.md</code> for the authoritative matrix, including why dependency installation fails outright on macOS x86_64. Windows is not supported; WSL2 follows the Linux rows</td></tr>
     <tr><td><code>git</code></td><td>any recent</td><td>To clone the repository — and required even offline for the repository checks, which shell out to it</td></tr>
     <tr><td><code>uv</code></td><td>0.10.x</td><td>The source way. Installs and pins Python 3.13.12 itself</td></tr>
     <tr><td>Docker with Compose</td><td>any recent, daemon on the default socket</td><td>The browser workspace, REST and MCP (ch. 4 and 5) and the runner's install cycle (ch. 6), whose first install pulls <code>rancher/mirrored-pause</code> anonymously from Docker Hub. The runner gives Docker only <code>PATH</code> and an empty Docker configuration of its own, so <code>DOCKER_HOST</code>, CLI contexts and your registry credentials are never used, and rootless Docker, Colima and Podman socket shims cannot reach it (<code>RR-013</code>)</td></tr>
@@ -208,7 +209,8 @@ uv sync --frozen</code></pre>
   <p>
     <code>uv sync --frozen</code> builds <code>.venv</code> from the lockfile, fetching
     Python 3.13.12 if this machine does not have it. It took 40 seconds on the machine
-    this edition was checked on. It is the one networked step the CLI journey ever needs:
+    this edition was checked on. It is the one networked step the CLI journey needs, unless you consent to research
+    (chapter 3, §2b) or ask for model notes on the report:
     chapter 3 and chapter 9 work with egress disabled from here on, as does checking a
     download in chapter 7, while chapters 4 and 5 need Docker, which pulls its pinned
     base images the first time you build, and chapter 6's first install has Docker pull
@@ -248,7 +250,8 @@ make check</code></pre>
   <p>
     This chapter follows the reference brief that ships with the repository — a
     citation-first documentation-search service — from intake to a compiled bundle.
-    Every command runs offline. Start in the repository root and create a workspace:
+    Every command runs offline, except a consented research run (§2b) and a report
+    recorded with model notes. Start in the repository root and create a workspace:
   </p>
   <pre><code>uv run oak init ./workspace
 cd workspace</code></pre>
@@ -333,22 +336,25 @@ question.data-volume: What document volume and update cadence must the design su
   </p>
   <pre><code>uv run oak research --plan
 <span class="out">Research plan for design-case.public-manual-qa@0.1.2 (ready_for_candidates; allowed now)
-Source: live; hosts: huggingface.co, router.huggingface.co, api.github.com
+Source: live; hosts: api.github.com, huggingface.co, router.huggingface.co
 Terms digest: sha256:9a6f8c4866de0a7afb924092820c257bb3f370d0fadb1971493702e67123d51e
 Sent terms (verbatim):
 { "github": { "archived": false, "pushed_within_days": 180, "topics": { … } },
   "hub": { "filters": ["conversational"], "inference_provider": "all",
            "pipeline_tags": ["text-generation"], "sort": "createdAt" } }
 Used on this machine only:
-{ "capabilities": [ … ], "hardware_class": "cpu-medium", "licence_ids": [ … ], … }</span></code></pre>
+{ "capabilities": [ … ], "hardware_class": "unknown", "licence_ids": [ … ], … }</span></code></pre>
   <p>
     The sent terms come from closed vocabularies, never from the brief's own words; the
-    rest is applied locally. A run consents to the hosts and the digest it just read, needs
-    the model-configuration token the API prints at start, and is bounded: thirty
-    anonymous requests within sixty seconds, a size cap on every answer, no retry of a
-    refusal. In this manual's edition the run reads the recorded fixture source instead
-    of the three hosts, so its plan says <code>Source: fixture; hosts: none</code> and
-    everything it finds is synthetic:
+    rest is applied locally. A run consents to the hosts and the digest it just read (from
+    the browser or REST it also needs the model-configuration token the API prints at
+    start; this local command needs none), and is bounded: thirty anonymous requests
+    within sixty seconds, a size cap on every answer, no retry of a refusal. The run below
+    was made on the recorded fixture source the test suites use
+    (<code>OAK_RESEARCH_FIXTURES</code>, for test stacks only), so its plan said
+    <code>Source: fixture; hosts: none (fixture)</code> and everything it found is
+    synthetic. Without that variable your run sends the terms to the three hosts and
+    finds whatever they list that day:
   </p>
   <pre><code>uv run oak research --consent sha256:9a6f8c4866de0a7afb924092820c257bb3f370d0fadb1971493702e67123d51e
 <span class="out">Research research.public-manual-qa@0.1.0 (fixture): found 2, passed 1, need review 1, failed 0
@@ -358,9 +364,10 @@ Used on this machine only:
   <p>
     Each item carries its source, its tier and the class of evidence behind every claim —
     what the source published, what it measured, what its author merely claims. A model
-    from a trusted namespace passes the tier gate on its own; a harness outside the
-    owner-reviewed list is <em>unvetted</em> and needs your recorded review before it can
-    enter a design. The review is a decision with a rationale, never a quiet toggle:
+    from a trusted namespace passes the tier gate on its own. Until the owner records a
+    review of the draft harness list, every harness research finds is <em>unvetted</em>
+    (after that, every harness outside the list), and an unvetted harness needs your
+    recorded review before it can enter a design. The review is a decision with a rationale, never a quiet toggle:
   </p>
   <pre><code>uv run oak research review research.item.github.fixture-forge.fixturelm-serve --accept --rationale-file rationale.txt
 <span class="out">Recorded accept for research.item.github.fixture-forge.fixturelm-serve; the case is now at 0.1.4</span></code></pre>
@@ -370,7 +377,10 @@ Used on this machine only:
     "Look for newer options?" with a <em>Run research</em> keycap, the results as chips,
     and <em>Accept for comparison</em> or <em>Reject</em> beside the item that needs you
     (figure 13). What research does and does not do is set out in
-    <code>docs/research.md</code>.
+    <code>docs/research.md</code>. A research run and a review each add a case version, so
+    if you ran them every later version in this chapter is two higher (the report is
+    recorded from <code>0.1.9</code> and the export is <code>@0.1.10</code>), and the
+    report gains appendix G.
   </p>
   <h2>3 · Generate and compare candidates</h2>
   <pre><code>uv run oak candidates
@@ -379,8 +389,8 @@ candidate-00  simpler_baseline           feasible    true      0
 candidate-01  minimum_sufficient         feasible    true      0
 candidate-03  balanced_enterprise        feasible    true      0
 candidate-04  high_assurance_sovereign   infeasible  false     1
-candidate-05  balanced_enterprise        infeasible  true      4
-candidate-06  high_assurance_sovereign   infeasible  true      4</span></code></pre>
+candidate-05  balanced_enterprise        infeasible  true      6
+candidate-06  high_assurance_sovereign   infeasible  true      6</span></code></pre>
   <p>
     Four provider-neutral candidate architectures are generated from a bundled synthetic
     catalogue, checked against hard constraints, and scored with transparent estimator
@@ -391,10 +401,11 @@ candidate-06  high_assurance_sovereign   infeasible  true      4</span></code></
     reason. If you ran research, at most two <strong>researched designs</strong> follow
     from <code>candidate-05</code>, labelled like "Balanced, new": the newest passing model
     per pattern with the harness your review admitted. Each is <em>infeasible</em> with
-    every reason — its licence review is pending and the figures its sources do not
+    every reason — its licence review is pending, and the minimum resources, deployment
+    modes, runtime external calls, air-gap suitability and interfaces its sources do not
     publish are unknown, never guessed — yet it joins the comparison (<em>FRONTIER
-    true</em>) so you can see it beside the curated designs. It cannot be selected this
-    sprint, and the workspace, the CLI and the report all say so plainly.
+    true</em>) so you can see it beside the curated designs. It cannot be selected in this
+    release, and the workspace, the CLI and the report all say so plainly.
   </p>
   <h2>4 · Evaluate, select, assure</h2>
   <pre><code>uv run oak evaluate candidate-03
@@ -434,7 +445,11 @@ uv run oak assure candidate-03 --output ./assurance
     Two clean machines running this chapter produce byte-identical semantic manifests —
     that is the determinism promise, and it is what makes the digests in chapter 6
     worth signing. Chapter 5 shows the server producing the same fingerprint as this
-    chapter.
+    chapter. That holds for a case whose candidates were generated without research: a
+    research run (§2b) changes the catalogue snapshot the bundle binds, so the fingerprint
+    differs (<code>sha256:cf57b7c3…</code> on the fixture source, and on the live source
+    whatever the hosts listed that day). Chapter 5's comparison needs a chapter-3
+    workspace that skipped §2b.
   </div>
   <h2>6 · Record the architecture report</h2>
   <pre><code>uv run oak report --record --format pdf --output ../report.pdf
@@ -484,8 +499,11 @@ uv run oak import ../case-export --directory ../restored
     backed by a persistent PostgreSQL control plane. It needs Docker with Compose (see
     the prerequisites in chapter 2), and the first build pulls the pinned base images.
     That, the optional <em>Refresh models</em> button at the end of this chapter, the single
-    verification request that storing a Hugging Face token makes, and an Online AI
-    interpretation are the only steps here that use the network. Start the stack:
+    verification request that storing a Hugging Face token makes, an Online AI
+    interpretation, a report recorded in Online AI mode, and a consented research run
+    (<em>Run research</em>, which sends the plan's terms anonymously to
+    <code>huggingface.co</code>, <code>router.huggingface.co</code> and
+    <code>api.github.com</code>) are the only steps here that use the network. Start the stack:
   </p>
   <pre><code>docker compose up -d --build</code></pre>
   <div class="warn">
@@ -1151,8 +1169,9 @@ uv run oak observe</code></pre>
   <p>
     If you received OAK Community as built artifacts rather than as this repository,
     verify them before installing anything. The newest published release is
-    <code>0.9.0</code>, the version this manual describes, on the project's GitHub Releases
-    page. <code>0.8.0</code> was approved but never published. To build the artifacts
+    <code>0.9.0</code>, on the project's GitHub Releases page; this manual also describes
+    the work added since (the rebuilt browser workspace, <code>oak report</code> and
+    <code>oak research</code>), which its downloads do not contain. <code>0.8.0</code> was approved but never published. To build the artifacts
     yourself, the repository does it with:
   </p>
   <pre><code>make release</code></pre>
@@ -1199,7 +1218,7 @@ them: OAK Community release artifacts are unsigned.</span></code></pre>
   <table>
     <tr><td>Online AI refuses with <code>OAK-MODEL-KEY-REJECTED</code></td><td>Hugging Face rejected the stored token when it was last checked or used</td><td>Store a current token with <code>oak models set-key</code>; the verdict is forgotten when the key changes</td></tr>
     <tr><td>Online AI refuses with <code>OAK-MODEL-ROUTE-UNAVAILABLE</code></td><td>The account cannot be billed for that provider route, even with credit</td><td>Pick another route with <code>oak models select huggingface &lt;model_id&gt; --provider &lt;route&gt;</code>, or <code>oak models clear huggingface</code> to fall back to the preferred pair</td></tr>
-    <tr><td>Online AI says no route is fast enough</td><td>Every catalogued route publishes throughput too low for the request budget</td><td>Run <code>oak models discover</code>, raise <code>OAK_MODEL_TIMEOUT_SECONDS</code> (up to 35 keeps the pre-flight), or set the provider policy to fastest</td></tr>
+    <tr><td>Online AI says no route is fast enough</td><td>Every catalogued route publishes throughput too low for the request budget</td><td>Run <code>oak models discover</code>, raise <code>OAK_MODEL_TIMEOUT_SECONDS</code> (up to 35 keeps the pre-flight), or pin a model and route with <code>oak models select huggingface &lt;model_id&gt; --provider &lt;route&gt;</code></td></tr>
     <tr><td>A command refuses with <code>OAK-EXPECTED-VERSION</code></td><td>The case advanced since you last read it</td><td>Re-read the case and retry with the current version — this is optimistic concurrency working, not an error to force past</td></tr>
     <tr><td>The web stack serves an old version</td><td><code>docker compose up -d</code> reused a cached image</td><td>Always <code>--build</code>, then check <code>/version</code></td></tr>
     <tr><td>The first <code>docker compose up -d --build</code> stops with <code>operation timed out</code></td><td>A package download stalled while the images were building</td><td>Run the same command again; the build steps that finished are reused</td></tr>
@@ -1231,7 +1250,7 @@ rm -rf ~/.oak
 
 # 3 · Workspaces you created (you chose these paths; OAK does not track them),
 #     and chapter 6's trust directory and mailboxes; trust/ holds DEVELOPMENT PRIVATE KEYS
-rm -rf ./workspace ./runner-demo ./runner-started ./case-export ./restored ./trust ./mailbox ./mailbox-started
+rm -rf ./workspace ./runner-demo ./runner-started ./case-export ./restored ./report.pdf ./report.json ./trust ./mailbox ./mailbox-started
 
 # 4 · Build output, venv and caches inside the checkout
 make clean-all
@@ -1255,7 +1274,8 @@ cd .. &amp;&amp; rm -rf OAK</code></pre>
     explicitly rather than leaving it to the checkout's removal. Shared caches
     (<code>~/.cache/uv</code>, the pnpm store, Playwright browsers) and
     the third-party images OAK pulled (<code>postgres:17.6-alpine</code>,
-    <code>python:3.13.12-slim</code>, <code>node:24.18.0-alpine</code>,
+    <code>python:3.13.12-slim</code>, <code>ghcr.io/astral-sh/uv:0.10.8</code> (a build stage
+    of the API image), <code>node:24.18.0-alpine</code>,
     <code>nginxinc/nginx-unprivileged:1.29.1-alpine</code>, and
     <code>rancher/mirrored-pause</code>, which chapter 6's install pulled by digest) are
     shared Docker and toolchain state, yours to keep or remove with <code>docker image rm</code>. The full
@@ -1288,7 +1308,10 @@ pnpm --dir web exec node ../docs/manual/build_manual.mjs</code></pre>
     <code>tests/e2e/test_runner_journey.py</code>) exercise the same invocations
     continuously — except <code>oak revoke-approval</code>, which is covered by the
     revocation integration suite (<code>tests/integration/test_runner_revocation.py</code>)
-    instead. Chapter 5's shell commands were run against the <code>0.8.0</code> Compose stack,
+    instead. Chapter 3's research and report sections were run on the recorded fixture
+    research source; <code>oak research</code> and <code>oak report</code> are exercised by
+    <code>tests/integration/test_research_cli.py</code> and
+    <code>tests/integration/test_report_cli.py</code> rather than the end-to-end suites. Chapter 5's shell commands were run against the <code>0.8.0</code> Compose stack,
     as the tour records. The operations behind them are exercised by the interface conformance and MCP
     suites (<code>tests/integration/test_interface_conformance.py</code>,
     <code>tests/e2e/test_mcp_interface.py</code>), which need a PostgreSQL database and so

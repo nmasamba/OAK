@@ -67,7 +67,10 @@ test("a reviewer consents to research, reviews the unvetted harness and compares
       terms_digest: string;
       allowed: boolean;
     };
-    expect(plan.source_mode).toBe("fixture");
+    expect(
+      plan.source_mode,
+      "set OAK_RESEARCH_FIXTURES on api and worker (docs/development.md, Browser end-to-end)",
+    ).toBe("fixture");
     expect(plan.hosts).toEqual([]);
     expect(plan.terms_digest).toMatch(/^sha256:[0-9a-f]{64}$/);
     expect(plan.allowed).toBe(true);

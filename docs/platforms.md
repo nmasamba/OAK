@@ -18,8 +18,8 @@ before reading the platform table.
 
 | Path | What it gives you | Needs |
 |---|---|---|
-| **CLI only** | The whole `init → design → questions → confirm → candidates → evaluate → select → assure → plan → export` journey, plus `architecture`, `models`, `render`, `policy`, `extensions` and `validate`, against a file workspace | Python 3.13 and `uv`. No database, no Docker, and no network after install — unless you configure a model provider with `oak models`, which is optional and off by default |
-| **Control plane** | `oak-api`, `oak-worker`, `oak-db-migrate`, `oak mcp serve`, the REST surface and the web workspace | The CLI row, plus PostgreSQL 17. There is no SQLite fallback. `oak-worker`, `oak-db-migrate` and `oak-mcp` refuse to start without `OAK_DATABASE_URL`; `oak-api` starts but reports `/readyz` as not ready and fails every `/v1` request |
+| **CLI only** | The whole `init → design → questions → confirm → candidates → evaluate → select → assure → plan → export` journey, plus `architecture`, `report`, `research`, `models`, `render`, `policy`, `extensions` and `validate`, against a file workspace | Python 3.13 and `uv`. No database, no Docker, and no network after install — unless you configure a model provider with `oak models` or consent to a research run (`oak research --consent`, anonymous requests to three public hosts); both are optional and off by default |
+| **Control plane** | `oak-api`, `oak-worker`, `oak-db-migrate`, `oak mcp serve`, the REST surface and the web workspace | The CLI row, plus PostgreSQL 17. There is no SQLite fallback. `oak-worker`, `oak-db-migrate` and `oak-mcp` refuse to start without `OAK_DATABASE_URL`; `oak-api` starts, warns, reports `/readyz` as not ready and refuses every request that needs the database with `503 OAK-DATABASE-UNCONFIGURED` |
 | **Signed runner** | `oak dispatch`, `oak-runner`, `oak ingest` and `oak observe` against the shipped fixture profiles, including installing one container per node of the selected candidate, starting and smoke-testing them where the profile allows it, and removing them | The CLI row, plus a Docker daemon reachable on its default socket that can pull the pinned placeholder image anonymously from Docker Hub on the first install |
 
 The Compose profile is the packaged form of the control-plane row: it supplies PostgreSQL,
@@ -61,7 +61,7 @@ Three of the native dependencies behave very differently below their floor:
 - `psycopg-binary` 3.3.4 ships **no source distribution at all**. Below its floor, or on
   an architecture it does not publish for, there is no server path at any build cost.
   That is why 32-bit ARM has no control-plane row rather than a slow one.
-- `Pillow` 12.3.0 ships an sdist, so below its floor, or on 32-bit ARM, it builds with a C
+- `Pillow` 13.0.0 ships an sdist, so below its floor, or on 32-bit ARM, it builds with a C
   toolchain and the development headers for zlib and libjpeg. That is unsupported. OAK never
   hands it an image; it is installed only because ReportLab requires it.
 
@@ -163,6 +163,6 @@ green.
 
 CI (`.github/workflows/ci.yml`) runs `ubuntu-latest` x86_64 only. It has no macOS job, no
 arm64 job, and it builds no container image. The macOS arm64 rows in the table above are
-verified by local rehearsal, recorded in [release/0.7.0/](release/0.7.0/), not by automation —
+verified by local rehearsal, recorded in [release/0.9.0/](release/0.9.0/clean-room.md), not by automation —
 so a dependency bump that breaks macOS will not be caught until someone runs it. This is
 recorded as `RR-014`.

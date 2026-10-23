@@ -15,7 +15,7 @@ CI and container builds are the reproducible builder boundary. They pin `uv` 0.1
 | `make bootstrap` | Install locked Python and web dependencies |
 | `make lock` | Re-resolve both lockfiles. Prefer `uv lock --upgrade-package <name>` for a single Python dependency; this target also rewrites `pnpm-lock.yaml` |
 | `make toolchain-check` | Check local, CI, container, package, and documentation toolchain declarations for drift |
-| `make validate` | Validate canonical schemas, examples, generated files and documentation policy, then run the web workspace's guards (`scripts/check_studio_ui.py`) and the architecture report's guards (`scripts/check_report.py`) |
+| `make validate` | Validate canonical schemas, examples, generated files and documentation policy, then run the web workspace's guards (`scripts/check_studio_ui.py`), the architecture report's guards (`scripts/check_report.py`) and the research guards (`scripts/check_research.py`) |
 | `make format` | Apply deterministic Python and web formatting |
 | `make format-check` | Check formatting without changes |
 | `make lint` | Run Python lint, import boundaries, unsafe-execution checks, and repository hygiene checks |
@@ -181,7 +181,8 @@ runs, holds the rules review established:
 - **G1:** `web/src` renders no raw variant id outside `web/src/ui/variantLabel.ts`, no
   "enterprise" and no Google Fonts URL.
 - **G2:** the generated client gains no non-GET call beyond its known mutations
-  (`recordReport`, which records the architecture report, is the one Sprint 13 added); no
+  (`recordReport` from Sprint 13; `researchCatalogue` and `reviewResearchItem` from
+  Sprint 14); no
   button is named for approving,
   signing, dispatching, installing or applying unless its name starts with "Copy"; the
   copy control imports no client and makes no request.
@@ -206,8 +207,23 @@ the reference report afresh at `candidate_selected`, `assurance_planned` and
   no bare number.
 - **R3:** every picture has a table holding the same facts.
 - **R4:** every text pair in the print palette reaches 4.5:1.
+- **R5:** the researched acceptance case composes live too: appendix G last, every fixture
+  figure a synthetic estimate, an evidence word and a pointer on every claim, and the one
+  closed label suffix on a researched option.
 
 `tests/contract/test_report_guards.py` plants a violation for each rule.
+
+Research has its own guards in `scripts/check_research.py`, which normalises the recorded
+fixtures live with the fixed clock rather than reading a committed output:
+
+- **S1:** the research adapter's host allowlist is exactly the three hosts ADR-0018 names,
+  the live transport is scoped to them, and the adapter builds no other address.
+- **S2:** the derived terms hold only values from the closed vocabularies, over every
+  committed brief's intent and the synthetic intents.
+- **S3:** no researched manifest is `eligible` or `approved_for_context`.
+- **S4:** every claim carries an evidence class from the closed enum.
+- **S5:** no normalised string holds a control character, a forbidden word or a value
+  outside its bounds, and no gap is a placeholder.
 
 ## Browser end-to-end
 
@@ -220,6 +236,13 @@ pnpm --dir web exec playwright install chromium
 docker compose up -d postgres api worker web
 make web-e2e
 ```
+
+`e2e/research.spec.ts` needs the stack to answer research from the recorded fixtures, and
+fails on a stack that would call the three live hosts. Give `api` and `worker`, in your
+override (below), `OAK_RESEARCH_FIXTURES: /fixtures/research` and the read-only volume
+`./tests/fixtures/research/e2e:/fixtures/research:ro`: both, because the API computes the
+plan the consent card shows and the worker re-checks it before the first request. Never
+set it on a stack that holds real cases (`RR-052`).
 
 The suite covers the complete reference journey with automated axe accessibility checks on
 every core screen, a denied stale-version transition with its recovery path, and an
@@ -253,6 +276,15 @@ services:
   api:
     ports: !override
       - "127.0.0.1:28080:8080"
+    environment:
+      OAK_RESEARCH_FIXTURES: /fixtures/research
+    volumes:
+      - ./tests/fixtures/research/e2e:/fixtures/research:ro
+  worker:
+    environment:
+      OAK_RESEARCH_FIXTURES: /fixtures/research
+    volumes:
+      - ./tests/fixtures/research/e2e:/fixtures/research:ro
   web:
     ports: !override
       - "127.0.0.1:25173:8080"

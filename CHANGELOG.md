@@ -25,7 +25,8 @@ All notable changes to OAK Community are recorded here.
     `oak.compiler.derive_research_terms` with its digest, proven over every committed
     brief's intent and the synthetic intents under `tests/fixtures/research/intents/` to
     emit only vocabulary terms. Residual risks `RR-048`–`RR-053`; threat-coverage gap rows
-    for `RR-044`–`RR-053`; the README, `STATUS.md` safety boundary and threat coverage now
+    for `RR-045`, `RR-047`–`RR-051` and `RR-053` (`RR-044`, `RR-046` and `RR-052` have no
+    threat row); the README, `STATUS.md` safety boundary and threat coverage now
     disclose the report-note egress Sprint 13 added.
   - **Contract and unknown estimates** (`OAK-S14-002`). `research-snapshot` and
     `research-review` schemas (`0.1.0`) with examples; the kinds `research_snapshot` and
@@ -257,8 +258,24 @@ All notable changes to OAK Community are recorded here.
     the single JSON document the REST import accepts, while `oak import` reads the
     directory `oak export` writes.
 
+### Changed — compatibility
+
+- A published `0.9.0` reader cannot validate what this tree can now write: an audit event
+  `report_recorded`, `research_completed` or `research_item_reviewed`; a manifest listing
+  `architecture_report`, `report_narrative`, `report_rendering`, `research_snapshot` or
+  `research_review`; or a candidate whose objective `value` is null with its
+  `unknown_reason` (`common.schema.json`; only a researched candidate carries one). A
+  workspace or export that records a report or a research run therefore cannot go back to
+  `0.9.0` (`RR-017`). Every `0.9.0` document still validates, and `0.9.0` exports import.
+- New error codes: `OAK-REPORT-*` (5), `OAK-NARRATIVE-*` (5), `OAK-RESEARCH-*` (18),
+  `OAK-CAT-RESEARCH-*` (15) and `OAK-DATABASE-UNCONFIGURED`; each is listed with its
+  message in [docs/error-codes.md](docs/error-codes.md).
+
 ### Fixed
 
+- **A tampered import is refused, not a crash.** An export whose index entry names a kind
+  its object does not fit is refused with `OAK-IMPORT-INVALID`; in `0.9.0` the validation
+  error escaped, and REST answered `500 OAK-INTERNAL`.
 - **The REST compatibility gate now guards what has shipped.**
   `openapi/oak.compatibility-baseline.json` had held its Sprint 3 contents ever since.
   `make openapi-compatibility` therefore could not catch the removal of:

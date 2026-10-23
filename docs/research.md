@@ -20,7 +20,7 @@ deterministic gates, and records everything as a research snapshot beside the ca
 you then generate candidates, at most two **researched designs** join the four curated
 ones, numbered from `candidate-05` and labelled like "Balanced, new". Each is shown with
 its source, its date, the class of evidence behind every claim, and the plain reason it
-cannot be selected this sprint.
+cannot be selected in this release.
 
 ## What leaves the machine
 
@@ -86,7 +86,7 @@ it rests on.
 - Under the compare-only rule (`community-compare-only-1.0.0`) a researched design whose
   only failures are pending reviews or unpublished values joins the frontier comparison,
   with its estimates where they exist, but `select` refuses it (`OAK-SELECT-INFEASIBLE`).
-  Making a reviewed researched design selectable is the next sprint's work.
+  Making a reviewed researched design selectable is planned work, not part of this release.
 - It is never the baseline. Only the curated `simpler_baseline` candidate is.
 - Nothing installs it. The runner, the bundle and the architecture document only ever
   describe the selected, curated design.
@@ -109,7 +109,7 @@ it rests on.
 - **The CLI and REST**: `oak research --plan`, `oak research --consent <digest>`,
   `oak research review`; `GET …/research-plan`, `POST …:research` (`202`, an operation),
   `POST …:review-research-item`. All work locally and with `--server`, passing the token
-  as `oak report --narrative` does. MCP is unchanged this sprint.
+  as `oak report --narrative` does. MCP has no research tools.
 
 ## The fixture source
 
