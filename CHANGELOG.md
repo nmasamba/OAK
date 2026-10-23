@@ -54,6 +54,13 @@ backlog before 1.0. Six residual-risk entries close (`RR-002`, `RR-016`, `RR-018
 - The PDF renderer pins every ReportLab setting it reads, so `RL_*` variables and
   ReportLab settings files can no longer change a rendering's bytes.
 - The tests no longer use Starlette's deprecated test client.
+- **Two first writers of one case on a server no longer fail with a false collision.** The
+  PostgreSQL store created each artifact object in place and then filled it, so a second
+  writer of the same object could read it half-written and refuse with
+  `OAK-ARTIFACT-COLLISION` instead of losing the race with `OAK-EXPECTED-VERSION`. CI found
+  it as soon as it ran the PostgreSQL suites (three runs in five). Each object is now written
+  under a private temporary name and linked into place, and a torn leftover is replaced, as
+  the file workspace does.
 
 ### 1.0 readiness pass (`OAK-V1-001`–`007`)
 

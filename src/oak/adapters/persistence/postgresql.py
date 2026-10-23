@@ -879,20 +879,50 @@ class PostgreSQLWorkspaceRepository:
             )
 
     def _write_object(self, artifact: Artifact) -> None:
+        """Store an object whole under its digest, safely beside concurrent writers.
+
+        Objects are written before the transaction, by every writer that holds the bytes,
+        so two first writers of one case write the same objects at once. Creating the
+        object in place let the second read the first's half-written file and report a
+        collision (the CI race the PostgreSQL suites exposed once CI ran them). Each writer
+        now writes a private temporary file and links it into place, so the object's name
+        only ever holds complete bytes; bytes that do not hash to their name were torn by
+        an interrupted write before this change, belong to no committed row, and are
+        replaced, as the file workspace does (F1-10).
+        """
+
         self._objects.mkdir(parents=True, exist_ok=True, mode=0o700)
         path = self._objects / self._digest_hex(artifact.digest)
-        try:
-            descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-        except FileExistsError as error:
-            if path.is_symlink() or path.read_bytes() != artifact.content:
-                raise OAKError(
-                    "OAK-ARTIFACT-COLLISION", "artifact digest collision detected"
-                ) from error
+        if path.is_symlink():
+            raise OAKError("OAK-ARTIFACT-COLLISION", "artifact digest collision detected")
+        if path.is_file() and path.read_bytes() == artifact.content:
             return
-        with os.fdopen(descriptor, "wb") as stream:
-            stream.write(artifact.content)
-            stream.flush()
-            os.fsync(stream.fileno())
+        descriptor, name = tempfile.mkstemp(dir=self._objects, prefix=".object-", suffix=".tmp")
+        temporary = Path(name)
+        try:
+            with os.fdopen(descriptor, "wb") as stream:
+                stream.write(artifact.content)
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.chmod(temporary, 0o600)
+            try:
+                os.link(temporary, path)
+            except FileExistsError:
+                existing = path.read_bytes() if not path.is_symlink() else None
+                if existing == artifact.content:
+                    return
+                if existing is None or content_digest(existing) == artifact.digest:
+                    raise OAKError(
+                        "OAK-ARTIFACT-COLLISION", "artifact digest collision detected"
+                    ) from None
+                os.replace(temporary, path)
+        finally:
+            temporary.unlink(missing_ok=True)
+        directory = os.open(self._objects, os.O_RDONLY)
+        try:
+            os.fsync(directory)
+        finally:
+            os.close(directory)
 
     def _read_object(self, digest: str, *, expected_size: int) -> bytes:
         path = self._objects / self._digest_hex(digest)
