@@ -153,7 +153,7 @@ def _normalised_output(vocabulary: Any, patterns: tuple[dict[str, Any], ...]) ->
     return run_research(
         source.fetch,
         terms=terms,
-        terms_digest=terms_digest(terms),
+        terms_digest=terms_digest(terms, source_mode="fixture", hosts=()),
         vocabulary=vocabulary,
         trusted_namespaces=TRUSTED_NAMESPACES,
         intent_ref={

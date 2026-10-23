@@ -132,7 +132,7 @@ class ResearchService:
             source_mode=mode,
             hosts=tuple(sorted(hosts)),
             terms=terms,
-            terms_digest=terms_digest(terms),
+            terms_digest=terms_digest(terms, source_mode=mode, hosts=hosts),
         )
 
     def check_consent(self, consent: dict[str, Any], plan: ResearchPlan | None = None) -> None:

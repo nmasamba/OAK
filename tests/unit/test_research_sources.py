@@ -49,7 +49,7 @@ def _terms() -> tuple[dict[str, Any], str]:
     intent = load_yaml_document((ROOT / "examples/example-intent.yaml").read_text())
     patterns = LocalCatalogue(ROOT / "catalogue", REGISTRY).load().patterns
     terms = derive_research_terms(intent, _vocabulary(), patterns)
-    return terms, terms_digest(terms)
+    return terms, terms_digest(terms, source_mode="fixture", hosts=())
 
 
 class _Clock:
@@ -74,7 +74,7 @@ def _run(  # type: ignore[no-untyped-def]
     if pipeline_tags is not None:
         terms = copy.deepcopy(terms)
         terms["sent"]["hub"]["pipeline_tags"] = pipeline_tags
-        digest = terms_digest(terms)
+        digest = terms_digest(terms, source_mode="fixture", hosts=())
     keywords: dict[str, Any] = {}
     if clock is not None:
         keywords["clock"] = clock

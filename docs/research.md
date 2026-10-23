@@ -29,9 +29,11 @@ cannot be selected in this release.
 | Search terms drawn from closed vocabularies: for the Hub, the pipeline tags, the filters, the sort order and the inference-provider flag; for GitHub, the topics per harness kind, the archived flag and the freshness window | `huggingface.co` (model listings), `router.huggingface.co` (live routes and published prices), `api.github.com` (repository search, releases, tag commits) | The brief, the intent, your answers, your Hugging Face token, any name from your organisation; the capability keywords, the hardware class and the licence ids, which are applied on this machine only |
 
 The plan is a read: `GET /v1/design-cases/{case_id}/research-plan` (or `oak research
---plan`) returns the hosts, the terms and their digest. A run must consent to exactly
-those hosts and that digest; if the intent changed in between, the consent is refused
-(`OAK-RESEARCH-CONSENT`) and nothing is sent. The requests are anonymous: no credential
+--plan`) returns the hosts, the terms and their digest. The digest covers the terms, the
+source mode and the hosts together, so a consent starts only the run it was read for. A run
+must consent to exactly those hosts and that digest; if the intent or the source changed in
+between (a plan read while the fixture source answered, then a live run, or the reverse),
+the consent is refused (`OAK-RESEARCH-CONSENT`) and nothing is sent. The requests are anonymous: no credential
 goes to any of the three hosts, so the run shares the public rate limit of your address.
 
 A run is bounded: at most thirty requests within sixty seconds, a size cap on every

@@ -332,12 +332,16 @@ question.data-volume: What document volume and update cadence must the design su
     At <em>ready_for_candidates</em>, and only then, OAK can look for newer open models
     and harnesses that fit the confirmed intent and show them beside the curated designs.
     Nothing leaves the machine until you consent. The plan is a read, and it prints
-    exactly what one run would send and to whom:
+    exactly what one run would send and to whom. This edition ran on the recorded fixture
+    source the test suites use (<code>OAK_RESEARCH_FIXTURES</code>, for test stacks only),
+    so its plan names no host and everything it finds is synthetic; without that variable
+    the plan says <code>Source: live; hosts: api.github.com, huggingface.co,
+    router.huggingface.co</code>, and a run finds whatever those hosts list that day:
   </p>
   <pre><code>uv run oak research --plan
 <span class="out">Research plan for design-case.public-manual-qa@0.1.2 (ready_for_candidates; allowed now)
-Source: live; hosts: api.github.com, huggingface.co, router.huggingface.co
-Terms digest: sha256:9a6f8c4866de0a7afb924092820c257bb3f370d0fadb1971493702e67123d51e
+Source: fixture; hosts: none (fixture)
+Terms digest: sha256:4b871ec5765005e651c3976baef36d77d649af8f52eaa7deeec9e9df01faaa93
 Sent terms (verbatim):
 { "github": { "archived": false, "pushed_within_days": 180, "topics": { … } },
   "hub": { "filters": ["conversational"], "inference_provider": "all",
@@ -346,17 +350,14 @@ Used on this machine only:
 { "capabilities": [ … ], "hardware_class": "unknown", "licence_ids": [ … ], … }</span></code></pre>
   <p>
     The sent terms come from closed vocabularies, never from the brief's own words; the
-    rest is applied locally. A run consents to the hosts and the digest it just read (from
-    the browser or REST it also needs the model-configuration token the API prints at
-    start; this local command needs none), and is bounded: thirty anonymous requests
-    within sixty seconds, a size cap on every answer, no retry of a refusal. The run below
-    was made on the recorded fixture source the test suites use
-    (<code>OAK_RESEARCH_FIXTURES</code>, for test stacks only), so its plan said
-    <code>Source: fixture; hosts: none (fixture)</code> and everything it found is
-    synthetic. Without that variable your run sends the terms to the three hosts and
-    finds whatever they list that day:
+    rest is applied locally. The digest covers the terms and where they would go, so a
+    consent starts only the run it was read for: a digest read from a fixture plan is
+    refused by a live run, and the reverse. A run consents to the hosts and the digest it
+    just read (from the browser or REST it also needs the model-configuration token the
+    API prints at start; this local command needs none), and is bounded: thirty anonymous
+    requests within sixty seconds, a size cap on every answer, no retry of a refusal:
   </p>
-  <pre><code>uv run oak research --consent sha256:9a6f8c4866de0a7afb924092820c257bb3f370d0fadb1971493702e67123d51e
+  <pre><code>uv run oak research --consent sha256:4b871ec5765005e651c3976baef36d77d649af8f52eaa7deeec9e9df01faaa93
 <span class="out">Research research.public-manual-qa@0.1.0 (fixture): found 2, passed 1, need review 1, failed 0
   passed       model            HuggingFaceTB/Fixturelm-4B [trusted] -  (research.item.hub.HuggingFaceTB.Fixturelm-4B)
   needs_review serving_runtime  fixture-forge/fixturelm-serve [unvetted] OAK-CAT-RESEARCH-UNVETTED  (research.item.github.fixture-forge.fixturelm-serve)

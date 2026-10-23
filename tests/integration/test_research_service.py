@@ -36,6 +36,7 @@ from oak.contracts import SchemaRegistry, load_yaml_document
 from oak.domain import (
     COMPARISON_EXTENSION,
     RESEARCH_EXTENSION,
+    RESEARCH_HOSTS,
     RESEARCH_REVIEW_REFS,
     RESEARCH_SNAPSHOT_REF,
     OAKError,
@@ -208,6 +209,36 @@ def test_a_wrong_consent_or_a_stale_version_sends_nothing(
         service.run(_context("research-run-wrong-0001", version), consent=consent)
     assert refused.value.code == code
     assert source.fetches == 0
+
+
+def test_a_digest_read_from_the_fixture_plan_cannot_send_the_terms_to_live_hosts(
+    tmp_path: Path,
+) -> None:
+    """F1-1: the consent covers where the terms go, not only what they are."""
+
+    repository = _ready_case(tmp_path)
+    fixture_digest = _service(repository, _CountingSource()).plan().terms_digest
+    live = _CountingSource()
+    service = ResearchService(
+        repository,
+        REGISTRY,
+        LocalCatalogue(ROOT / "catalogue", REGISTRY),
+        ResearchVocabularyLoader(ROOT / "catalogue"),
+        source_factory=live.factory,
+        source_mode=lambda: ("live", frozenset(RESEARCH_HOSTS)),
+        runner=run_research,
+    )
+    plan = service.plan()
+    assert plan.terms == _service(repository, _CountingSource()).plan().terms
+    assert plan.terms_digest != fixture_digest
+
+    with pytest.raises(OAKError) as refused:
+        service.run(
+            _context("research-run-moved-0001", "0.1.2"),
+            consent={"hosts": list(plan.hosts), "terms_digest": fixture_digest},
+        )
+    assert refused.value.code == "OAK-RESEARCH-CONSENT"
+    assert live.fetches == 0
 
 
 def test_research_is_refused_once_candidates_exist(tmp_path: Path) -> None:
