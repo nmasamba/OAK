@@ -467,8 +467,8 @@ documented flow uses it.
 | `OAK-OUTPUT-EXISTS` | GitOps output directory already exists; output directory already exists; render output directory already exists | `src/oak/application/gitops.py:38` |
 | `OAK-REPORT-MISSING` | no report is recorded for this case; run `oak report --record` first | `src/oak/interfaces/cli/main.py:1723` |
 | `OAK-REPORT-OUTPUT` | --output names a directory; give a file name; a PDF needs --output <file>; the directory --output names does not exist (some dynamic) | `src/oak/interfaces/cli/main.py:1425` |
-| `OAK-REPORT-RENDER` | no PDF report renderer is configured; the report document could not be drawn; this renderer writes PDF only | `src/oak/adapters/report/pdf.py:1132` |
-| `OAK-REPORT-SIZE` | the rendered report exceeds 4 MiB | `src/oak/adapters/report/pdf.py:1138` |
+| `OAK-REPORT-RENDER` | no PDF report renderer is configured; the report document could not be drawn; this renderer writes PDF only | `src/oak/adapters/report/pdf.py:1172` |
+| `OAK-REPORT-SIZE` | the rendered report exceeds 4 MiB | `src/oak/adapters/report/pdf.py:1178` |
 | `OAK-REPORT-STATE` | *dynamic message* | `src/oak/application/report/service.py:156` |
 | `OAK-RESEARCH-BUDGET` | *reason or mapping code; carries no fixed message* | `src/oak/adapters/models/research_sources.py:175` |
 | `OAK-RESEARCH-CONSENT` | the consent does not name the hosts and terms this research would send; read the plan again and consent to what it shows; the research source changed since the plan | `src/oak/application/research.py:157` |

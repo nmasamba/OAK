@@ -7,10 +7,12 @@ and fact lists continue on the next page with their header repeated. The cover a
 on the dark ground; every other page is paper and ink with one brass accent.
 
 Determinism: the canvas runs in reportlab's invariant mode, the document dates come from
-the report's own `generated_at`, and page streams are compressed with zlib, so the same
-document gives the same bytes in any process. Fonts are the PDF standard Helvetica and
-Courier, which every reader has; none is embedded. They cover the Windows-1252 character
-set, so any other character is drawn as "?" (the JSON report keeps it).
+the report's own `generated_at`, page streams are compressed with zlib, and every
+reportlab setting that reaches a byte is pinned here rather than read from the process's
+environment, so the same document gives the same bytes in any process. Fonts are the PDF
+standard Helvetica and Courier, which every reader has; none is embedded. They cover the
+Windows-1252 character set, so any other character is drawn as "?" (the JSON report keeps
+it).
 """
 
 from __future__ import annotations
@@ -23,7 +25,9 @@ from datetime import UTC, datetime
 from typing import Any
 
 import reportlab
+from reportlab import rl_config
 from reportlab.lib.colors import HexColor
+from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.pdfgen.canvas import Canvas
 
@@ -54,6 +58,41 @@ FONT = palette.FONT
 BOLD = palette.FONT_BOLD
 ITALIC = palette.FONT_ITALIC
 MONO = palette.FONT_MONO
+FONT_ENCODING = "WinAnsiEncoding"
+# reportlab takes its settings from `RL_<name>` environment variables, a
+# `reportlab_settings` module on the import path and `~/.reportlab_settings` when it is
+# first imported, and each of these reaches a byte of the PDF: `RL_useA85=0` alone rewrites
+# every stream. They are set here, to reportlab's own defaults, before every rendering.
+RL_SETTINGS: dict[str, Any] = {
+    "invariant": 1,
+    "pageCompression": 1,
+    "useA85": 1,
+    "wrapA85": 0,
+    "pdfComments": 0,
+    "pdfMultiLine": 0,
+    "documentLang": None,
+    "canvas_basefontname": FONT,
+    "canvas_baseColor": None,
+    "defaultImageCaching": 0,
+    "defaultEncoding": FONT_ENCODING,
+    "errorOnDuplicatePageLabelPage": 0,
+    "warnOnMissingFontGlyphs": 0,
+}
+
+
+def pin_reportlab_settings() -> None:
+    """Set every reportlab setting the canvas reads, whatever the environment said.
+
+    The standard fonts take their encoding from the setting `pdfmetrics` copied when it was
+    imported, so each font this renderer draws with is registered again with its encoding
+    named; text widths, and so the pagination, depend on it.
+    """
+
+    for name, value in RL_SETTINGS.items():
+        setattr(rl_config, name, value)
+    for name in (FONT, BOLD, ITALIC, MONO):
+        pdfmetrics.registerFont(pdfmetrics.Font(name, name, FONT_ENCODING))
+
 
 FILLED_CIRCLE = frozenset({"pass", "satisfied", "clear", "current"})
 CROSS = frozenset({"fail", "revoked", "infeasible"})
@@ -1081,6 +1120,7 @@ def _pdf_date(timestamp: str) -> Callable[..., str]:
 
 
 def render_pdf(document: dict[str, Any]) -> bytes:
+    pin_reportlab_settings()
     pages = paginate(document)
     cover = document["sections"][0]
     case_title = next(

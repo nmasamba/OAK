@@ -209,7 +209,12 @@ metrics and nothing else:
 - no platypus layout, no embedded font, no image, no hyperlink;
 - invariant mode for a byte-stable file, with the document dates taken from the report's
   own `generated_at` rather than the clock;
-- the two processes in `tests/unit/test_report_pdf.py` must produce the same bytes.
+- every ReportLab setting the canvas reads, and the standard fonts' encoding, set by the
+  renderer before each rendering, because ReportLab otherwise takes them from `RL_*`
+  environment variables, a `reportlab_settings` module or `~/.reportlab_settings`, and
+  several of them change the bytes (`OAK-V1-015`);
+- the two processes in `tests/unit/test_report_pdf.py` must produce the same bytes, one of
+  them with `RL_*` variables set.
 
 Its closure adds **Pillow 13.0.0** (MIT-CMU/HPND; 12.3.0 was pinned at Sprint 13 and lifted on
 2026-10-22 when `pip-audit` named seven advisories against it, all fixed in 13.0.0), which
