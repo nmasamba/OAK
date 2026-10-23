@@ -1026,7 +1026,7 @@ def test_the_researched_flag_names_the_rule_and_what_was_not_compared(
     assert flag["status"] == "infeasible" and flag["word"] == "Infeasible"
     # The closed sentence leads, so the record's long reasons can never shorten it away.
     assert flag["reason"].startswith(
-        "Compared under community-compare-only-1.0.0, never selectable this sprint; not "
+        "Compared under community-compare-only-1.0.0, never selectable in this release; not "
         "compared on energy, latency p95, monthly cost, operability and quality.; "
         "constraint.hardware:"
     )
@@ -1209,7 +1209,7 @@ def test_a_non_comparable_researched_option_is_flagged_as_not_compared(
     reason = flag["cells"][1]["reason"]
     assert reason.startswith(
         "Not compared under community-compare-only-1.0.0: data locality failed; never "
-        "selectable this sprint."
+        "selectable in this release."
     )
     assert "Compared under" not in reason
 

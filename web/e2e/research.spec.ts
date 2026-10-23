@@ -19,7 +19,7 @@ function api(command: string): string {
 // leaves the machine. The reviewer sees what research would send before consenting,
 // runs it once with the capability token, reviews the one unvetted item with a recorded
 // rationale, generates, and finds the new design shown with its evidence and the plain
-// reason it cannot be selected this sprint.
+// reason it cannot be selected in this release.
 test("a reviewer consents to research, reviews the unvetted harness and compares the new design", async ({
   page,
   request,
@@ -173,7 +173,7 @@ test("a reviewer consents to research, reviews the unvetted harness and compares
     ).toBeVisible();
     await expect(page.getByText("New", { exact: true }).first()).toBeVisible();
     await expect(
-      page.getByText(/never selectable this sprint/).first(),
+      page.getByText(/never selectable in this release/).first(),
     ).toBeVisible();
     await expect(
       page.getByRole("list", { name: "Evidence behind candidate-05" }),

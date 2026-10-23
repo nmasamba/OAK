@@ -304,7 +304,7 @@ class ModelConfigurationService:
                 f"none of the {len(passed_over)} model(s) in the catalogue has a provider "
                 "route that both supports structured output and is fast enough to answer "
                 "within OAK_MODEL_TIMEOUT_SECONDS; run `oak models discover`, raise that "
-                "budget, or set the provider policy to fastest"
+                "budget, or pin a model and route with `oak models select`"
             ),
             "passed_over": passed_over,
         }

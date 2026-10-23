@@ -122,7 +122,7 @@ function constraintWords(ids: readonly unknown[]): string {
 }
 
 /**
- * Why a researched design cannot be selected this sprint, in plain words, from its typed
+ * Why a researched design cannot be selected in this release, in plain words, from its typed
  * comparison: the reviews still pending and the values no source published.
  */
 export function whyNotSelectable(candidate: JsonObject): string | null {
@@ -145,8 +145,8 @@ export function whyNotSelectable(candidate: JsonObject): string | null {
   }
   const compared =
     comparison["comparable"] === true
-      ? "Compared with the other designs, never selectable this sprint"
-      : "Not compared, and never selectable this sprint";
+      ? "Compared with the other designs, never selectable in this release"
+      : "Not compared, and never selectable in this release";
   return parts.length === 0
     ? `${compared}.`
     : `${compared}: ${parts.join("; ")}.`;

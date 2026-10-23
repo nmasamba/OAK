@@ -341,7 +341,7 @@ function ReleaseDateCell({ candidate }: { readonly candidate: JsonObject }) {
 
 /**
  * What research says about a researched design: its source, tier and date, the
- * evidence class of every claim behind it, and why it cannot be selected this sprint
+ * evidence class of every claim behind it, and why it cannot be selected in this release
  * (ADR-0018: compare-only). Nothing here is a judgement; each word is a closed class.
  */
 function ResearchFacts({

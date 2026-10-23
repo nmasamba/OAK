@@ -493,7 +493,7 @@ class _Context:
                 ]
                 reasons.insert(
                     0,
-                    f"Compared under {comparison.get('rule')}, never selectable this sprint"
+                    f"Compared under {comparison.get('rule')}, never selectable in this release"
                     + (f"; not compared on {_sentence_list(uncompared)}." if uncompared else "."),
                 )
             elif isinstance(comparison, dict):
@@ -502,7 +502,7 @@ class _Context:
                     0,
                     f"Not compared under {comparison.get('rule')}"
                     + (f": {_sentence_list(failed)} failed" if failed else "")
-                    + "; never selectable this sprint.",
+                    + "; never selectable in this release.",
                 )
             return _status("infeasible", FLAG_WORDS["infeasible"], "; ".join(reasons) or None)
         if candidate is self.selected:
