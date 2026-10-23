@@ -91,7 +91,15 @@ test("a reviewer records the report, reads every slide and takes it away", async
       notes.getByRole("radio", { name: "Deterministic" }),
     ).toBeChecked();
     await expectAccessible(page, "report screen before recording");
-    await page.getByRole("button", { name: "Record report" }).click();
+    // On this screen the Take it sheet's Report tile would open the screen already open;
+    // it closes the sheet and hands focus to the record control instead (A-4).
+    await page.getByRole("button", { name: "Take it" }).click();
+    const sheet = page.getByRole("dialog", { name: "Take it" });
+    await sheet.getByRole("button", { name: /^Report/ }).click();
+    await expect(sheet).toHaveCount(0);
+    const record = page.getByRole("button", { name: "Record report" });
+    await expect(record).toBeFocused();
+    await page.keyboard.press("Enter");
     await expect(
       page.getByText("Slide 1 of 20", { exact: true }),
     ).toBeVisible();
@@ -101,6 +109,10 @@ test("a reviewer records the report, reads every slide and takes it away", async
         name: /build the Balanced design$/,
       }),
     ).toBeVisible();
+    // Recorded in place: the screen is not reloaded, and the first slide has focus (A-5).
+    await expect(
+      page.getByRole("region", { name: /build the Balanced design$/ }),
+    ).toBeFocused();
     await expectAccessible(page, "report, first slide");
   });
 
@@ -129,6 +141,35 @@ test("a reviewer records the report, reads every slide and takes it away", async
     await expect(
       page.getByText("Slide 1 of 20", { exact: true }),
     ).toBeVisible();
+  });
+
+  await test.step("the pager keeps focus at both ends", async () => {
+    // A disabled end button dropped the focus of the reader who had just pressed it (A-2).
+    const next = page.getByRole("button", { name: "Next slide" });
+    const previous = page.getByRole("button", { name: "Previous slide" });
+    await expect(previous).toHaveAttribute("aria-disabled", "true");
+    await next.focus();
+    for (let number = 2; number <= 20; number += 1) {
+      await page.keyboard.press("Enter");
+      await expect(
+        page.getByText(`Slide ${number} of 20`, { exact: true }),
+      ).toBeVisible();
+    }
+    await expect(next).toBeFocused();
+    await expect(next).toHaveAttribute("aria-disabled", "true");
+    await page.keyboard.press("Enter");
+    await expect(
+      page.getByText("Slide 20 of 20", { exact: true }),
+    ).toBeVisible();
+    await expect(next).toBeFocused();
+    await previous.focus();
+    await page.keyboard.press("Home");
+    await expect(
+      page.getByText("Slide 1 of 20", { exact: true }),
+    ).toBeVisible();
+    await expect(previous).toBeFocused();
+    await expect(previous).toHaveAttribute("aria-disabled", "true");
+    await expect(next).not.toHaveAttribute("aria-disabled", "true");
   });
 
   await test.step("a picture sits beside the table that lists the same", async () => {

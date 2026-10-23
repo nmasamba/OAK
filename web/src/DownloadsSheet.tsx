@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 
 import {
+  REPORT_RECORD_CONTROL,
   downloadArchitecture,
   downloadOutcome,
   downloadVerified,
@@ -16,7 +17,7 @@ import {
   type ArtifactReference,
   type JsonObject,
 } from "./generated/api";
-import { useRouter } from "./router";
+import { matchPath, useRouter } from "./router";
 import { asArray, asObject, asReference, asString } from "./support";
 import { serialiseDiagram } from "./svgExport";
 import { Icon, Keycap, type IconName } from "./ui";
@@ -68,10 +69,13 @@ function storedItem(
 /**
  * The files a case can hand over, from the references the case document carries. The
  * brief's original name comes from its source record, read once when the sheet opens.
+ * `handOff` closes the sheet and moves focus to the element it names, for a tile whose
+ * screen is the one already open.
  */
 export function useDownloads(
   caseId: string,
   caseDocument: JsonObject,
+  handOff?: (elementId: string) => void,
 ): readonly DownloadItem[] {
   const briefReference = asReference(asArray(caseDocument["brief_refs"])[0]);
   // The original name lives on the source record, not on the brief bytes.
@@ -80,7 +84,7 @@ export function useDownloads(
       "oak.community/source_record_ref"
     ],
   );
-  const { navigate } = useRouter();
+  const { navigate, path } = useRouter();
   const [briefName, setBriefName] = useState<string | null>(null);
   useEffect(() => {
     if (sourceRecord === null) {
@@ -186,14 +190,25 @@ export function useDownloads(
       ),
     );
   } else if (selected !== null) {
+    // On the Report screen itself, opening it would change nothing: the tile closes the
+    // sheet and hands focus to the record control instead (Sprint 13 note A-4).
+    const here =
+      matchPath("/cases/:caseId/report", path)?.["caseId"] === caseId &&
+      handOff !== undefined;
     items.push({
       key: "report",
       word: "Report",
       icon: "slides",
-      title: "No report is recorded yet · open the Report screen to record one",
-      suffix: "open",
+      title: here
+        ? "No report is recorded yet · record one on this screen"
+        : "No report is recorded yet · open the Report screen to record one",
+      suffix: here ? "record" : "open",
       run: () => {
-        navigate(`/cases/${encodeURIComponent(caseId)}/report`);
+        if (here) {
+          handOff(REPORT_RECORD_CONTROL);
+        } else {
+          navigate(`/cases/${encodeURIComponent(caseId)}/report`);
+        }
         return Promise.resolve("idle");
       },
     });
@@ -279,7 +294,12 @@ export function DownloadsSheet({
   readonly caseDocument: JsonObject;
   readonly onClose: () => void;
 }) {
-  const items = useDownloads(caseId, caseDocument);
+  // Set by a tile that hands focus on as the sheet closes; otherwise the opener gets it.
+  const handedTo = useRef<string | null>(null);
+  const items = useDownloads(caseId, caseDocument, (elementId) => {
+    handedTo.current = elementId;
+    onClose();
+  });
   const [states, setStates] = useState<Record<string, DownloadState>>({});
   const [failure, setFailure] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState("");
@@ -292,8 +312,12 @@ export function DownloadsSheet({
     const opener = document.activeElement;
     closeButton.current?.focus();
     return () => {
-      if (opener instanceof HTMLElement) {
-        opener.focus();
+      const target =
+        handedTo.current === null
+          ? opener
+          : document.getElementById(handedTo.current);
+      if (target instanceof HTMLElement) {
+        target.focus();
       }
     };
   }, []);

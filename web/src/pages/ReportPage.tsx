@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { CaseRail, Moment } from "../CaseRail";
 import { DownloadTile, type DownloadItem } from "../DownloadsSheet";
 import {
+  REPORT_RECORD_CONTROL,
   downloadOutcome,
   downloadVerified,
   type DownloadState,
@@ -79,22 +80,25 @@ export function ReportPage({ caseId }: { readonly caseId: string }) {
       .catch(() => setModels(null));
   }, []);
 
+  const fetchPage = () =>
+    getDesignCase(caseId).then(async (response) => {
+      const caseDocument = response.case;
+      const extensions = asObject(caseDocument["extensions"]) ?? {};
+      const entry = asObject(extensions["oak.community/report"]);
+      const documentReference =
+        entry === null ? null : asReference(entry["document_ref"]);
+      const report =
+        documentReference === null
+          ? null
+          : await getJsonArtifact(caseId, documentReference);
+      return { kind: "ready", caseDocument, entry, report } as const;
+    });
+
   const load = () => {
     setState({ kind: "loading" });
     setFailure(null);
-    getDesignCase(caseId)
-      .then(async (response) => {
-        const caseDocument = response.case;
-        const extensions = asObject(caseDocument["extensions"]) ?? {};
-        const entry = asObject(extensions["oak.community/report"]);
-        const documentReference =
-          entry === null ? null : asReference(entry["document_ref"]);
-        const report =
-          documentReference === null
-            ? null
-            : await getJsonArtifact(caseId, documentReference);
-        setState({ kind: "ready", caseDocument, entry, report });
-      })
+    fetchPage()
+      .then(setState)
       .catch((error: unknown) =>
         setState({ kind: "failed", failure: toActionFailure(error) }),
       );
@@ -145,12 +149,22 @@ export function ReportPage({ caseId }: { readonly caseId: string }) {
       },
       mode,
     )
-      .then(() => {
+      .then(fetchPage)
+      .then((next) => {
+        // In place: the screen is not swapped for a loading line, and the new report's first
+        // slide takes focus, so it is announced (Sprint 13 note A-5).
         setSlide(0);
         setTiles({});
-        load();
+        setDownloadNote("");
+        setState(next);
+        window.requestAnimationFrame(() => slideRegion.current?.focus());
       })
-      .catch((error: unknown) => setFailure(toActionFailure(error)))
+      .catch((error: unknown) => {
+        setFailure(toActionFailure(error));
+        window.requestAnimationFrame(() =>
+          document.getElementById(REPORT_RECORD_CONTROL)?.focus(),
+        );
+      })
       .finally(() => setPending(false));
   };
 
@@ -233,6 +247,7 @@ export function ReportPage({ caseId }: { readonly caseId: string }) {
         purpose="report"
       />
       <Keycap
+        id={REPORT_RECORD_CONTROL}
         icon="slides"
         onClick={onRecord}
         busy={pending}
@@ -314,13 +329,15 @@ export function ReportPage({ caseId }: { readonly caseId: string }) {
               <ReportSlide section={current} />
             </section>
 
+            {/* aria-disabled rather than disabled at the ends: a disabled button drops the
+                focus of the reader who just pressed it (Sprint 13 note A-2). */}
             <div className="slide-nav" onKeyDown={onSlideKey}>
               <button
                 type="button"
                 className="slide-step"
                 aria-label="Previous slide"
                 onClick={() => go(slide - 1)}
-                disabled={slide === 0}
+                aria-disabled={slide === 0 ? true : undefined}
               >
                 <Icon name="prev" size={20} />
               </button>
@@ -332,7 +349,7 @@ export function ReportPage({ caseId }: { readonly caseId: string }) {
                 className="slide-step"
                 aria-label="Next slide"
                 onClick={() => go(slide + 1)}
-                disabled={slide === sections.length - 1}
+                aria-disabled={slide === sections.length - 1 ? true : undefined}
               >
                 <Icon name="next" size={20} />
               </button>
