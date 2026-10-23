@@ -535,10 +535,26 @@ class FileWorkspaceRepository:
             raise OAKError("OAK-ARTIFACT-SIZE", "artifact exceeds the local size limit")
         path = self.objects / self._digest_hex(artifact.digest)
         if path.exists():
-            if path.read_bytes() != artifact.content:
+            existing = path.read_bytes()
+            if existing == artifact.content:
+                return
+            if content_digest(existing) == artifact.digest:
                 raise OAKError("OAK-ARTIFACT-COLLISION", "artifact digest collision detected")
-            return
-        self._write_new_file(path, artifact.content)
+            # Bytes that do not hash to their own name are a write an interruption tore:
+            # objects are written before the manifest pointer moves, so no committed
+            # manifest refers to it, and it is replaced rather than blocking every retry
+            # with a collision (F1-10).
+        descriptor, name = tempfile.mkstemp(dir=self.objects, prefix=".object-", suffix=".tmp")
+        temporary = Path(name)
+        try:
+            with os.fdopen(descriptor, "wb") as stream:
+                stream.write(artifact.content)
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.chmod(temporary, 0o600)
+            os.replace(temporary, path)
+        finally:
+            temporary.unlink(missing_ok=True)
         self._fsync_directory(self.objects)
 
     def _read_object(self, digest: str) -> bytes:

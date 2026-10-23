@@ -94,6 +94,9 @@ class PolicyService:
                 "action": "policy_evaluate",
                 "pack_digest": pack_artifact.digest,
                 "subject_digest": subject_digest,
+                # The engine is part of the request: asking OPA after the builtin engine
+                # used to replay the builtin decision as an "idempotent retry" (F1-16).
+                "engine": engine,
             },
         )
         context = self._normalized_context(context, "policy-evaluate", input_digest)

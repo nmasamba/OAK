@@ -326,3 +326,24 @@ def test_concurrent_first_commits_serialize_and_only_one_wins(tmp_path: Path) ->
     assert sorted(outcomes) == ["OAK-EXPECTED-VERSION", "committed"]
     assert repository.manifest()["version"] == 1
     assert len(repository.manifest()["audit_events"]) == 1
+
+
+def test_a_torn_object_from_an_interrupted_write_is_repaired_not_a_collision(
+    tmp_path: Path,
+) -> None:
+    """F1-10: an interrupted write left a short object, and every retry reported a collision."""
+
+    repository = _repository(tmp_path / "workspace")
+    repository.initialize(
+        workspace_id="workspace.workspace-test", tenant_id="local", created_at=NOW
+    )
+    mutation = _initial_mutation()
+    artifact = mutation.artifacts[0]
+    torn = repository.objects / artifact.digest.removeprefix("sha256:")
+    repository.objects.mkdir(parents=True, exist_ok=True)
+    torn.write_bytes(artifact.content[: len(artifact.content) // 2])
+
+    repository.commit(mutation)
+
+    assert torn.read_bytes() == artifact.content
+    assert [path.name for path in repository.objects.iterdir() if path.name.endswith(".tmp")] == []

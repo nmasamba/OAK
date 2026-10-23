@@ -520,8 +520,7 @@ def candidates(
             submission = remote.generate_candidates(
                 case_id,
                 expected_version=version,
-                idempotency_key=idempotency_key
-                or remote_mode.derived_key("candidates", f"{case_id}@{version}"),
+                idempotency_key=idempotency_key or remote_mode.derived_key("candidates", case_id),
             )
             operation = remote.wait_for_operation(
                 str(remote_mode.require_field(submission, "operation_id"))
@@ -583,7 +582,7 @@ def evaluate(
                 case_id=case_id,
                 expected_version=version,
                 idempotency_key=idempotency_key
-                or remote_mode.derived_key("evaluate", f"{case_id}@{version}:{candidate_id}"),
+                or remote_mode.derived_key("evaluate", f"{case_id}:{candidate_id}"),
             )
             operation = remote.wait_for_operation(
                 str(remote_mode.require_field(submission, "operation_id"))
@@ -659,7 +658,11 @@ def select(
                 rationale=rationale,
                 expected_version=version,
                 idempotency_key=idempotency_key
-                or remote_mode.derived_key("select", f"{case_id}@{version}:{candidate_id}"),
+                or remote_mode.derived_key(
+                    "select",
+                    f"{case_id}:{candidate_id}:"
+                    + remote_mode.content_identity(rationale.encode("utf-8")),
+                ),
             )
             _emit(
                 document,
@@ -726,7 +729,7 @@ def assure(
                 candidate_id=candidate_id,
                 expected_version=version,
                 idempotency_key=idempotency_key
-                or remote_mode.derived_key("assure", f"{case_id}@{version}:{candidate_id}"),
+                or remote_mode.derived_key("assure", f"{case_id}:{candidate_id}"),
             )
             assurance_plan = remote_mode.require_field(document, "assurance_plan")
             case = remote_mode.require_field(document, "case")
@@ -839,7 +842,10 @@ def _remote_plan(
         target=target_document,
         expected_version=version,
         idempotency_key=idempotency_key
-        or remote_mode.derived_key("plan", f"{case_id}@{version}:{candidate_id}"),
+        or remote_mode.derived_key(
+            "plan",
+            f"{case_id}:{candidate_id}:" + remote_mode.document_identity(target_document),
+        ),
     )
     operation = remote.wait_for_operation(
         str(remote_mode.require_field(submission, "operation_id"))

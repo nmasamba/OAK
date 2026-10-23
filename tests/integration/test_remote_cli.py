@@ -274,7 +274,7 @@ def test_the_architecture_can_be_read_remotely_as_yaml_without_any_write(
 
 
 def test_remote_state_denials_surface_the_stable_codes(
-    live_server: _LiveServer, compiled_remote_case: dict[str, Any]
+    live_server: _LiveServer, compiled_remote_case: dict[str, Any], tmp_path: Path
 ) -> None:
     # The module-scoped journey has already confirmed the case: with the default
     # derived idempotency key the retry converges on the original successor, the
@@ -304,9 +304,31 @@ def test_remote_state_denials_surface_the_stable_codes(
     assert confirmed_again.exit_code == 2
     assert "OAK-CONFIRM-STATE" in _all_output(confirmed_again)
 
+    # The default key derives from the request, never the case version, so a re-run
+    # converges on the first operation, as the local CLI's does (F1-8); a fresh key is a
+    # new request, and the state machine denies it.
     generate_again = _invoke(live_server.url, "candidates", CASE_ID)
-    assert generate_again.exit_code == 2
-    assert "OAK-CANDIDATES-STATE" in _all_output(generate_again)
+    assert generate_again.exit_code == 0, _all_output(generate_again)
+    for argv in (
+        ("candidates", CASE_ID, "--idempotency-key", "candidates-remote-state-01"),
+        (
+            "evaluate",
+            "candidate-03",
+            "--case",
+            CASE_ID,
+            "--idempotency-key",
+            "evaluate-remote-st-01",
+        ),
+    ):
+        fresh = _invoke(live_server.url, *argv)
+        assert fresh.exit_code == 2, _all_output(fresh)
+        assert "-STATE" in _all_output(fresh)
+    for argv in (
+        ("evaluate", "candidate-03", "--case", CASE_ID),
+        ("assure", "candidate-03", "--case", CASE_ID, "--output", str(tmp_path / "assure-again")),
+    ):
+        again = _invoke(live_server.url, *argv)
+        assert again.exit_code == 0, (argv, _all_output(again))
 
     unknown = _invoke(live_server.url, "questions", "design-case.absent")
     assert unknown.exit_code == 2
