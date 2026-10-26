@@ -243,6 +243,28 @@ remove `reportlab` from `pyproject.toml` and `uv lock`. Recording a report then 
 
 ## Maintenance reviews
 
+### 2026-10-26 filelock 3.32.3 to 4.2.4 (development only)
+
+On 2026-10-26 `pip-audit` began reporting three advisories against the locked `filelock`
+3.32.3: `CVE-2026-112907`, `CVE-2026-112913` and `CVE-2026-112940`, all fixed in 4.2.1.
+`make audit` had passed on 2026-10-23, and CI runs it on every push.
+
+`filelock` is **not** in the runtime closure. `uv tree --no-dev --invert --package filelock`
+finds no path to it. It reaches the development environment only through `cachecontrol`'s
+`filecache` extra, which `pip-audit` uses for its cache, so neither the wheel nor an image
+carries it, and nothing OAK runs imports it.
+
+The upgrade was taken anyway, as for `urllib3` below. `uv lock --upgrade-package filelock`
+moved nothing else, and took 4.2.4, the newest release: 4.2.2 to 4.2.4 followed the fix
+within two days and fix regressions in it. Checked for 4.2.4:
+- **Licence:** still MIT.
+- **Supported Python:** 3.11 and later, covering the pinned 3.13.12.
+- **Compatibility:** `cachecontrol` 0.14.4 sets no upper bound and takes only `FileLock`.
+  The 4.0.0 breaking change is confined to `SoftReadWriteLock`'s on-disk protocol, which
+  nothing here uses. `make audit` ran `pip-audit`, cache included, on 4.2.4.
+
+No advisory was suppressed and no `pip-audit` ignore list was introduced.
+
 ### 2026-10-15 source-map-js 1.2.1 to 1.2.2 (web build tooling only)
 
 `pnpm audit --audit-level=high` began failing on GHSA-68fv-2mgg-jv7q, an event-loop

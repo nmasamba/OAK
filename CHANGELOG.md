@@ -29,6 +29,12 @@ error answer changes on REST and MCP.
 - A test run that skips the PostgreSQL-gated tests ends by saying how many it skipped and
   why, so a skip no longer reads as a pass.
 
+#### Security
+
+- The development-only `filelock`, which only `pip-audit`'s cache uses, moves from 3.32.3
+  to 4.2.4 for `CVE-2026-112907`, `CVE-2026-112913` and `CVE-2026-112940`. It is in no
+  runtime artifact (`docs/dependencies.md`).
+
 ### Pre-1.0 engineering batch (`OAK-V1-008`–`016`)
 
 The cheap, high-value items from the top of the owner's cost-benefit ranking of the

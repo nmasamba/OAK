@@ -216,6 +216,12 @@ commit restores the old code.
 - The release gate had a second silent skip of the same kind: CI fetches the pinned
   stand-in image the real-daemon runner journeys need, the release workflow did not, so
   those journeys skipped at release. Fixed in M2.
+- `make audit` failed on the gate: three advisories published since 2026-10-23
+  (`CVE-2026-112907`, `CVE-2026-112913`, `CVE-2026-112940`) against `filelock` 3.32.3,
+  which only `pip-audit`'s cache uses. CI runs `make audit`, so it would have failed this
+  PR and the next push to `main`. `uv lock --upgrade-package filelock` moved it alone to
+  4.2.4 (MIT, unchanged), recorded in `docs/dependencies.md` as the `urllib3` lift of
+  2026-09-30 was; `make audit` is clean on it.
 - `make toolchain-check` failed once in the fresh worktree, then passed unchanged: pnpm
   printed its first-use download progress for Node 24.18.0 ahead of the version, and the
   runtime check compares the whole output. Environmental; it passes once Node is cached.
