@@ -18,8 +18,8 @@ writes no release decision record and publishes nothing.
 
 - Owner/agent: owner-directed coding agent
 - Started: 2026-10-26
-- Last updated: 2026-10-26 (M3)
-- State: in-progress
+- Last updated: 2026-10-26 (M4, gates and PR)
+- State: complete (PR #40 open, https://github.com/nmasamba/OAK/pull/40; the merge is the owner's)
 - Claimed tasks: `OAK-V1-017`–`OAK-V1-020`
 
 One plan covers four task IDs because they answer one set of owner questions, land as one
@@ -196,6 +196,7 @@ commit restores the old code.
   without its release; three mutations were each refused, the restored file passes, and
   the workflow's own steps (`pip install -r requirements-dev.txt`, `make validate`) pass in
   a clean Python 3.13 environment.
+- [x] 2026-10-26 M4 — `make check` with `OAK_TEST_DATABASE_URL` on a fresh, migrated throwaway PostgreSQL 17.6 (port 15433) green on the code tree (`4a54e78`) with zero `make: ***` lines: 1,198 unit and contract passed (1 skipped), 457 integration passed (4 skipped, the PostgreSQL-only assertions on the file store), 43 end-to-end passed with none skipped; `make audit` clean after `filelock` 4.2.4 (`7db8170`); `make web-e2e` 33 passed, 2 skipped, on the throwaway Compose project `oak-v1c` built from `7db8170`; on that stack REST, `oak-mcp` and the remote CLI each answered `OAK-CASE-NOT-FOUND` for a case it does not hold. PR #40 opened; the governance root moved to `0.4.0-draft.17`.
 
 ## Decisions
 
@@ -225,3 +226,20 @@ commit restores the old code.
 - `make toolchain-check` failed once in the fresh worktree, then passed unchanged: pnpm
   printed its first-use download progress for Node 24.18.0 ahead of the version, and the
   runtime check compares the whole output. Environmental; it passes once Node is cached.
+
+## Self-review
+
+- **Boundary.** The translation is in the shared application facade, which REST, MCP
+  and the worker call; no transport gained a rule of its own, and the stores still
+  answer their own code. Every REST route and MCP tool that takes a case id reaches one
+  of the 19 wrapped methods; the others (create, list, import, operations, outbox) take
+  none.
+- **Authority.** The decorator only renames one refusal; it never turns a refusal into a
+  success and runs no check of its own. No write happens before a case is found: every
+  wrapped method reads the case first, and a submission's precondition runs before its
+  operation is queued (the table test drains the queue and finds nothing).
+- **Leakage.** The REST and MCP detail stays opaque, and a case held for another tenant
+  is invisible to the store's predicate, so it answers as an absent one, as before.
+- **Compatibility.** Breaking for a client that matched the old code on a case route,
+  recorded in `docs/compatibility.md` and the changelog; the status and detail are
+  unchanged, and the remote CLI still reads a `0.9` server's answer.
