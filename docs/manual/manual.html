@@ -474,7 +474,8 @@ uv run oak report --output ../report.json</code></pre>
     it, <code>oak report</code> reads the latest report and writes the file only after
     checking its bytes against the digest the case names, and it says so when the case has
     moved on since. By default no model is involved. <code>--narrative online</code> or
-    <code>local</code> also asks the model you configured for one short note per main slide,
+    <code>local</code>, with <code>--record</code> (on its own it only earns a warning), also
+    asks the model you configured for one short note per main slide,
     which the report prints under <em>Proposed by model</em> beside its own words; OAK drops
     any note that claims an approval or holds a number its slide does not hold. The PDF uses
     the standard Helvetica and Courier, so a character they lack prints as <code>?</code>; the
@@ -1335,8 +1336,8 @@ pnpm --dir web exec node ../docs/manual/build_manual.mjs</code></pre>
     <code>tests/integration/test_report_cli.py</code> rather than the end-to-end suites. Chapter 5's shell commands were run against the <code>0.8.0</code> Compose stack,
     as the tour records. The operations behind them are exercised by the interface conformance and MCP
     suites (<code>tests/integration/test_interface_conformance.py</code>,
-    <code>tests/e2e/test_mcp_interface.py</code>), which need a PostgreSQL database and so
-    run locally rather than in CI (<code>RR-019</code>). The screenshots were re-captured from
+    <code>tests/e2e/test_mcp_interface.py</code>), which need a PostgreSQL database; CI
+    runs them against a throwaway one. The screenshots were re-captured from
     the Sprint 12 workspace, on a stack that still reports <code>0.9.0</code>. The diagrams are inline SVG in the source. This manual
     describes OAK Community 0.9.0 — a local-first developer release with no production
     or customer readiness claim; where this document and

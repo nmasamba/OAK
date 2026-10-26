@@ -16,7 +16,6 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from fastapi.testclient import TestClient
 
 from oak.adapters.intake import LocalBriefIntake
 from oak.adapters.persistence import FileWorkspaceRepository
@@ -27,6 +26,7 @@ from oak.domain import ArtifactReference
 from oak.interfaces.api.app import create_app
 from oak.interfaces.mcp.server import create_server
 from oak.ports import ModelInterpreterPort
+from tests.asgi_support import ASGIClient
 from tests.mcp_support import MCPClient, build_file_control_plane
 from tests.model_support import BindingFakeModelInterpreter, model_factory
 
@@ -115,7 +115,7 @@ class _Rest:
             tmp_path / "rest", model_interpreter_factory=model_factory(adapter)
         )
         app = create_app(control_plane=self.plane, clock=lambda: NOW, model_token=TOKEN)
-        self.client = TestClient(app, base_url="http://127.0.0.1")
+        self.client = ASGIClient(app, base_url="http://127.0.0.1")
 
     def create(self) -> dict[str, Any]:
         response = self.client.post(

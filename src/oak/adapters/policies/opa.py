@@ -13,6 +13,7 @@ required offline reference implementation.
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -56,6 +57,12 @@ def _canonical_numbers(value: Any) -> Any:
 ALLOWLISTED_EXECUTABLES = frozenset({"opa"})
 MAXIMUM_OUTPUT_BYTES = 1_048_576
 EVALUATION_TIMEOUT_SECONDS = 30
+VERSION_TIMEOUT_SECONDS = 10
+# Every generated module is Rego v1 (`import rego.v1`, `if`, `some ... in`), the language
+# OPA 1.0.0 made the default; an older binary cannot read it. A newer one is held to the
+# built-in engine's answers by the divergence check in `evaluate`.
+MINIMUM_OPA_VERSION = (1, 0, 0)
+_OPA_VERSION = re.compile(r"^Version:\s*v?(\d+)\.(\d+)\.(\d+)", flags=re.MULTILINE)
 _QUERY = "data.oak.result"
 
 _HELPERS = """package oak
@@ -86,37 +93,102 @@ class CommandResult:
     stderr: str
 
 
-CommandExecutor = Callable[[tuple[str, ...], bytes, int], CommandResult]
+# argv, the bytes for its standard input, the timeout, and the private working directory.
+CommandExecutor = Callable[[tuple[str, ...], bytes, int, Path], CommandResult]
 
 
-def default_executor(argv: tuple[str, ...], stdin: bytes, timeout_seconds: int) -> CommandResult:
-    resolved = shutil.which(argv[0])
-    if resolved is None:
+def resolve_executable(name: str) -> str | None:
+    """Find ``name`` on the absolute entries of ``PATH`` and return its absolute path.
+
+    Resolved once, when the engine is built, so every evaluation runs the binary whose
+    version was checked (RR-002). A relative entry (``.``, ``bin``) means a different
+    directory from every working directory, so it is skipped.
+    """
+
+    entries = [
+        entry
+        for entry in os.environ.get("PATH", os.defpath).split(os.pathsep)
+        if os.path.isabs(entry)
+    ]
+    found = shutil.which(name, path=os.pathsep.join(entries)) if entries else None
+    return None if found is None else os.path.abspath(found)
+
+
+def opa_executor() -> CommandExecutor:
+    """Resolve ``opa`` once, refuse one too old to read the generated module, and run it.
+
+    The child sees only ``PATH`` and starts in the evaluation's private directory, never in
+    the directory the command was started from (RR-027).
+    """
+
+    executable = resolve_executable("opa")
+    if executable is None:
         raise OAKError(
             "OAK-POLICY-ENGINE-UNAVAILABLE",
             "the opa binary is not installed; the built-in engine remains available",
         )
-    completed = subprocess.run(
-        [resolved, *argv[1:]],
-        input=stdin,
-        capture_output=True,
-        timeout=timeout_seconds,
-        shell=False,
-        check=False,
-        env={"PATH": os.defpath},
-    )
-    return CommandResult(
-        returncode=completed.returncode,
-        stdout=completed.stdout[:MAXIMUM_OUTPUT_BYTES].decode("utf-8", errors="replace"),
-        stderr=completed.stderr[:MAXIMUM_OUTPUT_BYTES].decode("utf-8", errors="replace"),
-    )
+    version = _installed_version(executable)
+    if version is None:
+        raise OAKError(
+            "OAK-POLICY-ENGINE-UNAVAILABLE",
+            "the installed opa did not report its version; the built-in engine remains available",
+        )
+    if version < MINIMUM_OPA_VERSION:
+        raise OAKError(
+            "OAK-POLICY-ENGINE-UNAVAILABLE",
+            "the installed opa is older than 1.0.0; the built-in engine remains available",
+        )
+
+    def execute(
+        argv: tuple[str, ...], stdin: bytes, timeout_seconds: int, working_directory: Path
+    ) -> CommandResult:
+        completed = subprocess.run(
+            [executable, *argv[1:]],
+            input=stdin,
+            capture_output=True,
+            timeout=timeout_seconds,
+            shell=False,
+            check=False,
+            env={"PATH": os.defpath},
+            cwd=working_directory,
+        )
+        return CommandResult(
+            returncode=completed.returncode,
+            stdout=completed.stdout[:MAXIMUM_OUTPUT_BYTES].decode("utf-8", errors="replace"),
+            stderr=completed.stderr[:MAXIMUM_OUTPUT_BYTES].decode("utf-8", errors="replace"),
+        )
+
+    return execute
+
+
+def _installed_version(executable: str) -> tuple[int, int, int] | None:
+    with tempfile.TemporaryDirectory(prefix="oak-opa-") as directory:
+        try:
+            completed = subprocess.run(
+                [executable, "version"],
+                capture_output=True,
+                timeout=VERSION_TIMEOUT_SECONDS,
+                shell=False,
+                check=False,
+                env={"PATH": os.defpath},
+                cwd=directory,
+            )
+        except (subprocess.TimeoutExpired, OSError):
+            return None
+    match = _OPA_VERSION.search(completed.stdout[:4096].decode("utf-8", errors="replace"))
+    if completed.returncode != 0 or match is None:
+        return None
+    return int(match.group(1)), int(match.group(2)), int(match.group(3))
 
 
 class OpaPolicyEngine:
-    """Evaluate pack conditions through a generated tri-state Rego module."""
+    """Evaluate pack conditions through a generated tri-state Rego module.
 
-    def __init__(self, executor: CommandExecutor = default_executor) -> None:
-        self._executor = executor
+    Without an executor the engine resolves and checks the local ``opa`` when it is built.
+    """
+
+    def __init__(self, executor: CommandExecutor | None = None) -> None:
+        self._executor = executor if executor is not None else opa_executor()
 
     @property
     def engine_id(self) -> str:
@@ -187,15 +259,12 @@ class OpaPolicyEngine:
             if argv[0] not in ALLOWLISTED_EXECUTABLES:  # pragma: no cover - fixed literal
                 raise OAKError("OAK-POLICY-ENGINE-FAILED", "policy engine argv is not allowlisted")
             try:
-                completed = self._executor(argv, stdin, EVALUATION_TIMEOUT_SECONDS)
+                completed = self._executor(argv, stdin, EVALUATION_TIMEOUT_SECONDS, directory)
             except subprocess.TimeoutExpired as error:
                 raise OAKError("OAK-POLICY-ENGINE-FAILED", "opa evaluation timed out") from error
         finally:
-            try:
-                module_path.unlink(missing_ok=True)
-                directory.rmdir()
-            except OSError:
-                pass
+            # The child ran in this directory, so remove whatever it holds, not only the module.
+            shutil.rmtree(directory, ignore_errors=True)
         if completed.returncode != 0:
             raise OAKError("OAK-POLICY-ENGINE-FAILED", "opa evaluation failed")
         return _parse_verdicts(completed.stdout, expected_rules=expected_rules)

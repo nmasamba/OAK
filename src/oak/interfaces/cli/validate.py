@@ -107,6 +107,12 @@ def _scan_export_objects_for_execution_fields(source: Path) -> None:
         raise OAKError("OAK-VALIDATE-UNSAFE-PATH", "export must be a regular directory")
     manifest_path = source / "manifest.json"
     if manifest_path.is_symlink() or not manifest_path.is_file():
+        if _is_bundle(source):
+            raise OAKError(
+                "OAK-VALIDATE-KIND",
+                "this directory is a compiled bundle, not a case export; "
+                "run oak validate bundle on it",
+            )
         raise OAKError("OAK-VALIDATE-MALFORMED", "export manifest is missing")
     try:
         manifest = load_json_document(_read_bounded(manifest_path).decode("utf-8"))
@@ -139,6 +145,13 @@ def validate_bundle(source: Path) -> dict[str, Any]:
     directory = source.absolute()
     if directory.is_symlink() or not directory.is_dir():
         raise OAKError("OAK-VALIDATE-UNSAFE-PATH", "bundle must be a regular directory")
+    # Said before the first bundle file is looked for: an export directory used to be
+    # refused as "input must be a regular non-symlink file", naming nothing it had found.
+    if _is_export(directory) and not _is_bundle(directory):
+        raise OAKError(
+            "OAK-VALIDATE-KIND",
+            "this directory is a case export, not a compiled bundle; run oak validate export on it",
+        )
     registry = SchemaRegistry.from_directory(canonical_schema_directory())
     documents: dict[str, dict[str, Any]] = {}
     digests: dict[str, str] = {}
@@ -196,6 +209,14 @@ def validate_bundle(source: Path) -> dict[str, Any]:
         "runner_plan_id": str(runner_plan["id"]),
         "digests": digests,
     }
+
+
+def _is_export(directory: Path) -> bool:
+    return (directory / "manifest.json").is_file() and (directory / "objects").is_dir()
+
+
+def _is_bundle(directory: Path) -> bool:
+    return any((directory / name).is_file() for name in BUNDLE_FILES)
 
 
 def _pinned_public_key(value: str) -> str:

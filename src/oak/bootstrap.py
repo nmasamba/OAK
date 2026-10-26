@@ -36,6 +36,7 @@ from oak.adapters.signing import (
     enroll_runner,
     initialize_trust_directory,
     load_runner_identities,
+    read_trust_directory,
 )
 from oak.adapters.targets import LocalTargetProfile
 from oak.application import (
@@ -52,6 +53,7 @@ from oak.application import (
     ReportService,
     ResearchService,
     SystemInformationService,
+    pack_summaries,
 )
 from oak.application.design_case import ModelInterpreterFactory
 from oak.application.gitops import GitOpsRenderer
@@ -694,22 +696,30 @@ def load_steward_signer() -> LocalEd25519Signer:
     return LocalEd25519Signer.load(default_trust_directory(), "extension-steward")
 
 
+def _policy_pack_store(registry: SchemaRegistry) -> LocalPolicyPackStore:
+    return LocalPolicyPackStore(
+        (canonical_policy_pack_directory(),),
+        registry,
+        # Read each activated extension's verified pack in place rather than a
+        # materialized copy, so the pack that is evaluated is the pack that was
+        # digest-checked and signature-verified at activation.
+        nested_directories=(default_extensions_directory() / "active",),
+    )
+
+
 def create_policy_service(workspace: Path) -> PolicyService:
     registry = SchemaRegistry.from_directory(canonical_schema_directory())
     repository = FileWorkspaceRepository(workspace, registry)
     return PolicyService(
-        repository,
-        registry,
-        LocalPolicyPackStore(
-            (canonical_policy_pack_directory(),),
-            registry,
-            # Read each activated extension's verified pack in place rather than a
-            # materialized copy, so the pack that is evaluated is the pack that was
-            # digest-checked and signature-verified at activation.
-            nested_directories=(default_extensions_directory() / "active",),
-        ),
-        policy_engine_loaders(),
+        repository, registry, _policy_pack_store(registry), policy_engine_loaders()
     )
+
+
+def list_policy_packs() -> tuple[dict[str, Any], ...]:
+    """The available policy packs; reading them needs no workspace."""
+
+    registry = SchemaRegistry.from_directory(canonical_schema_directory())
+    return pack_summaries(_policy_pack_store(registry))
 
 
 def create_render_service(workspace: Path) -> DeploymentRenderService:
@@ -805,6 +815,14 @@ def initialize_local_trust() -> tuple[dict[str, str], ...]:
 
     return tuple(
         identity.to_document() for identity in initialize_trust_directory(default_trust_directory())
+    )
+
+
+def show_local_trust() -> tuple[dict[str, str], ...]:
+    """The local signing identities, read only; refuses when none exists yet."""
+
+    return tuple(
+        identity.to_document() for identity in read_trust_directory(default_trust_directory())
     )
 
 

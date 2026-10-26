@@ -38,6 +38,23 @@ class PolicyEvaluationResult:
     duplicate: bool
 
 
+def pack_summaries(packs: PolicyPackStorePort) -> tuple[dict[str, Any], ...]:
+    """What `oak policy packs` lists: each available pack's identity and window."""
+
+    return tuple(
+        {
+            "id": str(pack["id"]),
+            "version": str(pack["version"]),
+            "name": str(pack["name"]),
+            "status": str(pack["status"]),
+            "effective_from": str(pack["effective_from"]),
+            "expires_at": pack["expires_at"],
+            "scope": pack["scope"],
+        }
+        for pack in packs.list_packs()
+    )
+
+
 class PolicyService:
     """Evaluate governed packs over the current case through the policy port."""
 
@@ -54,18 +71,7 @@ class PolicyService:
         self._engine_loaders = dict(engine_loaders)
 
     def list_packs(self) -> tuple[dict[str, Any], ...]:
-        return tuple(
-            {
-                "id": str(pack["id"]),
-                "version": str(pack["version"]),
-                "name": str(pack["name"]),
-                "status": str(pack["status"]),
-                "effective_from": str(pack["effective_from"]),
-                "expires_at": pack["expires_at"],
-                "scope": pack["scope"],
-            }
-            for pack in self._packs.list_packs()
-        )
+        return pack_summaries(self._packs)
 
     def evaluate(
         self,

@@ -112,8 +112,7 @@ replaceable and owned by its own project. OAK compiles *to* them; it doesn't abs
 
 - Record the first rehearsal of the Linux x86_64 control plane. That row of
   [platforms.md](docs/platforms.md) is still "Expected" because nobody has run it.
-- Add CI jobs for macOS and arm64 (`RR-014`), and CI that provisions PostgreSQL so the
-  gated suites actually run there (`RR-019`).
+- Add CI jobs for macOS and arm64 (`RR-014`).
 - Native Windows support starts with replacing the Unix-only `fcntl` workspace lock.
 - Let the runner reach rootless Docker, Colima or Podman (`RR-013`). **Discuss first**,
   because it touches the runner's hardening.
@@ -122,8 +121,7 @@ replaceable and owned by its own project. OAK compiles *to* them; it doesn't abs
 
 - Logging and metrics that leak nothing (`RR-015`). **Discuss first**, because of the data
   boundary.
-- A readiness check that notices an un-migrated database (`RR-016`), and a file-workspace
-  format migration before the format ever changes (`RR-017`).
+- A file-workspace format migration before the format ever changes (`RR-017`).
 - Byte-reproducible container images (`RR-006`), and bounding how workspace reads grow
   with history (`RR-030`).
 - Release signing (`RR-005`) needs a named key holder, which is a maintainer decision. The
@@ -164,8 +162,8 @@ invented marker fails collection. Shared harnesses are `tests/runner_support.py`
 (file-backed control plane, in-memory operation store, `MCPClient`).
 
 **The PostgreSQL suites skip silently.** Roughly twenty tests — all but one under `tests/integration`, plus the installed-MCP handshake in `tests/e2e/test_mcp_interface.py` — are gated on
-`OAK_TEST_DATABASE_URL`, and a skip looks exactly like a pass in the summary line. CI never
-sets it. To actually run them:
+`OAK_TEST_DATABASE_URL`, and a skip looks exactly like a pass in the summary line. CI sets
+it: the `check` job runs a PostgreSQL service and migrates it first. To run them locally:
 
 ```bash
 cat > compose.override.yaml <<'YML'
@@ -181,7 +179,9 @@ make test-e2e          # the MCP handshake test is gated too
 ```
 
 `compose.yaml` publishes no host port for PostgreSQL, which is why the override is needed.
-This is recorded as `RR-019`.
+Run `OAK_DATABASE_URL=$OAK_TEST_DATABASE_URL uv run oak-db-migrate` against a fresh database
+first: an unmigrated one fails the gated suites as if the code had regressed. (`RR-019`,
+closed when CI started running them.)
 
 ## Conventions that will otherwise cost you time
 

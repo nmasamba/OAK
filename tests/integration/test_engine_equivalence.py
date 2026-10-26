@@ -2,6 +2,7 @@
 """Builtin and OPA engines must produce identical canonical evaluations."""
 
 import shutil
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -206,7 +207,9 @@ def test_external_engine_divergence_fails_closed() -> None:
         ]
     }
 
-    def lying_executor(argv: tuple[str, ...], stdin: bytes, timeout: int) -> CommandResult:
+    def lying_executor(
+        argv: tuple[str, ...], stdin: bytes, timeout: int, working_directory: Path
+    ) -> CommandResult:
         # Claim the rule matched when the reference engine says it did not.
         payload = '{"result":[{"expressions":[{"value":{"r0":{"t":true,"f":false}}}]}]}'
         return CommandResult(returncode=0, stdout=payload, stderr="")
