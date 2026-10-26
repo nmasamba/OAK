@@ -6,6 +6,27 @@ All notable changes to OAK Community are recorded here.
 
 ## Unreleased
 
+### Follow-ups to the pre-1.0 batch (`OAK-V1-017`–`020`)
+
+The owner's answers to the three questions the batch left open. No digest moves; one
+error answer changes on REST and MCP.
+
+#### Changed
+
+- **REST and MCP answer `OAK-CASE-NOT-FOUND` for a case the server does not hold.**
+  Breaking for a client that matched the old code. A well-formed case id that named no
+  stored case reached the store and answered `OAK-WORKSPACE-NOT-FOUND`, the local CLI's
+  code for a missing workspace, while a malformed one answered `OAK-CASE-NOT-FOUND`. Every
+  case route and tool now answers the case code, still `404` with the opaque detail, on
+  either store. The remote CLI names the case for either code, so it reads the same
+  against a `0.9` server. `OAK-WORKSPACE-NOT-FOUND` now means only that there is no
+  workspace at a location.
+- **The release workflow's gate runs the PostgreSQL suites**, as CI's does: the
+  `artifacts` job migrates a service on the image `compose.yaml` pins before
+  `make check`, and `make toolchain-check` refuses either workflow without one.
+- A test run that skips the PostgreSQL-gated tests ends by saying how many it skipped and
+  why, so a skip no longer reads as a pass.
+
 ### Pre-1.0 engineering batch (`OAK-V1-008`–`016`)
 
 The cheap, high-value items from the top of the owner's cost-benefit ranking of the
@@ -38,7 +59,7 @@ backlog before 1.0. Six residual-risk entries close (`RR-002`, `RR-016`, `RR-018
 - **`oak keys show` only reads.** It refuses with the new code `OAK-KEYS-UNINITIALIZED`
   when no key exists and creates nothing; `oak keys init` creates (`RR-018`).
 - The remote CLI reports a case the server does not hold as `OAK-CASE-NOT-FOUND`, naming
-  it, as the local CLI does (REST and MCP still answer `OAK-WORKSPACE-NOT-FOUND`).
+  it, as the local CLI does.
 - `oak validate bundle` on an export directory, and `oak validate export` on a bundle
   directory, say which they were given (`OAK-VALIDATE-KIND`).
 

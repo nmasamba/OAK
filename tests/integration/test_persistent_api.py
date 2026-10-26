@@ -408,6 +408,8 @@ async def test_rest_worker_reference_journey_is_durable_idempotent_and_tenant_sa
         missing = await client.get("/v1/design-cases/design-case.missing")
         assert denied.status_code == missing.status_code == 404
         assert denied.json()["detail"] == missing.json()["detail"]
+        # The PostgreSQL store answers the same code as the file store (OAK-V1-017).
+        assert missing.json()["code"] == "OAK-CASE-NOT-FOUND"
 
 
 async def test_rest_cancellation_records_full_command_context(

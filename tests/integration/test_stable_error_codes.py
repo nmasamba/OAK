@@ -105,3 +105,146 @@ def test_a_longer_idempotency_key_is_accepted_as_the_message_now_says() -> None:
     )
 
     CandidatePlanningService._check_context(context)
+
+
+# OAK-V1-017: a case id the server does not hold is `OAK-CASE-NOT-FOUND` at every entry
+# point. Each server case is stored as its own workspace, so a well-formed unknown id used
+# to reach the store and come back as `OAK-WORKSPACE-NOT-FOUND`, the local CLI's code for
+# "no workspace here", while a malformed id already answered `OAK-CASE-NOT-FOUND`.
+UNKNOWN_CASE = "design-case.nobody-holds-this"
+CASE_SCOPED_METHODS = (
+    "architecture",
+    "confirm",
+    "create_assurance_plan",
+    "export_design_case",
+    "get_design_case",
+    "interpret",
+    "list_artifacts",
+    "list_audit_events",
+    "list_candidates",
+    "read_artifact",
+    "record_report",
+    "research_plan",
+    "resolve_interpreter",
+    "review_research_item",
+    "select_candidate",
+    "submit_compile_bundle",
+    "submit_evaluate_candidate",
+    "submit_generate_candidates",
+    "submit_research",
+)
+
+
+def _unknown_case_calls(plane):  # type: ignore[no-untyped-def]
+    import yaml
+
+    from oak.application import CommandContext
+
+    def context(step: str) -> CommandContext:
+        return CommandContext(
+            actor="local-user",
+            tenant_id="local",
+            idempotency_key=f"unknown-case-{step}",
+            expected_version="0.1.0",
+            correlation_id=f"unknown-case-{step}",
+            interface_origin="rest",
+            occurred_at="2026-10-26T12:00:00Z",
+        )
+
+    target = yaml.safe_load(
+        (ROOT / "examples/targets/local-fixture.yaml").read_text(encoding="utf-8")
+    )
+    digest = "sha256:" + "0" * 64
+    case = UNKNOWN_CASE
+    return {
+        "architecture": lambda: plane.architecture(
+            case, tenant_id="local", candidate_id=None, now="2026-10-26T12:00:00Z"
+        ),
+        "confirm": lambda: plane.confirm(case, {}, context("confirm")),
+        "create_assurance_plan": lambda: plane.create_assurance_plan(
+            case, "candidate-03", context("assure")
+        ),
+        "export_design_case": lambda: plane.export_design_case(case, tenant_id="local"),
+        "get_design_case": lambda: plane.get_design_case(case, tenant_id="local"),
+        "interpret": lambda: plane.interpret(case, context("interpret")),
+        "list_artifacts": lambda: plane.list_artifacts(case, tenant_id="local"),
+        "list_audit_events": lambda: plane.list_audit_events(case, tenant_id="local"),
+        "list_candidates": lambda: plane.list_candidates(case, tenant_id="local"),
+        "read_artifact": lambda: plane.read_artifact(
+            case, tenant_id="local", artifact_id="design-case", version="0.1.0", digest=digest
+        ),
+        "record_report": lambda: plane.record_report(case, context("record-report")),
+        "research_plan": lambda: plane.research_plan(case, tenant_id="local"),
+        "resolve_interpreter": lambda: plane.resolve_interpreter(
+            case, tenant_id="local", interpreter="deterministic"
+        ),
+        "review_research_item": lambda: plane.review_research_item(
+            case, context("review"), item_id="item-1", decision="accept", rationale="why"
+        ),
+        "select_candidate": lambda: plane.select_candidate(
+            case, "candidate-03", "why", context("select")
+        ),
+        "submit_compile_bundle": lambda: plane.submit_compile_bundle(
+            case, "candidate-03", target, context("compile")
+        ),
+        "submit_evaluate_candidate": lambda: plane.submit_evaluate_candidate(
+            case, "candidate-03", context("evaluate")
+        ),
+        "submit_generate_candidates": lambda: plane.submit_generate_candidates(
+            case, context("generate")
+        ),
+        "submit_research": lambda: plane.submit_research(
+            case, {"hosts": [], "terms_digest": digest}, context("research")
+        ),
+    }
+
+
+def test_every_case_scoped_entry_point_is_checked(tmp_path: Path) -> None:
+    """A new public method that takes a case id must join the table, and so the check."""
+
+    import inspect
+
+    from oak.application.control_plane import CommunityControlPlane
+    from tests.mcp_support import build_file_control_plane
+
+    scoped = {
+        name
+        for name, member in inspect.getmembers(CommunityControlPlane, inspect.isfunction)
+        if not name.startswith("_") and "case_id" in inspect.signature(member).parameters
+    }
+    plane, _ = build_file_control_plane(tmp_path)
+
+    assert scoped == set(CASE_SCOPED_METHODS)
+    assert set(_unknown_case_calls(plane)) == scoped
+
+
+@pytest.mark.parametrize("method", CASE_SCOPED_METHODS)
+def test_an_unknown_case_is_case_not_found_at_every_entry_point(
+    tmp_path: Path, method: str
+) -> None:
+    from tests.mcp_support import build_file_control_plane, drain_operations
+
+    plane, store = build_file_control_plane(tmp_path)
+
+    with pytest.raises(OAKError) as refusal:
+        _unknown_case_calls(plane)[method]()
+
+    assert refusal.value.code == "OAK-CASE-NOT-FOUND"
+    assert not any((tmp_path / "workspaces").iterdir())
+    assert drain_operations(plane, store) == 0
+
+
+def test_a_missing_workspace_is_still_its_own_code_locally(tmp_path: Path) -> None:
+    """The local answer keeps its one meaning: there is no workspace at this location."""
+
+    from oak.adapters.persistence.file_workspace import FileWorkspaceRepository
+    from oak.contracts import SchemaRegistry
+
+    repository = FileWorkspaceRepository(
+        tmp_path / "nowhere", SchemaRegistry.from_directory(ROOT / "schemas")
+    )
+
+    with pytest.raises(OAKError) as refusal:
+        repository.current_case()
+
+    assert refusal.value.code == "OAK-WORKSPACE-NOT-FOUND"

@@ -366,7 +366,7 @@ def test_a_denied_mutation_leaves_no_workspace_state(tmp_path: Path) -> None:
             "idempotency_key": "abuse-orphan-interpret-1",
         },
     )
-    assert denial["code"] in {"OAK-CASE-NOT-FOUND", "OAK-WORKSPACE-NOT-FOUND"}
+    assert denial["code"] == "OAK-CASE-NOT-FOUND"
     workspaces = tmp_path / "workspaces"
     existing = [path.name for path in workspaces.iterdir()] if workspaces.exists() else []
     assert existing == []

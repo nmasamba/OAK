@@ -51,14 +51,15 @@ def operation_timeout_seconds() -> float:
 
 
 def _unknown_case(problem: OAKError, path: str) -> OAKError:
-    """Report a case the server does not hold as the code the local CLI uses for it.
+    """Name the case a server says it does not hold, as the local CLI does.
 
-    The server stores each case as its own workspace, so an unknown case id answers
-    `OAK-WORKSPACE-NOT-FOUND`, whose remedy ("run oak init") is wrong for a server. The
-    client names the case it asked for; the server's opaque detail stays opaque.
+    The server answers `OAK-CASE-NOT-FOUND` with an opaque detail. A `0.9` server answered
+    `OAK-WORKSPACE-NOT-FOUND`, whose remedy ("run oak init") is wrong for a server, so that
+    is reported as the case code too. The client names the case it asked for; the server's
+    opaque detail stays opaque.
     """
 
-    if problem.code != "OAK-WORKSPACE-NOT-FOUND":
+    if problem.code not in {"OAK-CASE-NOT-FOUND", "OAK-WORKSPACE-NOT-FOUND"}:
         return problem
     prefix = "/v1/design-cases/"
     named = path.startswith(prefix)

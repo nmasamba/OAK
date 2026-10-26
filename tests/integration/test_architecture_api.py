@@ -164,6 +164,7 @@ async def test_unknown_case_candidate_and_format_are_structured_problems(tmp_pat
         missing = await client.get("/v1/design-cases/design-case.missing/architecture")
         assert missing.status_code == 404
         assert missing.headers["content-type"].startswith(PROBLEM_MEDIA_TYPE)
+        assert missing.json()["code"] == "OAK-CASE-NOT-FOUND"
 
         unknown = await client.get(ROUTE, params={"candidate_id": "candidate-99"})
         assert unknown.status_code == 404

@@ -18,7 +18,7 @@ writes no release decision record and publishes nothing.
 
 - Owner/agent: owner-directed coding agent
 - Started: 2026-10-26
-- Last updated: 2026-10-26 (M0)
+- Last updated: 2026-10-26 (M1)
 - State: in-progress
 - Claimed tasks: `OAK-V1-017`–`OAK-V1-020`
 
@@ -170,6 +170,13 @@ commit restores the old code.
 
 - [x] 2026-10-26 M0 — branch `pre-v1-follow-ups` from `origin/main` at `2d5ec62`; plan and
   STATUS rows.
+- [x] 2026-10-26 M1 — `_case_scoped` wraps the 19 public control-plane methods that take a
+  `case_id`. The new table test failed for all 19 on `2d5ec62`
+  (`'OAK-WORKSPACE-NOT-FOUND' == 'OAK-CASE-NOT-FOUND'`) and passes; a guard pins the
+  table to every such method. The REST (file and PostgreSQL), MCP and remote-CLI pins
+  assert the one code. Mutation checks: dropping the decorator from `research_plan`
+  fails its row; reverting the remote mapping fails the client test and the live-server
+  test. The affected suites pass against a migrated PostgreSQL 17.6 on port 15433.
 
 ## Decisions
 

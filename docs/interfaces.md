@@ -74,7 +74,7 @@ oak --server http://127.0.0.1:8080 evaluate candidate-03 --case design-case.publ
 (default 120 s). Remote mode requires an explicit design-case identifier (positional, or
 `--case` on `evaluate`/`select`/`assure`/`plan`/`architecture`/`report`/`research`/`research
 review`); a case the server does not hold is reported as `OAK-CASE-NOT-FOUND`, naming it, as
-the local CLI does, where REST and MCP answer `OAK-WORKSPACE-NOT-FOUND`.
+the local CLI does. REST and MCP answer the same code for it, with the opaque detail.
 
 ### MCP server
 

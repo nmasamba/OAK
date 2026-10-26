@@ -165,8 +165,7 @@ async def test_an_unknown_case_is_not_found(tmp_path: Path) -> None:
             headers=_headers("report-api-missing-01", "0.1.5"),
         )
     assert missing.status_code == 404
-    # The file adapter finds no workspace; the PostgreSQL one finds no case. Both are 404.
-    assert missing.json()["code"] in {"OAK-CASE-NOT-FOUND", "OAK-WORKSPACE-NOT-FOUND"}
+    assert missing.json()["code"] == "OAK-CASE-NOT-FOUND"
 
 
 async def test_a_model_mode_needs_the_capability_token_before_anything_runs(
