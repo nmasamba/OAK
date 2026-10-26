@@ -64,7 +64,7 @@ The compatibility rules that apply from `0.7.0` onward are in
 
 ```bash
 make bootstrap
-make check
+make check          # with OAK_TEST_DATABASE_URL set: see CONTRIBUTING.md
 make scan-images
 make release
 make verify-release
@@ -98,8 +98,9 @@ git tag -a v0.9.0 -m "OAK Community 0.9.0"
 git push origin v0.9.0
 ```
 
-That workflow runs `make check` before `make release`, so a release cannot be cut from a
-tree that fails the gate, and separately builds the API and web images.
+That workflow runs `make check` before `make release`, against a migrated PostgreSQL service
+as CI does, so a release cannot be cut from a tree that fails the gate or skips the
+database suites, and separately builds the API and web images.
 
 ## Verifying a release
 
@@ -208,7 +209,8 @@ checksums prove the bytes match the manifest, not who produced them (`RR-005`).
 - [ ] `VERSION` bumped; `make validate` green (this catches every file that must agree)
 - [ ] `CHANGELOG.md` has a section for the version, including any digest-shifting change
       called out as such
-- [ ] `make check` green — verified by reading the output, not the exit code
+- [ ] `make check` green with `OAK_TEST_DATABASE_URL` on a fresh, migrated database — verified
+      by reading the output, not the exit code; it names any PostgreSQL-gated test it skipped
 - [ ] `make scan-images` green — no *fixable* CRITICAL or HIGH in either image
 - [ ] Reference-case byte-stability verified directly against the previous mainline
 - [ ] `openapi/oak.compatibility-baseline.json` rewritten from the release's contract

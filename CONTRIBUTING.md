@@ -162,8 +162,11 @@ invented marker fails collection. Shared harnesses are `tests/runner_support.py`
 (file-backed control plane, in-memory operation store, `MCPClient`).
 
 **The PostgreSQL suites skip silently.** Roughly twenty tests — all but one under `tests/integration`, plus the installed-MCP handshake in `tests/e2e/test_mcp_interface.py` — are gated on
-`OAK_TEST_DATABASE_URL`, and a skip looks exactly like a pass in the summary line. CI sets
-it: the `check` job runs a PostgreSQL service and migrates it first. To run them locally:
+`OAK_TEST_DATABASE_URL`, and a skip looks exactly like a pass in the summary line, so a run
+without it ends by counting the tests it skipped. CI's `check` job and the release
+workflow's gate set it: each runs a PostgreSQL service and migrates it first, and
+`make toolchain-check` refuses either without them. A sprint's closing `make check` runs
+them too. To run them locally:
 
 ```bash
 cat > compose.override.yaml <<'YML'

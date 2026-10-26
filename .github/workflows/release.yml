@@ -34,6 +34,26 @@ jobs:
   artifacts:
     name: build and verify release artifacts
     runs-on: ubuntu-latest
+    # The gate below is the gate CI runs, the suites that skip silently included: the
+    # PostgreSQL-gated suites need OAK_TEST_DATABASE_URL and a migrated database, and the
+    # real-daemon runner journeys need their stand-in image cached. A release is the last
+    # place to find out that either skipped. The service runs the image compose.yaml pins.
+    services:
+      postgres:
+        image: postgres:17.6-alpine@sha256:ef257d85f76e48da1c64832459b59fcaba1a4dac97bf5d7450c77753542eee94
+        env:
+          POSTGRES_DB: oak
+          POSTGRES_USER: oak
+          POSTGRES_PASSWORD: oak-local-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U oak -d oak"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+    env:
+      OAK_TEST_DATABASE_URL: postgresql+psycopg://oak:oak-local-only@127.0.0.1:5432/oak
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -51,6 +71,16 @@ jobs:
 
       - name: Bootstrap from the committed lockfiles
         run: make bootstrap
+
+      # The runner journeys never pull their image themselves (tests need no network).
+      - name: Fetch the runner journeys' stand-in image
+        run: docker pull docker.io/rancher/mirrored-pause@sha256:ee6521f290b2168b6e0935a181d4cff9be1ac3f505666ef0e3c98fae8199917a
+
+      # An unmigrated database fails the gated suites as if the code had regressed.
+      - name: Migrate the test database
+        run: uv run oak-db-migrate
+        env:
+          OAK_DATABASE_URL: ${{ env.OAK_TEST_DATABASE_URL }}
 
       - name: Refuse to release from a tree that fails the gate
         run: make check

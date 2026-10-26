@@ -23,7 +23,9 @@ error answer changes on REST and MCP.
   workspace at a location.
 - **The release workflow's gate runs the PostgreSQL suites**, as CI's does: the
   `artifacts` job migrates a service on the image `compose.yaml` pins before
-  `make check`, and `make toolchain-check` refuses either workflow without one.
+  `make check`, and `make toolchain-check` refuses either workflow without one. It also
+  fetches the stand-in image the real-daemon runner journeys need, as CI does, so they
+  run there too instead of skipping.
 - A test run that skips the PostgreSQL-gated tests ends by saying how many it skipped and
   why, so a skip no longer reads as a pass.
 

@@ -18,7 +18,7 @@ writes no release decision record and publishes nothing.
 
 - Owner/agent: owner-directed coding agent
 - Started: 2026-10-26
-- Last updated: 2026-10-26 (M1)
+- Last updated: 2026-10-26 (M3)
 - State: in-progress
 - Claimed tasks: `OAK-V1-017`–`OAK-V1-020`
 
@@ -177,6 +177,25 @@ commit restores the old code.
   assert the one code. Mutation checks: dropping the decorator from `research_plan`
   fails its row; reverting the remote mapping fails the client test and the live-server
   test. The affected suites pass against a migrated PostgreSQL 17.6 on port 15433.
+- [x] 2026-10-26 M2 — `release.yml`'s `artifacts` job runs the same `postgres` service as
+  CI, migrates it and sets `OAK_TEST_DATABASE_URL`, and fetches the runner journeys'
+  stand-in image, before `make check`. `tools/check_toolchains.py` holds both workflows to
+  the database suites (`_check_database_suites`) and the release workflow to CI's image
+  fetch; four new contract cases refuse a release workflow without the variable, without
+  the migration, with another image, or without the fetch. A run without the variable
+  ends with `PostgreSQL-gated tests skipped: N (OAK_TEST_DATABASE_URL is not set)` (12 for
+  `test_operations.py` and `test_readiness_revision.py`), and a contract test keeps every
+  gated skip on the counted reason. The rule is in the governance `AGENTS.md` definition
+  of done, `CONTRIBUTING.md`, `docs/development.md` and `docs/release-process.md`; `RR-019`
+  records both of its limits lifted.
+- [x] 2026-10-26 M3 — in the governance root (edited in place): `spec-quality.yml` pins
+  `actions/checkout` v7.0.1 and `actions/setup-python` v7.0.0 (the newest release at least
+  two weeks old; its `action.yml` runs on `node24`) by commit SHA, caches on
+  `requirements-dev.txt`, and runs Python 3.13. `validate_workflows` in
+  `scripts/validate_repo.py` refuses an action with no ref, a movable ref, or a SHA
+  without its release; three mutations were each refused, the restored file passes, and
+  the workflow's own steps (`pip install -r requirements-dev.txt`, `make validate`) pass in
+  a clean Python 3.13 environment.
 
 ## Decisions
 
@@ -185,7 +204,18 @@ commit restores the old code.
   policy), in the stores (a workspace is the store's own concept, and the local CLI's
   answer must not change), or by an existence query before each call (one more round trip
   per request, and still racy).
+- 2026-10-26 The governance workflow runs Python 3.13, not 3.12: the validator is only
+  ever run on 3.13 (`uv run --project OAKCommunity`), only 3.13 is installed here to prove
+  the workflow's steps, and 3.12 would be an untested interpreter.
+- 2026-10-26 The release gate fetches the runner journeys' image as well as running the
+  database: the owner's point was that the final checks must be complete, and the
+  real-daemon journeys skipped there for the same reason.
 
 ## Discoveries and follow-ups
 
-- (none yet)
+- The release gate had a second silent skip of the same kind: CI fetches the pinned
+  stand-in image the real-daemon runner journeys need, the release workflow did not, so
+  those journeys skipped at release. Fixed in M2.
+- `make toolchain-check` failed once in the fresh worktree, then passed unchanged: pnpm
+  printed its first-use download progress for Node 24.18.0 ahead of the version, and the
+  runtime check compares the whole output. Environmental; it passes once Node is cached.

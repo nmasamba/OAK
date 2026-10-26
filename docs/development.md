@@ -54,7 +54,7 @@ export OAK_TEST_DATABASE_URL=postgresql+psycopg://oak:oak-local-only@127.0.0.1:1
 make test-integration
 ```
 
-Migrate a fresh database first (`OAK_DATABASE_URL=$OAK_TEST_DATABASE_URL uv run oak-db-migrate`); an unmigrated one fails the gated suites as if the code had regressed. CI sets the variable: the `check` job in `.github/workflows/ci.yml` runs a PostgreSQL service on the image `compose.yaml` pins, migrates it and exports `OAK_TEST_DATABASE_URL`, so a green CI run includes these suites (`RR-019`, closed in [security/residual-risk.md](security/residual-risk.md)). A local run without it still skips them.
+Migrate a fresh database first (`OAK_DATABASE_URL=$OAK_TEST_DATABASE_URL uv run oak-db-migrate`); an unmigrated one fails the gated suites as if the code had regressed. CI sets the variable: the `check` job in `.github/workflows/ci.yml` runs a PostgreSQL service on the image `compose.yaml` pins, migrates it and exports `OAK_TEST_DATABASE_URL`, so a green CI run includes these suites (`RR-019`, closed in [security/residual-risk.md](security/residual-risk.md)). The release workflow's gate does the same, and `make toolchain-check` refuses either workflow without it. A local run without it still skips them, and ends by saying how many it skipped; a sprint's closing `make check` must run them.
 
 **The Docker-gated runner journeys skip silently too.** Two tests in `tests/e2e/test_runner_journey.py` install the reference case on a real Docker daemon:
 
