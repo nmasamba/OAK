@@ -28,6 +28,9 @@ error answer changes on REST and MCP.
   run there too instead of skipping.
 - A test run that skips the PostgreSQL-gated tests ends by saying how many it skipped and
   why, so a skip no longer reads as a pass.
+- The documentation calls the specification repository beside this one the **original
+  spec repo** (it said "the governance repository"), at the owner's request. The mirrored
+  ADRs' headers say so; no mirrored ADR body changed.
 
 #### Security
 
@@ -175,7 +178,7 @@ plan's findings table records (`docs/exec-plans/`). Highlights:
   real runs; the network inventories name research and report notes; the version wording
   says this tree holds unreleased work; the security records say what a research run
   reveals and which register entries post-date `0.9.0` (54 entries, `RR-054` new); the
-  developer guide's e2e recipe serves the fixture research source; and the governance
+  developer guide's e2e recipe serves the fixture research source; and the original spec repo's
   STATUS, sprint backlog, interface contract and architecture are current.
 
 ### Added
@@ -914,7 +917,7 @@ on 2026-09-17 as PR #21 (`88fa876`). Its entries follow as history.
 - The confirmation screen says where each value came from: a claim a model proposed is labelled **Proposed by model** with its confidence and reason, taken from the lowest-confidence record under the question's path. Five questions are presented per round and the rest are counted, matching what the CLI does (`OAK-S9-007`).
 - A model failure is a recovery point rather than a dead end: `OAK-MODEL-*` and `OAK-INTERPRETER-*` refusals render with "Interpret without the model" and a link to the model settings, and say that nothing was recorded (`OAK-S9-007`).
 - The manual gains an optional model-provider section in the workspace chapter with its own screenshot, and the passages that said this release ships no model adapter and makes zero model calls are corrected rather than left standing (`OAK-S9-008`).
-- Governance: ADR-0016 records why a user's own provider key is machine-local configuration and how it differs from a target secret, mirrored here as `docs/adr/architecture/0016-...`; `docs/adr/0003-optional-model-provider-credentials.md` records how this build implements it, including why the transport is `http.client` rather than `urllib.request`. `AGENTS.md` gains the boundary, the single-egress architecture rule and two Code Review Rules; `skills.md` gains a "Model provider integration" recipe; the threat model gains `TM-20` and a real mitigation column for `TM-13`; `OAK-FR-INT-009` and `OAK-NFR-SEC-007` are new requirements (`OAK-S9-008`).
+- Original spec repo: ADR-0016 records why a user's own provider key is machine-local configuration and how it differs from a target secret, mirrored here as `docs/adr/architecture/0016-...`; `docs/adr/0003-optional-model-provider-credentials.md` records how this build implements it, including why the transport is `http.client` rather than `urllib.request`. `AGENTS.md` gains the boundary, the single-egress architecture rule and two Code Review Rules; `skills.md` gains a "Model provider integration" recipe; the threat model gains `TM-20` and a real mitigation column for `TM-13`; `OAK-FR-INT-009` and `OAK-NFR-SEC-007` are new requirements (`OAK-S9-008`).
 - `tests/live/test_provider_smoke.py`, run by hand with `OAK_LIVE_MODEL_TESTS=1` against the keys on the operator's own machine. It spends real credit, is never collected by `make check`, and exists because a recorded fixture cannot tell you that a provider changed its API (`OAK-S9-005`).
 - `tests/model_support.py` (a fake adapter that binds to the offered source record), `tests/unit/test_proposal_merge.py`, `tests/contract/test_intent_paths.py`, `tests/integration/test_model_interpretation_service.py` and `tests/integration/test_model_interface_conformance.py` (file, REST and MCP legs produce identical intent and proposal digests and question sets; every leg refuses an unconfigured model with one code; MCP stays deterministic unless asked) (`OAK-S9-004`).
 
@@ -938,7 +941,7 @@ on 2026-09-17 as PR #21 (`88fa876`). Its entries follow as history.
   (`OAK-S9-001`).
 - Conditionally compatible schema additions (`OAK-S9-004`, called out per
   `docs/compatibility.md`): `model_proposed` joins the provenance `source` enums in
-  `common.schema.json` and `design-case.schema.json` (governance mirrors updated),
+  `common.schema.json` and `design-case.schema.json` (the original spec repo's mirrors updated),
   `interpretation-proposal.schema.json` gains the optional `version` field, and
   `interpretation_proposal` joins the workspace-manifest artifact kinds. A workspace that
   never used the model path emits none of them.
@@ -1196,8 +1199,8 @@ customer readiness claim, and no external security review was commissioned for i
   `scripts/check_clean_machine.py` makes uninstall verifiable.
 - **Contributor documentation**: [CONTRIBUTING.md](CONTRIBUTING.md), a documentation index,
   and the six architecture ADRs that shipped documents cite are now mirrored into
-  `docs/adr/architecture/` so their citations resolve for a reader outside the governance
-  repository.
+  `docs/adr/architecture/` so their citations resolve for a reader outside the original spec
+  repo.
 - `make clean-all`, which removes what `make clean` never did.
 
 ### Fixed
@@ -1253,7 +1256,7 @@ customer readiness claim, and no external security review was commissioned for i
   packages to 37. `format-nongpl` was rejected: it keeps eight unused packages to preserve a
   capability nothing enables. Recorded in `docs/dependencies.md`.
 - The documentation gate that forbids naming the other distributions now exempts
-  `docs/adr/architecture/`, which holds verbatim governance mirrors — ADR-0012's subject is
+  `docs/adr/architecture/`, which holds verbatim mirrors from the original spec repo — ADR-0012's subject is
   the boundary between those distributions, so it necessarily names them. The prohibition
   stands in every reader-facing document, pinned by a test.
 

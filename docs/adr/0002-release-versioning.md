@@ -58,7 +58,7 @@ The first OAK Community release is **`0.7.0`**.
 ## Consequences
 
 `sprints.md`'s "`0.1.0`" label no longer names a version — it names *the first Community
-release*, which is `0.7.0`. The governance repository is updated to say so. Anyone reading the
+release*, which is `0.7.0`. The original spec repo is updated to say so. Anyone reading the
 sprint backlog and expecting a `0.1.0` tag will not find one.
 
 Because the repository version is not embedded in any canonical document — `minimum_oak_version`

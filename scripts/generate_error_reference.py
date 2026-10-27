@@ -184,7 +184,7 @@ def source_codes() -> set[str]:
     """Every `OAK-*` identifier the source mentions, excluding requirement IDs.
 
     Requirement identifiers (`OAK-FR-*`, `OAK-NFR-*`) share the prefix but are
-    traceability references to the governance repository, not error codes.
+    traceability references to the original spec repo, not error codes.
     """
 
     found: set[str] = set()

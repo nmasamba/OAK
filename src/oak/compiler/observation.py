@@ -22,7 +22,7 @@ GATE_LIMITATION = (
     "A single sample cannot satisfy an EV-DEP gate: gates need fixture counts and "
     "confidence intervals, and this is one non-production install."
 )
-# The governance calibration list names cost, latency, quality and energy; the assurance
+# The original spec repo's calibration list names cost, latency, quality and energy; the assurance
 # plan's `evidence.observed-calibration` asks for exactly these to be observed.
 CALIBRATED_OBJECTIVES = ("monthly_cost", "latency_p95", "quality", "energy")
 

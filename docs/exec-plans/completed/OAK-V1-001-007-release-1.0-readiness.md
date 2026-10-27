@@ -70,7 +70,7 @@ the review table in this plan; `make check` with the test database and `make aud
 
 - Both repositories' documentation: the implementation README, CONTRIBUTING, SECURITY,
   CHANGELOG and STATUS; `docs/` including the manual, the security records, the ADRs and
-  their mirrors; the schemas, examples and catalogue READMEs; the governance repository's
+  their mirrors; the schemas, examples and catalogue READMEs; the original spec repo's
   status, roadmap, handbook, backlog, traceability and build documents.
 - Behaviour fixes and polish across the CLI, REST, MCP, the web workspace, the runner,
   install and observe, the report and research, each with a test.
@@ -95,7 +95,7 @@ existing contracts, and tests.
 ### M0 — Kickoff and truth pass (`OAK-V1-001`)
 
 - Work: the branch from `origin/main`; this plan; the series recorded in both `STATUS.md`
-  files, `IMPLEMENT.md` and the governance changelog; the post-merge truth pass (Sprint 14 is
+  files, `IMPLEMENT.md` and the original spec repo's changelog; the post-merge truth pass (Sprint 14 is
   merged as PR #37 at `a479780`, so every "awaiting the owner's merge" and "in progress"
   about it is now false).
 - Proof: `scripts/validate_repo.py` and `make validate` green.
@@ -177,14 +177,14 @@ group and can be reverted alone. No migration, no flag, no release.
 
 - [x] 2026-10-23 M0 — kickoff and truth pass: branch `release-1.0-readiness` from
   `origin/main` (`a479780`); this plan; the series in both `STATUS.md` files, `IMPLEMENT.md`,
-  `docs/roadmap.md`, a note in `sprints.md` and the governance changelog (`0.4.0-draft.15`);
+  `docs/roadmap.md`, a note in `sprints.md` and the original spec repo's changelog (`0.4.0-draft.15`);
   Sprint 14 recorded as merged everywhere it was "awaiting the merge" or "in progress", and
-  the governance STATUS's stale `active/` path for its plan corrected. `validate_repo.py`,
+  the original spec repo's STATUS stale `active/` path for its plan corrected. `validate_repo.py`,
   `make validate` and `tools/check_repository.py` green.
 - [x] 2026-10-23 M1 — documentation coherence: the mechanical checks (below) and four
   independent readers (new-user journeys, reference, security records, governance) raised
   86 findings (A 23, B 19, C 23, D 21); each was checked against the code before it was
-  fixed, in the implementation in a worktree and in the governance repository in place.
+  fixed, in the implementation in a worktree and in the original spec repo in place.
 - [x] 2026-10-23 M2 — walkthrough: every documented journey run on the tree; the log and its
   fixes (V-1–V-4, W-1–W-10) are below.
 - [x] 2026-10-23 M3 — review: four independent finders reproduced 64 defects, 8 high (the
@@ -261,7 +261,7 @@ positives (MCP method names read as paths, the Vite entry script, a negative men
 - TM-20 cited a nonexistent `tests/unit/test_secrets.py` "equivalent coverage inside"
   `test_model_configuration.py`; the redaction tests are
   `tests/unit/test_credential_store.py::test_secret_value_never_renders_its_content`. Fixed.
-- The governance `STATUS.md` reading-order paragraph still had Sprint 14 in progress with its
+- the original spec repo's `STATUS.md` reading-order paragraph still had Sprint 14 in progress with its
   plan under `active/`. Fixed with the governance findings below.
 - `OAK_LIVE_RESEARCH_TESTS`, the hand-run research check's gate, was documented nowhere public;
   `docs/configuration.md` and `CONTRIBUTING.md` now name it, and the configuration contract
@@ -361,7 +361,7 @@ Each item names what it takes.
    (`catalogue/research/harness-repositories.yaml`), whose `reviewed_by` and
    `reviewed_at` are still null, so every harness research finds is unvetted.
 7. **Ownership placeholders.** All 19 ADRs and `spec-manifest.yaml` still name owners as
-   `@role` placeholders; the governance README says to replace them before a formal
+   `@role` placeholders; the original spec repo's README says to replace them before a formal
    release.
 8. **An external security review** (`RR-028`): whether one is commissioned before 1.0, or
    1.0 ships, as `0.9.0` did, with the project's own review only.

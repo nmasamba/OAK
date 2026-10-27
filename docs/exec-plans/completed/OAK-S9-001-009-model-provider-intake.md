@@ -59,9 +59,9 @@ provenance `source` is `model_proposed`. **Model path** means `interpret` ran wi
 proposal; **deterministic path** means it did not.
 
 Governing requirements: `OAK-FR-CTL-003`, `-008`, `OAK-FR-INT-001`–`006`, `OAK-NFR-SEC-003`,
-`OAK-NFR-UX-001`, `OAK-NFR-PORT-002`, `OAK-NFR-REL-002` (governance `docs/requirements.md`);
+`OAK-NFR-UX-001`, `OAK-NFR-PORT-002`, `OAK-NFR-REL-002` (the original spec repo's `docs/requirements.md`);
 new `OAK-FR-INT-009` and `OAK-NFR-SEC-007` are added in Milestone 7. Governing ADRs: 0001,
-0004, 0009, 0011, 0012, 0014 (governance series); implementation ADR 0003 and governance ADR
+0004, 0009, 0011, 0012, 0014 (the original spec repo's series); implementation ADR 0003 and the original spec repo's ADR
 0016 are written in Milestone 7. Threat lenses: TM-01, TM-04, TM-10, TM-13, TM-14, TM-19
 and the new TM-20. Recipes applied (`skills.md`): Compiler stage, Contract change, Interface
 adapter, Workspace UI, Security review, Dependency and release, Documentation and ADR.
@@ -96,7 +96,7 @@ Hard invariants:
 ### In
 
 - **`OAK-S9-001`** — reference-digest and golden-intent test, test isolation of model state,
-  secret-scan shapes, boundary rule, egress module list, Sprint 9 registered in governance.
+  secret-scan shapes, boundary rule, egress module list, Sprint 9 registered in the original spec repo.
 - **`OAK-S9-002`** — `_LoopbackGuardMiddleware` (Host allowlist, `Origin`, `Sec-Fetch-Site`),
   per-process capability token (`X-OAK-Model-Token`), `OAK_ALLOWED_HOSTS`, nginx frame
   headers, `SECURITY.md` and `RR-027` wording.
@@ -115,8 +115,8 @@ Hard invariants:
 - **`OAK-S9-006`** — `/v1/models` resources, api-only Compose volume, operator docs.
 - **`OAK-S9-007`** — Settings page, natural-language default intake, provenance on the
   confirmation screen, recovery actions, Playwright coverage, manual screenshot.
-- **`OAK-S9-008`** — manual, ADRs (implementation 0003; governance 0016 mirrored with 0009),
-  both repositories' docs, `AGENTS.md`, `skills.md`, governance root `CLAUDE.md` pointer.
+- **`OAK-S9-008`** — manual, ADRs (implementation 0003; the original spec repo's 0016 mirrored with 0009),
+  both repositories' docs, `AGENTS.md`, `skills.md`, the original spec repo's `CLAUDE.md` pointer.
 - **`OAK-S9-009`** — closing adversarial audit, status/changelog, PR.
 
 ### Out
@@ -168,11 +168,11 @@ Hard invariants:
   `tests/integration/test_reference_digests.py`; `examples/briefs/public-manual-qa-prose.md`;
   `tests/conftest.py`; secret-scan shapes and `tests/contract/test_secret_shapes.py`;
   `THIRD_PARTY_FORBIDDEN` provider roots with a firing fixture; `NETWORK_MODULES` widened;
-  governance Sprint 9 (`sprints.md`, `STATUS.md`, `spec-manifest.yaml`, `VERSION`,
+  the original spec repo's Sprint 9 (`sprints.md`, `STATUS.md`, `spec-manifest.yaml`, `VERSION`,
   `CHANGELOG.md`, `README.md`).
-- Proof: `make check` with zero `make: ***` lines; the digest test passes; governance
+- Proof: `make check` with zero `make: ***` lines; the digest test passes; the original spec repo's
   `make validate` passes.
-- Rollback: delete the branch; restore the governance files from the scratchpad copies.
+- Rollback: delete the branch; restore the original spec repo files from the scratchpad copies.
 
 ### Milestone 1 — Loopback hardening and capability token (`OAK-S9-002`)
 
@@ -239,11 +239,11 @@ Hard invariants:
 
 ### Milestone 7 — Documentation, ADRs, governance (`OAK-S9-008`)
 
-- Work: manual chapters 3 and 4 and PDF; implementation ADR 0003; governance ADR 0016
+- Work: manual chapters 3 and 4 and PDF; implementation ADR 0003; the original spec repo's ADR 0016
   mirrored with ADR 0009; every implementation and governance document named in the approved
-  plan; governance root `CLAUDE.md` pointer.
-- Proof: `make check`; governance `make validate`; ADR-reference and assurance-claim tests.
-- Rollback: revert; restore governance files from scratchpad copies.
+  plan; original spec repo `CLAUDE.md` pointer.
+- Proof: `make check`; the original spec repo's `make validate`; ADR-reference and assurance-claim tests.
+- Rollback: revert; restore the original spec repo's files from scratchpad copies.
 
 ### Milestone 8 — Closing audit, verification, PR (`OAK-S9-009`)
 
@@ -299,7 +299,7 @@ artifact, which `docs/compatibility.md` states.
 
 - [x] 2026-09-17 Milestone 0 in progress: branch created; digest and golden-intent test,
   prose fixture, conftest isolation, secret shapes, boundary rule and fixture, egress module
-  list landed; governance Sprint 9 registered and `make validate` passes.
+  list landed; the original spec repo's Sprint 9 registered and `make validate` passes.
 
 - [x] 2026-09-17 Milestone 1: `_LoopbackGuardMiddleware`, `verify_model_token` and the
   per-process token file landed with `tests/integration/test_loopback_hardening.py`,
@@ -366,14 +366,14 @@ artifact, which `docs/compatibility.md` states.
   response body ever carries the key, and an axe pass), and the `11-models` manual capture.
 
 - [x] 2026-09-17 Milestone 7: the manual's "no model adapter ships" passages corrected and an
-  optional model-provider section added to the workspace chapter; ADR-0016 in governance and
+  optional model-provider section added to the workspace chapter; ADR-0016 in the original spec repo and
   mirrored here; ADR-0003 recording this build's transport, loopback, bounds and token
   decisions; `AGENTS.md` boundary, architecture rule and two Code Review Rules; the
   `skills.md` routing row and recipe; `TM-20` and a real `TM-13` mitigation column; the
   secrets invariant distinguishing target secrets from provider credentials; the interface
   contract's permanent MCP and remote-CLI prohibition; `OAK-FR-INT-009` and
   `OAK-NFR-SEC-007` with their traceability rows; terminology; evidence sources; and the
-  governance `CLAUDE.md` pointer.
+  the original spec repo's `CLAUDE.md` pointer.
 
 ## Decisions
 
@@ -488,8 +488,8 @@ the input that would put it there is refused upstream.
 ### Documentation sweep (`OAK-S9-009`)
 
 Six readers over both repositories — implementation top-level and operator docs, security
-and release records, the manual, contracts and generated artefacts, the governance root, the
-governance `docs/` tree — each asked for statements the branch had made false, misleading or
+and release records, the manual, contracts and generated artefacts, the original spec repo, the
+the original spec repo's `docs/` tree — each asked for statements the branch had made false, misleading or
 incomplete, with an independent check of every finding against the code. 45 raised, 23
 verified stale and fixed; the rest were deliberately historical (a signed release record, a
 completed plan) or already qualified by their surrounding text.

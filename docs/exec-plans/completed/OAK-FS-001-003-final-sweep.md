@@ -13,7 +13,7 @@ One plan covers three task IDs because the sweep is one coherent, documentation-
 change with a single invariant set (byte-stable digests, no new claims) and a single
 close-out: neutralizing vendor references, shipping the user manual, and aligning every
 status document with the post-merge state were specified together in the owner's
-`FINAL-SWEEP-PROMPT.md` (governance root) and land as one PR.
+`FINAL-SWEEP-PROMPT.md` (original spec repo) and land as one PR.
 
 ## Outcome
 
@@ -64,9 +64,9 @@ close-out record describing the deletion of those branches.
 - `docs/manual/`: authoritative `manual.html`, rendered PDF, ten live screenshots,
   `build_manual.mjs`, capture spec `web/e2e/manual-screens.spec.ts` (gated by
   `OAK_MANUAL_SCREENS=1`), rebuild documentation.
-- Post-merge truth pass: `STATUS.md` (both repositories), governance `IMPLEMENT.md`,
+- Post-merge truth pass: `STATUS.md` (both repositories), the original spec repo's `IMPLEMENT.md`,
   `CHANGELOG.md`, the `0.7.1` release-decision draft's "what changed" section
-  (governance `docs/roadmap.md` was reviewed and needed no change).
+  (the original spec repo's `docs/roadmap.md` was reviewed and needed no change).
 - Deletion of the merged `claude/*`/`codex/*` remote branches (done; none remain on
   origin).
 - Document-policy gates extended to the manual's file types (`.html` under the
@@ -126,7 +126,7 @@ The four reference digests were recompiled after the sweep and are byte-identica
 
 ### Milestone 3 — OAK-FS-003: post-merge truth pass and close-out
 
-- Work: both `STATUS.md` files, governance `IMPLEMENT.md` (`docs/roadmap.md` was
+- Work: both `STATUS.md` files, the original spec repo's `IMPLEMENT.md` (`docs/roadmap.md` was
   reviewed and needed no change),
   `CHANGELOG.md` (0.7.1 Added/Changed), release-decision "what changed" amendment
   recording the docs-only sweep, `OAK_MANUAL_SCREENS` reference row, this plan,
@@ -134,7 +134,7 @@ The four reference digests were recompiled after the sweep and are byte-identica
 - Proof: grep for pre-merge phrasing ("merge the PR once remote CI is green",
   "awaiting merge") returns nothing in live documents of either repository;
   `uv run pytest tests/contract/test_configuration_reference.py` passes.
-- Rollback: revert the branch; governance-root edits are plain files restorable from
+- Rollback: revert the branch; original spec repo edits are plain files restorable from
   this plan's description.
 
 ## Verification
@@ -225,7 +225,7 @@ the PR.
 ## Post-implementation audit
 
 A closing multi-agent adversarial audit ran against the full sweep change set (the three
-commits plus the uncommitted close-out edits and the governance-root edits) across five
+commits plus the uncommitted close-out edits and the original spec repo's edits) across five
 finder lenses — factual truth of every added claim, gate/CI regression risk, spec
 compliance against `FINAL-SWEEP-PROMPT.md`, internal consistency and reader experience,
 and honesty/security posture. Every candidate finding was then handed to an independent

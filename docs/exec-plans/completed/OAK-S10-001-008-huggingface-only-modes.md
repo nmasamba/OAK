@@ -142,7 +142,7 @@ and ADR.
 ### In
 
 - **`OAK-S10-001` — Branch, plan, governance.** Branch `hf-only-modes` from `origin/main`;
-  this plan under `docs/exec-plans/active/`; Sprint 10 rewritten in the governance
+  this plan under `docs/exec-plans/active/`; Sprint 10 rewritten in the original spec repo's
   `sprints.md`; `STATUS.md` claims (both repositories); the digest test and `make check`
   green before anything moves.
 - **`OAK-S10-002` — Remove the five hosted families.** `openai`, `anthropic`, `gemini`, `meta`,
@@ -186,7 +186,7 @@ and ADR.
   `auto`, `model`, "Detection asks the provider", or the free default is corrected (list in
   Milestone 5). `RR-039` narrowed to Hugging Face and the provider it routes to; new `RR-042`
   (a verdict is a claim about the past); `TM-13`/`TM-20` wording; ADR-0003 addendum;
-  ADR-0009/0016 consequence sentences (governance, then re-mirrored); `evidence/sources.yaml`
+  ADR-0009/0016 consequence sentences (original spec repo, then re-mirrored); `evidence/sources.yaml`
   gains the Hugging Face sources and the free-tier survey above and retires the five-vendor
   entry; error reference, OpenAPI and web client regenerated; `SPRINT-10-PROMPT.md` marked
   superseded.
@@ -234,11 +234,11 @@ and ADR.
 ### Milestone 0 — Branch, plan, governance (`OAK-S10-001`)
 
 - Work: branch `hf-only-modes` from `origin/main`; this plan
-  (`docs/exec-plans/active/OAK-S10-001-008-huggingface-only-modes.md`); governance
+  (`docs/exec-plans/active/OAK-S10-001-008-huggingface-only-modes.md`); the original spec repo's
   `sprints.md` Sprint 10, `STATUS.md` (both), `spec-manifest.yaml`, root `CHANGELOG.md`.
-- Proof: `make check` with zero `make: ***` lines (`OAK_TEST_DATABASE_URL` set); governance
+- Proof: `make check` with zero `make: ***` lines (`OAK_TEST_DATABASE_URL` set); the original spec repo's
   `make validate`; the digest test passes.
-- Rollback: delete the branch; restore the governance files from the scratchpad copies.
+- Rollback: delete the branch; restore the original spec repo files from the scratchpad copies.
 
 ### Milestone 1 — Remove the five hosted families (`OAK-S10-002`)
 
@@ -335,11 +335,11 @@ and ADR.
   `docs/manual/manual.html` chapter 4, `docs/adr/0003-…md` addendum,
   `docs/adr/architecture/0009` and `0016` re-mirrored, `docs/security/residual-risk.md`
   (`RR-039`, `RR-042`), `docs/security/threat-coverage.md`, `docs/error-codes.md`, `STATUS.md`.
-  Governance: `docs/threat-model.md` (`TM-13`, `TM-20`), `docs/adr/0009`, `docs/adr/0016`,
+  Original spec repo: `docs/threat-model.md` (`TM-13`, `TM-20`), `docs/adr/0009`, `docs/adr/0016`,
   `sprints.md`, `STATUS.md`, `CHANGELOG.md`, `spec-manifest.yaml`, `evidence/sources.yaml`,
   `SPRINT-10-PROMPT.md` marked superseded.
 - Proof: ADR-reference, assurance-claim, configuration-reference, error-reference and
-  register-count contract tests green; governance `make validate`.
+  register-count contract tests green; the original spec repo's `make validate`.
 - Rollback: revert.
 
 ### Milestone 6 — Live run, audit, sweep, PR (`OAK-S10-007`)
@@ -435,9 +435,9 @@ or missing key is visible before anyone opens the dropdown.
 - [x] 2026-09-21 Plan revision 1 written and answered by the owner; revision 2 approved
   (three modes; masthead label kept, repurposed).
 - [x] 2026-09-21 Milestone 0 (`5ef6136`): branch `hf-only-modes` from `origin/main`
-  (`3430c71`); this plan; Sprint 10 registered in the governance `sprints.md`, `STATUS.md`,
+  (`3430c71`); this plan; Sprint 10 registered in the original spec repo's `sprints.md`, `STATUS.md`,
   `spec-manifest.yaml` (`0.4.0-draft.5`) and `CHANGELOG.md`; tasks claimed in `STATUS.md`;
-  governance `make validate` and the digest test green.
+  the original spec repo's `make validate` and the digest test green.
 - [x] 2026-09-21 Milestone 1 (`44d4b2f`): the five hosted families removed with their request
   shape, header kinds, paginated parsers, chat-candidate branches, fixtures, environment
   literals, configuration rows, schema enum members and tests; the OpenAI-shaped completion
@@ -494,11 +494,11 @@ or missing key is visible before anyone opens the dropdown.
   `docs/local-design-case.md`, `docs/dependencies.md`, the manual's model chapter (PDF
   rebuilt), `docs/security/residual-risk.md` (`RR-039` narrowed, `RR-042` added, count 42 in
   every quoting document), `docs/security/threat-coverage.md` (`TM-13`, `TM-20` cite the new
-  tests), implementation ADR-0003 (a Sprint 10 section), the workspace footer; governance
+  tests), implementation ADR-0003 (a Sprint 10 section), the workspace footer; the original spec repo's
   `docs/threat-model.md` (`TM-13`, `TM-20`), ADR-0009 and ADR-0016 (re-mirrored with their
   provenance header), `evidence/sources.yaml` (four Hugging Face sources and the free-tier
   survey; the five-vendor entry marked superseded), `SPRINT-10-PROMPT.md` marked superseded;
-  contract suites (147) and governance `make validate` green.
+  contract suites (147) and the original spec repo's `make validate` green.
 - [x] 2026-09-22 Milestone 6: the live run recorded above; the closing adversarial audit
   (six lenses, 27 distinct findings, every one reproduced before it was fixed) recorded under
   `## Post-implementation audit`; and a corpus-wide documentation sweep (90 findings across 34
@@ -512,7 +512,7 @@ or missing key is visible before anyone opens the dropdown.
   else. `make check` with PostgreSQL: zero `make: ***` lines — 665 unit/contract, 276
   integration (4 skipped), 42 e2e. `make web-e2e` green (10 passed) against the rebuilt
   Compose stack; manual screenshots recaptured, the PDF rebuilt from the corrected HTML,
-  `docs/error-codes.md` regenerated last; governance `make validate` green.
+  `docs/error-codes.md` regenerated last; the original spec repo's `make validate` green.
 - [x] 2026-09-22 Milestone 7 (`OAK-S10-008`): merged as PR #22 (`052211e`) with both remote
   CI runs green, then `0.8.0` prepared on `main` — the version touch-list, the `0.8.0`
   changelog section, `docs/release/0.8.0/release-decision.md` written **unsigned**, the

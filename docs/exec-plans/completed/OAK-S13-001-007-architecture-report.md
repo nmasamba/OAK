@@ -2,8 +2,8 @@
 
 # OAK-S13-001–007: The architecture report
 
-**Authorized by the owner on 2026-10-16** by launching `SPRINT-13-PROMPT.md` (governance
-root) and answering its six kickoff questions. The prompt is the specification; this plan
+**Authorized by the owner on 2026-10-16** by launching `SPRINT-13-PROMPT.md` (original spec
+repo) and answering its six kickoff questions. The prompt is the specification; this plan
 records the owner's answers, the design choices the prompt left open, and the proof for
 each milestone.
 
@@ -180,7 +180,7 @@ Each milestone ends with one commit, its exit check green and a line under Progr
 
 ### Milestone 0 — Kickoff (`OAK-S13-001`)
 
-- Work: the answers, the branch, this plan, Sprint 13 registered in governance, tasks
+- Work: the answers, the branch, this plan, Sprint 13 registered in the original spec repo, tasks
   claimed, and the throwaway stack `oak-s13` on 18080/15174.
 - Proof: `pnpm --dir web build` green, and `journey.spec.ts` green on the throwaway stack.
 

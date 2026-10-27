@@ -9,7 +9,7 @@ left three questions for the owner, and the owner answered each:
   run the comprehensive gates to show nothing broke;
 - the release workflow's `make check`, which ran without a database: the final checks must
   run the database suites;
-- the dormant governance workflow, still on unpinned Node-20 actions: update it.
+- the original spec repo's dormant workflow, still on unpinned Node-20 actions: update it.
 
 This plan starts from `origin/main` at `2d5ec62`. It bumps no version, cuts no tag,
 writes no release decision record and publishes nothing.
@@ -43,10 +43,10 @@ After this plan:
    workflow without them. A sprint's closing `make check` runs them too, and a pytest
    summary line counts the database tests a run skipped, so a skip no longer looks like a
    pass.
-3. **The governance workflow is pinned** (`OAK-V1-019`). `spec-quality.yml` in the
-   governance repository names Node-24 releases of `actions/checkout` and
+3. **The original spec repo's workflow is pinned** (`OAK-V1-019`). `spec-quality.yml` in the
+   original spec repo names Node-24 releases of `actions/checkout` and
    `actions/setup-python` by commit SHA, with each release in a comment, and caches on
-   `requirements-dev.txt`. The governance validator refuses an unpinned action.
+   `requirements-dev.txt`. The original spec repo's validator refuses an unpinned action.
 4. **Gates and PR** (`OAK-V1-020`): `make check` with `OAK_TEST_DATABASE_URL` on a fresh,
    migrated throwaway PostgreSQL, `make audit`, `make web-e2e` on a throwaway Compose
    project, the plan closed and the PR open with CI green. The merge is the owner's.
@@ -65,7 +65,7 @@ After this plan:
   MCP and the worker all call, not in each transport.
 - `docs/error-codes.md` is generated and line-sensitive; regenerate it after every `src/`
   edit.
-- The governance root is not a git repository; it is edited in place and validated with
+- The original spec repo is not a git repository; it is edited in place and validated with
   `uv run --project OAKCommunity python scripts/validate_repo.py`.
 - Standing rules: never touch the owner's `oak-community` Compose stack (ports 8080 and
   5173) or its database on port 15432; never run `tests/live` with
@@ -89,7 +89,7 @@ After this plan:
 - Docs: `scripts/generate_error_reference.py` and the regenerated `docs/error-codes.md`,
   `docs/compatibility.md`, `docs/interfaces.md`, `CONTRIBUTING.md`, `docs/development.md`,
   `docs/security/residual-risk.md` (`RR-019`), `CHANGELOG.md`, `STATUS.md`; in the
-  governance root, `AGENTS.md`'s definition of done, `.github/workflows/spec-quality.yml`,
+  original spec repo, `AGENTS.md`'s definition of done, `.github/workflows/spec-quality.yml`,
   `scripts/validate_repo.py`, and the status records.
 
 ### Out
@@ -132,9 +132,9 @@ After this plan:
   image; a run without the variable prints the skipped count.
 - Rollback: revert the commit.
 
-### M3 — The governance workflow (`OAK-V1-019`)
+### M3 — The original spec repo's workflow (`OAK-V1-019`)
 
-- Work: the pins, the cache path and the validator check, in place in the governance root.
+- Work: the pins, the cache path and the validator check, in place in the original spec repo.
 - Proof: `validate_repo.py` passes, and fails on a copy with `actions/checkout@v4`.
 - Rollback: restore the two `uses:` lines.
 
@@ -185,10 +185,10 @@ commit restores the old code.
   the migration, with another image, or without the fetch. A run without the variable
   ends with `PostgreSQL-gated tests skipped: N (OAK_TEST_DATABASE_URL is not set)` (12 for
   `test_operations.py` and `test_readiness_revision.py`), and a contract test keeps every
-  gated skip on the counted reason. The rule is in the governance `AGENTS.md` definition
+  gated skip on the counted reason. The rule is in the original spec repo's `AGENTS.md` definition
   of done, `CONTRIBUTING.md`, `docs/development.md` and `docs/release-process.md`; `RR-019`
   records both of its limits lifted.
-- [x] 2026-10-26 M3 — in the governance root (edited in place): `spec-quality.yml` pins
+- [x] 2026-10-26 M3 — in the original spec repo (edited in place): `spec-quality.yml` pins
   `actions/checkout` v7.0.1 and `actions/setup-python` v7.0.0 (the newest release at least
   two weeks old; its `action.yml` runs on `node24`) by commit SHA, caches on
   `requirements-dev.txt`, and runs Python 3.13. `validate_workflows` in
@@ -196,7 +196,14 @@ commit restores the old code.
   without its release; three mutations were each refused, the restored file passes, and
   the workflow's own steps (`pip install -r requirements-dev.txt`, `make validate`) pass in
   a clean Python 3.13 environment.
-- [x] 2026-10-26 M4 — `make check` with `OAK_TEST_DATABASE_URL` on a fresh, migrated throwaway PostgreSQL 17.6 (port 15433) green on the code tree (`4a54e78`) with zero `make: ***` lines: 1,198 unit and contract passed (1 skipped), 457 integration passed (4 skipped, the PostgreSQL-only assertions on the file store), 43 end-to-end passed with none skipped; `make audit` clean after `filelock` 4.2.4 (`7db8170`); `make web-e2e` 33 passed, 2 skipped, on the throwaway Compose project `oak-v1c` built from `7db8170`; on that stack REST, `oak-mcp` and the remote CLI each answered `OAK-CASE-NOT-FOUND` for a case it does not hold. PR #40 opened; the governance root moved to `0.4.0-draft.17`.
+- [x] 2026-10-26 M4 — `make check` with `OAK_TEST_DATABASE_URL` on a fresh, migrated throwaway PostgreSQL 17.6 (port 15433) green on the code tree (`4a54e78`) with zero `make: ***` lines: 1,198 unit and contract passed (1 skipped), 457 integration passed (4 skipped, the PostgreSQL-only assertions on the file store), 43 end-to-end passed with none skipped; `make audit` clean after `filelock` 4.2.4 (`7db8170`); `make web-e2e` 33 passed, 2 skipped, on the throwaway Compose project `oak-v1c` built from `7db8170`; on that stack REST, `oak-mcp` and the remote CLI each answered `OAK-CASE-NOT-FOUND` for a case it does not hold. PR #40 opened; the original spec repo moved to `0.4.0-draft.17`.
+- [x] 2026-10-27 At the owner's request, the specification repository is called the
+  "original spec repo" everywhere both repositories named it "the governance repository"
+  (or "governance root" or plain "governance"): the mirrored ADRs' headers and the
+  contract test that reads them, `tools/check_repository.py`'s mirror helper
+  (`_is_spec_mirror`), STATUS, the ADR index, the completed plans and the changelog.
+  "Governance" as a subject (the report section, policy-pack governance, the contributor
+  guide's section) is unchanged.
 
 ## Decisions
 
@@ -205,7 +212,7 @@ commit restores the old code.
   policy), in the stores (a workspace is the store's own concept, and the local CLI's
   answer must not change), or by an existence query before each call (one more round trip
   per request, and still racy).
-- 2026-10-26 The governance workflow runs Python 3.13, not 3.12: the validator is only
+- 2026-10-26 The original spec repo's workflow runs Python 3.13, not 3.12: the validator is only
   ever run on 3.13 (`uv run --project OAKCommunity`), only 3.13 is installed here to prove
   the workflow's steps, and 3.12 would be an untested interpreter.
 - 2026-10-26 The release gate fetches the runner journeys' image as well as running the
