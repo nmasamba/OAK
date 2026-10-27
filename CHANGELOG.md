@@ -37,6 +37,9 @@ error answer changes on REST and MCP.
 - The development-only `filelock`, which only `pip-audit`'s cache uses, moves from 3.32.3
   to 4.2.4 for `CVE-2026-112907`, `CVE-2026-112913` and `CVE-2026-112940`. It is in no
   runtime artifact (`docs/dependencies.md`).
+- The development-only `msgpack`, which only `pip-audit`'s cache uses, moves from 1.2.1 to
+  1.2.3 for `CVE-2026-114613`, published on 2026-10-27. It is in no runtime artifact
+  (`docs/dependencies.md`).
 
 ### Pre-1.0 engineering batch (`OAK-V1-008`–`016`)
 

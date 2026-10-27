@@ -204,6 +204,10 @@ commit restores the old code.
   (`_is_spec_mirror`), STATUS, the ADR index, the completed plans and the changelog.
   "Governance" as a subject (the report section, policy-pack governance, the contributor
   guide's section) is unchanged.
+- [x] 2026-10-27 CI failed `make audit` on both runs of `3a644e0` (`make check` with the
+  database and `make build` passed in both): `CVE-2026-114613`, published that day,
+  against `msgpack` 1.2.1, which only `pip-audit`'s cache uses. `msgpack` moved alone to
+  1.2.3, the release with the fix; `make audit` clean locally on it.
 
 ## Decisions
 
@@ -230,6 +234,10 @@ commit restores the old code.
   PR and the next push to `main`. `uv lock --upgrade-package filelock` moved it alone to
   4.2.4 (MIT, unchanged), recorded in `docs/dependencies.md` as the `urllib3` lift of
   2026-09-30 was; `make audit` is clean on it.
+- A second advisory landed between gates: `CVE-2026-114613` against `msgpack` 1.2.1, also
+  reached only through `pip-audit`'s cache, was published on 2026-10-27 and failed CI's
+  `make audit` on the rename commit. It moved to 1.2.3, the fixed release, rather than the
+  day-old 1.2.4, whose changes are not security fixes; recorded in `docs/dependencies.md`.
 - `make toolchain-check` failed once in the fresh worktree, then passed unchanged: pnpm
   printed its first-use download progress for Node 24.18.0 ahead of the version, and the
   runtime check compares the whole output. Environmental; it passes once Node is cached.
