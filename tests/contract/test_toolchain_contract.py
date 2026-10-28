@@ -468,3 +468,101 @@ def test_a_release_job_that_does_not_wait_for_the_browser_suite_is_rejected(
     path.write_text("".join(lines), encoding="utf-8")
 
     assert f"release workflow: the {job} job must wait for the browser suite" in check(tree)
+
+
+@pytest.mark.parametrize(
+    ("original", "replacement", "failure"),
+    [
+        (
+            "\n  check-macos-arm64:\n",
+            "\n  check-macos:\n",
+            "CI workflow: the check-macos-arm64 job is missing",
+        ),
+        (
+            "    runs-on: macos-15\n",
+            "    runs-on: macos-latest\n",
+            "CI workflow: the check-macos-arm64 job must run on macos-15",
+        ),
+        (
+            "    runs-on: ubuntu-24.04-arm\n",
+            "    runs-on: ubuntu-latest\n",
+            "CI workflow: the check-linux-arm64 job must run on ubuntu-24.04-arm",
+        ),
+        (
+            "sys.exit(platform != 'macosx-11.0-arm64')",
+            "sys.exit(0)",
+            "CI workflow: the check-macos-arm64 job must assert a macosx-11.0-arm64 venv",
+        ),
+        (
+            '"${{ runner.temp }}/skips.jsonl" check-macos-arm64',
+            '"${{ runner.temp }}/skips.jsonl" check-linux-x86_64',
+            "CI workflow: the check-macos-arm64 job must count its skips against check-macos-arm64",
+        ),
+        (
+            '"${{ runner.temp }}/skips.jsonl" check-linux-arm64',
+            '"${{ runner.temp }}/skips.jsonl" none',
+            "CI workflow: the check-linux-arm64 job must count its skips against check-linux-arm64",
+        ),
+        (
+            '      - run: python3 scripts/check_skips.py "${{ runner.temp }}/skips.jsonl"'
+            " check-linux-x86_64\n",
+            "",
+            "CI workflow: the check job must count its skips against check-linux-x86_64",
+        ),
+        (
+            'test "$architecture" = arm64',
+            "true",
+            "CI arm64 job: both images must be built and checked as arm64",
+        ),
+        (
+            "          docker build --file deploy/images/web.Dockerfile --tag oak-ci/web:arm64 .\n",
+            "",
+            "CI arm64 job: both images must be built and checked as arm64",
+        ),
+    ],
+)
+def test_a_second_platform_job_that_proves_less_than_it_claims_is_rejected(
+    tmp_path: Path, original: str, replacement: str, failure: str
+) -> None:
+    """OAK-V1-023 (RR-014): each platform job runs where it says and counts its skips."""
+
+    tree = _mirror(ROOT, tmp_path)
+    path = tree / ".github/workflows/ci.yml"
+    text = path.read_text(encoding="utf-8")
+    assert text.count(original) == 1, original
+    path.write_text(text.replace(original, replacement), encoding="utf-8")
+
+    assert failure in check(tree)
+
+
+@pytest.mark.parametrize("dropped", ["OAK_TEST_DATABASE_URL:", "Migrate the test database"])
+def test_an_arm64_job_without_the_database_suites_is_rejected(tmp_path: Path, dropped: str) -> None:
+    tree = _mirror(ROOT, tmp_path)
+    path = tree / ".github/workflows/ci.yml"
+    text = path.read_text(encoding="utf-8")
+    start = text.index("\n  check-linux-arm64:\n")
+    end = text.index("\n  # The browser suite (RR-021).")
+    arm = text[start:end]
+    if dropped == "Migrate the test database":
+        arm = arm.replace("        run: uv run oak-db-migrate\n", "        run: true\n")
+    else:
+        arm = arm.replace("    env:\n      OAK_TEST_DATABASE_URL:", "    env:\n      OAK_UNUSED:")
+    path.write_text(text[:start] + arm + text[end:], encoding="utf-8")
+
+    assert (
+        "CI arm64 job: the PostgreSQL-gated suites must run (OAK_TEST_DATABASE_URL and "
+        "oak-db-migrate)"
+    ) in check(tree)
+
+
+def test_a_release_gate_that_does_not_count_its_skips_is_rejected(tmp_path: Path) -> None:
+    tree = _mirror(ROOT, tmp_path)
+    path = tree / ".github/workflows/release.yml"
+    text = path.read_text(encoding="utf-8")
+    ledger = "        env:\n          OAK_SKIP_LEDGER: ${{ runner.temp }}/skips.jsonl\n"
+    assert text.count(ledger) == 1
+    path.write_text(text.replace(ledger, ""), encoding="utf-8")
+
+    assert (
+        "release workflow: the artifacts job must count its skips against check-linux-x86_64"
+    ) in check(tree)

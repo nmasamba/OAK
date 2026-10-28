@@ -54,6 +54,10 @@ jobs:
         env:
           OAK_DATABASE_URL: ${{ env.OAK_TEST_DATABASE_URL }}
       - run: make check
+        env:
+          OAK_SKIP_LEDGER: ${{ runner.temp }}/skips.jsonl
+      # Every skip, by reason and count, must be the ones this job expects (RR-014).
+      - run: python3 scripts/check_skips.py "${{ runner.temp }}/skips.jsonl" check-linux-x86_64
       - run: make build
       - run: make audit
       - run: make sbom
@@ -61,6 +65,86 @@ jobs:
         with:
           name: development-sbom
           path: sbom/python.cdx.json
+
+  # A second platform (RR-014). macOS on Apple silicon is the supported development
+  # platform. GitHub's macOS runners have no Docker, and service containers run only on
+  # Linux, so this job proves the Python and web paths without PostgreSQL, the runner's
+  # Docker journeys or an image build; what it skipped for that is counted below, so it
+  # claims no more than it ran. The label is pinned because `macos-latest` moves.
+  check-macos-arm64:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: "0.10.8"
+          enable-cache: true
+      - run: corepack enable
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: make bootstrap
+      - name: The virtual environment is arm64
+        run: uv run python -c "import sysconfig, sys; platform = sysconfig.get_platform(); print(platform); sys.exit(platform != 'macosx-11.0-arm64')"
+      - run: make check
+        env:
+          OAK_SKIP_LEDGER: ${{ runner.temp }}/skips.jsonl
+      - run: python3 scripts/check_skips.py "${{ runner.temp }}/skips.jsonl" check-macos-arm64
+
+  # arm64 Linux (RR-014): the PostgreSQL suites and the runner's Docker journeys on arm64,
+  # and both images built natively for arm64, which no other job does.
+  check-linux-arm64:
+    runs-on: ubuntu-24.04-arm
+    services:
+      postgres:
+        image: postgres:17.6-alpine@sha256:ef257d85f76e48da1c64832459b59fcaba1a4dac97bf5d7450c77753542eee94
+        env:
+          POSTGRES_DB: oak
+          POSTGRES_USER: oak
+          POSTGRES_PASSWORD: oak-local-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U oak -d oak"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+    env:
+      OAK_TEST_DATABASE_URL: postgresql+psycopg://oak:oak-local-only@127.0.0.1:5432/oak
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: "0.10.8"
+          enable-cache: true
+      - run: corepack enable
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: make bootstrap
+      - name: The virtual environment is arm64
+        run: uv run python -c "import sysconfig, sys; platform = sysconfig.get_platform(); print(platform); sys.exit(platform != 'linux-aarch64')"
+      - run: docker pull docker.io/rancher/mirrored-pause@sha256:ee6521f290b2168b6e0935a181d4cff9be1ac3f505666ef0e3c98fae8199917a
+      - name: Migrate the test database
+        run: uv run oak-db-migrate
+        env:
+          OAK_DATABASE_URL: ${{ env.OAK_TEST_DATABASE_URL }}
+      - run: make check
+        env:
+          OAK_SKIP_LEDGER: ${{ runner.temp }}/skips.jsonl
+      - run: python3 scripts/check_skips.py "${{ runner.temp }}/skips.jsonl" check-linux-arm64
+      - name: Build both images natively for arm64
+        run: |
+          docker build --file deploy/images/api.Dockerfile --tag oak-ci/api:arm64 .
+          docker build --file deploy/images/web.Dockerfile --tag oak-ci/web:arm64 .
+          for image in api web; do
+            architecture="$(docker image inspect --format '{{.Architecture}}' "oak-ci/$image:arm64")"
+            echo "$image: $architecture"
+            test "$architecture" = arm64
+          done
+          test "$(docker run --rm oak-ci/api:arm64 oak --version)" = "$(cat VERSION)"
 
   # The browser suite (RR-021). The 1.0 review's web defects were all browser-level, and no
   # other job drives a browser. The script builds the images from this commit, starts them

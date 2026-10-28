@@ -1,0 +1,5 @@
+{
+  "check-linux-x86_64": {"placeholder: filled from the first CI run": 1},
+  "check-macos-arm64": {"placeholder: filled from the first CI run": 1},
+  "check-linux-arm64": {"placeholder: filled from the first CI run": 1}
+}

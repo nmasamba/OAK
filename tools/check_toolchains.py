@@ -127,6 +127,82 @@ def _check_browser_suite(
             failures.append(f"{label}: the {name} job must wait for the browser suite")
 
 
+def _jobs(text: str) -> dict[str, Any]:
+    try:
+        document = yaml.safe_load(text)
+    except yaml.YAMLError:
+        return {}
+    jobs = document.get("jobs") if isinstance(document, dict) else None
+    return jobs if isinstance(jobs, dict) else {}
+
+
+def _runs(job: dict[str, Any]) -> list[str]:
+    return [
+        str(step.get("run", "")).strip() for step in job.get("steps", []) if isinstance(step, dict)
+    ]
+
+
+def _check_counted_skips(
+    jobs: dict[str, Any], name: str, key: str, label: str, failures: list[str]
+) -> None:
+    """A job's `make check` names its skips, and the job fails unless they are expected."""
+
+    job = jobs.get(name)
+    steps = job.get("steps", []) if isinstance(job, dict) else []
+    ledgered = any(
+        isinstance(step, dict)
+        and str(step.get("run", "")).strip() == "make check"
+        and "OAK_SKIP_LEDGER" in (step.get("env") or {})
+        for step in steps
+    )
+    checked = any(
+        run.startswith("python3 scripts/check_skips.py ") and run.endswith(f" {key}")
+        for run in (_runs(job) if isinstance(job, dict) else [])
+    )
+    if not (ledgered and checked):
+        failures.append(f"{label}: the {name} job must count its skips against {key}")
+
+
+# The second platform (RR-014): each job, its pinned runner label and what proves where it ran.
+_PLATFORM_JOBS = {
+    "check-macos-arm64": ("macos-15", "macosx-11.0-arm64"),
+    "check-linux-arm64": ("ubuntu-24.04-arm", "linux-aarch64"),
+}
+
+
+def _check_platform_jobs(text: str, compose_image: str | None, failures: list[str]) -> None:
+    jobs = _jobs(text)
+    for name, (label, platform_tag) in _PLATFORM_JOBS.items():
+        job = jobs.get(name)
+        if not isinstance(job, dict):
+            failures.append(f"CI workflow: the {name} job is missing")
+            continue
+        if job.get("runs-on") != label:
+            failures.append(f"CI workflow: the {name} job must run on {label}")
+        if not any("sysconfig.get_platform()" in run and platform_tag in run for run in _runs(job)):
+            failures.append(f"CI workflow: the {name} job must assert a {platform_tag} venv")
+        _check_counted_skips(jobs, name, name, "CI workflow", failures)
+    arm = jobs.get("check-linux-arm64")
+    if isinstance(arm, dict):
+        _check_database_suites(yaml.safe_dump(arm, width=1000), "CI arm64 job", None, failures)
+        services = arm.get("services") or {}
+        postgres = services.get("postgres") if isinstance(services, dict) else None
+        if compose_image is not None and (
+            not isinstance(postgres, dict) or postgres.get("image") != compose_image
+        ):
+            failures.append("CI arm64 job: the database service must run compose.yaml's image")
+        build = next((run for run in _runs(arm) if "docker build" in run), "")
+        if not all(
+            fragment in build
+            for fragment in (
+                "deploy/images/api.Dockerfile",
+                "deploy/images/web.Dockerfile",
+                'test "$architecture" = arm64',
+            )
+        ):
+            failures.append("CI arm64 job: both images must be built and checked as arm64")
+
+
 def _load_package(text: str, failures: list[str]) -> dict[str, Any]:
     try:
         value = json.loads(text)
@@ -308,6 +384,11 @@ def check(root: Path = ROOT) -> list[str]:
     if ci_pull is not None and ci_pull.group(1) not in release_workflow:
         failures.append("release workflow: the gate must fetch the image CI's runner journeys use")
 
+    _check_platform_jobs(workflow, compose_image, failures)
+    _check_counted_skips(_jobs(workflow), "check", "check-linux-x86_64", "CI workflow", failures)
+    _check_counted_skips(
+        _jobs(release_workflow), "artifacts", "check-linux-x86_64", "release workflow", failures
+    )
     _check_browser_suite(workflow, "CI workflow", failures)
     _check_browser_suite(
         release_workflow, "release workflow", failures, gated=("artifacts", "images")

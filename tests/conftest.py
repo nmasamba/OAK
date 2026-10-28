@@ -17,6 +17,8 @@ actually has, and isolating it would guarantee it always skips.
 
 from __future__ import annotations
 
+import json
+import os
 from pathlib import Path
 
 import pytest
@@ -51,6 +53,17 @@ def _isolated_model_state(
     monkeypatch.setattr(bootstrap, "model_verifier", _no_network_verifier)
 
 
+@pytest.fixture(autouse=True)
+def _no_skip_ledger_inside_a_test(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A test that calls the summary hook with made-up reports must not write CI's ledger.
+
+    The hook reads the variable at the end of the session, after monkeypatch has put it
+    back, so the run's own skips are still recorded.
+    """
+
+    monkeypatch.delenv("OAK_SKIP_LEDGER", raising=False)
+
+
 def pytest_terminal_summary(terminalreporter: pytest.TerminalReporter) -> None:
     """Say how many PostgreSQL-gated tests a run skipped, so a skip is not read as a pass."""
 
@@ -66,6 +79,25 @@ def pytest_terminal_summary(terminalreporter: pytest.TerminalReporter) -> None:
             yellow=True,
             bold=True,
         )
+    # CI names every skip and its reason here, and scripts/check_skips.py fails the job
+    # unless they are exactly what that job expects: a skip that widens is a change to
+    # what the job proves, so it has to be a reviewed change (RR-014).
+    ledger = os.environ.get("OAK_SKIP_LEDGER")
+    if ledger:
+        with Path(ledger).open("a", encoding="utf-8") as stream:
+            for report in terminalreporter.stats.get("skipped", []):
+                stream.write(
+                    json.dumps(
+                        {"test": getattr(report, "nodeid", ""), "reason": _skip_reason(report)}
+                    )
+                    + "\n"
+                )
+
+
+def _skip_reason(report: pytest.TestReport) -> str:
+    longrepr = report.longrepr
+    reason = longrepr[2] if isinstance(longrepr, tuple) and len(longrepr) == 3 else longrepr
+    return str(reason).removeprefix("Skipped: ")
 
 
 def _no_network_verifier(

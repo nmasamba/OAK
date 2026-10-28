@@ -104,6 +104,12 @@ jobs:
 
       - name: Refuse to release from a tree that fails the gate
         run: make check
+        env:
+          OAK_SKIP_LEDGER: ${{ runner.temp }}/skips.jsonl
+
+      # The gate's skips are CI's check job's, by reason and count (RR-014).
+      - name: Refuse a gate that skipped more than CI's
+        run: python3 scripts/check_skips.py "${{ runner.temp }}/skips.jsonl" check-linux-x86_64
 
       - name: Build release artifacts, SBOM, licence inventory and checksums
         run: make release
