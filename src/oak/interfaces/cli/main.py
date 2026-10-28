@@ -941,12 +941,25 @@ def import_workspace(
                 ),
             )
             case = remote_mode.require_field(result_document, "case")
+            extensions = case.get("extensions") if isinstance(case, dict) else None
+            origin = (
+                extensions.get("oak.community/recreated_from")
+                if isinstance(extensions, dict)
+                else None
+            )
+            reference = (
+                f"{remote_mode.require_field(case, 'id')}@"
+                f"{remote_mode.require_field(case, 'version')}"
+            )
             _emit(
                 {"case": case, "intent": result_document.get("intent")},
                 output,
                 human=(
-                    f"Imported {remote_mode.require_field(case, 'id')}@"
-                    f"{remote_mode.require_field(case, 'version')}"
+                    f"Re-created {reference} from {origin.get('workspace_id')}: its brief and "
+                    "confirmed answers, through the server's own steps; run the later steps "
+                    "again on the server"
+                    if isinstance(origin, dict)
+                    else f"Imported {reference}"
                 ),
             )
             return

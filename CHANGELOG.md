@@ -38,6 +38,20 @@ Tier 2 of the owner's cost-benefit ranking of the backlog, launched on 2026-10-2
   each failed cycle. Every line is built from an allowlist: no brief, answer, key, token,
   header, query string, body, research term, tenant or actor, and an exception is its type
   and code only. `oak-mcp` logs only to stderr. Metrics remain out of scope.
+- **A local case can be moved onto a server.** `oak --server import` (and
+  `POST /v1/design-cases:import`) of an export taken from a local workspace re-creates the
+  case on the server from its brief and confirmed answers, through the server's own create,
+  interpret and confirm steps, under the importing command's actor and tenant, with
+  `interface_origin: import` on every event; it refused with `OAK-IMPORT-SCOPE`. The origin
+  (local workspace, case, version and digest) is recorded as a `workspace_imported` audit
+  event and the case extension `oak.community/recreated_from`. Nothing else crosses: no
+  candidates, selection, plan, signature, approval or later history. Each answer's value is
+  read back from the exported intent and used only if it matches the digest recorded for
+  it. A case interpreted with a model, an answer that cannot be recovered exactly, or a
+  replay the server stops part-way is refused with the new code `OAK-IMPORT-REPLAY`; an
+  export claiming another tenant is still refused with `OAK-IMPORT-SCOPE`. The owner chose
+  re-creation over rebinding the identity (2026-10-28), because a compiled mutation plan,
+  its signature and any approval of it carry the workspace identity.
 - **A runner journal whose tail was cut is noticed** (`RR-054`). Every completion of a
   dispatch the runner took up names its journal's head, `journal_sequence` beside
   `journal_digest` (additive; a `0.9` runner's completion still ingests).

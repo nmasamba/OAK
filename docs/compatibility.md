@@ -164,6 +164,13 @@ mechanical migration; **breaking** otherwise.
   opaque `detail` are unchanged, so a client that branches on the status sees no
   difference. `OAK-WORKSPACE-NOT-FOUND` keeps one meaning, no workspace at a location,
   which only the local CLI reports.
+- The pre-1.0 assurance batch changes two things and adds no operation or schema.
+  `POST /v1/design-cases:import` of an export taken from a local workspace re-creates the
+  case from its brief and confirmed answers and answers `201` with it, where it refused with
+  `OAK-IMPORT-SCOPE` (the new code `OAK-IMPORT-REPLAY` refuses one it cannot replay, and
+  names how far a replay that stopped part-way got); an export from a server imports as it
+  did. Every response carries an `X-OAK-Request-ID` header, the ID of the request's log
+  line; it is additive and not declared in the OpenAPI document.
 - Until the baseline was refreshed after `0.9.0` was cut, it still held its Sprint 3
   contents. It did not guard the eight `/v1/models` operations. Nor did it guard two
   operations `0.7.1` published: the case list (`GET /v1/design-cases`) and the audit
@@ -272,6 +279,13 @@ mechanical migration; **breaking** otherwise.
   - `oak policy packs` no longer needs a workspace, and `oak models set-key` refuses an
     unknown `--store` before it asks for the key; the codes are unchanged.
 - The pre-1.0 assurance batch changes these, each recorded in the changelog:
+  - `oak --server import` of an export taken from a local workspace re-creates the case on
+    the server from its brief and confirmed answers (exit `0`, "Re-created …"), where it
+    exited `2` with `OAK-IMPORT-SCOPE`. A case interpreted with a model, an answer that
+    cannot be recovered exactly, or a replay the server stops part-way exits `2` with the
+    new code `OAK-IMPORT-REPLAY`; an export claiming another tenant still exits `2` with
+    `OAK-IMPORT-SCOPE`, and a case the server holds with `OAK-CASE-EXISTS`. A local
+    `oak import` is unchanged.
   - `oak ingest` refuses a runner completion whose journal no longer reaches the entry an
     accepted completion for the same lease named (`OAK-INGEST-JOURNAL`); the message stays
     in the mailbox and is listed under `rejected` on every ingest. Its JSON output gains
