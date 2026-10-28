@@ -6,6 +6,23 @@ All notable changes to OAK Community are recorded here.
 
 ## Unreleased
 
+### The pre-1.0 assurance batch (`OAK-V1-021`–`028`)
+
+Tier 2 of the owner's cost-benefit ranking of the backlog, launched on 2026-10-28.
+
+#### Added
+
+- **CI runs the browser suite** (`RR-021`). A `web-e2e` job beside `check`, and the same
+  job in the release workflow before it builds anything, runs
+  `scripts/run_browser_suite.py` (`make web-e2e-isolated`): the images are built from the
+  commit as a Compose project of their own on loopback ports of their own, with the
+  research fixture; `/version` must name the commit; and the run fails unless every test
+  passed and the tests that skipped are exactly the two manual captures. It uploads
+  nothing. `make toolchain-check` refuses either workflow without the job, with an upload
+  or with a secret.
+- The API image reports the commit it was built from at `/version` when the build passes
+  `OAK_COMMIT` as a build argument; a build that passes none still reports `unknown`.
+
 ### Follow-ups to the pre-1.0 batch (`OAK-V1-017`–`020`)
 
 The owner's answers to the three questions the batch left open. No digest moves; one

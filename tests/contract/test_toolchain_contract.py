@@ -395,3 +395,76 @@ def test_a_release_gate_without_the_runner_journeys_image_is_rejected(tmp_path: 
     workflow.write_text(text.replace(f"docker pull {stand_in}", f"echo {stand_in}"), "utf-8")
 
     assert "release workflow: the gate must fetch the image CI's runner journeys use" in check(tree)
+
+
+_SUITE_RUN = 'python3 scripts/run_browser_suite.py --project "oak-e2e-'
+
+
+@pytest.mark.parametrize("workflow", ["ci.yml", "release.yml"])
+def test_a_gate_without_the_browser_suite_is_rejected(tmp_path: Path, workflow: str) -> None:
+    """OAK-V1-021 (RR-021): CI and the release gate each run the browser suite."""
+
+    tree = _mirror(ROOT, tmp_path)
+    path = tree / ".github/workflows" / workflow
+    text = path.read_text(encoding="utf-8")
+    assert "\n  web-e2e:\n" in text
+    path.write_text(text.replace("\n  web-e2e:\n", "\n  browser:\n"), encoding="utf-8")
+
+    label = "CI workflow" if workflow == "ci.yml" else "release workflow"
+    assert f"{label}: the browser suite must run (a web-e2e job)" in check(tree)
+
+
+@pytest.mark.parametrize(
+    ("original", "replacement", "failure"),
+    [
+        (
+            _SUITE_RUN,
+            'pnpm --dir web e2e --project "oak-e2e-',
+            "the web-e2e job must run scripts/run_browser_suite.py",
+        ),
+        (
+            "playwright install --with-deps chromium",
+            "playwright install chromium",
+            "the web-e2e job must install the Chromium Playwright pins",
+        ),
+        (
+            "      - name: Run the browser suite on a Compose project of its own\n",
+            "      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9"
+            " # v7.0.2\n        with:\n          path: web/test-results\n"
+            "      - name: Run the browser suite on a Compose project of its own\n",
+            "the web-e2e job must upload nothing and read no secret",
+        ),
+        (
+            '--commit "${{ github.sha }}"\n',
+            '--commit "${{ github.sha }}"\n        env:\n          TOKEN: ${{ secrets.TOKEN }}\n',
+            "the web-e2e job must upload nothing and read no secret",
+        ),
+    ],
+)
+def test_a_browser_suite_job_that_could_hide_a_skip_or_leak_is_rejected(
+    tmp_path: Path, original: str, replacement: str, failure: str
+) -> None:
+    tree = _mirror(ROOT, tmp_path)
+    path = tree / ".github/workflows/ci.yml"
+    text = path.read_text(encoding="utf-8")
+    assert text.count(original) == 1
+    path.write_text(text.replace(original, replacement), encoding="utf-8")
+
+    assert f"CI workflow: {failure}" in check(tree)
+
+
+@pytest.mark.parametrize("job", ["artifacts", "images"])
+def test_a_release_job_that_does_not_wait_for_the_browser_suite_is_rejected(
+    tmp_path: Path, job: str
+) -> None:
+    tree = _mirror(ROOT, tmp_path)
+    path = tree / ".github/workflows/release.yml"
+    lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+    start = lines.index(f"  {job}:\n")
+    needs = next(
+        index for index in range(start, len(lines)) if lines[index].startswith("    needs:")
+    )
+    del lines[needs]
+    path.write_text("".join(lines), encoding="utf-8")
+
+    assert f"release workflow: the {job} job must wait for the browser suite" in check(tree)

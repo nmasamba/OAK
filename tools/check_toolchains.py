@@ -11,6 +11,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+import yaml
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -86,6 +88,43 @@ def _check_database_suites(
             f"{label}: the PostgreSQL-gated suites must run "
             "(OAK_TEST_DATABASE_URL and oak-db-migrate)"
         )
+
+
+def _check_browser_suite(
+    text: str, label: str, failures: list[str], *, gated: tuple[str, ...] = ()
+) -> None:
+    """A gate runs the browser suite on a stack of its own and uploads nothing from it.
+
+    The suite's skips are checked by the script, so a job that ran Playwright some other way
+    could go green on a widening skip. A failed page's trace or screenshot can show a brief
+    or a model-key field, so the job uploads nothing and reads no secret (RR-021).
+    """
+
+    try:
+        document = yaml.safe_load(text)
+    except yaml.YAMLError:
+        failures.append(f"{label}: the workflow is not valid YAML")
+        return
+    jobs = document.get("jobs") if isinstance(document, dict) else None
+    jobs = jobs if isinstance(jobs, dict) else {}
+    job = jobs.get("web-e2e")
+    if not isinstance(job, dict):
+        failures.append(f"{label}: the browser suite must run (a web-e2e job)")
+        return
+    steps = [step for step in job.get("steps", []) if isinstance(step, dict)]
+    runs = [str(step.get("run", "")).strip() for step in steps]
+    if "pnpm --dir web exec playwright install --with-deps chromium" not in runs:
+        failures.append(f"{label}: the web-e2e job must install the Chromium Playwright pins")
+    if not any(run.startswith("python3 scripts/run_browser_suite.py ") for run in runs):
+        failures.append(f"{label}: the web-e2e job must run scripts/run_browser_suite.py")
+    uploads = any("upload-artifact" in str(step.get("uses", "")) for step in steps)
+    if uploads or "secrets." in yaml.safe_dump(job):
+        failures.append(f"{label}: the web-e2e job must upload nothing and read no secret")
+    for name in gated:
+        gate = jobs.get(name)
+        needs = gate.get("needs", []) if isinstance(gate, dict) else []
+        if "web-e2e" not in ([needs] if isinstance(needs, str) else needs):
+            failures.append(f"{label}: the {name} job must wait for the browser suite")
 
 
 def _load_package(text: str, failures: list[str]) -> dict[str, Any]:
@@ -268,6 +307,11 @@ def check(root: Path = ROOT) -> list[str]:
     ci_pull = re.search(r"^ +(?:- )?run: (docker pull \S+)$", workflow, flags=re.MULTILINE)
     if ci_pull is not None and ci_pull.group(1) not in release_workflow:
         failures.append("release workflow: the gate must fetch the image CI's runner journeys use")
+
+    _check_browser_suite(workflow, "CI workflow", failures)
+    _check_browser_suite(
+        release_workflow, "release workflow", failures, gated=("artifacts", "images")
+    )
 
     # The release builder must be the pinned builder. A release produced by a different
     # uv than the one CI and the container use is not the artifact anyone reviewed.

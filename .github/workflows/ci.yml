@@ -61,3 +61,24 @@ jobs:
         with:
           name: development-sbom
           path: sbom/python.cdx.json
+
+  # The browser suite (RR-021). The 1.0 review's web defects were all browser-level, and no
+  # other job drives a browser. The script builds the images from this commit, starts them
+  # as a Compose project named for the run on loopback ports of its own with the research
+  # fixture, checks that /version names the commit, runs the suite and fails on any skip
+  # but the two manual captures. Nothing is uploaded: a failed page's trace or screenshot
+  # can show a brief or a model-key field, so the report stays on the runner.
+  web-e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: corepack enable
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # The Chromium build that the lockfile's Playwright pins, with its system libraries.
+      - run: pnpm --dir web exec playwright install --with-deps chromium
+      - name: Run the browser suite on a Compose project of its own
+        run: python3 scripts/run_browser_suite.py --project "oak-e2e-${{ github.run_id }}-${{ github.run_attempt }}" --commit "${{ github.sha }}"

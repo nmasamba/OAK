@@ -60,5 +60,11 @@ COPY --from=build --chown=oak:oak /app/.venv /app/.venv
 
 USER oak
 
+# The source revision `/version` reports. A build that passes none reports "unknown"; the
+# browser-suite run passes the commit it built, so `/version` proves which build answers.
+# Last, so that changing it rebuilds nothing above.
+ARG OAK_COMMIT=unknown
+ENV OAK_COMMIT=${OAK_COMMIT}
+
 EXPOSE 8080
 CMD ["oak-api"]

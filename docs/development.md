@@ -262,6 +262,19 @@ Browser binaries download from the Playwright CDN, and the model-settings spec m
 `api` container ask `huggingface.co` once about the synthetic token it stores (one free
 request that generates nothing); everything else runs locally.
 
+`make web-e2e-isolated` is the way to run it beside a stack you use, and it is what CI's
+`web-e2e` job and the release gate run (`scripts/run_browser_suite.py`). It builds the
+images from the working tree as the Compose project `oak-e2e-local` on `127.0.0.1:28080`
+(API) and `127.0.0.1:25173` (web), with the research fixture on `api` and `worker` and the
+commit baked into the API image, checks that `/version` names that commit, runs the suite,
+and removes the project with its volumes and images afterwards (`--keep` leaves it up;
+`--project`, `--api-port` and `--web-port` move it). It refuses a project name that does
+not start `oak-e2e-` and the ports 5173, 8080 and 15432. It fails unless every test passed
+and the tests that skipped are exactly the two manual captures, so a skip that appears, or
+a capture that stops skipping, needs a reviewed change to `EXPECTED_SKIPS` in the script.
+It uploads nothing: Playwright's report and any trace stay in the ignored
+`web/test-results/`, because a failed page can show a brief or a model-key field.
+
 The Compose-backed specs act on whichever stack `docker compose` reaches from the
 repository root. They stop and restart its `worker`, clear its Hugging Face and Local AI
 model selections, and remove its Hugging Face credential setting, including any stored
