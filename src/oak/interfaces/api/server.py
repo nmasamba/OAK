@@ -8,6 +8,8 @@ import sys
 import uvicorn
 
 from oak.bootstrap import default_credentials_directory, mint_model_token
+from oak.domain import OAKError
+from oak.interfaces.logs import configure_logging
 
 
 def is_loopback_host(host: str) -> bool:
@@ -78,11 +80,15 @@ def run_server(
         f"{default_credentials_directory() / 'api-token'}; run `oak models token` to read it.",
         file=sys.stderr,
     )
+    # OAK writes the access line itself, from an allowlist (oak.interfaces.logs); uvicorn's
+    # own access log would print the raw path and query string, and its default logging
+    # configuration would replace the allowlisted handler.
     uvicorn.run(
         "oak.interfaces.api.app:app",
         host=host,
         port=port,
         access_log=False,
+        log_config=None,
         server_header=False,
     )
 
@@ -100,6 +106,10 @@ def main() -> None:
         raise SystemExit("OAK_PORT must be an integer") from error
     if not 1 <= port <= 65535:
         raise SystemExit("OAK_PORT must be between 1 and 65535")
+    try:
+        configure_logging("oak-api")
+    except OAKError as error:
+        raise SystemExit(f"{error.code}: {error.message}") from error
     try:
         run_server(
             host=host,

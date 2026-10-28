@@ -329,7 +329,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 | Stop it (your cases are kept) | `docker compose down` |
 | Update to the latest code | Back up first if your cases matter ([operations.md](docs/operations.md#back-up)). Then `git pull` and `docker compose up -d --build` |
 | See what's running | `docker compose ps` |
-| See a service's output | `docker compose logs -f api`. That's startup messages and errors only, because OAK keeps no application log yet (`RR-015`) |
+| See a service's output | `docker compose logs -f api` (or `worker`). One JSON line per request or operation, with no brief, answer, key or token in it; quote a response's `X-OAK-Request-ID` to find its line ([operations.md](docs/operations.md#logs)) |
 | Delete everything and start over | `docker compose down --volumes`. **This deletes all your cases** |
 
 Always include `--build`. If nothing has changed it only costs a few seconds. If you've
@@ -585,12 +585,13 @@ Some ways in, from a first afternoon to a bigger project:
   as vLLM or llama.cpp are on the backlog. So are packs, which are bundles of policy
   rules, domain knowledge or evaluation tests. See [extension-sdk.md](docs/extension-sdk.md).
 - **Widen where it runs.** Nobody has yet recorded a run of the Docker stack on an Intel
-  or AMD Linux machine. The automatic checks (CI) don't run on macOS or Arm machines yet
-  (`RR-014`). Native Windows support would start with replacing a Unix-only file lock (see
+  or AMD Linux machine as an operator would run it. The automatic checks (CI) run on Linux
+  (Intel and Arm) and on macOS (Apple silicon), but the macOS job has no Docker or
+  PostgreSQL. Native Windows support would start with replacing a Unix-only file lock (see
   [platforms.md](docs/platforms.md)).
-- **Harden the operations side.** Useful work includes logging and metrics that leak
-  nothing (`RR-015`), a file-workspace format migration (`RR-017`), and reproducible
-  container images (`RR-006`).
+- **Harden the operations side.** Useful work includes metrics that leak nothing
+  (`RR-015`), a file-workspace format migration (`RR-017`), and reproducible container
+  images (`RR-006`).
 
 [CONTRIBUTING.md](CONTRIBUTING.md#where-you-could-help) has the full map, how to set up,
 and how changes are reviewed.

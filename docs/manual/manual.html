@@ -613,7 +613,7 @@ uv run oak import ../case-export --directory ../restored
     <tr><th>To</th><th>Run, from the repository root</th></tr>
     <tr><td>Start the stack</td><td><code>docker compose up -d --build</code></td></tr>
     <tr><td>Check what is running</td><td><code>curl http://127.0.0.1:8080/version</code> · <code>docker compose ps</code></td></tr>
-    <tr><td>See a service's output</td><td><code>docker compose logs -f api</code> (or <code>worker</code>, <code>web</code>): startup messages and errors only, since OAK keeps no application log yet (<code>RR-015</code>)</td></tr>
+    <tr><td>See a service's output</td><td><code>docker compose logs -f api</code> (or <code>worker</code>): one JSON line per request or operation, with no brief, answer, key or token in it. A response's <code>X-OAK-Request-ID</code> header names its line</td></tr>
     <tr><td>Stop it, keeping your cases</td><td><code>docker compose down</code></td></tr>
     <tr><td>Update to newer code</td><td><code>git pull</code>, then <code>docker compose up -d --build</code>; the <code>migrate</code> service upgrades the database before the API starts. Back up first — see <code>docs/operations.md</code></td></tr>
     <tr><td>Start again from nothing</td><td><code>docker compose down --volumes</code>, which deletes the database, the artifact store, and the model-state volume holding any provider key you stored</td></tr>

@@ -80,11 +80,35 @@ directory whose location depends on where someone happened to be standing.
 
 ## Observe
 
-Be realistic about what is available: OAK Community emits **no application logs and no
-metrics**. `oak-api` runs uvicorn with `access_log=False`
-(`run_server` in `src/oak/interfaces/api/server.py`), and nothing in `src/` configures a
-logger. What
-you have is a handful of endpoints and the database.
+Be realistic about what is available: OAK Community writes **application logs but no
+metrics**. What you have is the logs, a handful of endpoints and the database.
+
+### Logs
+
+`oak-api`, `oak-worker` and `oak-mcp` write one JSON object per line to **stderr**
+(`docker compose logs api worker`), at `INFO` unless `OAK_LOG_LEVEL` says otherwise.
+`oak-api` writes one access line per request, `OAK_ACCESS_LOG=false` turns it off:
+
+```json
+{"component":"oak-api","duration_ms":4.2,"event":"request","level":"INFO","logger":"oak.api.access","method":"POST","request_id":"9f3c1a0b7d2e4c55","route":"/v1/design-cases/{case_id}:confirm","status":409,"code":"OAK-EXPECTED-VERSION","time":"2026-10-28T12:00:00.000Z"}
+```
+
+The `route` is the template the request matched, never the path it named, and `unmatched`
+when it matched none. The `request_id` is minted per request and returned to the caller as
+the `X-OAK-Request-ID` response header, so a user can quote it in a report and you can find
+the line. `oak-worker` writes `operation_cycle` (operation ID, kind, outcome, attempt,
+duration and, on failure, the code) and `cycle_failed` (code and exception type).
+
+A line is built from an allowlist of fields (`src/oak/interfaces/logs.py`), never by
+redacting free text, so a brief, an answer, a model key, a token, a header, a query string,
+a request or response body, a research term, the tenant and the actor never appear. An
+exception appears as its type and, for an OAK error, its code; its message and traceback
+never do, because they can quote the request. A library's own record (uvicorn, SQLAlchemy)
+appears as its logger and level only. `tests/integration/test_log_leakage.py` runs a whole
+journey with a sentinel in every such input and fails if one reaches a log line. To join a
+line to what happened, read the case's audit trail, which records the actor, the tenant and
+the correlation ID under its own controls. `oak-mcp` logs only to stderr: its stdout is the
+JSON-RPC protocol.
 
 This section is about observing the OAK services themselves. `oak observe` is a different
 thing: it records what an installed architecture did, from signed runner evidence, in an
@@ -106,11 +130,11 @@ curl --fail --silent http://127.0.0.1:8080/v1/system/outbox-lag
 ```
 
 To tell whether the worker is alive, watch `pending_events` on the lag endpoint while a
-compile runs: a number that only grows means the worker is not consuming. Container
-stdout (`docker compose logs worker`) carries process-level output only.
+compile runs: a number that only grows means the worker is not consuming, and the
+worker's `operation_cycle` lines say which operations it ran.
 
-The absence of logging and metrics is recorded as a limitation, not presented as a
-design goal — see `RR-015`.
+The absence of metrics is recorded as a limitation, not presented as a design goal — see
+`RR-015`.
 
 ---
 

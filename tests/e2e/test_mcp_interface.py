@@ -49,6 +49,7 @@ def test_installed_mcp_entrypoint_handshakes_and_lists_the_bounded_tools() -> No
         "NO_PROXY": "*",
         "no_proxy": "*",
         "OAK_DATABASE_URL": database_url,
+        "OAK_LOG_LEVEL": "DEBUG",
     }
     result = subprocess.run(
         [str(OAK_MCP)],
@@ -59,6 +60,14 @@ def test_installed_mcp_entrypoint_handshakes_and_lists_the_bounded_tools() -> No
         timeout=30,
     )
     responses = [json.loads(line) for line in result.stdout.splitlines() if line.strip()]
+    # OAK-V1-024: stdout is the protocol, so it carries frames and nothing else, at the
+    # most verbose log level; the logs go to stderr as allowlisted JSON lines.
+    assert result.stdout.endswith(b"\n")
+    assert all(frame.get("jsonrpc") == "2.0" for frame in responses)
+    assert len(responses) == len(result.stdout.splitlines()) == 2
+    logs = [json.loads(line) for line in result.stderr.splitlines() if line.strip()]
+    assert "mcp_started" in {line["event"] for line in logs}
+    assert {line["component"] for line in logs} == {"oak-mcp"}
     assert responses[0]["result"]["serverInfo"]["name"] == "oak-mcp"
     tool_names = {tool["name"] for tool in responses[1]["result"]["tools"]}
     assert "oak_design_case_create" in tool_names

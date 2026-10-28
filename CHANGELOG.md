@@ -22,6 +22,22 @@ Tier 2 of the owner's cost-benefit ranking of the backlog, launched on 2026-10-2
   or with a secret.
 - The API image reports the commit it was built from at `/version` when the build passes
   `OAK_COMMIT` as a build argument; a build that passes none still reports `unknown`.
+- **CI proves a second and a third platform** (`RR-014`). `check-macos-arm64` runs
+  `make check` on `macos-15` in an asserted `macosx-11.0-arm64` environment, without
+  PostgreSQL or Docker, which GitHub's macOS runners lack; `check-linux-arm64` runs it on
+  `ubuntu-24.04-arm` with the PostgreSQL suites and the real-daemon runner journeys, and
+  builds both images natively for arm64. Every `check` job, and the release gate, writes
+  each skipped test and its reason to `OAK_SKIP_LEDGER`, and `scripts/check_skips.py`
+  fails the job unless they match `tests/expected-skips.json`.
+- **Application logging** (`RR-015`'s logging clause). `oak-api`, `oak-worker` and
+  `oak-mcp` write one JSON object per line to stderr, at `INFO` unless `OAK_LOG_LEVEL` says
+  otherwise (an unknown level refuses to start, `OAK-LOG-CONFIG`). `oak-api` writes an
+  access line per request: route template, method, status, duration, a minted request ID
+  (returned as the new `X-OAK-Request-ID` response header) and the error code where there
+  was one; `OAK_ACCESS_LOG=false` turns it off. The worker logs each operation cycle and
+  each failed cycle. Every line is built from an allowlist: no brief, answer, key, token,
+  header, query string, body, research term, tenant or actor, and an exception is its type
+  and code only. `oak-mcp` logs only to stderr. Metrics remain out of scope.
 - **A runner journal whose tail was cut is noticed** (`RR-054`). Every completion of a
   dispatch the runner took up names its journal's head, `journal_sequence` beside
   `journal_digest` (additive; a `0.9` runner's completion still ingests).

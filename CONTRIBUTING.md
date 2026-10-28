@@ -112,7 +112,8 @@ replaceable and owned by its own project. OAK compiles *to* them; it doesn't abs
 
 - Record the first rehearsal of the Linux x86_64 control plane. That row of
   [platforms.md](docs/platforms.md) is still "Expected" because nobody has run it.
-- Add CI jobs for macOS and arm64 (`RR-014`).
+- Run the PostgreSQL suites and the runner's Docker journeys on macOS in CI. GitHub's macOS
+  runners have neither Docker nor service containers, so `check-macos-arm64` skips them.
 - Native Windows support starts with replacing the Unix-only `fcntl` workspace lock.
 - Let the runner reach rootless Docker, Colima or Podman (`RR-013`). **Discuss first**,
   because it touches the runner's hardening.

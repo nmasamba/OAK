@@ -73,6 +73,7 @@ from oak.interfaces.api.models import (
     SelectionResponse,
     VersionResponse,
 )
+from oak.interfaces.logs import AccessLogMiddleware, access_log_enabled
 
 PROBLEM_MEDIA_TYPE = "application/problem+json"
 MAXIMUM_REQUEST_BYTES = 94_371_840
@@ -557,6 +558,8 @@ def create_app(
     api.add_middleware(_BoundedRequestMiddleware, maximum_bytes=MAXIMUM_REQUEST_BYTES)
     # Added last so it runs first: nothing is buffered or routed for a refused host/origin.
     api.add_middleware(_LoopbackGuardMiddleware, allowed_hosts=permitted_hosts)
+    # Outside even the guard, so a refused request is logged too (RR-015).
+    api.add_middleware(AccessLogMiddleware, enabled=access_log_enabled())
 
     api.state.model_token_provider = token_provider
 
@@ -653,6 +656,7 @@ def create_app(
 
     @api.exception_handler(OAKError)
     async def oak_error_handler(request: Request, error: OAKError) -> JSONResponse:
+        request.state.error_code = error.code
         status = _error_status(error)
         detail = "The requested resource was not found." if status == 404 else error.message
         return _problem_response(
@@ -670,6 +674,7 @@ def create_app(
     async def contract_error_handler(
         request: Request, _error: ContractValidationError
     ) -> JSONResponse:
+        request.state.error_code = "OAK-CONTRACT-INVALID"
         # A schema-invalid input (an import manifest, confirmation answers) answered 500
         # with a traceback in the log; the CLI and MCP already called it what it is (F2-3).
         return _problem_response(
@@ -686,6 +691,7 @@ def create_app(
     async def validation_error_handler(
         request: Request, error: RequestValidationError
     ) -> JSONResponse:
+        request.state.error_code = "OAK-REQUEST-INVALID"
         return _problem_response(
             Problem(
                 title="Request validation failed",
@@ -700,6 +706,7 @@ def create_app(
     @api.exception_handler(StarletteHTTPException)
     async def http_error_handler(request: Request, error: StarletteHTTPException) -> JSONResponse:
         code = "OAK-NOT-FOUND" if error.status_code == 404 else "OAK-HTTP-ERROR"
+        request.state.error_code = code
         detail = (
             "The requested resource was not found."
             if error.status_code == 404
