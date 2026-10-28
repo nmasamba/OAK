@@ -26,6 +26,7 @@ CI and container builds are the reproducible builder boundary. They pin `uv` 0.1
 | `make openapi-compatibility` | Reproduce OpenAPI/client output and reject local breaking changes |
 | `make web-build` | Build the production web bundle |
 | `make web-e2e` | Run the Playwright browser journey and accessibility suite against the Compose stack |
+| `make web-e2e-isolated` | Build the images from this tree as a Compose project of their own, run the browser suite on it, check its skips and remove the project (what CI runs; needs Docker and the Playwright browser) |
 | `make build` | Build Python and web artifacts from bootstrapped dependencies without network |
 | `make sbom` | Generate a development dependency SBOM under ignored `sbom/`. The *release* SBOM is different and comes from `make release` |
 | `make audit` | Audit the Python and web dependency closures for known advisories. Needs network |
