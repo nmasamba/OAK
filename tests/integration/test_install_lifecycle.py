@@ -364,3 +364,257 @@ def test_status_reports_an_open_operation_as_needing_recovery(
     report = json.loads(capsys.readouterr().out)
 
     assert report["journals"][0]["manual_recovery_required"] is True
+
+
+def _crash_mid_install(journey: Journey) -> None:
+    """A dispatch whose install died after its operation began, reported on the next run."""
+
+    from oak.runner.main import run_once
+
+    journey.approve("architecture")
+    journey.approve("apply")
+    journey.dispatch("apply")
+
+    def crashing(argv: tuple[str, ...], timeout_seconds: int):
+        if argv[1] == "create":
+            raise KeyboardInterrupt
+        return journey.docker(argv, timeout_seconds)
+
+    with pytest.raises(KeyboardInterrupt):
+        run_once(adapter=ContainerFixtureAdapter(crashing))
+    journey.run_runner()
+
+
+def _journal(tmp_path: Path) -> Path:
+    (path,) = sorted((tmp_path / "runner" / "journals").glob("*.jsonl"))
+    return path
+
+
+def _status(capsys: pytest.CaptureFixture[str]) -> dict:
+    from oak.runner.main import status
+
+    capsys.readouterr()
+    status()
+    (report,) = json.loads(capsys.readouterr().out)["journals"]
+    return report
+
+
+def test_status_notices_a_journal_whose_tail_was_cut(
+    journey: Journey, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """OAK-V1-022 (RR-054): removing the recovery entries no longer reads as verified."""
+
+    _crash_mid_install(journey)
+    intact = _status(capsys)
+    assert intact["chain"] == "verified" and intact["signed_head"] == "matched"
+    assert intact["manual_recovery_required"] is True
+
+    path = _journal(tmp_path)
+    lines = path.read_text(encoding="utf-8").splitlines()
+    assert [json.loads(line)["entry_type"] for line in lines] == [
+        "lease_accepted",
+        "operation_before",
+        "manual_recovery_required",
+    ]
+    path.write_text(lines[0] + "\n", encoding="utf-8")
+
+    cut = _status(capsys)
+    assert cut["chain"] == "truncated"
+    assert cut["signed_head"] == "missing_from_journal"
+    assert cut["manual_recovery_required"] is True
+
+
+def test_status_ignores_a_completion_this_runner_did_not_sign(
+    journey: Journey, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A planted completion naming the cut head cannot make the cut journal read as whole."""
+
+    from oak.runner.identity import RunnerIdentity
+    from oak.runner.journal import RunnerJournal
+    from oak.runner.mailbox import RunnerMailbox
+
+    _crash_mid_install(journey)
+    path = _journal(tmp_path)
+    path.write_text(path.read_text(encoding="utf-8").splitlines()[0] + "\n", encoding="utf-8")
+    sequence, digest = RunnerJournal(path).head()
+    lease_id = RunnerMailbox(journey.harness.mailbox_root, tmp_path / "runner").dispatch_lease_id(
+        path.stem
+    )
+    assert lease_id is not None
+    impostor = RunnerIdentity.load_or_create(tmp_path / "impostor", "runner.impostor")
+    RunnerMailbox(journey.harness.mailbox_root, tmp_path / "impostor").publish_message(
+        impostor,
+        kind="completion",
+        tenant_id="local",
+        environment="development",
+        correlation_id=lease_id,
+        sequence=9,
+        lease_id=lease_id,
+        operation_id=None,
+        occurred_at=_now(),
+        payload={"outcome": "succeeded", "journal_digest": digest, "journal_sequence": sequence},
+    )
+
+    assert _status(capsys)["chain"] == "truncated"
+
+
+def test_status_ignores_a_completion_claiming_this_runner_s_key_with_a_bad_signature(
+    journey: Journey, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from oak.runner.identity import RunnerIdentity
+    from oak.runner.journal import RunnerJournal
+    from oak.runner.mailbox import RunnerMailbox
+
+    _crash_mid_install(journey)
+    path = _journal(tmp_path)
+    path.write_text(path.read_text(encoding="utf-8").splitlines()[0] + "\n", encoding="utf-8")
+    sequence, digest = RunnerJournal(path).head()
+    home = tmp_path / "runner"
+    mailbox = RunnerMailbox(journey.harness.mailbox_root, home)
+    lease_id = mailbox.dispatch_lease_id(path.stem)
+    assert lease_id is not None
+    impostor = RunnerIdentity.load_or_create(tmp_path / "impostor", "runner.impostor")
+    forged = RunnerMailbox(journey.harness.mailbox_root, tmp_path / "impostor").publish_message(
+        impostor,
+        kind="completion",
+        tenant_id="local",
+        environment="development",
+        correlation_id=lease_id,
+        sequence=9,
+        lease_id=lease_id,
+        operation_id=None,
+        occurred_at=_now(),
+        payload={"outcome": "succeeded", "journal_digest": digest, "journal_sequence": sequence},
+    )
+    forged["signature"]["public_key_base64"] = RunnerIdentity.load_or_create(
+        home, "runner.local-fixture-runner"
+    ).public_key_base64
+    (journey.harness.mailbox_root / "messages" / f"{forged['id']}.json").write_text(
+        json.dumps(forged), encoding="utf-8"
+    )
+
+    assert _status(capsys)["chain"] == "truncated"
+
+
+def test_status_without_a_mailbox_says_it_compared_nothing(
+    journey: Journey,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _crash_mid_install(journey)
+    monkeypatch.delenv("OAK_RUNNER_MAILBOX")
+
+    report = _status(capsys)
+    assert report["chain"] == "verified" and report["signed_head"] == "unchecked"
+
+
+def _publish_completion(journey: Journey, tmp_path: Path, sequence: int, **payload: object):
+    """A completion for the dispatched lease, signed by the enrolled runner's own key."""
+
+    from oak.runner.identity import RunnerIdentity
+    from oak.runner.mailbox import RunnerMailbox
+
+    home = tmp_path / "runner"
+    mailbox = RunnerMailbox(journey.harness.mailbox_root, home)
+    lease_id = mailbox.dispatch_lease_id(_journal(tmp_path).stem)
+    assert lease_id is not None
+    return mailbox.publish_message(
+        RunnerIdentity.load_or_create(home, "runner.local-fixture-runner"),
+        kind="completion",
+        tenant_id="local",
+        environment="development",
+        correlation_id=lease_id,
+        sequence=sequence,
+        lease_id=lease_id,
+        operation_id=None,
+        occurred_at=_now(),
+        payload={
+            "outcome": "manual_recovery_required",
+            "requested_kinds": ["apply"],
+            "applied_kinds": [],
+            "failed_kind": "apply",
+            "detail": "a later report",
+            "evidence": [],
+            **payload,
+        },
+    )
+
+
+def test_ingest_refuses_a_completion_whose_journal_no_longer_reaches_an_accepted_one(
+    journey: Journey, tmp_path: Path
+) -> None:
+    """OAK-V1-022 (RR-054): the control plane's record of a lease's journal never rewinds."""
+
+    from oak.runner.journal import RunnerJournal
+
+    _crash_mid_install(journey)
+    first = journey.ingest()
+    (accepted,) = first.accepted
+    assert accepted["payload"]["journal_sequence"] == 3
+    path = _journal(tmp_path)
+    entries = RunnerJournal(path).entries()
+    assert accepted["payload"]["journal_digest"] == entries[-1].digest
+
+    shorter = _publish_completion(
+        journey, tmp_path, 3, journal_sequence=1, journal_digest=entries[0].digest
+    )
+    other_last = _publish_completion(
+        journey, tmp_path, 4, journal_sequence=3, journal_digest=entries[0].digest
+    )
+    unsequenced = _publish_completion(journey, tmp_path, 5, journal_digest=entries[-1].digest)
+    result = journey.ingest()
+
+    assert result.accepted == ()
+    assert dict(result.refused) == {
+        shorter["id"]: "OAK-INGEST-JOURNAL",
+        other_last["id"]: "OAK-INGEST-JOURNAL",
+        unsequenced["id"]: "OAK-INGEST-JOURNAL",
+    }
+    # Refused, never acknowledged: every later ingest reports them again.
+    assert set(journey.ingest().rejected) == {shorter["id"], other_last["id"], unsequenced["id"]}
+
+
+def test_ingest_accepts_a_completion_that_reaches_as_far_or_further(
+    journey: Journey, tmp_path: Path
+) -> None:
+    from oak.runner.journal import RunnerJournal
+
+    _crash_mid_install(journey)
+    journey.ingest()
+    sequence, digest = RunnerJournal(_journal(tmp_path)).head()
+
+    same = _publish_completion(
+        journey, tmp_path, 3, journal_sequence=sequence, journal_digest=digest
+    )
+    longer = _publish_completion(
+        journey, tmp_path, 4, journal_sequence=sequence + 1, journal_digest="sha256:" + "a" * 64
+    )
+    result = journey.ingest()
+
+    assert [message["id"] for message in result.accepted] == [same["id"], longer["id"]]
+    assert result.refused == ()
+
+
+def test_ingest_accepts_a_completion_from_a_runner_that_names_no_journal_length(
+    journey: Journey, tmp_path: Path
+) -> None:
+    """A `0.9` runner's completion names only the digest; with nothing longer accepted
+    before it for the lease, it ingests as it did."""
+
+    from oak.runner.journal import RunnerJournal
+
+    journey.approve("architecture")
+    journey.approve("apply")
+    journey.dispatch("apply")
+    (tmp_path / "runner" / "journals").mkdir(parents=True)
+    journal = RunnerJournal(tmp_path / "runner" / "journals" / "placeholder.jsonl")
+    journal.append("lease_accepted", _now(), {})
+    mailbox_dispatch = sorted((journey.harness.mailbox_root / "dispatches").iterdir())[0]
+    (tmp_path / "runner" / "journals" / "placeholder.jsonl").rename(
+        tmp_path / "runner" / "journals" / f"{mailbox_dispatch.name}.jsonl"
+    )
+    old = _publish_completion(journey, tmp_path, 1, journal_digest=journal.digest())
+    result = journey.ingest()
+
+    assert [message["id"] for message in result.accepted] == [old["id"]]

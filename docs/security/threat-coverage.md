@@ -133,8 +133,10 @@ Windows-1252 text and is untagged; no threat row) and `RR-047` (Pillow in the ru
 closure; `TM-15`). Sprint 14 adds `RR-048` to `RR-053` for research at the point of design
 (ADR-0018): `RR-048` to `RR-051` and `RR-053` are mapped in the gap table above, and `RR-052`
 (a fixture research source selectable by configuration) has no threat row. The 1.0
-readiness review adds `RR-054` (a journal whose tail was cut still verifies; no threat row)
-and closes the control-plane half of `RR-001` again. The research
+readiness review adds `RR-054` (a journal whose tail was cut still verifies; no threat row;
+closed by the pre-1.0 assurance batch, which signs the journal's head into each completion and
+compares it in `oak-runner status` and `oak ingest`) and closes the control-plane half of
+`RR-001` again. The research
 tests join the rows of
 `TM-02`, `TM-04`, `TM-13`, `TM-14` and `TM-17` as they land.
 

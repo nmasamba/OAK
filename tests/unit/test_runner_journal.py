@@ -47,3 +47,31 @@ def test_unknown_entry_type_is_rejected(tmp_path: Path) -> None:
     journal = RunnerJournal(tmp_path / "j.jsonl")
     with pytest.raises(OAKError, match="journal entry type is not recognized"):
         journal.append("arbitrary", "2026-08-18T12:00:00Z", {})
+
+
+def test_the_head_names_the_last_entry_and_a_cut_journal_no_longer_reaches_it(
+    tmp_path: Path,
+) -> None:
+    """OAK-V1-022 (RR-054): a digest alone cannot show a journal was cut; the head can."""
+
+    from oak.domain import content_digest
+
+    path = tmp_path / "j.jsonl"
+    journal = RunnerJournal(path)
+    assert journal.head() == (0, content_digest(b""))
+    assert journal.contains_head(0, content_digest(b""))
+    journal.append("lease_accepted", "2026-08-18T12:00:00Z", {"lease_id": "lease.1"})
+    journal.append("operation_before", "2026-08-18T12:00:01Z", {"operation_id": "op.1"})
+    journal.append("manual_recovery_required", "2026-08-18T12:00:02Z", {"reason": "crash"})
+    sequence, digest = journal.head()
+    assert sequence == 3 and digest == journal.digest() == journal.entries()[-1].digest
+    assert journal.contains_head(sequence, digest)
+    assert not journal.contains_head(sequence, journal.entries()[0].digest)
+    assert not journal.contains_head(4, digest)
+
+    lines = path.read_text(encoding="utf-8").splitlines()
+    path.write_text(lines[0] + "\n", encoding="utf-8")
+    cut = RunnerJournal(path)
+    cut.verify_chain()  # any prefix of a valid journal verifies
+    assert not cut.requires_manual_recovery()
+    assert not cut.contains_head(sequence, digest)

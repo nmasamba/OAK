@@ -22,6 +22,16 @@ Tier 2 of the owner's cost-benefit ranking of the backlog, launched on 2026-10-2
   or with a secret.
 - The API image reports the commit it was built from at `/version` when the build passes
   `OAK_COMMIT` as a build argument; a build that passes none still reports `unknown`.
+- **A runner journal whose tail was cut is noticed** (`RR-054`). Every completion of a
+  dispatch the runner took up names its journal's head, `journal_sequence` beside
+  `journal_digest` (additive; a `0.9` runner's completion still ingests).
+  `oak-runner status` compares each journal with the newest completion for its dispatch
+  still in the mailbox, believing only one its own key signed, and reports a journal that
+  stops short of it as `chain: truncated`, requiring manual recovery, with a new
+  `signed_head` field saying what it compared. `oak ingest` refuses a completion whose
+  journal is shorter than, or as long but different from, one it already accepted for the
+  lease, with the new code `OAK-INGEST-JOURNAL`; the message stays in the mailbox, and the
+  JSON output's new `refused` map names each such message's code.
 
 ### Follow-ups to the pre-1.0 batch (`OAK-V1-017`–`020`)
 

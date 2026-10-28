@@ -113,8 +113,27 @@ class RunnerJournal:
             previous = entry.digest
 
     def digest(self) -> str:
+        return self.head()[1]
+
+    def head(self) -> tuple[int, str]:
+        """The last entry's sequence and digest: what a completion signs.
+
+        A digest alone cannot show that one journal extends another, because any prefix of
+        a valid journal verifies; the sequence lets a reader see that entries were removed.
+        """
+
         entries = self.entries()
-        return entries[-1].digest if entries else content_digest(b"")
+        if not entries:
+            return 0, content_digest(b"")
+        return entries[-1].sequence, entries[-1].digest
+
+    def contains_head(self, sequence: int, digest: str) -> bool:
+        """Whether entry `sequence` exists and is the entry whose digest is `digest`."""
+
+        entries = self.entries()
+        if sequence == 0:
+            return digest == content_digest(b"")
+        return 0 < sequence <= len(entries) and entries[sequence - 1].digest == digest
 
     def incomplete_operation(self) -> dict[str, Any] | None:
         """Return the operation whose before-entry has no after/failed entry."""

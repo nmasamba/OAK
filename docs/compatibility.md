@@ -271,6 +271,14 @@ mechanical migration; **breaking** otherwise.
     reports no version, with `OAK-POLICY-ENGINE-UNAVAILABLE`.
   - `oak policy packs` no longer needs a workspace, and `oak models set-key` refuses an
     unknown `--store` before it asks for the key; the codes are unchanged.
+- The pre-1.0 assurance batch changes these, each recorded in the changelog:
+  - `oak ingest` refuses a runner completion whose journal no longer reaches the entry an
+    accepted completion for the same lease named (`OAK-INGEST-JOURNAL`); the message stays
+    in the mailbox and is listed under `rejected` on every ingest. Its JSON output gains
+    `refused`, mapping each rejected message that was believed and then refused to its
+    code; the human output names them too.
+  - `oak-runner status` reports a fourth `chain` value, `truncated`, and a `signed_head`
+    field (`matched`, `missing_from_journal`, `none` or `unchecked`) on each journal.
 
 ## MCP
 
@@ -311,6 +319,12 @@ mechanical migration; **breaking** otherwise.
   `architecture` approval beside the `apply` approval. Completion payloads gained
   `requested_kinds` and `failed_kind`. Plans expire after a day and none is pinned, so no
   stored plan needs migrating.
+- The pre-1.0 assurance batch adds `journal_sequence` to every completion of a dispatch the
+  runner took up: the sequence of the journal entry whose digest `journal_digest` names.
+  The field is additive. A `0.9` runner's completion, which names only the digest, still
+  ingests, unless an earlier completion for the same lease named a sequence: a journal
+  that can no longer show how far it reached is then refused like a shorter one
+  (`OAK-INGEST-JOURNAL`). A `0.9` control plane ignores the field.
 - Any change to signed-payload canonicalization is breaking for every existing
   signature and requires an explicit migration (re-signing) note; trust-anchor file
   formats follow the schema rules above.

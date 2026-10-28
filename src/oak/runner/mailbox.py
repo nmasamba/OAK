@@ -84,6 +84,37 @@ class RunnerMailbox:
             for directory in (MESSAGE_DIRECTORY, ACKNOWLEDGED_DIRECTORY)
         )
 
+    def dispatch_lease_id(self, dispatch_id: str) -> str | None:
+        """The lease a delivered dispatch names, if its envelope is still in the mailbox."""
+
+        if not is_safe_name(dispatch_id):
+            return None
+        envelope = _read_document(self._root / DISPATCH_DIRECTORY / dispatch_id / "envelope.json")
+        lease = envelope.get("lease") if envelope is not None else None
+        lease_id = lease.get("lease_id") if isinstance(lease, dict) else None
+        return lease_id if is_safe_name(lease_id) else None
+
+    def completions(self, correlation_ids: frozenset[str]) -> tuple[dict[str, Any], ...]:
+        """Every completion in the mailbox, read or not, for one of these correlations.
+
+        Unverified: the caller checks each signature against the key it trusts.
+        """
+
+        found: list[dict[str, Any]] = []
+        for directory in (MESSAGE_DIRECTORY, ACKNOWLEDGED_DIRECTORY):
+            folder = self._root / directory
+            if not folder.is_dir():
+                continue
+            for path in sorted(folder.glob("runner-message.completion.*.json")):
+                document = _read_document(path)
+                if (
+                    document is not None
+                    and document.get("kind") == "completion"
+                    and document.get("correlation_id") in correlation_ids
+                ):
+                    found.append(document)
+        return tuple(found)
+
     def mark_processed(self, dispatch_id: str) -> None:
         _check_component(dispatch_id)
         marker = self._root / DISPATCH_DIRECTORY / dispatch_id / PROCESSED_MARKER

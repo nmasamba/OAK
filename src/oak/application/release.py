@@ -75,6 +75,8 @@ class IngestResult:
     case: dict[str, Any]
     accepted: tuple[dict[str, Any], ...]
     rejected: tuple[str, ...]
+    # The code of each rejected message that was believed and then refused, by message id.
+    refused: tuple[tuple[str, str], ...] = ()
 
 
 class ReleaseService:
@@ -554,6 +556,7 @@ class ReleaseService:
             )
         accepted: list[dict[str, Any]] = []
         rejected: list[str] = []
+        refused: list[tuple[str, str]] = []
         result_case = current_document
         for message in self._transport.read_messages():
             message_id = str(message.get("id", ""))
@@ -563,10 +566,11 @@ class ReleaseService:
             if message["kind"] in {"completion", "evidence"}:
                 try:
                     result_case = self._record_completion(message, context)
-                except OAKError:
+                except OAKError as error:
                     # Left where it is and reported, never acknowledged unrecorded: a
                     # later ingest offers it again (F4-7).
                     rejected.append(message_id)
+                    refused.append((message_id, error.code))
                     continue
                 accepted.append(message)
             # Acknowledged only once its own commit has landed, one message at a time.
@@ -575,6 +579,7 @@ class ReleaseService:
             case=result_case,
             accepted=tuple(accepted),
             rejected=tuple(rejected),
+            refused=tuple(refused),
         )
 
     def _believable(
@@ -782,6 +787,7 @@ class ReleaseService:
             return duplicate
         current_document = self._require_case()
         current = DesignCase.from_document(current_document)
+        self._check_journal_reach(message, current.extensions or {})
         ingest_context = replace(ingest_context, expected_version=current.version)
         payload = message.get("payload", {})
         outcome = str(payload.get("outcome", "unknown"))
@@ -830,6 +836,57 @@ class ReleaseService:
             input_digest=input_digest,
             artifacts=(artifact,),
         )
+
+    def _check_journal_reach(self, message: dict[str, Any], extensions: dict[str, Any]) -> None:
+        """A completion's journal must reach as far as one already accepted for its lease.
+
+        Any prefix of a valid journal verifies on the runner, so a journal whose last entries
+        were removed reads as intact there. The heads accepted here are out of reach of the
+        runner's home: a completion for the same lease whose journal is shorter, or as long
+        with another last entry, is refused (RR-054). A longer journal is believed to extend
+        the earlier one; the runner's key, which signs both, is what vouches for that. A
+        completion naming no sequence (from a `0.9` runner) is refused only once an earlier
+        completion for the lease named one.
+        """
+
+        payload = message.get("payload")
+        lease_id = message.get("lease_id")
+        if not isinstance(payload, dict) or not isinstance(payload.get("journal_digest"), str):
+            return
+        if message.get("kind") != "completion" or lease_id is None:
+            return
+        sequence = payload.get("journal_sequence")
+        if sequence is not None and (
+            not isinstance(sequence, int) or isinstance(sequence, bool) or sequence < 0
+        ):
+            raise OAKError("OAK-INGEST-JOURNAL", "the completion names an invalid journal length")
+        for reference in extensions.get("oak.community/runner_result_refs", []):
+            earlier = self._repository.read_json_artifact(
+                ArtifactReference.from_document(reference)
+            )
+            earlier_payload = earlier.get("payload")
+            if (
+                earlier.get("kind") != "completion"
+                or earlier.get("lease_id") != lease_id
+                or not isinstance(earlier_payload, dict)
+            ):
+                continue
+            reached = earlier_payload.get("journal_sequence")
+            if not isinstance(reached, int) or isinstance(reached, bool):
+                continue
+            if (
+                sequence is None
+                or sequence < reached
+                or (
+                    sequence == reached
+                    and payload["journal_digest"] != earlier_payload.get("journal_digest")
+                )
+            ):
+                raise OAKError(
+                    "OAK-INGEST-JOURNAL",
+                    "the runner's journal for this lease no longer reaches the entry it "
+                    "reported before; inspect the runner home before believing it",
+                )
 
     def _require_architecture_approval(
         self,

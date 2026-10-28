@@ -1307,9 +1307,15 @@ def ingest(
                 "case": result.case,
                 "accepted": list(result.accepted),
                 "rejected": list(result.rejected),
+                "refused": dict(result.refused),
             },
             output,
-            human=(f"Ingested {len(result.accepted)} message(s); rejected {len(result.rejected)}"),
+            human="\n".join(
+                (
+                    f"Ingested {len(result.accepted)} message(s); rejected {len(result.rejected)}",
+                    *(f"refused {message_id}: {code}" for message_id, code in result.refused),
+                )
+            ),
         )
     except (OAKError, ContractValidationError, OSError, RuntimeError, ValueError) as error:
         _abort(error)

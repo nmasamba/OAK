@@ -23,6 +23,7 @@ from typing import Any
 import yaml
 
 from oak.contracts import load_yaml_document
+from oak.contracts.signatures import verify_signed_document
 from oak.domain import OAKError
 from oak.runner.adapters import ContainerFixtureAdapter, isolated_executor
 from oak.runner.execution import execute_dispatch
@@ -224,6 +225,7 @@ def _run_once_locked(
                     "applied_kinds": list(outcome.applied_kinds),
                     "failed_kind": outcome.failed_kind,
                     "journal_digest": outcome.journal_digest,
+                    "journal_sequence": outcome.journal_sequence,
                     "detail": outcome.detail,
                     "evidence": list(outcome.evidence),
                 },
@@ -297,6 +299,7 @@ def _resume_interrupted(
                 },
             )
     with contextlib.suppress(OSError, ValueError, OAKError):
+        head = journal.head()
         mailbox.publish_message(
             identity,
             kind="completion",
@@ -314,7 +317,8 @@ def _resume_interrupted(
                 "requested_kinds": requested,
                 "applied_kinds": [],
                 "failed_kind": str(interrupted["kind"]) if interrupted else None,
-                "journal_digest": journal.digest(),
+                "journal_digest": head[1],
+                "journal_sequence": head[0],
                 "detail": "an earlier run was interrupted; inspect the journal and the "
                 "named resources before any further dispatch",
                 "evidence": [],
@@ -377,6 +381,7 @@ def identity() -> int:
 def status() -> int:
     home = _environment_path("OAK_RUNNER_HOME", str(Path.home() / ".oak" / "runner"))
     journals = sorted((home / "journals").glob("*.jsonl")) if (home / "journals").is_dir() else []
+    signed_heads = _SignedHeads.from_environment(home)
     report: dict[str, Any] = {"journals": []}
     for path in journals:
         journal = RunnerJournal(path)
@@ -403,16 +408,86 @@ def status() -> int:
             entries = 0
             manual_recovery = True
             chain = "unreadable"
+        signed_head = "unchecked"
+        if chain == "verified":
+            # Any prefix of a valid journal verifies, so a journal whose last entries were
+            # removed reads as intact. The head this runner signed into its newest
+            # completion for the dispatch says how far the journal reached (RR-054).
+            signed_head = signed_heads.compare(path.stem, journal)
+            if signed_head == "missing_from_journal":
+                chain = "truncated"
+                manual_recovery = True
         report["journals"].append(
             {
                 "dispatch": path.stem,
                 "entries": entries,
                 "chain": chain,
+                "signed_head": signed_head,
                 "manual_recovery_required": manual_recovery,
             }
         )
     print(json.dumps(report, indent=2, sort_keys=True))
     return 0
+
+
+class _SignedHeads:
+    """The journal heads this runner signed into the completions still in its mailbox."""
+
+    def __init__(self, mailbox: RunnerMailbox | None, public_key: str | None) -> None:
+        self._mailbox = mailbox
+        self._public_key = public_key
+
+    @classmethod
+    def from_environment(cls, home: Path) -> _SignedHeads:
+        # `status` only reads: no mailbox configured, or no key yet, means nothing to
+        # compare with, never a key created as a side effect.
+        mailbox_root = os.getenv("OAK_RUNNER_MAILBOX")
+        if not mailbox_root or not (home / "runner.key").is_file():
+            return cls(None, None)
+        try:
+            runner = RunnerIdentity.load_or_create(home, os.getenv("OAK_RUNNER_ID", "runner"))
+        except (OAKError, OSError):
+            return cls(None, None)
+        return cls(RunnerMailbox(Path(mailbox_root).absolute(), home), runner.public_key_base64)
+
+    def compare(self, dispatch_id: str, journal: RunnerJournal) -> str:
+        """`matched`, `missing_from_journal`, `none` (nothing signed to compare), or
+        `unchecked` (no mailbox or key)."""
+
+        if self._mailbox is None:
+            return "unchecked"
+        correlations = {dispatch_id}
+        lease_id = self._mailbox.dispatch_lease_id(dispatch_id)
+        if lease_id is not None:
+            correlations.add(lease_id)
+        newest: dict[str, Any] | None = None
+        for message in self._mailbox.completions(frozenset(correlations)):
+            signature = message.get("signature")
+            payload = message.get("payload")
+            if (
+                not isinstance(signature, dict)
+                or signature.get("public_key_base64") != self._public_key
+                or not verify_signed_document(message)
+                or not isinstance(payload, dict)
+                or not isinstance(payload.get("journal_digest"), str)
+                or not isinstance(message.get("sequence"), int)
+            ):
+                continue
+            if newest is None or message["sequence"] > newest["sequence"]:
+                newest = message
+        if newest is None:
+            return "none"
+        digest = str(newest["payload"]["journal_digest"])
+        sequence = newest["payload"].get("journal_sequence")
+        try:
+            if isinstance(sequence, int) and not isinstance(sequence, bool):
+                reached = journal.contains_head(sequence, digest)
+            else:
+                # A completion from before the sequence was signed names only the digest.
+                reached = any(entry.digest == digest for entry in journal.entries())
+        except OAKError:
+            return "unchecked"
+        return "matched" if reached else "missing_from_journal"
 
 
 def main() -> int:
