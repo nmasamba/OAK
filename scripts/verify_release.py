@@ -13,15 +13,16 @@ procedure works identically on both, and so the failure modes can be tested.
 What this proves and what it does not:
 
 * It proves the bytes you have are the bytes the manifest describes.
-* From `1.0.0` on, it also proves who released them (RR-005): the maintainer signs
-  `SHA256SUMS` offline with an SSH key (`ssh-keygen -Y sign -n oak-release`), the
-  signature ships beside it as `SHA256SUMS.sig`, and this checks it with
-  `ssh-keygen -Y verify` against the public key pinned in the repository's
-  `keys/allowed_signers`, never against anything inside the directory being verified.
-  It fails closed: from `1.0.0` a missing signature, an unpinned key, a signature by any
-  other key or over any other manifest, or no `ssh-keygen` to check it with, refuses the
-  release. Releases before `1.0.0` (`0.7.1`, `0.9.0`) were published unsigned and verify
-  by checksum alone, unless a signature is present, which must then verify.
+* It also proves who released them (RR-005): the maintainer signs `SHA256SUMS` offline
+  with an SSH key (`ssh-keygen -Y sign -n oak-release`), the signature ships beside it as
+  `SHA256SUMS.sig`, and this checks it with `ssh-keygen -Y verify` against the public key
+  pinned in the repository's `keys/allowed_signers`, never against anything inside the
+  directory being verified. It fails closed: a missing signature, an unpinned key, a
+  signature by any other key or over any other manifest, or no `ssh-keygen` to check it
+  with, refuses the release. The only exceptions are the two releases published before
+  signing began, `0.7.1` and `0.9.0`, recognised by the SHA-256 of the `SHA256SUMS` each
+  was published with, never by a version the downloaded files claim; a signature beside
+  either must still verify.
 * A signature binds who released the artifacts, not how they were built.
 
 `--checksums-only` skips the signature, for the release build before it is signed, and
@@ -33,7 +34,6 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import re
 import shutil
 import subprocess
 import sys
@@ -43,9 +43,15 @@ CHECKSUM_MANIFEST = "SHA256SUMS"
 SIGNATURE = "SHA256SUMS.sig"
 # The SSH signature namespace: a signature made for anything else does not verify here.
 NAMESPACE = "oak-release"
-SIGNED_FROM = (1, 0, 0)
 DEFAULT_ALLOWED_SIGNERS = Path(__file__).resolve().parents[1] / "keys" / "allowed_signers"
-_WHEEL = re.compile(r"oak_community-(?P<release>\d+(?:\.\d+)*)[^-]*-py3-none-any\.whl")
+# The `SHA256SUMS` the releases published before signing began, as GitHub reports the
+# digest of each release's asset. A manifest is unsigned-but-known only if it is one of these
+# byte for byte; a version a downloaded file names is never consulted, because whoever
+# controls the download controls the names.
+UNSIGNED_RELEASES = {
+    "b58b1026c4969f9c2a012789ba2310fb59e092ef5f0c65e3a7fad63493bca861": "0.7.1",
+    "ee1c893bf128143b10ff97fbcf8531d43285190de5f331f2740763b000dc0aa9": "0.9.0",
+}
 EXIT_OK = 0
 EXIT_MISMATCH = 2
 EXIT_MALFORMED = 3
@@ -106,37 +112,27 @@ def _parse(manifest_text: str) -> list[tuple[str, str]]:
     return entries
 
 
-def _release(entries: list[tuple[str, str]]) -> tuple[int, ...] | None:
-    """The release segment of the one wheel the manifest lists, or None."""
-
-    found = [match for _, name in entries if (match := _WHEEL.fullmatch(name)) is not None]
-    if len(found) != 1:
-        return None
-    return tuple(int(part) for part in found[0].group("release").split("."))
-
-
 def _pinned_keys(allowed_signers: Path) -> int:
     lines = allowed_signers.read_text(encoding="utf-8").splitlines()
     return sum(1 for line in lines if line.strip() and not line.lstrip().startswith("#"))
 
 
-def _check_signature(
-    directory: Path, allowed_signers: Path, release: tuple[int, ...] | None
-) -> int:
-    """Verify `SHA256SUMS.sig` against the pinned key, where one is required or present."""
+def _check_signature(directory: Path, allowed_signers: Path) -> int:
+    """Verify `SHA256SUMS.sig` against the pinned key; only a known unsigned release may lack it."""
 
     signature = directory / SIGNATURE
-    required = release is None or release >= SIGNED_FROM
     if not signature.exists():
-        if required:
+        known = UNSIGNED_RELEASES.get(_digest(directory / CHECKSUM_MANIFEST))
+        if known is None:
             print(
-                f"{SIGNATURE}: not found; a release from 1.0.0 on must be signed",
+                f"{SIGNATURE}: not found; only {' and '.join(sorted(UNSIGNED_RELEASES.values()))} "
+                "were published unsigned, and this is not their manifest",
                 file=sys.stderr,
             )
             return EXIT_SIGNATURE
         print(
-            f"{CHECKSUM_MANIFEST} is unsigned: releases before 1.0.0 were published unsigned "
-            "(RR-005), so checksums prove the bytes match it, not who produced them."
+            f"{CHECKSUM_MANIFEST} is the unsigned manifest {known} was published with (RR-005), "
+            "so checksums prove the bytes match it, not who produced them."
         )
         return EXIT_OK
     root = directory.resolve()
@@ -168,7 +164,9 @@ def _check_signature(
         capture_output=True,
         text=True,
     )
-    for principal in found.stdout.split():
+    for principal in (line.strip() for line in found.stdout.splitlines()):
+        if not principal:
+            continue
         checked = subprocess.run(
             [
                 keygen,
@@ -269,7 +267,7 @@ def verify(
             "checked (--checksums-only)."
         )
         return EXIT_OK
-    return _check_signature(directory, allowed_signers, _release(entries))
+    return _check_signature(directory, allowed_signers)
 
 
 def main() -> int:

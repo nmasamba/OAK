@@ -20,7 +20,7 @@ from oak.application import CommunityControlPlane
 from oak.bootstrap import create_persistent_control_plane, create_system_information_service
 from oak.contracts import load_json_document
 from oak.domain import OAKError
-from oak.interfaces.logs import configure_logging, log_event
+from oak.interfaces.logs import configure_logging, exit_on, log_event
 from oak.interfaces.mcp.tools import MCPToolExecutor, ToolArgumentError
 
 SUPPORTED_PROTOCOL_VERSIONS = ("2025-06-18", "2025-03-26")
@@ -235,6 +235,8 @@ def main() -> None:
         control_plane = create_persistent_control_plane()
     except RuntimeError as error:
         raise SystemExit(f"OAK-MCP-CONFIG: {error}") from error
+    except Exception as error:
+        exit_on(logging.getLogger("oak.mcp"), "startup_failed", error)
     information = create_system_information_service().get_information()
     server = create_server(control_plane, server_version=information.version)
     log_event(logging.getLogger("oak.mcp"), logging.INFO, "mcp_started")

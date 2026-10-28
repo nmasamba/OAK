@@ -246,3 +246,53 @@ async def test_the_access_log_can_be_turned_off(captured: io.StringIO) -> None:
 @pytest.fixture
 def anyio_backend() -> str:
     return "asyncio"
+
+
+def test_run_server_configures_logging_and_one_uvicorn_process(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: object
+) -> None:
+    """Review L2 and L4: `oak serve` reaches run_server too, and WEB_CONCURRENCY must not
+    start workers that never configured logging."""
+
+    from oak.interfaces.api import server
+
+    calls: list[dict[str, object]] = []
+    monkeypatch.setattr(server.uvicorn, "run", lambda *args, **kwargs: calls.append(kwargs))
+    monkeypatch.setenv("WEB_CONCURRENCY", "4")
+    monkeypatch.setenv("OAK_DATABASE_URL", "postgresql+psycopg://unused@127.0.0.1/oak")
+    root = logging.getLogger()
+    saved = (root.handlers[:], root.level)
+    try:
+        server.run_server("127.0.0.1", 8999, model_token="t" * 32)
+        assert any(isinstance(handler.formatter, AllowlistFormatter) for handler in root.handlers)
+    finally:
+        root.handlers[:], level = saved
+        root.setLevel(level)
+        logging.captureWarnings(False)
+    (options,) = calls
+    assert options["workers"] == 1 and options["log_config"] is None
+    assert options["access_log"] is False
+
+
+def test_a_failing_one_shot_worker_logs_by_type_and_exits(
+    monkeypatch: pytest.MonkeyPatch, captured: io.StringIO
+) -> None:
+    """Review L5: `OAK_WORKER_ONCE=1` re-raised into Python's own traceback."""
+
+    from oak.interfaces import worker
+
+    class _Failing:
+        def run_once(self, **_: object) -> object:
+            raise ValueError(f"cycle failed on {SECRET}")
+
+    monkeypatch.setattr(worker, "configure_logging", lambda component: None)
+    monkeypatch.setattr(worker, "create_persistent_worker", lambda worker_id: _Failing())
+    monkeypatch.setenv("OAK_WORKER_ONCE", "1")
+
+    with pytest.raises(SystemExit) as stopped:
+        worker.main()
+
+    assert stopped.value.code == 1
+    (line,) = _lines(captured)
+    assert line["event"] == "cycle_failed" and line["error_type"] == "ValueError"
+    assert SECRET not in captured.getvalue()

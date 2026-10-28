@@ -55,7 +55,7 @@ def release(tmp_path: Path) -> Path:
 
 
 def test_an_untouched_release_verifies(release: Path) -> None:
-    result = _verify(release)
+    result = _verify(release, "--checksums-only")
 
     assert result.returncode == EXIT_OK, result.stderr
     assert "verified 3 artifact(s)" in result.stdout
@@ -164,13 +164,13 @@ def test_a_manifest_entry_cannot_escape_the_release_directory(release: Path, nam
     assert "escapes the release directory" in result.stderr
 
 
-def test_the_verifier_never_claims_the_artifacts_are_signed(release: Path) -> None:
-    """The release is unsigned; the tool must not let a reader infer otherwise."""
+def test_the_verifier_never_claims_unchecked_artifacts_are_signed(release: Path) -> None:
+    """Checked by checksum alone, the release is not called signed."""
 
-    result = _verify(release)
+    result = _verify(release, "--checksums-only")
 
-    assert "unsigned" in result.stdout
-    assert "signature" not in result.stdout.lower()
+    assert "was not checked" in result.stdout
+    assert "signed by" not in result.stdout
 
 
 # OAK-V1-027 (RR-005): from 1.0.0 the maintainer's SSH signature over SHA256SUMS is checked
@@ -250,13 +250,32 @@ def test_a_release_signed_by_the_pinned_key_verifies(
     assert "UNLISTED" not in result.stderr
 
 
-def test_an_unsigned_release_from_1_0_0_on_is_refused(
-    release_one: Path, maintainer: tuple[Path, Path]
+@pytest.mark.parametrize(
+    "wheel",
+    [
+        "oak_community-1.0.0-py3-none-any.whl",
+        "oak_community-1.0-py3-none-any.whl",
+        "oak_community-1!0.1.0-py3-none-any.whl",
+        "oak_community-0.9.1-py3-none-any.whl",
+        "oak_community-0.9.0-py3-none-any.whl",
+    ],
+)
+def test_an_unsigned_release_is_refused_whatever_version_its_files_name(
+    tmp_path: Path, maintainer: tuple[Path, Path], wheel: str
 ) -> None:
-    result = _verify(release_one, "--allowed-signers", str(maintainer[1]))
+    """FC-1: an unsigned release is known only by its published manifest, never by a name."""
+
+    directory = tmp_path / "unsigned"
+    directory.mkdir()
+    (directory / wheel).write_bytes(b"wheel-bytes")
+    (directory / "SHA256SUMS").write_text(
+        f"{hashlib.sha256(b'wheel-bytes').hexdigest()}  {wheel}\n", encoding="utf-8"
+    )
+
+    result = _verify(directory, "--allowed-signers", str(maintainer[1]))
 
     assert result.returncode == EXIT_SIGNATURE
-    assert "must be signed" in result.stderr
+    assert "SHA256SUMS.sig: not found" in result.stderr
 
 
 def test_a_signature_by_another_key_is_refused(
@@ -316,10 +335,10 @@ def test_with_no_key_pinned_a_signed_release_cannot_verify(
     assert "no release signing key is pinned" in result.stderr
 
 
-def test_the_repository_pins_no_key_yet_so_a_1_0_0_release_cannot_verify(
+def test_the_repository_pins_no_key_yet_so_a_signed_release_cannot_verify(
     release_one: Path, tmp_path: Path
 ) -> None:
-    """Until the maintainer pins one when cutting 1.0.0, nothing from 1.0.0 verifies."""
+    """Until the maintainer pins one when cutting 1.0.0, no new release verifies."""
 
     _sign(release_one, _key(tmp_path / "anyone", "anyone"))
 
@@ -339,32 +358,45 @@ def test_a_key_carried_inside_the_release_is_never_used(release_one: Path, tmp_p
     assert "cannot come from the release being verified" in result.stderr
 
 
-def test_a_release_before_1_0_0_verifies_unsigned_but_not_with_a_bad_signature(
-    release: Path, maintainer: tuple[Path, Path], tmp_path: Path
+def test_only_the_two_releases_published_unsigned_are_exempt() -> None:
+    from scripts.verify_release import UNSIGNED_RELEASES
+
+    assert sorted(UNSIGNED_RELEASES.values()) == ["0.7.1", "0.9.0"]
+    assert all(re.fullmatch(r"[0-9a-f]{64}", digest) for digest in UNSIGNED_RELEASES)
+
+
+def test_a_known_unsigned_manifest_verifies_but_not_with_a_bad_signature(
+    release: Path,
+    maintainer: tuple[Path, Path],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     """0.7.1 and 0.9.0 were published unsigned; a signature beside one must still verify."""
 
-    unsigned = _verify(release, "--allowed-signers", str(maintainer[1]))
-    assert unsigned.returncode == EXIT_OK, unsigned.stderr
-    assert "unsigned" in unsigned.stdout
+    from scripts import verify_release
+
+    manifest = hashlib.sha256((release / "SHA256SUMS").read_bytes()).hexdigest()
+    monkeypatch.setattr(verify_release, "UNSIGNED_RELEASES", {manifest: "0.7.0-test"})
+
+    assert verify_release.verify(release, allowed_signers=maintainer[1]) == EXIT_OK
+    assert "unsigned manifest 0.7.0-test was published with" in capsys.readouterr().out
 
     _sign(release, _key(tmp_path / "other", "impostor"))
-    assert _verify(release, "--allowed-signers", str(maintainer[1])).returncode == EXIT_SIGNATURE
+    assert verify_release.verify(release, allowed_signers=maintainer[1]) == EXIT_SIGNATURE
 
 
-def test_a_manifest_naming_no_wheel_must_be_signed(
-    release_one: Path, maintainer: tuple[Path, Path]
-) -> None:
-    """With no version to read, the signature is required: the rule fails closed."""
+def test_a_principal_with_a_space_verifies(release_one: Path, tmp_path: Path) -> None:
+    key = _key(tmp_path / "keys", "spaced")
+    _sign(release_one, key)
+    public = key.with_suffix(".pub").read_text(encoding="utf-8").split()
+    allowed = tmp_path / "keys" / "allowed_signers"
+    allowed.write_text(f'"OAK maintainer" {public[0]} {public[1]}\n', encoding="utf-8")
 
-    manifest = release_one / "SHA256SUMS"
-    lines = manifest.read_text(encoding="utf-8").splitlines()
-    manifest.write_text("\n".join(line for line in lines if ".whl" not in line) + "\n", "utf-8")
-    (release_one / "oak_community-1.0.0-py3-none-any.whl").unlink()
+    result = _verify(release_one, "--allowed-signers", str(allowed))
 
-    assert _verify(release_one, "--allowed-signers", str(maintainer[1])).returncode == (
-        EXIT_SIGNATURE
-    )
+    assert result.returncode == EXIT_OK, result.stderr
+    assert "signed by OAK maintainer" in result.stdout
 
 
 def test_checksums_only_says_the_signature_was_not_checked(release_one: Path) -> None:

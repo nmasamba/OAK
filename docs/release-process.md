@@ -173,16 +173,19 @@ checkout, `--allowed-signers` defaults to that file. Checking a signature needs
 
 Checksums prove that **the bytes you have are the bytes the manifest describes**.
 
-**From `1.0.0` on, the signature proves who released them.** The verifier checks
-`SHA256SUMS.sig` with `ssh-keygen -Y verify`, in the `oak-release` namespace, against the
-key pinned in `keys/allowed_signers`, and never against a key inside the directory it is
-verifying. It fails closed: a missing signature, a file with no key pinned, a signature by
-another key, over another manifest or in another namespace, or no `ssh-keygen` to check it
-with, each refuses the release with exit `4`. A manifest naming no wheel, whose version
-cannot be read, must be signed too.
+**The signature proves who released them.** The verifier checks `SHA256SUMS.sig` with
+`ssh-keygen -Y verify`, in the `oak-release` namespace, against the key pinned in
+`keys/allowed_signers`, and never against a key inside the directory it is verifying. It
+fails closed: a missing signature, a file with no key pinned, a signature by another key,
+over another manifest or in another namespace, or no `ssh-keygen` to check it with, each
+refuses the release with exit `4`.
 
-**`0.7.1` and `0.9.0` were published unsigned**, before signing began, and verify by
-checksum alone; the verifier says so. A signature beside one of them must still verify.
+**`0.7.1` and `0.9.0` were published unsigned**, before signing began, and are the only
+releases that verify without a signature. The verifier recognises them by the SHA-256 of
+the `SHA256SUMS` each was published with (the digests GitHub reports for those release
+assets, pinned in the script), never by a version the downloaded files name, because
+whoever controls the download controls the names; it then says the manifest is unsigned.
+A signature beside one of them must still verify.
 For those two, obtain `SHA256SUMS` over a channel you trust independently of the
 artifacts, or compare against the digests published in the release notes: an attacker who
 controls the channel you fetched from can replace unsigned artifacts *and* their manifest

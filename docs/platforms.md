@@ -125,8 +125,8 @@ It must print `macosx-11.0-arm64`. If it does not, recreate the environment with
 pnpm --dir web exec playwright install --with-deps chromium
 ```
 
-`make web-e2e` is not part of `make check`. CI's `web-e2e` job, and the release workflow's,
-run it on `ubuntu-latest` (x86_64) on every push, through the script behind
+`make web-e2e` is not part of `make check`. CI's `web-e2e` job runs it on `ubuntu-latest`
+(x86_64) on every push, and the release workflow's on every release run, through the script behind
 `make web-e2e-isolated` ([development.md](development.md#browser-end-to-end)).
 
 ## Kubernetes

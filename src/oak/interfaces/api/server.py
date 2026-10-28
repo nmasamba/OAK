@@ -2,6 +2,7 @@
 """Loopback-safe ASGI process entrypoint."""
 
 import ipaddress
+import logging
 import os
 import sys
 
@@ -9,7 +10,7 @@ import uvicorn
 
 from oak.bootstrap import default_credentials_directory, mint_model_token
 from oak.domain import OAKError
-from oak.interfaces.logs import configure_logging
+from oak.interfaces.logs import configure_logging, exit_on
 
 
 def is_loopback_host(host: str) -> bool:
@@ -56,8 +57,13 @@ def run_server(
     allow_non_loopback: bool = False,
     model_token: str | None = None,
 ) -> None:
-    """Bind the API after minting the per-process model-configuration token."""
+    """Bind the API after minting the per-process model-configuration token.
 
+    Logging is configured here, so `oak serve` writes the same allowlisted lines as
+    `oak-api`; an unknown `OAK_LOG_LEVEL` refuses with `OAK-LOG-CONFIG`.
+    """
+
+    configure_logging("oak-api")
     ensure_safe_bind(host, allow_non_loopback=allow_non_loopback)
     warning = bind_warning(
         host,
@@ -83,10 +89,12 @@ def run_server(
     # OAK writes the access line itself, from an allowlist (oak.interfaces.logs); uvicorn's
     # own access log would print the raw path and query string, and its default logging
     # configuration would replace the allowlisted handler.
+    # One process: worker processes (`WEB_CONCURRENCY`) would start without this logging.
     uvicorn.run(
         "oak.interfaces.api.app:app",
         host=host,
         port=port,
+        workers=1,
         access_log=False,
         log_config=None,
         server_header=False,
@@ -106,18 +114,19 @@ def main() -> None:
         raise SystemExit("OAK_PORT must be an integer") from error
     if not 1 <= port <= 65535:
         raise SystemExit("OAK_PORT must be between 1 and 65535")
+    allow_non_loopback = _environment_flag("OAK_ALLOW_NON_LOOPBACK")
     try:
-        configure_logging("oak-api")
-    except OAKError as error:
-        raise SystemExit(f"{error.code}: {error.message}") from error
-    try:
-        run_server(
-            host=host,
-            port=port,
-            allow_non_loopback=_environment_flag("OAK_ALLOW_NON_LOOPBACK"),
-        )
+        ensure_safe_bind(host, allow_non_loopback=allow_non_loopback)
     except ValueError as error:
         raise SystemExit(f"OAK-SAFE-BIND: {error}") from error
+    try:
+        run_server(host=host, port=port, allow_non_loopback=allow_non_loopback)
+    except OAKError as error:
+        if error.code == "OAK-LOG-CONFIG":
+            raise SystemExit(f"{error.code}: {error.message}") from error
+        exit_on(logging.getLogger("oak.api"), "startup_failed", error)
+    except Exception as error:
+        exit_on(logging.getLogger("oak.api"), "startup_failed", error)
 
 
 if __name__ == "__main__":  # pragma: no cover

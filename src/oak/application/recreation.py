@@ -76,10 +76,22 @@ def replay_plan(manifest: Mapping[str, Any], objects: Mapping[str, bytes]) -> Re
     """Read the brief and the confirmed answers, each checked against its digest.
 
     `objects` are the export's objects, already checked against their digests and the
-    manifest's index by the caller.
+    manifest's index by the caller; the documents inside them are not otherwise validated,
+    so anything malformed is refused here with a stable code, never a raw exception whose
+    message could quote the export.
     """
 
-    case = _document(objects, manifest.get("current_case_ref"))
+    try:
+        return _replay_plan(manifest, objects)
+    except OAKError:
+        raise
+    except (AttributeError, IndexError, KeyError, TypeError, UnicodeError, ValueError) as error:
+        raise _refused("an object in the export is not the document its index says") from error
+
+
+def _replay_plan(manifest: Mapping[str, Any], objects: Mapping[str, bytes]) -> ReplayPlan:
+    current = manifest["current_case_ref"]
+    case = _document(objects, current)
     brief_refs = case.get("brief_refs")
     if not isinstance(brief_refs, list) or len(brief_refs) != 1:
         raise _refused("the case does not name exactly one brief")
@@ -108,6 +120,24 @@ def replay_plan(manifest: Mapping[str, Any], objects: Mapping[str, bytes]) -> Re
             if paths.setdefault(question_id, path) != path:
                 raise _refused("a question names two different claims")
 
+    # The chain must run from the interpreted intent to the case's own: an export with its
+    # first or last versions removed would otherwise replay fewer answers, or none, and
+    # still record the full case as its origin.
+    intent_ref = case.get("intent_ref")
+    if intent_ref is None and intents:
+        raise _refused("the export holds intents its case does not name")
+    if intent_ref is not None and (
+        not intents
+        or _document(objects, intent_ref) != intents[-1]
+        or not isinstance(intent_ref, dict)
+        or intent_ref.get("digest") not in {str(entry.get("digest")) for entry in entries}
+    ):
+        raise _refused("the export's intents do not end at the case's own intent")
+    if intents and (
+        intents[0].get("supersedes") is not None
+        or intents[0].get("extensions", {}).get(CONFIRMATIONS_EXTENSION)
+    ):
+        raise _refused("the export's intents do not start at the interpretation")
     rounds: list[tuple[dict[str, Any], ...]] = []
     if intents:
         if len({str(intent["id"]) for intent in intents}) != 1:
@@ -134,11 +164,13 @@ def replay_plan(manifest: Mapping[str, Any], objects: Mapping[str, bytes]) -> Re
         content=objects[brief_digest],
         interpreted=bool(intents),
         rounds=tuple(rounds),
+        # From the manifest's reference, which its schema bounds, never from the case
+        # document, which nothing validates.
         origin={
             "workspace_id": str(manifest["id"]),
-            "case_id": str(case["id"]),
-            "case_version": str(case["version"]),
-            "case_digest": str(manifest["current_case_ref"]["digest"]),
+            "case_id": str(current["id"]),
+            "case_version": str(current["version"]),
+            "case_digest": str(current["digest"]),
         },
     )
 

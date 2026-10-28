@@ -851,10 +851,13 @@ class ReleaseService:
 
         payload = message.get("payload")
         lease_id = message.get("lease_id")
-        if not isinstance(payload, dict) or not isinstance(payload.get("journal_digest"), str):
+        if message.get("kind") != "completion" or lease_id is None or not isinstance(payload, dict):
             return
-        if message.get("kind") != "completion" or lease_id is None:
+        if payload.get("outcome") == "denied":
+            # A denial is published before any journal entry exists, so it names none.
             return
+        if not isinstance(payload.get("journal_digest"), str):
+            raise OAKError("OAK-INGEST-JOURNAL", "the completion names no journal head")
         sequence = payload.get("journal_sequence")
         if sequence is not None and (
             not isinstance(sequence, int) or isinstance(sequence, bool) or sequence < 0

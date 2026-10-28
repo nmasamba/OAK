@@ -46,10 +46,9 @@ of them counted once per package Debian builds from one source
 ([container-scan.md](release/0.9.0/container-scan.md)).
 
 Verify the release artifacts you downloaded before installing them — see
-[release-process.md](release-process.md#verifying-a-release). From `1.0.0` on the
-verifier also checks the maintainer's signature over the manifest; `0.7.1` and `0.9.0`
-are **unsigned**, so for them checksums prove the bytes match the manifest, not who
-produced them.
+[release-process.md](release-process.md#verifying-a-release). The verifier also checks the
+maintainer's signature over the manifest; `0.7.1` and `0.9.0` are **unsigned**, so for
+them checksums prove the bytes match the manifest, not who produced them.
 
 ---
 
@@ -86,8 +85,14 @@ metrics**. What you have is the logs, a handful of endpoints and the database.
 
 ### Logs
 
-`oak-api`, `oak-worker` and `oak-mcp` write one JSON object per line to **stderr**
-(`docker compose logs api worker`), at `INFO` unless `OAK_LOG_LEVEL` says otherwise.
+`oak-api` (and `oak serve`), `oak-worker` and `oak-mcp` write one JSON object per line to
+**stderr** (`docker compose logs api worker`), at `INFO` unless `OAK_LOG_LEVEL` says
+otherwise. Before its first line, `oak-api` may print up to three plain-text startup
+notices: the non-loopback bind warning, a missing `OAK_DATABASE_URL`, and where the
+model-configuration token was written. A process that cannot start, a database URL that
+does not parse included, ends with a `startup_failed` line naming the error's type and
+code, never its message, and exits `1`; a one-shot worker (`OAK_WORKER_ONCE=1`) whose
+cycle fails ends the same way with `cycle_failed`. `oak-api` serves from one process.
 `oak-api` writes one access line per request, `OAK_ACCESS_LOG=false` turns it off:
 
 ```json

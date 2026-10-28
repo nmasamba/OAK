@@ -998,8 +998,13 @@ def serve(
         _abort(OAKError("OAK-REMOTE-UNSUPPORTED", "serve is local-only"))
 
     from oak.bootstrap import mint_model_token
-    from oak.interfaces.api.server import run_server
+    from oak.interfaces.api.server import ensure_safe_bind, run_server
 
+    try:
+        ensure_safe_bind(host, allow_non_loopback=allow_non_loopback)
+    except ValueError as error:
+        typer.echo(f"OAK-SAFE-BIND: {error}", err=True)
+        raise typer.Exit(code=2) from error
     try:
         token = mint_model_token()
         typer.echo(
@@ -1008,9 +1013,13 @@ def serve(
             err=True,
         )
         run_server(host=host, port=port, allow_non_loopback=allow_non_loopback, model_token=token)
-    except (ValueError, OAKError) as error:
-        typer.echo(f"OAK-SAFE-BIND: {error}", err=True)
+    except OAKError as error:
+        # Its code and fixed message only; anything else is its type (oak.interfaces.logs).
+        typer.echo(f"{error.code}: {error.message}", err=True)
         raise typer.Exit(code=2) from error
+    except Exception as error:
+        typer.echo(f"OAK-SERVE-FAILED: {type(error).__name__}", err=True)
+        raise typer.Exit(code=1) from error
 
 
 @app.command()

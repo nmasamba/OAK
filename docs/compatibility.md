@@ -178,8 +178,11 @@ mechanical migration; **breaking** otherwise.
   case from its brief and confirmed answers and answers `201` with it, where it refused with
   `OAK-IMPORT-SCOPE` (the new code `OAK-IMPORT-REPLAY` refuses one it cannot replay, and
   names how far a replay that stopped part-way got); an export from a server imports as it
-  did. Every response carries an `X-OAK-Request-ID` header, the ID of the request's log
-  line; it is additive and not declared in the OpenAPI document.
+  did. An import whose manifest names a server workspace but that holds an approval, a plan
+  signature, a dispatch, a runner message, an observation or a revocation, which no server
+  writes, is refused with the new code `OAK-IMPORT-AUTHORITY`. Every response carries an
+  `X-OAK-Request-ID` header, the ID of the request's log line; it is additive and not
+  declared in the OpenAPI document.
 - Until the baseline was refreshed after `0.9.0` was cut, it still held its Sprint 3
   contents. It did not guard the eight `/v1/models` operations. Nor did it guard two
   operations `0.7.1` published: the case list (`GET /v1/design-cases`) and the audit
@@ -300,8 +303,13 @@ mechanical migration; **breaking** otherwise.
     in the mailbox and is listed under `rejected` on every ingest. Its JSON output gains
     `refused`, mapping each rejected message that was believed and then refused to its
     code; the human output names them too.
-  - `oak-runner status` reports a fourth `chain` value, `truncated`, and a `signed_head`
-    field (`matched`, `missing_from_journal`, `none` or `unchecked`) on each journal.
+  - `oak-runner status` reports a fourth `chain` value, `truncated`, a `signed_head`
+    field (`matched`, `missing_from_journal`, `none` or `unchecked`) on each journal, and
+    a top-level `missing_journals` list.
+  - `oak serve` writes the same allowlisted JSON log lines as `oak-api`; a failure other
+    than a bind refusal prints its code and message for an OAK error, or
+    `OAK-SERVE-FAILED` and the error's type, where it printed `OAK-SAFE-BIND` and the
+    message.
 
 ## MCP
 

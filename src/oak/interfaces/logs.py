@@ -24,7 +24,7 @@ import sys
 import time
 from collections.abc import Awaitable, Callable, MutableMapping
 from datetime import UTC, datetime
-from typing import IO, Any
+from typing import IO, Any, NoReturn
 
 from oak.domain import OAKError
 
@@ -129,6 +129,23 @@ def log_event(logger: logging.Logger, level: int, event: str, **fields: object) 
     """Log a fixed event name with allowlisted fields."""
 
     logger.log(level, event, extra={"oak": fields})
+
+
+def exit_on(logger: logging.Logger, event: str, error: BaseException) -> NoReturn:
+    """End the process on `error`, logged as its code and type, never its message.
+
+    An unhandled exception would otherwise reach Python's own handler, which prints the
+    message and traceback: a database URL that does not parse quotes part of its password.
+    """
+
+    log_event(
+        logger,
+        logging.ERROR,
+        event,
+        error_type=type(error).__name__,
+        **({"code": error.code} if isinstance(error, OAKError) else {}),
+    )
+    raise SystemExit(1)
 
 
 _ASGIApp = Callable[

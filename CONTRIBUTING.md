@@ -125,7 +125,7 @@ replaceable and owned by its own project. OAK compiles *to* them; it doesn't abs
 - A file-workspace format migration before the format ever changes (`RR-017`).
 - Byte-reproducible container images (`RR-006`), and bounding how workspace reads grow
   with history (`RR-030`).
-- Release signing (`RR-005`): the verifier checks an SSH signature from `1.0.0` on; the
+- Release signing (`RR-005`): the verifier requires an SSH signature on every release after `0.9.0`; the
   key itself is the maintainer's to create and pin in `keys/allowed_signers`.
 
 **Bigger directions (discuss first)**

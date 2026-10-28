@@ -25,6 +25,7 @@ from oak.domain import (
     content_digest,
 )
 from oak.interfaces.cli.remote import read_export_directory
+from tests.integration.test_persistent_api import persistent_control_plane  # noqa: F401
 from tests.mcp_support import build_file_control_plane
 from tests.runner_support import ROOT, build_compiled_case
 
@@ -331,3 +332,133 @@ def test_the_rest_import_route_recreates_a_local_export(tmp_path: Path) -> None:
     )
     assert again.json()["duplicate"] is True
     assert {event["interface_origin"] for event in _events(plane)} == {"import"}
+
+
+def _drop_intents(exported: dict[str, Any], versions: set[str]) -> None:
+    index = exported["manifest"]["artifact_index"]
+    dropped = {
+        entry["digest"]
+        for entry in index
+        if entry["kind"] == "system_intent" and entry["version"] in versions
+    }
+    exported["manifest"]["artifact_index"] = [
+        entry for entry in index if entry["digest"] not in dropped
+    ]
+    exported["objects"] = [item for item in exported["objects"] if item["digest"] not in dropped]
+
+
+@pytest.mark.parametrize("versions", [{"0.1.0"}, {"0.1.0", "0.1.1"}, {"0.1.1"}])
+def test_an_export_whose_intent_chain_was_cut_is_refused(
+    tmp_path: Path, versions: set[str]
+) -> None:
+    """FC-5: a chain missing its first or last versions would replay fewer answers."""
+
+    exported = _local_export(tmp_path)
+    _drop_intents(exported, versions)
+
+    _refused_with(_server(tmp_path), exported, "OAK-IMPORT-REPLAY")
+
+
+def test_a_malformed_object_is_a_stable_refusal_not_an_internal_error(tmp_path: Path) -> None:
+    """FC-7: an index entry naming the brief as an intent is refused with a code."""
+
+    exported = _local_export(tmp_path)
+    brief = _brief_digest(exported)
+    entry = next(
+        entry for entry in exported["manifest"]["artifact_index"] if entry["digest"] == brief
+    )
+    exported["manifest"]["artifact_index"].append(
+        {
+            **entry,
+            "id": "intent.forged",
+            "version": "9.9.9",
+            "kind": "system_intent",
+            "media_type": "application/vnd.oak.system-intent+json",
+        }
+    )
+
+    _refused_with(_server(tmp_path), exported, "OAK-IMPORT-REPLAY")
+
+
+def test_the_recorded_origin_comes_from_the_manifest_not_the_case_document(
+    tmp_path: Path,
+) -> None:
+    """A-2: the case document is not schema-validated, so none of its text is recorded."""
+
+    exported = _local_export(tmp_path)
+    reference = exported["manifest"]["current_case_ref"]
+    objects = _objects(exported)
+    item = objects[reference["digest"]]
+    document = json.loads(base64.b64decode(item["content_base64"]))
+    document["version"] = "‮forged\x00"
+    content = canonical_json_bytes(document)
+    digest = content_digest(content)
+    exported["objects"].remove(item)
+    exported["objects"].append(
+        {"digest": digest, "content_base64": base64.b64encode(content).decode("ascii")}
+    )
+    for entry in exported["manifest"]["artifact_index"]:
+        if entry["digest"] == reference["digest"]:
+            entry["digest"] = digest
+    reference["digest"] = digest
+
+    case = _server(tmp_path).import_design_case(exported, context=_context("origin")).case
+
+    origin = case["extensions"]["oak.community/recreated_from"]
+    assert origin["case_version"] == reference["version"]
+    assert origin["case_digest"] == digest
+    assert "forged" not in json.dumps(case)
+
+
+def test_a_local_export_relabelled_as_a_server_one_brings_no_authority(tmp_path: Path) -> None:
+    """FC-6: the restore-or-re-create choice rests on `manifest.id`, which no digest covers,
+    so the restore path refuses what only a local workspace writes."""
+
+    exported = _local_export(tmp_path, compiled=True)
+    exported["manifest"]["id"] = "workspace.public-manual-qa"
+
+    _refused_with(_server(tmp_path), exported, "OAK-IMPORT-AUTHORITY")
+
+
+def test_a_local_export_is_recreated_on_the_postgresql_store(
+    tmp_path: Path,
+    persistent_control_plane: Any,  # noqa: F811 (the fixture, imported above)
+) -> None:
+    """Review H-F3: the server a user runs keeps its cases in PostgreSQL."""
+
+    plane, _ = persistent_control_plane
+    exported = _local_export(tmp_path, compiled=True)
+
+    result = plane.import_design_case(exported, context=_context("postgresql"))
+    again = plane.import_design_case(exported, context=_context("postgresql"))
+
+    assert result.case["status"] == "ready_for_candidates"
+    assert result.case.get("runner_plan_ref") is None
+    assert again.duplicate is True and again.case["version"] == result.case["version"]
+    assert [event["event_type"] for event in _events(plane)] == [
+        "case_created",
+        "workspace_imported",
+        "brief_interpreted",
+        "claims_confirmed",
+    ]
+
+
+def test_the_remote_cli_says_it_recreated_the_case(tmp_path: Path) -> None:
+    """Review H-F3: `oak --server import` names what it did, through a real server."""
+
+    from oak.interfaces.cli.main import app as cli_app
+    from tests.integration.test_remote_cli import _LiveServer, runner
+
+    _local_export(tmp_path)
+    server = _LiveServer(tmp_path / "live")
+    server.start()
+    try:
+        result = runner.invoke(
+            cli_app, ["--server", server.url, "import", str(tmp_path / "export")]
+        )
+    finally:
+        server.stop()
+
+    assert result.exit_code == 0, result.output
+    assert f"Re-created {CASE_ID}@" in result.output
+    assert "from workspace.fixture" in result.output

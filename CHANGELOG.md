@@ -52,14 +52,14 @@ Tier 2 of the owner's cost-benefit ranking of the backlog, launched on 2026-10-2
   export claiming another tenant is still refused with `OAK-IMPORT-SCOPE`. The owner chose
   re-creation over rebinding the identity (2026-10-28), because a compiled mutation plan,
   its signature and any approval of it carry the workspace identity.
-- **Release artifacts can be signed, and from `1.0.0` must be** (`RR-005`, the owner's
-  choice of an owner-held SSH key). `scripts/verify_release.py` (`make verify-release`)
-  checks `SHA256SUMS.sig` with `ssh-keygen -Y verify`, in the `oak-release` namespace,
-  against the key pinned in the new `keys/allowed_signers` (`--allowed-signers` to name
-  another copy of it), never against a key inside the directory it verifies. From `1.0.0`
-  a missing signature, no pinned key, another key or manifest, or no `ssh-keygen` exits
-  with the new code `4`; `0.7.1` and `0.9.0`, published unsigned, still verify by checksum
-  and say so. `--checksums-only` skips the signature and says it did; the release workflow
+- **Release artifacts must be signed** (`RR-005`, the owner's choice of an owner-held SSH
+  key). `scripts/verify_release.py` (`make verify-release`) checks `SHA256SUMS.sig` with
+  `ssh-keygen -Y verify`, in the `oak-release` namespace, against the key pinned in the new
+  `keys/allowed_signers` (`--allowed-signers` to name another copy of it), never against a
+  key inside the directory it verifies. A missing signature, no pinned key, another key or
+  manifest, or no `ssh-keygen` exits with the new code `4`. Only `0.7.1` and `0.9.0`,
+  published unsigned, verify without one, recognised by the SHA-256 of the `SHA256SUMS`
+  each was published with, never by a version the files name; the verifier says so. `--checksums-only` skips the signature and says it did; the release workflow
   uses it, because the maintainer signs after that build. No key is pinned yet: the
   maintainer pins one and signs `1.0.0` (`docs/release-process.md`).
 - **The PDF prints Latin, Greek and Cyrillic** (`RR-046`'s Unicode clause; the owner
@@ -74,7 +74,8 @@ Tier 2 of the owner's cost-benefit ranking of the backlog, launched on 2026-10-2
   structure tree.
 - **A runner journal whose tail was cut is noticed** (`RR-054`). Every completion of a
   dispatch the runner took up names its journal's head, `journal_sequence` beside
-  `journal_digest` (additive; a `0.9` runner's completion still ingests).
+  `journal_digest` (additive; a `0.9` runner's completion still ingests unless an earlier
+  completion for the same lease named a sequence).
   `oak-runner status` compares each journal with the newest completion for its dispatch
   still in the mailbox, believing only one its own key signed, and reports a journal that
   stops short of it as `chain: truncated`, requiring manual recovery, with a new
@@ -82,6 +83,35 @@ Tier 2 of the owner's cost-benefit ranking of the backlog, launched on 2026-10-2
   journal is shorter than, or as long but different from, one it already accepted for the
   lease, with the new code `OAK-INGEST-JOURNAL`; the message stays in the mailbox, and the
   JSON output's new `refused` map names each such message's code.
+
+#### Security
+
+Found by the batch's closing adversarial review and fixed before it closed:
+
+- The release verifier no longer decides whether a signature is required from a version
+  the downloaded file names; only the two manifests published unsigned are exempt, by
+  digest. Every unsigned name below `1.0.0`, `1.0`, an epoch, or a pre-1.0 wheel beside a
+  platform wheel verified without a signature before.
+- A server refuses to restore an export whose manifest names a server workspace but that
+  holds approvals, plan signatures, dispatches, runner messages, observations or
+  revocations (`OAK-IMPORT-AUTHORITY`). Relabelling a local export's manifest, a field no
+  digest covers, restored its approval and signed plan on the server; that path predates
+  the batch.
+- `oak-api`, `oak-worker` and `oak-mcp` log a failure to start, or a failed one-shot
+  worker cycle, as its type and code and exit `1`; a database URL that did not parse died
+  with a traceback quoting part of its password. `oak serve` configures the same logging,
+  and the API runs one process, because uvicorn workers started by `WEB_CONCURRENCY`
+  configured none. The API package no longer builds the application when it is imported.
+- `oak-runner status` ties a journal to its completions through the lease its own first
+  entry names, so editing the delivered envelope no longer hides a cut, and lists in
+  `missing_journals` a signed completion whose journal was deleted. `oak ingest` refuses a
+  completion other than a denial that names no journal head.
+- Re-creating a local case refuses an export whose intents do not run from the
+  interpretation to the case's own intent, records its origin from the manifest's
+  schema-bounded reference rather than the unvalidated case document, and answers a
+  malformed object with `OAK-IMPORT-REPLAY` instead of an internal error.
+- `make toolchain-check` refuses a gate step that is disabled (`if:`) or allowed to fail
+  (`continue-on-error`), and a cache step or `github.token` in the browser-suite job.
 
 ### Follow-ups to the pre-1.0 batch (`OAK-V1-017`–`020`)
 

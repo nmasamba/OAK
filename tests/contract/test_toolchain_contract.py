@@ -566,3 +566,74 @@ def test_a_release_gate_that_does_not_count_its_skips_is_rejected(tmp_path: Path
     assert (
         "release workflow: the artifacts job must count its skips against check-linux-x86_64"
     ) in check(tree)
+
+
+_MAC_SKIPS = (
+    '      - run: python3 scripts/check_skips.py "${{ runner.temp }}/skips.jsonl"'
+    " check-macos-arm64\n"
+)
+_ARM_SKIPS = (
+    '      - run: python3 scripts/check_skips.py "${{ runner.temp }}/skips.jsonl"'
+    " check-linux-arm64\n"
+)
+_SUITE_STEP = "      - name: Run the browser suite on a Compose project of its own\n"
+
+
+@pytest.mark.parametrize(
+    ("original", "replacement", "failure"),
+    [
+        (
+            _MAC_SKIPS,
+            _MAC_SKIPS + "        continue-on-error: true\n",
+            "the check-macos-arm64 job must count its skips against check-macos-arm64",
+        ),
+        (
+            _ARM_SKIPS,
+            _ARM_SKIPS + "        if: ${{ false }}\n",
+            "the check-linux-arm64 job must count its skips against check-linux-arm64",
+        ),
+        (
+            _SUITE_STEP,
+            _SUITE_STEP + "        continue-on-error: true\n",
+            "the web-e2e job must run scripts/run_browser_suite.py",
+        ),
+        (
+            _SUITE_STEP,
+            "      - uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0\n"
+            "        with:\n          path: web/test-results\n          key: results\n"
+            + _SUITE_STEP,
+            "the web-e2e job must upload nothing and read no secret",
+        ),
+        (
+            _SUITE_STEP,
+            _SUITE_STEP + "        env:\n          GH_TOKEN: ${{ github.token }}\n",
+            "the web-e2e job must upload nothing and read no secret",
+        ),
+    ],
+)
+def test_a_gate_step_that_can_be_skipped_fail_quietly_or_leak_is_rejected(
+    tmp_path: Path, original: str, replacement: str, failure: str
+) -> None:
+    """Review H-F4: a step that is disabled or allowed to fail proves nothing."""
+
+    tree = _mirror(ROOT, tmp_path)
+    path = tree / ".github/workflows/ci.yml"
+    text = path.read_text(encoding="utf-8")
+    assert text.count(original) == 1, original
+    path.write_text(text.replace(original, replacement), encoding="utf-8")
+
+    assert f"CI workflow: {failure}" in check(tree)
+
+
+def test_a_check_job_that_may_fail_quietly_is_rejected(tmp_path: Path) -> None:
+    tree = _mirror(ROOT, tmp_path)
+    path = tree / ".github/workflows/ci.yml"
+    text = path.read_text(encoding="utf-8")
+    anchor = "  check-macos-arm64:\n    runs-on: macos-15\n"
+    assert text.count(anchor) == 1
+    path.write_text(text.replace(anchor, anchor + "    continue-on-error: true\n"), "utf-8")
+
+    failures = check(tree)
+    assert (
+        "CI workflow: the check-macos-arm64 job must count its skips against check-macos-arm64"
+    ) in failures

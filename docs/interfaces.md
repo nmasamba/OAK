@@ -231,7 +231,10 @@ Notes:
   is created (`OAK-IMPORT-REPLAY`, `OAK-IMPORT-SCOPE`), and a case the server already holds
   is refused with `OAK-CASE-EXISTS`. The workspace identity is not rebound, because a
   compiled mutation plan, its signature and any approval of it carry it. An export taken
-  from a server still imports as itself, on a server or into a local workspace.
+  from a server still imports as itself, on a server or into a local workspace; one whose
+  manifest names a server workspace but that holds an approval, a plan signature, a
+  dispatch, a runner message, an observation or a revocation, which only a local workspace
+  writes, is refused on a server with `OAK-IMPORT-AUTHORITY`.
 - `oak validate` is a server-free read-only checker (export, bundle, webhook)
   intended for CI and portals. It checks schema validity, digest integrity, and
   the execution-field ban across all three kinds. For a compiled bundle it

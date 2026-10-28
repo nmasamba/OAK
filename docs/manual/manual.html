@@ -1233,9 +1233,10 @@ SHA256SUMS is signed by nmasamba, the key pinned in keys/allowed_signers</span><
     offline, and the verifier refuses a release whose signature is missing, made by any
     other key, or does not match (<code>RR-005</code>); it never trusts a key that came with
     the download. <code>0.7.1</code> and <code>0.9.0</code> were published before signing
-    began, so for them it verifies the checksums and says the manifest is unsigned:
+    began; the verifier recognises each by the digest of the manifest it was published with,
+    not by the names of the files, verifies the checksums and says the manifest is unsigned:
   </p>
-  <pre><code><span class="out">SHA256SUMS is unsigned: releases before 1.0.0 were published unsigned (RR-005), so checksums prove the bytes match it, not who produced them.</span></code></pre>
+  <pre><code><span class="out">SHA256SUMS is the unsigned manifest 0.9.0 was published with (RR-005), so checksums prove the bytes match it, not who produced them.</span></code></pre>
   <p>
     A signature says who released the artifacts, not how they were built. The container
     images are not byte-reproducible (<code>RR-006</code>) — their SBOMs and provenance under

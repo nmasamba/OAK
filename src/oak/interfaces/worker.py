@@ -12,7 +12,7 @@ from datetime import UTC, datetime, timedelta
 from oak.application import CommunityWorker
 from oak.bootstrap import create_persistent_worker
 from oak.domain import OAKError
-from oak.interfaces.logs import configure_logging, log_event
+from oak.interfaces.logs import configure_logging, exit_on, log_event
 
 # Twice the research run's 60-second deadline, so no handler outlives its lease and a
 # second worker never sweeps a running job to failed while it is still sending (RR-031).
@@ -106,7 +106,13 @@ def main() -> None:
         worker = create_persistent_worker(worker_id=worker_id)
     except RuntimeError as error:
         raise SystemExit(f"OAK-WORKER-CONFIG: {error}") from error
-    run_worker(worker, once=_environment_flag("OAK_WORKER_ONCE"))
+    except Exception as error:
+        exit_on(_LOG, "startup_failed", error)
+    try:
+        run_worker(worker, once=_environment_flag("OAK_WORKER_ONCE"))
+    except Exception as error:
+        # Only a one-shot run re-raises; the loop logs and backs off.
+        exit_on(_LOG, "cycle_failed", error)
 
 
 if __name__ == "__main__":  # pragma: no cover

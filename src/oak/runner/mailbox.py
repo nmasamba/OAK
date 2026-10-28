@@ -94,8 +94,9 @@ class RunnerMailbox:
         lease_id = lease.get("lease_id") if isinstance(lease, dict) else None
         return lease_id if is_safe_name(lease_id) else None
 
-    def completions(self, correlation_ids: frozenset[str]) -> tuple[dict[str, Any], ...]:
-        """Every completion in the mailbox, read or not, for one of these correlations.
+    def completions(self, correlation_ids: frozenset[str] | None) -> tuple[dict[str, Any], ...]:
+        """Every completion in the mailbox, read or not, for one of these correlations (or
+        for any, given None).
 
         Unverified: the caller checks each signature against the key it trusts.
         """
@@ -110,7 +111,9 @@ class RunnerMailbox:
                 if (
                     document is not None
                     and document.get("kind") == "completion"
-                    and document.get("correlation_id") in correlation_ids
+                    and (
+                        correlation_ids is None or document.get("correlation_id") in correlation_ids
+                    )
                 ):
                     found.append(document)
         return tuple(found)

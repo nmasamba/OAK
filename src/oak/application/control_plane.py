@@ -93,6 +93,21 @@ class ArtifactContent:
     content: bytes
 
 
+# Records only the local release service writes (sign, approve, dispatch, ingest, observe,
+# revoke); a server's own export never holds one.
+LOCAL_AUTHORITY_KINDS = frozenset(
+    {
+        "approval",
+        "dispatch_envelope",
+        "observation_record",
+        "plan_signature",
+        "revocation_manifest",
+        "revocation_notice",
+        "runner_message",
+    }
+)
+
+
 class CommunityControlPlane:
     """Tenant-scoped orchestration used by persistent interfaces and workers."""
 
@@ -439,6 +454,15 @@ class CommunityControlPlane:
             raise OAKError("OAK-IMPORT-INVALID", "canonical export objects are incomplete")
         if recreate:
             return self._recreate(replay_plan(manifest, decoded), context)
+        # Restored as itself only what a server could have written: a server has no approval,
+        # signing, dispatch or runner path, so an export holding their records came from a
+        # local workspace whatever its manifest says, and would bring that authority along.
+        if {str(entry["kind"]) for entry in manifest["artifact_index"]} & LOCAL_AUTHORITY_KINDS:
+            raise OAKError(
+                "OAK-IMPORT-AUTHORITY",
+                "an export holding approvals, signatures or runner records imports only into "
+                "a local workspace",
+            )
 
         repository = self._repository_factory(workspace_id, context.tenant_id)
         duplicate = False

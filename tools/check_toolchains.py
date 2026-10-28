@@ -112,13 +112,17 @@ def _check_browser_suite(
         failures.append(f"{label}: the browser suite must run (a web-e2e job)")
         return
     steps = [step for step in job.get("steps", []) if isinstance(step, dict)]
-    runs = [str(step.get("run", "")).strip() for step in steps]
+    runs = _runs(job)
     if "pnpm --dir web exec playwright install --with-deps chromium" not in runs:
         failures.append(f"{label}: the web-e2e job must install the Chromium Playwright pins")
     if not any(run.startswith("python3 scripts/run_browser_suite.py ") for run in runs):
         failures.append(f"{label}: the web-e2e job must run scripts/run_browser_suite.py")
-    uploads = any("upload-artifact" in str(step.get("uses", "")) for step in steps)
-    if uploads or "secrets." in yaml.safe_dump(job):
+    uploads = any(
+        "upload-artifact" in str(step.get("uses", "")) or "/cache" in str(step.get("uses", ""))
+        for step in steps
+    )
+    text = yaml.safe_dump(job)
+    if uploads or "secrets." in text or "github.token" in text:
         failures.append(f"{label}: the web-e2e job must upload nothing and read no secret")
     for name in gated:
         gate = jobs.get(name)
@@ -137,9 +141,21 @@ def _jobs(text: str) -> dict[str, Any]:
 
 
 def _runs(job: dict[str, Any]) -> list[str]:
+    """The commands a job always runs: a step that can be skipped or fail quietly is none."""
+
+    if not _binding(job):
+        return []
     return [
-        str(step.get("run", "")).strip() for step in job.get("steps", []) if isinstance(step, dict)
+        str(step.get("run", "")).strip()
+        for step in job.get("steps", [])
+        if isinstance(step, dict) and _binding(step)
     ]
+
+
+def _binding(item: dict[str, Any]) -> bool:
+    """Whether a job or step always runs and fails its job when it fails."""
+
+    return "if" not in item and not item.get("continue-on-error")
 
 
 def _check_counted_skips(
@@ -148,9 +164,10 @@ def _check_counted_skips(
     """A job's `make check` names its skips, and the job fails unless they are expected."""
 
     job = jobs.get(name)
-    steps = job.get("steps", []) if isinstance(job, dict) else []
+    steps = job.get("steps", []) if isinstance(job, dict) and _binding(job) else []
     ledgered = any(
         isinstance(step, dict)
+        and _binding(step)
         and str(step.get("run", "")).strip() == "make check"
         and "OAK_SKIP_LEDGER" in (step.get("env") or {})
         for step in steps

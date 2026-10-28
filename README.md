@@ -605,7 +605,7 @@ and how changes are reviewed.
 |---|---|
 | [manual/OAK-Community-Manual.pdf](docs/manual/OAK-Community-Manual.pdf) | An illustrated walkthrough from install to uninstall, with screenshots of every workspace screen. The source is in [manual/](docs/manual/) |
 | [tour.md](docs/tour.md) | One case through every interface: browser, `curl`, remote CLI and an AI assistant over MCP |
-| [Releases](https://github.com/nmasamba/OAK/releases) | Published downloads: the Python package (a wheel, plus the source as an sdist), a software bill of materials (an SBOM, listing everything inside) and `SHA256SUMS`. They're checksummed but not signed, so [verify them](#verifying-a-release) before installing |
+| [Releases](https://github.com/nmasamba/OAK/releases) | Published downloads: the Python package (a wheel, plus the source as an sdist), a software bill of materials (an SBOM, listing everything inside) and `SHA256SUMS`. They're checksummed and, after `0.9.0`, signed by the maintainer, so [verify them](#verifying-a-release) before installing |
 | [platforms.md](docs/platforms.md) | Where OAK is supported, and where it isn't |
 | [interfaces.md](docs/interfaces.md) | CLI, REST, MCP and portals: setup, permissions, and what each one can do |
 | [research.md](docs/research.md) | Research at the point of design: what leaves the machine, the gates, the evidence words, and what research does not do |
@@ -650,12 +650,14 @@ on a mismatch, and `3` if the manifest or a file is missing or malformed:
 python3 scripts/verify_release.py ./downloaded-release --allowed-signers keys/allowed_signers
 ```
 
-What that proves: the files you have are the files the manifest lists, and, from `1.0.0`
-on, that the maintainer released them: it checks their SSH signature over `SHA256SUMS`
-against the key pinned in `keys/allowed_signers` (take both files from the repository at
-the release's tag) and refuses the release without it. `0.7.1` and `0.9.0` were published
-unsigned, so for those get `SHA256SUMS` through a channel you trust independently of the
-downloads. [release-process.md](docs/release-process.md#verifying-a-release) has the
+What that proves: the files you have are the files the manifest lists, and that the
+maintainer released them: it checks their SSH signature over `SHA256SUMS` against the key
+pinned in `keys/allowed_signers` (take both files from the repository at the release's
+tag) and refuses the release without it. Checking the signature needs `ssh-keygen`; the
+exit codes are `0` verified, `2` mismatch, `3` a missing or malformed file, `4` a
+signature missing, not verifying or not checkable. `0.7.1` and `0.9.0` were published
+unsigned and are recognised by their published manifests' digests, so for those get
+`SHA256SUMS` through a channel you trust independently of the downloads. [release-process.md](docs/release-process.md#verifying-a-release) has the
 details.
 
 ## Licence

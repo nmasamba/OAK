@@ -390,13 +390,19 @@ def _journal(tmp_path: Path) -> Path:
     return path
 
 
-def _status(capsys: pytest.CaptureFixture[str]) -> dict:
+def _full_status(capsys: pytest.CaptureFixture[str]) -> dict:
     from oak.runner.main import status
 
     capsys.readouterr()
     status()
-    (report,) = json.loads(capsys.readouterr().out)["journals"]
-    return report
+    return json.loads(capsys.readouterr().out)
+
+
+def _status(capsys: pytest.CaptureFixture[str]) -> dict:
+    report = _full_status(capsys)
+    assert report["missing_journals"] in ([], None) or report["journals"] == []
+    (journal,) = report["journals"]
+    return journal
 
 
 def test_status_notices_a_journal_whose_tail_was_cut(
@@ -618,3 +624,63 @@ def test_ingest_accepts_a_completion_from_a_runner_that_names_no_journal_length(
     result = journey.ingest()
 
     assert [message["id"] for message in result.accepted] == [old["id"]]
+
+
+def test_ingest_refuses_a_completion_that_names_no_journal_head(
+    journey: Journey, tmp_path: Path
+) -> None:
+    """FC-4: only a denial names no journal; any other completion without a head is refused."""
+
+    _crash_mid_install(journey)
+    journey.ingest()
+    bare = _publish_completion(journey, tmp_path, 3)
+    nulled = _publish_completion(journey, tmp_path, 4, journal_digest=None, journal_sequence=0)
+    numeric = _publish_completion(journey, tmp_path, 5, journal_digest=7, journal_sequence=9)
+
+    result = journey.ingest()
+
+    assert result.accepted == ()
+    assert dict(result.refused) == {
+        bare["id"]: "OAK-INGEST-JOURNAL",
+        nulled["id"]: "OAK-INGEST-JOURNAL",
+        numeric["id"]: "OAK-INGEST-JOURNAL",
+    }
+
+
+@pytest.mark.parametrize("envelope", ["edited", "deleted"])
+def test_status_notices_a_cut_journal_whose_envelope_was_changed_too(
+    journey: Journey, tmp_path: Path, capsys: pytest.CaptureFixture[str], envelope: str
+) -> None:
+    """FC-2: the journal's own lease ties it to its completions, not only the envelope."""
+
+    _crash_mid_install(journey)
+    path = _journal(tmp_path)
+    path.write_text(path.read_text(encoding="utf-8").splitlines()[0] + "\n", encoding="utf-8")
+    delivered = journey.harness.mailbox_root / "dispatches" / path.stem / "envelope.json"
+    if envelope == "deleted":
+        delivered.unlink()
+    else:
+        document = json.loads(delivered.read_text(encoding="utf-8"))
+        document["lease"]["lease_id"] = "lease.elsewhere"
+        delivered.write_text(json.dumps(document), encoding="utf-8")
+
+    report = _status(capsys)
+    assert report["chain"] == "truncated" and report["manual_recovery_required"] is True
+
+
+def test_status_lists_a_signed_completion_whose_journal_is_gone(
+    journey: Journey, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """FC-3: a deleted journal leaves no file to report, but its completion names it."""
+
+    _crash_mid_install(journey)
+    intact = _full_status(capsys)
+    assert intact["missing_journals"] == []
+
+    _journal(tmp_path).unlink()
+
+    report = _full_status(capsys)
+    assert report["journals"] == []
+    (missing,) = report["missing_journals"]
+    assert missing["completion"].startswith("runner-message.completion.")
+    assert missing["lease"].startswith("lease.")
