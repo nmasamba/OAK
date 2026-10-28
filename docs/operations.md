@@ -46,9 +46,10 @@ of them counted once per package Debian builds from one source
 ([container-scan.md](release/0.9.0/container-scan.md)).
 
 Verify the release artifacts you downloaded before installing them — see
-[release-process.md](release-process.md#verifying-a-release). Remember that OAK
-Community artifacts are **unsigned**: checksums prove the bytes match the manifest, not
-who produced them.
+[release-process.md](release-process.md#verifying-a-release). From `1.0.0` on the
+verifier also checks the maintainer's signature over the manifest; `0.7.1` and `0.9.0`
+are **unsigned**, so for them checksums prove the bytes match the manifest, not who
+produced them.
 
 ---
 

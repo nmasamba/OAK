@@ -52,6 +52,16 @@ Tier 2 of the owner's cost-benefit ranking of the backlog, launched on 2026-10-2
   export claiming another tenant is still refused with `OAK-IMPORT-SCOPE`. The owner chose
   re-creation over rebinding the identity (2026-10-28), because a compiled mutation plan,
   its signature and any approval of it carry the workspace identity.
+- **Release artifacts can be signed, and from `1.0.0` must be** (`RR-005`, the owner's
+  choice of an owner-held SSH key). `scripts/verify_release.py` (`make verify-release`)
+  checks `SHA256SUMS.sig` with `ssh-keygen -Y verify`, in the `oak-release` namespace,
+  against the key pinned in the new `keys/allowed_signers` (`--allowed-signers` to name
+  another copy of it), never against a key inside the directory it verifies. From `1.0.0`
+  a missing signature, no pinned key, another key or manifest, or no `ssh-keygen` exits
+  with the new code `4`; `0.7.1` and `0.9.0`, published unsigned, still verify by checksum
+  and say so. `--checksums-only` skips the signature and says it did; the release workflow
+  uses it, because the maintainer signs after that build. No key is pinned yet: the
+  maintainer pins one and signs `1.0.0` (`docs/release-process.md`).
 - **A runner journal whose tail was cut is noticed** (`RR-054`). Every completion of a
   dispatch the runner took up names its journal's head, `journal_sequence` beside
   `journal_digest` (additive; a `0.9` runner's completion still ingests).

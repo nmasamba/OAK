@@ -114,8 +114,11 @@ jobs:
       - name: Build release artifacts, SBOM, licence inventory and checksums
         run: make release
 
-      - name: Verify the published verification procedure against the artifacts
-        run: make verify-release
+      # The checksums only: the maintainer signs SHA256SUMS offline after this build, so a
+      # signature cannot exist yet. Consumers run `make verify-release`, which requires one
+      # from 1.0.0 on (RR-005, docs/release-process.md).
+      - name: Verify the artifacts against their checksums, before signing
+        run: uv run python scripts/verify_release.py --checksums-only dist/release
 
       - name: Show what a consumer will verify
         run: cat dist/release/SHA256SUMS

@@ -1203,33 +1203,41 @@ uv run oak observe</code></pre>
     from outside the checkout, and emits an SBOM, a licence inventory, and
     <code>SHA256SUMS</code>. On the consuming side:
   </p>
-  <pre><code># in a checkout, against the build you just made
+  <pre><code># in a checkout, against a release directory in dist/release
 make verify-release
 
-# what a consumer actually runs, against a downloaded directory
-python scripts/verify_release.py ./downloaded-release
+# what a consumer runs, with the key file from the repository at the release's tag
+# (the output below is from a signed test release)
+python3 scripts/verify_release.py ./downloaded-release --allowed-signers keys/allowed_signers
 <span class="out">OK  THIRD-PARTY-LICENCES.md
-OK  oak-community-0.9.0.cdx.json
-OK  oak_community-0.9.0-py3-none-any.whl
-OK  oak_community-0.9.0.tar.gz
+OK  oak-community-1.0.0.cdx.json
+OK  oak_community-1.0.0-py3-none-any.whl
+OK  oak_community-1.0.0.tar.gz
 
 verified 4 artifact(s) against SHA256SUMS
-Checksums prove the bytes match the manifest. They do not prove who produced
-them: OAK Community release artifacts are unsigned.</span></code></pre>
+SHA256SUMS is signed by nmasamba, the key pinned in keys/allowed_signers</span></code></pre>
   <div class="note">
     <code>make verify-release</code> is the in-checkout convenience: it runs the same
     script against <code>dist/release</code>. If you received artifacts rather than this
     repository, you have no Makefile — use the script directly (it is standard-library
-    only, imports nothing from OAK, and needs no installed OAK), or the equivalent
-    <code>shasum -a 256 -c SHA256SUMS</code> on macOS /
-    <code>sha256sum -c SHA256SUMS</code> on Linux. Exit codes: 0 verified, 2
-    verification failed, 3 the manifest or a listed file is missing or malformed.
+    only, imports nothing from OAK, and needs no installed OAK), taking it and
+    <code>keys/allowed_signers</code> from the repository at the release's tag. Checking
+    the signature needs <code>ssh-keygen</code>, which macOS and most Linux systems include.
+    Exit codes: 0 verified, 2 verification failed, 3 the manifest or a listed file is
+    missing or malformed, 4 the signature is missing, does not verify or cannot be checked.
   </div>
   <p>
-    Be aware of what this does and does not prove: checksums prove the bytes match the manifest;
-    they do not prove who produced them. Release artifacts are deliberately not signed
-    yet (<code>RR-005</code> in the residual-risk register), and the container images
-    are not byte-reproducible (<code>RR-006</code>) — their SBOMs and provenance under
+    Be aware of what this does and does not prove. Checksums prove the bytes match the
+    manifest. From <code>1.0.0</code> on, the maintainer signs that manifest with a key held
+    offline, and the verifier refuses a release whose signature is missing, made by any
+    other key, or does not match (<code>RR-005</code>); it never trusts a key that came with
+    the download. <code>0.7.1</code> and <code>0.9.0</code> were published before signing
+    began, so for them it verifies the checksums and says the manifest is unsigned:
+  </p>
+  <pre><code><span class="out">SHA256SUMS is unsigned: releases before 1.0.0 were published unsigned (RR-005), so checksums prove the bytes match it, not who produced them.</span></code></pre>
+  <p>
+    A signature says who released the artifacts, not how they were built. The container
+    images are not byte-reproducible (<code>RR-006</code>) — their SBOMs and provenance under
     <code>docs/release/0.9.0/</code> record what one build produced.
   </p>
 </section>

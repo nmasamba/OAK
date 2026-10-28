@@ -67,7 +67,7 @@ make bootstrap
 make check          # with OAK_TEST_DATABASE_URL set: see CONTRIBUTING.md
 make scan-images
 make release
-make verify-release
+uv run python scripts/verify_release.py --checksums-only dist/release
 ```
 
 `make scan-images` builds both container images and scans them, failing on any **fixable**
@@ -100,7 +100,45 @@ git push origin v0.9.0
 
 That workflow runs `make check` before `make release`, against a migrated PostgreSQL service
 as CI does, so a release cannot be cut from a tree that fails the gate or skips the
-database suites, and separately builds the API and web images.
+database suites, and separately builds the API and web images. It verifies the artifacts
+against their checksums only (`--checksums-only`), because the signature is made after it.
+
+### Signing (from 1.0.0)
+
+From `1.0.0` on, the maintainer signs `SHA256SUMS` with an SSH key held offline, and
+`make verify-release` refuses a release without that signature (`RR-005`). No agent
+creates this key or signs anything; the steps are the maintainer's.
+
+1. **Once:** generate an Ed25519 key on a machine you control, protected by a passphrase,
+   and keep the private half offline:
+
+   ```bash
+   ssh-keygen -t ed25519 -C "OAK Community releases" -f ~/.ssh/oak-release
+   ```
+
+   Pin its public half in `keys/allowed_signers` as one line,
+   `<principal> <key type> <public key>` (for example
+   `nmasamba ssh-ed25519 AAAA…`), in a reviewed commit that lands before the `1.0.0` tag.
+   That file is the only key the verifier believes.
+2. **Each release:** after `release.yml` finishes, download its `release-artifacts`, check
+   them with `python3 scripts/verify_release.py --checksums-only <directory>`, then sign
+   the manifest in the namespace the verifier uses:
+
+   ```bash
+   ssh-keygen -Y sign -f ~/.ssh/oak-release -n oak-release SHA256SUMS
+   ```
+
+   This writes `SHA256SUMS.sig`. Run `make verify-release`'s check on the directory,
+   `python3 scripts/verify_release.py <directory>`, which must now say who signed it, and
+   attach `SHA256SUMS.sig` with the other files.
+3. **Rotating or revoking the key** is a reviewed change to `keys/allowed_signers`; a
+   release is verified against the file at its own tag.
+
+The signature binds who released the artifacts, not how they were built: it does not
+replace the reproducible build and the provenance above, and it publishes nothing to a
+third party. Sigstore through GitHub's artifact attestations was considered and not chosen
+for `1.0` (2026-10-28): it would write every release to a public transparency log, and its
+verification needs `gh` or `cosign` and a network.
 
 ## Verifying a release
 
@@ -118,34 +156,45 @@ shasum -a 256 -c SHA256SUMS
 
 OAK also ships a dependency-free verifier that behaves identically on both platforms and
 returns distinguishable exit codes (`0` verified, `2` mismatch, `3` manifest or file
-missing or malformed):
+missing or malformed, `4` signature missing, not verifying or not checkable):
 
 ```bash
-python3 scripts/verify_release.py <directory>
+python3 scripts/verify_release.py <directory> --allowed-signers keys/allowed_signers
 ```
 
 It needs no OAK installation and imports nothing from OAK, because a verifier you must
 install the software to run is not much use before you have decided to trust the
-software.
+software. Take `scripts/verify_release.py` and `keys/allowed_signers` from the repository
+at the release's tag, over a channel you trust independently of the download; from a
+checkout, `--allowed-signers` defaults to that file. Checking a signature needs
+`ssh-keygen` (OpenSSH 8.1 or later), which macOS and most Linux systems include.
 
 ### What verification proves, and what it does not
 
 Checksums prove that **the bytes you have are the bytes the manifest describes**.
 
-They do **not** prove **who produced them**. OAK Community release artifacts are
-**unsigned**. No maintainer signing key exists, and this release does not invent one:
-generating a key with no accountable human behind it would manufacture the appearance of
-assurance rather than the substance. An attacker who controls the channel you fetched
-from can replace the artifacts *and* the manifest together.
+**From `1.0.0` on, the signature proves who released them.** The verifier checks
+`SHA256SUMS.sig` with `ssh-keygen -Y verify`, in the `oak-release` namespace, against the
+key pinned in `keys/allowed_signers`, and never against a key inside the directory it is
+verifying. It fails closed: a missing signature, a file with no key pinned, a signature by
+another key, over another manifest or in another namespace, or no `ssh-keygen` to check it
+with, each refuses the release with exit `4`. A manifest naming no wheel, whose version
+cannot be read, must be signed too.
 
-So: obtain `SHA256SUMS` over a channel you trust independently of the artifacts, or
-compare against the digests published in the release notes. The refusal path is tested —
-`tests/integration/test_release_verification.py` tampers with an artifact, substitutes
-one of equal length, removes one, empties the manifest and points a manifest entry
-outside the download directory, and requires a non-zero exit for each.
+**`0.7.1` and `0.9.0` were published unsigned**, before signing began, and verify by
+checksum alone; the verifier says so. A signature beside one of them must still verify.
+For those two, obtain `SHA256SUMS` over a channel you trust independently of the
+artifacts, or compare against the digests published in the release notes: an attacker who
+controls the channel you fetched from can replace unsigned artifacts *and* their manifest
+together.
 
-Signing is a candidate for a future release. It needs a named key holder first; it is
-recorded as `RR-005` in [security/residual-risk.md](security/residual-risk.md).
+The refusal paths are tested: `tests/integration/test_release_verification.py` tampers with
+an artifact, substitutes one of equal length, removes one, empties the manifest, points a
+manifest entry outside the download directory, and, with throwaway keys generated in the
+test, signs with another key, in another namespace and over another manifest, pins no key,
+carries a key inside the release, and hides `ssh-keygen`, requiring a non-zero exit for
+each. `RR-005` in [security/residual-risk.md](security/residual-risk.md) records what stays
+open until the maintainer pins a key and signs `1.0.0`.
 
 ## Images
 
@@ -202,7 +251,8 @@ registry each remain a separate decision.
 Consequently there are published artifacts to substitute and a release page to
 poison, which is exactly why the verification instructions above matter: obtain
 `SHA256SUMS` over a channel you trust independently of the artifacts, and remember that
-checksums prove the bytes match the manifest, not who produced them (`RR-005`).
+checksums prove the bytes match the manifest, not who produced them (`RR-005`). From
+`1.0.0` on, a release also carries the maintainer's signature over `SHA256SUMS`.
 
 ## Release checklist
 
@@ -218,7 +268,11 @@ checksums prove the bytes match the manifest, not who produced them (`RR-005`).
       unreleased lists in `tests/unit/test_openapi_compatibility.py` emptied. Otherwise
       the gate goes on guarding an older release's contract
 - [ ] `make release` green, including its reproducibility and clean-install gates
-- [ ] `make verify-release` green
+- [ ] The `release.yml` artifacts verified against their checksums
+      (`scripts/verify_release.py --checksums-only`)
+- [ ] From `1.0.0`: `SHA256SUMS` signed by the maintainer with the key pinned in
+      `keys/allowed_signers` (`ssh-keygen -Y sign -n oak-release`), and
+      `python3 scripts/verify_release.py <directory>` green, naming the signer
 - [ ] Known limitations published and current
       ([security/residual-risk.md](security/residual-risk.md))
 - [x] Named maintainer, security and licence approvals recorded — see

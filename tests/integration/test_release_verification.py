@@ -26,9 +26,9 @@ EXIT_MALFORMED = 3
 pytestmark = pytest.mark.integration
 
 
-def _verify(directory: Path) -> subprocess.CompletedProcess[str]:
+def _verify(directory: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        [sys.executable, str(VERIFIER), str(directory)],
+        [sys.executable, str(VERIFIER), str(directory), *arguments],
         check=False,
         capture_output=True,
         text=True,
@@ -171,3 +171,222 @@ def test_the_verifier_never_claims_the_artifacts_are_signed(release: Path) -> No
 
     assert "unsigned" in result.stdout
     assert "signature" not in result.stdout.lower()
+
+
+# OAK-V1-027 (RR-005): from 1.0.0 the maintainer's SSH signature over SHA256SUMS is checked
+# against the pinned key and nothing else. No real key is created or used: every key here is
+# a throwaway generated inside the test.
+
+EXIT_SIGNATURE = 4
+
+
+def _key(directory: Path, name: str) -> Path:
+    directory.mkdir(parents=True, exist_ok=True)
+    key = directory / name
+    subprocess.run(
+        ["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-C", name, "-f", str(key)], check=True
+    )
+    return key
+
+
+def _pin(allowed: Path, key: Path, principal: str = "maintainer@example.invalid") -> Path:
+    public = key.with_suffix(".pub").read_text(encoding="utf-8").split()
+    allowed.write_text(f"# pinned\n{principal} {public[0]} {public[1]}\n", encoding="utf-8")
+    return allowed
+
+
+def _sign(release: Path, key: Path, namespace: str = "oak-release") -> None:
+    subprocess.run(
+        [
+            "ssh-keygen",
+            "-q",
+            "-Y",
+            "sign",
+            "-f",
+            str(key),
+            "-n",
+            namespace,
+            str(release / "SHA256SUMS"),
+        ],
+        check=True,
+        capture_output=True,
+    )
+
+
+@pytest.fixture
+def release_one(tmp_path: Path) -> Path:
+    """A well-formed 1.0.0 release directory, not yet signed."""
+
+    directory = tmp_path / "release-1.0.0"
+    directory.mkdir()
+    contents = {
+        "oak_community-1.0.0-py3-none-any.whl": b"wheel-bytes",
+        "oak_community-1.0.0.tar.gz": b"sdist-bytes",
+    }
+    lines = []
+    for name, payload in sorted(contents.items()):
+        (directory / name).write_bytes(payload)
+        lines.append(f"{hashlib.sha256(payload).hexdigest()}  {name}")
+    (directory / "SHA256SUMS").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return directory
+
+
+@pytest.fixture
+def maintainer(tmp_path: Path) -> tuple[Path, Path]:
+    key = _key(tmp_path / "keys", "maintainer")
+    return key, _pin(tmp_path / "keys" / "allowed_signers", key)
+
+
+def test_a_release_signed_by_the_pinned_key_verifies(
+    release_one: Path, maintainer: tuple[Path, Path]
+) -> None:
+    key, allowed = maintainer
+    _sign(release_one, key)
+
+    result = _verify(release_one, "--allowed-signers", str(allowed))
+
+    assert result.returncode == EXIT_OK, result.stderr
+    assert "signed by maintainer@example.invalid" in result.stdout
+    assert "UNLISTED" not in result.stderr
+
+
+def test_an_unsigned_release_from_1_0_0_on_is_refused(
+    release_one: Path, maintainer: tuple[Path, Path]
+) -> None:
+    result = _verify(release_one, "--allowed-signers", str(maintainer[1]))
+
+    assert result.returncode == EXIT_SIGNATURE
+    assert "must be signed" in result.stderr
+
+
+def test_a_signature_by_another_key_is_refused(
+    release_one: Path, maintainer: tuple[Path, Path], tmp_path: Path
+) -> None:
+    _sign(release_one, _key(tmp_path / "other", "impostor"))
+
+    result = _verify(release_one, "--allowed-signers", str(maintainer[1]))
+
+    assert result.returncode == EXIT_SIGNATURE
+    assert "does not verify" in result.stderr
+
+
+def test_a_signature_over_another_manifest_is_refused(
+    release_one: Path, maintainer: tuple[Path, Path]
+) -> None:
+    """Replacing an artifact and its manifest line together keeps the checksums whole."""
+
+    key, allowed = maintainer
+    _sign(release_one, key)
+    wheel = release_one / "oak_community-1.0.0-py3-none-any.whl"
+    wheel.write_bytes(b"other-wheel-bytes")
+    manifest = release_one / "SHA256SUMS"
+    manifest.write_text(
+        manifest.read_text(encoding="utf-8").replace(
+            hashlib.sha256(b"wheel-bytes").hexdigest(),
+            hashlib.sha256(b"other-wheel-bytes").hexdigest(),
+        ),
+        encoding="utf-8",
+    )
+
+    result = _verify(release_one, "--allowed-signers", str(allowed))
+
+    assert result.returncode == EXIT_SIGNATURE
+    assert "OK  oak_community-1.0.0-py3-none-any.whl" in result.stdout
+
+
+def test_a_signature_made_for_another_namespace_is_refused(
+    release_one: Path, maintainer: tuple[Path, Path]
+) -> None:
+    key, allowed = maintainer
+    _sign(release_one, key, namespace="file")
+
+    assert _verify(release_one, "--allowed-signers", str(allowed)).returncode == EXIT_SIGNATURE
+
+
+def test_with_no_key_pinned_a_signed_release_cannot_verify(
+    release_one: Path, maintainer: tuple[Path, Path]
+) -> None:
+    key, allowed = maintainer
+    _sign(release_one, key)
+    allowed.write_text("# no key pinned yet\n", encoding="utf-8")
+
+    result = _verify(release_one, "--allowed-signers", str(allowed))
+
+    assert result.returncode == EXIT_SIGNATURE
+    assert "no release signing key is pinned" in result.stderr
+
+
+def test_the_repository_pins_no_key_yet_so_a_1_0_0_release_cannot_verify(
+    release_one: Path, tmp_path: Path
+) -> None:
+    """Until the maintainer pins one when cutting 1.0.0, nothing from 1.0.0 verifies."""
+
+    _sign(release_one, _key(tmp_path / "anyone", "anyone"))
+
+    result = _verify(release_one)
+
+    assert result.returncode == EXIT_SIGNATURE
+
+
+def test_a_key_carried_inside_the_release_is_never_used(release_one: Path, tmp_path: Path) -> None:
+    key = _key(tmp_path / "attacker", "attacker")
+    _sign(release_one, key)
+    carried = _pin(release_one / "allowed_signers", key)
+
+    result = _verify(release_one, "--allowed-signers", str(carried))
+
+    assert result.returncode == EXIT_SIGNATURE
+    assert "cannot come from the release being verified" in result.stderr
+
+
+def test_a_release_before_1_0_0_verifies_unsigned_but_not_with_a_bad_signature(
+    release: Path, maintainer: tuple[Path, Path], tmp_path: Path
+) -> None:
+    """0.7.1 and 0.9.0 were published unsigned; a signature beside one must still verify."""
+
+    unsigned = _verify(release, "--allowed-signers", str(maintainer[1]))
+    assert unsigned.returncode == EXIT_OK, unsigned.stderr
+    assert "unsigned" in unsigned.stdout
+
+    _sign(release, _key(tmp_path / "other", "impostor"))
+    assert _verify(release, "--allowed-signers", str(maintainer[1])).returncode == EXIT_SIGNATURE
+
+
+def test_a_manifest_naming_no_wheel_must_be_signed(
+    release_one: Path, maintainer: tuple[Path, Path]
+) -> None:
+    """With no version to read, the signature is required: the rule fails closed."""
+
+    manifest = release_one / "SHA256SUMS"
+    lines = manifest.read_text(encoding="utf-8").splitlines()
+    manifest.write_text("\n".join(line for line in lines if ".whl" not in line) + "\n", "utf-8")
+    (release_one / "oak_community-1.0.0-py3-none-any.whl").unlink()
+
+    assert _verify(release_one, "--allowed-signers", str(maintainer[1])).returncode == (
+        EXIT_SIGNATURE
+    )
+
+
+def test_checksums_only_says_the_signature_was_not_checked(release_one: Path) -> None:
+    result = _verify(release_one, "--checksums-only")
+
+    assert result.returncode == EXIT_OK, result.stderr
+    assert "was not checked (--checksums-only)" in result.stdout
+
+
+def test_without_ssh_keygen_a_signature_cannot_be_checked(
+    release_one: Path, maintainer: tuple[Path, Path]
+) -> None:
+    key, allowed = maintainer
+    _sign(release_one, key)
+
+    result = subprocess.run(
+        [sys.executable, str(VERIFIER), str(release_one), "--allowed-signers", str(allowed)],
+        check=False,
+        capture_output=True,
+        text=True,
+        env={"PATH": "/nonexistent"},
+    )
+
+    assert result.returncode == EXIT_SIGNATURE
+    assert "ssh-keygen is needed" in result.stderr

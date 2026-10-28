@@ -646,14 +646,16 @@ standard library and needs no OAK installation. It exits `0` if everything verif
 on a mismatch, and `3` if the manifest or a file is missing or malformed:
 
 ```bash
-python3 scripts/verify_release.py ./downloaded-release
+python3 scripts/verify_release.py ./downloaded-release --allowed-signers keys/allowed_signers
 ```
 
-What that proves: the files you have are the files the manifest lists. What it **doesn't**
-prove: who made them. OAK Community release artifacts are **unsigned**, because no
-maintainer signing key exists and this release doesn't invent one. Get `SHA256SUMS`
-through a channel you trust independently of the downloads.
-[release-process.md](docs/release-process.md#verifying-a-release) has the details.
+What that proves: the files you have are the files the manifest lists, and, from `1.0.0`
+on, that the maintainer released them: it checks their SSH signature over `SHA256SUMS`
+against the key pinned in `keys/allowed_signers` (take both files from the repository at
+the release's tag) and refuses the release without it. `0.7.1` and `0.9.0` were published
+unsigned, so for those get `SHA256SUMS` through a channel you trust independently of the
+downloads. [release-process.md](docs/release-process.md#verifying-a-release) has the
+details.
 
 ## Licence
 
