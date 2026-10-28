@@ -20,14 +20,24 @@ from typing import Any
 import pytest
 
 from oak.adapters.report import PdfReportRenderer, pdf
-from oak.adapters.report.pdf import CONTENT_BOTTOM, PAGE_HEIGHT, paginate, pdf_text, wrap
+from oak.adapters.report.pdf import (
+    CONTENT_BOTTOM,
+    FONT_DIRECTORY,
+    FONT_FILES,
+    MONO,
+    PAGE_HEIGHT,
+    REPLACEMENT,
+    paginate,
+    pdf_text,
+    wrap,
+)
 from oak.domain import OAKError
 from oak.domain.report import MAXIMUM_RENDERING_BYTES, PDF_MEDIA_TYPE
 from tests.report_pdf_support import parse_pdf
 from tests.report_support import GOLDEN_REPORT, GOLDEN_RESEARCH_REPORT
 
 ROOT = Path(__file__).resolve().parents[2]
-STANDARD_FONTS = {"Helvetica", "Helvetica-Bold", "Helvetica-Oblique", "Courier"}
+VENDORED_FONTS = {"IBMPlexSans", "IBMPlexSans-Bold", "IBMPlexSans-Italic", "IBMPlexMono"}
 RENDER = (
     "import hashlib, json, sys; from oak.adapters.report import PdfReportRenderer; "
     "d = json.load(open(sys.argv[1])); "
@@ -105,10 +115,15 @@ def test_the_document_dates_are_the_reports_own(rendered: bytes) -> None:
     assert b"/Author (local-user)" in info
 
 
-def test_only_standard_fonts_are_named_and_none_is_embedded(rendered: bytes) -> None:
+def test_only_the_vendored_fonts_are_named_each_embedded_as_a_subset(rendered: bytes) -> None:
+    """OAK-V1-026 (RR-046): no standard font, so no reader substitutes its own."""
+
     parsed = parse_pdf(rendered)
-    assert parsed.fonts <= STANDARD_FONTS
-    assert b"/FontFile" not in rendered
+    assert parsed.fonts == VENDORED_FONTS
+    assert rendered.count(b"/FontFile2") == len(re.findall(rb"/BaseFont /[A-Z]{6}\+", rendered))
+    assert b"/ToUnicode" in rendered
+    assert b"Helvetica" not in rendered and b"Courier" not in rendered
+    assert b"oak-report-renderer 1.0.0, IBM Plex)" in parse_pdf(rendered).info
 
 
 def test_the_reference_pdf_is_well_under_four_mebibytes(rendered: bytes) -> None:
@@ -144,15 +159,48 @@ def test_a_malformed_document_is_a_render_error_not_a_crash() -> None:
     assert refused.value.code == "OAK-REPORT-RENDER"
 
 
-def test_characters_outside_the_standard_fonts_print_as_question_marks() -> None:
-    # Normalised first (NFKC), so an ellipsis becomes three full stops; Windows-1252
-    # punctuation such as the em dash and curly quotes survives.
+def test_latin_greek_and_cyrillic_print_and_anything_else_is_a_visible_replacement() -> None:
+    """OAK-V1-026 (RR-046): never `?`, never dropped; the JSON report keeps every character."""
+
+    # Normalised first (NFKC), so an ellipsis becomes three full stops.
     assert pdf_text("Café · 36 USD — “quoted” …") == "Café · 36 USD — “quoted” ..."
-    assert pdf_text("数据 → ≤ ✓") == "?? ? ? ?"
+    assert pdf_text("Ελληνικά Кириллица Łódź") == "Ελληνικά Кириллица Łódź"
+    assert pdf_text("数据 report") == f"{REPLACEMENT}{REPLACEMENT} report"
+    # Plex Mono has Cyrillic but no Greek.
+    assert pdf_text("Кириллица \u03b1", MONO) == f"Кириллица {REPLACEMENT}"
+    assert pdf_text("tab\tline\nbreak\x07") == f"tab line break{REPLACEMENT}"
     document = _golden()
-    document["sections"][0]["title"] = "数据 report"
+    document["sections"][0]["title"] = "数据 Ελληνικά Кириллица report"
     text = parse_pdf(PdfReportRenderer().render(document, PDF_MEDIA_TYPE)).page_texts[0]
-    assert "?? report" in text
+    assert f"{REPLACEMENT}{REPLACEMENT} Ελληνικά Кириллица report" in text
+
+
+def test_a_vendored_font_that_does_not_match_its_pin_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    for name in FONT_FILES.values():
+        (tmp_path / name[0]).write_bytes((FONT_DIRECTORY / name[0]).read_bytes())
+    tampered = tmp_path / FONT_FILES[MONO][0]
+    tampered.write_bytes(tampered.read_bytes() + b"\0")
+    monkeypatch.setattr(pdf, "FONT_DIRECTORY", tmp_path)
+    pdf.font_bytes.cache_clear()
+    pdf.coverage.cache_clear()
+    try:
+        with pytest.raises(OAKError) as refused:
+            PdfReportRenderer().render(_golden(), PDF_MEDIA_TYPE)
+        assert refused.value.code == "OAK-REPORT-RENDER"
+    finally:
+        pdf.font_bytes.cache_clear()
+        pdf.coverage.cache_clear()
+
+
+def test_the_vendored_fonts_ship_with_their_licence() -> None:
+    licence = (FONT_DIRECTORY / "OFL-1.1-IBM-Plex.txt").read_text(encoding="utf-8")
+    assert "SIL Open Font License, Version 1.1" in licence
+    assert {path.name for path in FONT_DIRECTORY.iterdir()} == {
+        *(file_name for file_name, _ in FONT_FILES.values()),
+        "OFL-1.1-IBM-Plex.txt",
+    }
 
 
 def test_long_tables_continue_with_their_header_repeated() -> None:
@@ -217,15 +265,16 @@ def test_wrapping_measures_each_character_once(monkeypatch: pytest.MonkeyPatch) 
         calls += 1
         return float(measure(text, font, size))
 
+    pdf.pin_reportlab_settings()
     monkeypatch.setattr(pdf, "stringWidth", counting)
     word = "x" * 12000
-    lines = wrap(word, "Helvetica", 10, 300)
+    lines = wrap(word, pdf.FONT, 10, 300)
     assert "".join(lines) == word
-    assert all(measure(line, "Helvetica", 10) <= 300 for line in lines)
+    assert all(measure(line, pdf.FONT, 10) <= 300 for line in lines)
     assert calls <= len(word) + 2
     calls = 0
     sentence = "Because the brief says so. " * 444
-    lines = wrap(sentence, "Helvetica", 10, 300)
+    lines = wrap(sentence, pdf.FONT, 10, 300)
     assert " ".join(lines).split() == sentence.split()
     assert calls <= len(sentence.split(" ")) + 2
 
@@ -265,7 +314,7 @@ def test_the_acceptance_report_renders_with_appendix_g_on_its_pages(
     assert "Balanced, new" in text
     assert "Claimed by release notes" in text
     assert len(parsed.pages) == len(paginate(golden))
-    assert parsed.fonts <= STANDARD_FONTS
+    assert parsed.fonts == VENDORED_FONTS
     assert len(rendered_research) <= MAXIMUM_RENDERING_BYTES
 
 

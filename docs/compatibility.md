@@ -92,6 +92,15 @@ mechanical migration; **breaking** otherwise.
   validate, and an export that holds a report cannot be imported by `0.9.0`.
   `report_rendering` is the second kind stored as bytes, beside `brief_source`, and is
   accepted only as a PDF.
+- The pre-1.0 assurance batch changes the bytes a report's PDF is drawn with, and only
+  those: it embeds IBM Plex subsets where it named the standard fonts, so Latin, Greek and
+  Cyrillic print and any other character prints as U+FFFD instead of `?`. The
+  `architecture_report` document, its schema and the renderer identity it records
+  (`oak-report-renderer 1.0.0`) are unchanged, so a report recorded before and one recorded
+  after can name the same renderer version and differ in their PDFs; the PDF's Creator says
+  which (", IBM Plex"). A recorded `report_rendering` is stored and served as recorded,
+  never drawn again, so every report recorded before the change still verifies against its
+  digest.
 - Sprint 14 (unreleased, ADR-0018) made an objective's `value` in `common.schema.json`
   nullable, with `unknown_reason` required exactly when it is null. Every stored document
   still validates, because the compiler writes a null only for a candidate that holds a

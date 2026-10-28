@@ -1,2 +1,4 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+# Vendored font files and their licence keep the exact bytes their pinned SHA-256 names.
+src/oak/adapters/report/fonts/** -text

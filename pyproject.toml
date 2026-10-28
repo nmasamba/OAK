@@ -11,7 +11,7 @@ description = "Local-first control plane for designing, evaluating, and planning
 readme = "README.md"
 requires-python = ">=3.13,<3.14"
 license = "Apache-2.0"
-license-files = ["LICENSE"]
+license-files = ["LICENSE", "src/oak/adapters/report/fonts/OFL-1.1-IBM-Plex.txt"]
 authors = [{ name = "OAK Community contributors" }]
 classifiers = [
   "Development Status :: 2 - Pre-Alpha",

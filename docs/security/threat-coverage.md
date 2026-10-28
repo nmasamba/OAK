@@ -129,7 +129,8 @@ register with an id.
 Sprint 13 added four register entries that this index had not mapped: `RR-044` (a recorded
 report reads like a recommendation; an honesty residual with no threat row), `RR-045` (an
 opt-in model note sends the slides' text; `TM-13`), `RR-046` (the PDF prints only
-Windows-1252 text and is untagged; no threat row) and `RR-047` (Pillow in the runtime
+Windows-1252 text and is untagged; no threat row; its Unicode clause closed by the pre-1.0
+assurance batch) and `RR-047` (Pillow in the runtime
 closure; `TM-15`). Sprint 14 adds `RR-048` to `RR-053` for research at the point of design
 (ADR-0018): `RR-048` to `RR-051` and `RR-053` are mapped in the gap table above, and `RR-052`
 (a fixture research source selectable by configuration) has no threat row. The 1.0

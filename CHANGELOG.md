@@ -62,6 +62,16 @@ Tier 2 of the owner's cost-benefit ranking of the backlog, launched on 2026-10-2
   and say so. `--checksums-only` skips the signature and says it did; the release workflow
   uses it, because the maintainer signs after that build. No key is pinned yet: the
   maintainer pins one and signs `1.0.0` (`docs/release-process.md`).
+- **The PDF prints Latin, Greek and Cyrillic** (`RR-046`'s Unicode clause; the owner
+  reversed Sprint 13's K5, "no font file ships", on 2026-10-28). The renderer embeds
+  subsets of IBM Plex Sans and Plex Mono, vendored under the SIL Open Font License 1.1 and
+  pinned by SHA-256; a character the drawing font lacks prints as U+FFFD instead of `?`.
+  **The PDF's bytes change**, and nothing else: the report document, its JSON golden and
+  the four reference digests do not move, and the renderer keeps its recorded identity
+  (`oak-report-renderer 1.0.0`) because that identity is part of the report document. The
+  PDF's Creator now ends ", IBM Plex". A report recorded before this change keeps the PDF
+  it was recorded with, which is stored and served as recorded. The PDF still has no
+  structure tree.
 - **A runner journal whose tail was cut is noticed** (`RR-054`). Every completion of a
   dispatch the runner took up names its journal's head, `journal_sequence` beside
   `journal_digest` (additive; a `0.9` runner's completion still ingests).

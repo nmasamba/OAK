@@ -477,9 +477,10 @@ uv run oak report --output ../report.json</code></pre>
     <code>local</code>, with <code>--record</code> (on its own it only earns a warning), also
     asks the model you configured for one short note per main slide,
     which the report prints under <em>Proposed by model</em> beside its own words; OAK drops
-    any note that claims an approval or holds a number its slide does not hold. The PDF uses
-    the standard Helvetica and Courier, so a character they lack prints as <code>?</code>; the
-    JSON document keeps every character.
+    any note that claims an approval or holds a number its slide does not hold. The PDF embeds
+    the IBM Plex fonts the workspace uses, so Latin, Greek and Cyrillic text prints as
+    written, and any other character prints as the replacement mark <code>�</code>; the JSON
+    document keeps every character.
   </p>
   <h2>Export and import</h2>
   <pre><code>uv run oak export --output ../case-export

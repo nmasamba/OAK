@@ -536,9 +536,10 @@ means:
   report is composed only from the case's records, and a reader may still take it for
   more than it is ([`RR-044`](docs/security/residual-risk.md)). An opt-in model note is
   checked against its slide but can still mislead within those checks
-  ([`RR-045`](docs/security/residual-risk.md)). The PDF prints only Windows-1252 text and
-  carries no accessibility tags ([`RR-046`](docs/security/residual-risk.md)); the JSON
-  keeps every character.
+  ([`RR-045`](docs/security/residual-risk.md)). The PDF prints Latin, Greek and Cyrillic
+  in the embedded IBM Plex fonts, shows any other character as �, and carries no
+  accessibility tags ([`RR-046`](docs/security/residual-risk.md)); the JSON keeps every
+  character.
 - **Research finds; it doesn't vouch.** A newer model or harness that research surfaces
   is shown with its source, its date and how each claim is backed, and nothing more: OAK
   quotes what the Hub, the router and GitHub publish and never checks it
