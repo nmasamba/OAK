@@ -3,7 +3,7 @@
 
 Six architecture ADRs were cited by shipped documentation — the tenant-isolation
 disclaimer leans on ADR-0012, the runner authority model on ADR-0015 — while their files
-existed only in the governance repository. A reader outside that repository could not
+existed only in the original spec repo. A reader outside that repository could not
 resolve the justification for exactly the claims that most needed one, which weakens the
 honesty those citations were supposed to support.
 """
@@ -68,7 +68,7 @@ def test_mirrored_architecture_adrs_declare_where_they_came_from() -> None:
     assert mirrored, "no mirrored architecture ADRs were found"
     for path in mirrored:
         header = path.read_text(encoding="utf-8")[:600]
-        assert "Mirrored from the OAK governance repository" in header, path.name
+        assert "Mirrored from OAK's original spec repo" in header, path.name
         assert "Do not edit this copy" in header, path.name
 
 
@@ -82,7 +82,7 @@ def test_the_adr_index_lists_every_adr_file() -> None:
             assert path.name in index, f"{path.name} is missing from the ADR index"
 
 
-def test_the_product_reference_exception_is_scoped_to_the_governance_mirror() -> None:
+def test_the_product_reference_exception_is_scoped_to_the_spec_mirror() -> None:
     """The mirror may name other distributions; nothing else may.
 
     `docs/adr/architecture/0012` is a decision record about the boundary between the
@@ -90,36 +90,36 @@ def test_the_product_reference_exception_is_scoped_to_the_governance_mirror() ->
     general licence for reader-facing documentation to advertise unshipped editions.
     """
 
-    from tools.check_repository import _is_governance_mirror
+    from tools.check_repository import _is_spec_mirror
 
-    assert _is_governance_mirror(Path("docs/adr/architecture/0012-control-plane-distributions.md"))
-    assert not _is_governance_mirror(Path("docs/adr/0002-release-versioning.md"))
-    assert not _is_governance_mirror(Path("README.md"))
-    assert not _is_governance_mirror(Path("docs/interfaces.md"))
+    assert _is_spec_mirror(Path("docs/adr/architecture/0012-control-plane-distributions.md"))
+    assert not _is_spec_mirror(Path("docs/adr/0002-release-versioning.md"))
+    assert not _is_spec_mirror(Path("README.md"))
+    assert not _is_spec_mirror(Path("docs/interfaces.md"))
 
 
-def test_a_mirrored_adr_still_matches_its_governance_source() -> None:
+def test_a_mirrored_adr_still_matches_its_spec_source() -> None:
     """A mirror that has drifted is worse than no mirror.
 
-    The header says the governance repository holds the authoritative copy and that this one
+    The header says the original spec repo holds the authoritative copy and that this one
     must not be edited — but nothing stopped the *source* changing and leaving the copy
-    behind, which is how it actually drifts. Editing ADR-0009 and ADR-0016 in the governance
-    tree during the Sprint 9 documentation sweep left both mirrors a paragraph short, and
+    behind, which is how it actually drifts. Editing ADR-0009 and ADR-0016 in the original spec
+    repo during the Sprint 9 documentation sweep left both mirrors a paragraph short, and
     every existing check here passed.
 
-    The governance repository sits beside this one and is not always present (a release
+    The original spec repo sits beside this one and is not always present (a release
     tarball, a shallow CI checkout of this repo alone), so this skips rather than fails when
     it is absent.
     """
 
-    governance = ROOT.parent / "docs" / "adr"
-    if not governance.is_dir():
-        pytest.skip("the governance repository is not checked out beside this one")
+    spec = ROOT.parent / "docs" / "adr"
+    if not spec.is_dir():
+        pytest.skip("the original spec repo is not checked out beside this one")
 
     drifted: list[str] = []
     checked = 0
     for mirror in sorted((ROOT / "docs" / "adr" / "architecture").glob("*.md")):
-        source = governance / mirror.name
+        source = spec / mirror.name
         if not source.is_file():
             continue
         checked += 1
@@ -134,6 +134,6 @@ def test_a_mirrored_adr_still_matches_its_governance_source() -> None:
 
     assert checked >= 5, f"only {checked} mirrors were compared; the layout has changed"
     assert not drifted, (
-        "these mirrored ADRs no longer match the governance copy they name as "
+        "these mirrored ADRs no longer match the original spec repo's copy they name as "
         f"authoritative; re-mirror them rather than editing the copy: {drifted}"
     )

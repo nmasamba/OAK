@@ -164,15 +164,16 @@ def _refusing(code: str):  # type: ignore[no-untyped-def]
     return urlopen
 
 
+@pytest.mark.parametrize("answer", ["OAK-CASE-NOT-FOUND", "OAK-WORKSPACE-NOT-FOUND"])
 def test_an_unknown_remote_case_is_the_case_not_found_code_and_names_the_case(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, answer: str
 ) -> None:
+    """A server answers the case code (OAK-V1-017); a `0.9` server, the workspace code."""
+
     from oak.domain import OAKError
     from oak.interfaces.cli.remote import RemoteClient
 
-    monkeypatch.setattr(
-        "oak.interfaces.cli.remote.urllib.request.urlopen", _refusing("OAK-WORKSPACE-NOT-FOUND")
-    )
+    monkeypatch.setattr("oak.interfaces.cli.remote.urllib.request.urlopen", _refusing(answer))
     client = RemoteClient("http://127.0.0.1:9")
     for call in (
         lambda: client.get_case("design-case.absent"),

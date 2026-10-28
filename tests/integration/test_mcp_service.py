@@ -187,5 +187,5 @@ def test_mcp_stale_version_and_unknown_case_fail_with_stable_codes(tmp_path: Pat
     assert stale["retriable"] is True
 
     missing = client.call_error("oak_design_case_get", {"case_id": "design-case.absent"})
-    assert missing["code"] == "OAK-WORKSPACE-NOT-FOUND"
+    assert missing["code"] == "OAK-CASE-NOT-FOUND"
     assert missing["message"] == "The requested resource was not found."

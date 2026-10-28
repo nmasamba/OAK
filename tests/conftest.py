@@ -24,6 +24,10 @@ import pytest
 from oak import bootstrap
 from oak.adapters.credentials import keychain_store
 
+# Every PostgreSQL-gated test skips with this reason when OAK_TEST_DATABASE_URL is unset,
+# and a skip looks exactly like a pass in pytest's summary line.
+DATABASE_SKIP_REASON = "OAK_TEST_DATABASE_URL is required"
+
 # An import that cannot resolve, so every keychain operation reports
 # OAK-MODEL-KEYCHAIN-UNAVAILABLE instead of reaching a real keychain.
 INERT_KEYCHAIN_MODULE = "oak_tests_no_such_keyring_module"
@@ -45,6 +49,23 @@ def _isolated_model_state(
     # test may make it: the wiring gets a verifier that answers honestly that it did not ask.
     # A test about verification injects its own verifier or patches this one.
     monkeypatch.setattr(bootstrap, "model_verifier", _no_network_verifier)
+
+
+def pytest_terminal_summary(terminalreporter: pytest.TerminalReporter) -> None:
+    """Say how many PostgreSQL-gated tests a run skipped, so a skip is not read as a pass."""
+
+    skipped = sum(
+        1
+        for report in terminalreporter.stats.get("skipped", [])
+        if DATABASE_SKIP_REASON in str(report.longrepr)
+    )
+    if skipped:
+        terminalreporter.write_line(
+            f"PostgreSQL-gated tests skipped: {skipped} (OAK_TEST_DATABASE_URL is not set). "
+            "A sprint's closing gate must run them; see CONTRIBUTING.md.",
+            yellow=True,
+            bold=True,
+        )
 
 
 def _no_network_verifier(

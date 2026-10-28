@@ -8,6 +8,7 @@ implementation. The REST API and worker therefore invoke the same commands as th
 from __future__ import annotations
 
 import base64
+import functools
 import os
 import re
 import tempfile
@@ -60,6 +61,28 @@ OutboxStoreFactory = Callable[[str], OutboxStore]
 CaseDirectoryFactory = Callable[[str], CaseDirectoryPort]
 MAXIMUM_PORTABLE_EXPORT_BYTES = 67_108_864
 DIGEST_PATTERN = re.compile(r"^sha256:([a-f0-9]{64})$")
+
+
+def _case_scoped[**P, R](method: Callable[P, R]) -> Callable[P, R]:
+    """Answer a case id the server does not hold with the case code, on every interface.
+
+    Each server case is stored as its own workspace, so a well-formed id that names no
+    stored case reaches the store, which answers `OAK-WORKSPACE-NOT-FOUND`: the local
+    CLI's code for "no workspace here", whose remedy (`oak init`) is wrong for a server.
+    A malformed id already answered `OAK-CASE-NOT-FOUND`; this makes a well-formed one
+    answer it too, on either store, for REST, MCP and the remote CLI alike.
+    """
+
+    @functools.wraps(method)
+    def scoped(*args: P.args, **kwargs: P.kwargs) -> R:
+        try:
+            return method(*args, **kwargs)
+        except OAKError as error:
+            if error.code != "OAK-WORKSPACE-NOT-FOUND":
+                raise
+            raise OAKError("OAK-CASE-NOT-FOUND", "design case was not found") from error
+
+    return scoped
 
 
 @dataclass(frozen=True, slots=True)
@@ -154,6 +177,7 @@ class CommunityControlPlane:
             raise OAKError("OAK-CASE-CONFLICT", "workspace contains a different design case")
         return result
 
+    @_case_scoped
     def get_design_case(self, case_id: str, *, tenant_id: str) -> DesignResult:
         service = self._design_for_case(case_id, tenant_id)
         result = service.current()
@@ -165,6 +189,7 @@ class CommunityControlPlane:
             raise OAKError("OAK-DIRECTORY-UNAVAILABLE", "design-case directory is unavailable")
         return self._case_directory_factory(tenant_id).list_cases()
 
+    @_case_scoped
     def list_audit_events(self, case_id: str, *, tenant_id: str) -> tuple[dict[str, Any], ...]:
         repository = self._repository_for_case(case_id, tenant_id)
         self._verify_case(case_id, self._require_case(repository))
@@ -185,6 +210,7 @@ class CommunityControlPlane:
         events.sort(key=lambda event: int(event["sequence"]))
         return tuple(events)
 
+    @_case_scoped
     def resolve_interpreter(self, case_id: str, *, tenant_id: str, interpreter: str) -> str:
         """The mode this case and request will run in; reads only."""
 
@@ -192,6 +218,7 @@ class CommunityControlPlane:
         self._verify_case(case_id, service.current().case)
         return service.resolve_interpreter(interpreter)
 
+    @_case_scoped
     def interpret(
         self, case_id: str, context: CommandContext, *, interpreter: str = "deterministic"
     ) -> DesignResult:
@@ -199,6 +226,7 @@ class CommunityControlPlane:
         self._verify_case(case_id, service.current().case)
         return service.interpret(context, interpreter=interpreter)
 
+    @_case_scoped
     def confirm(
         self,
         case_id: str,
@@ -209,11 +237,13 @@ class CommunityControlPlane:
         self._verify_case(case_id, service.current().case)
         return service.confirm(answers, context)
 
+    @_case_scoped
     def list_candidates(self, case_id: str, *, tenant_id: str) -> tuple[dict[str, Any], ...]:
         planning = self._planning_for_case(case_id, tenant_id)
         self._verify_case(case_id, self.get_design_case(case_id, tenant_id=tenant_id).case)
         return planning.list_candidates()
 
+    @_case_scoped
     def architecture(
         self,
         case_id: str,
@@ -234,6 +264,7 @@ class CommunityControlPlane:
 
         return ReportService.resolve_narrative(narrative)
 
+    @_case_scoped
     def record_report(
         self,
         case_id: str,
@@ -248,6 +279,7 @@ class CommunityControlPlane:
             context, narrative=narrative
         )
 
+    @_case_scoped
     def select_candidate(
         self,
         case_id: str,
@@ -259,6 +291,7 @@ class CommunityControlPlane:
         self._verify_case(case_id, self.get_design_case(case_id, tenant_id=context.tenant_id).case)
         return planning.select(candidate_id, rationale, context)
 
+    @_case_scoped
     def create_assurance_plan(
         self,
         case_id: str,
@@ -269,6 +302,7 @@ class CommunityControlPlane:
         self._verify_case(case_id, self.get_design_case(case_id, tenant_id=context.tenant_id).case)
         return planning.assure(candidate_id, context)
 
+    @_case_scoped
     def list_artifacts(self, case_id: str, *, tenant_id: str) -> tuple[dict[str, Any], ...]:
         repository = self._repository_for_case(case_id, tenant_id)
         self._verify_case(case_id, self._require_case(repository))
@@ -280,6 +314,7 @@ class CommunityControlPlane:
             )
         )
 
+    @_case_scoped
     def read_artifact(
         self,
         case_id: str,
@@ -315,6 +350,7 @@ class CommunityControlPlane:
             content=repository.read_artifact(reference),
         )
 
+    @_case_scoped
     def export_design_case(self, case_id: str, *, tenant_id: str) -> dict[str, Any]:
         repository = self._repository_for_case(case_id, tenant_id)
         self._verify_case(case_id, self._require_case(repository))
@@ -434,9 +470,11 @@ class CommunityControlPlane:
 
     # ----- research at the point of design (Sprint 14, ADR-0018) ----------------------
 
+    @_case_scoped
     def research_plan(self, case_id: str, *, tenant_id: str) -> ResearchPlan:
         return self._research_service(self._workspace_id(case_id), tenant_id).plan()
 
+    @_case_scoped
     def submit_research(
         self, case_id: str, consent: dict[str, Any], context: CommandContext
     ) -> OperationSubmission:
@@ -467,6 +505,7 @@ class CommunityControlPlane:
             check=service.check_state,
         )
 
+    @_case_scoped
     def review_research_item(
         self,
         case_id: str,
@@ -482,6 +521,7 @@ class CommunityControlPlane:
         )
         return service.review(context, item_id=item_id, decision=decision, rationale=rationale)
 
+    @_case_scoped
     def submit_generate_candidates(
         self, case_id: str, context: CommandContext
     ) -> OperationSubmission:
@@ -492,6 +532,7 @@ class CommunityControlPlane:
             context=context,
         )
 
+    @_case_scoped
     def submit_evaluate_candidate(
         self, case_id: str, candidate_id: str, context: CommandContext
     ) -> OperationSubmission:
@@ -502,6 +543,7 @@ class CommunityControlPlane:
             context=context,
         )
 
+    @_case_scoped
     def submit_compile_bundle(
         self,
         case_id: str,

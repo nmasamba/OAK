@@ -5,6 +5,8 @@ import json
 import re
 from pathlib import Path
 
+import pytest
+
 from tools.check_toolchains import _npm_version, check, runtime_failures
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -359,4 +361,37 @@ def test_ci_database_image_drift_from_compose_is_rejected(tmp_path: Path) -> Non
     assert pinned in text
     compose.write_text(text.replace(pinned, "postgres:17.6-alpine@sha256:fe"), encoding="utf-8")
 
-    assert "CI workflow: the database service must run compose.yaml's postgres image" in check(tree)
+    failures = check(tree)
+    assert "CI workflow: the database service must run compose.yaml's postgres image" in failures
+    assert "release workflow: the database service must run compose.yaml's postgres image" in (
+        failures
+    )
+
+
+@pytest.mark.parametrize("dropped", ["OAK_TEST_DATABASE_URL:", "oak-db-migrate"])
+def test_a_release_gate_that_would_skip_the_database_suites_is_rejected(
+    tmp_path: Path, dropped: str
+) -> None:
+    """OAK-V1-018: the release gate is the last check before artifacts; it runs them too."""
+
+    tree = _mirror(ROOT, tmp_path)
+    workflow = tree / ".github/workflows/release.yml"
+    text = workflow.read_text(encoding="utf-8")
+    assert dropped in text
+    workflow.write_text(text.replace(dropped, "OAK_UNUSED"), encoding="utf-8")
+
+    assert (
+        "release workflow: the PostgreSQL-gated suites must run "
+        "(OAK_TEST_DATABASE_URL and oak-db-migrate)"
+    ) in check(tree)
+
+
+def test_a_release_gate_without_the_runner_journeys_image_is_rejected(tmp_path: Path) -> None:
+    tree = _mirror(ROOT, tmp_path)
+    workflow = tree / ".github/workflows/release.yml"
+    text = workflow.read_text(encoding="utf-8")
+    stand_in = "docker.io/rancher/mirrored-pause@sha256:"
+    assert f"docker pull {stand_in}" in text
+    workflow.write_text(text.replace(f"docker pull {stand_in}", f"echo {stand_in}"), "utf-8")
+
+    assert "release workflow: the gate must fetch the image CI's runner journeys use" in check(tree)

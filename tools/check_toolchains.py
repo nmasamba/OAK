@@ -73,6 +73,21 @@ def _pinned_actions(text: str, source: str, failures: list[str]) -> dict[str, st
     return actions
 
 
+def _check_database_suites(
+    text: str, label: str, compose_image: str | None, failures: list[str]
+) -> None:
+    """A gate runs the PostgreSQL-gated suites on the database image compose.yaml pins."""
+
+    service = re.search(r"^        image: (postgres:\S+)$", text, flags=re.MULTILINE)
+    if compose_image is not None and (service is None or service.group(1) != compose_image):
+        failures.append(f"{label}: the database service must run compose.yaml's postgres image")
+    if "OAK_TEST_DATABASE_URL:" not in text or "oak-db-migrate" not in text:
+        failures.append(
+            f"{label}: the PostgreSQL-gated suites must run "
+            "(OAK_TEST_DATABASE_URL and oak-db-migrate)"
+        )
+
+
 def _load_package(text: str, failures: list[str]) -> dict[str, Any]:
     try:
         value = json.loads(text)
@@ -241,20 +256,18 @@ def check(root: Path = ROOT) -> list[str]:
     if "node-version-file: .node-version" not in workflow:
         failures.append("CI workflow: Node must come from .node-version")
 
-    # The PostgreSQL-gated suites skip silently without OAK_TEST_DATABASE_URL, so a CI run
+    # The PostgreSQL-gated suites skip silently without OAK_TEST_DATABASE_URL, so a gate
     # that stops setting it, or skips the migration, would go green on nothing (RR-019).
-    # The service runs the very image compose.yaml pins.
+    # CI's gate and the release gate both run them, on the very image compose.yaml pins.
     compose_postgres = re.search(r"^    image: (postgres:\S+)$", compose, flags=re.MULTILINE)
-    ci_postgres = re.search(r"^        image: (postgres:\S+)$", workflow, flags=re.MULTILINE)
-    if compose_postgres is not None and (
-        ci_postgres is None or ci_postgres.group(1) != compose_postgres.group(1)
-    ):
-        failures.append("CI workflow: the database service must run compose.yaml's postgres image")
-    if "OAK_TEST_DATABASE_URL:" not in workflow or "oak-db-migrate" not in workflow:
-        failures.append(
-            "CI workflow: the PostgreSQL-gated suites must run "
-            "(OAK_TEST_DATABASE_URL and oak-db-migrate)"
-        )
+    compose_image = compose_postgres.group(1) if compose_postgres is not None else None
+    _check_database_suites(workflow, "CI workflow", compose_image, failures)
+    _check_database_suites(release_workflow, "release workflow", compose_image, failures)
+    # The real-daemon runner journeys skip unless their stand-in image is cached, so the
+    # release gate fetches the image CI's does.
+    ci_pull = re.search(r"^ +(?:- )?run: (docker pull \S+)$", workflow, flags=re.MULTILINE)
+    if ci_pull is not None and ci_pull.group(1) not in release_workflow:
+        failures.append("release workflow: the gate must fetch the image CI's runner journeys use")
 
     # The release builder must be the pinned builder. A release produced by a different
     # uv than the one CI and the container use is not the artifact anyone reviewed.

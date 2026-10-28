@@ -2,8 +2,8 @@
 
 # OAK-S14-001–007: Research at the point of design
 
-**Authorized by the owner on 2026-10-21** by launching `SPRINT-14-PROMPT.md` (governance
-root) and answering its four kickoff questions, plus one follow-up on Q4. The prompt is
+**Authorized by the owner on 2026-10-21** by launching `SPRINT-14-PROMPT.md` (original spec
+repo) and answering its four kickoff questions, plus one follow-up on Q4. The prompt is
 the specification; this plan records the owner's answers, the design choices the prompt
 left open, and the proof for each milestone.
 
@@ -18,7 +18,7 @@ is a release.
 | Q1 | Sources (K1, K6) | **Hugging Face and GitHub, anonymous**, within a 30-request budget and a 24-hour cache | The adapter's allowlist is exactly `huggingface.co`, `router.huggingface.co` and `api.github.com`. No token is stored; GitHub's anonymous 60-an-hour core bucket is the budget's ceiling. |
 | Q2 | New repositories (K2) | **Two tiers** | The Hub's `TRUSTED_NAMESPACES` and the owner-reviewed `harness-repositories.yaml` pass the tier gate on their own. Anything else a bounded search finds is *unvetted* and enters a design only after `:review-research-item` records an accept with a rationale. The harness list is drafted here and goes to the owner in the PR; until reviewed, only the trusted namespaces form the trusted tier. |
 | Q3 | When (K3, K7) | **Per run, at `ready_for_candidates` only**, behind a consent card; off by default | `research_catalogue` is refused from `candidates_ready` on (`OAK-RESEARCH-STATE`, 409). The consent is `{hosts, terms_digest}` recomputed from the current intent. A recorded report can never go stale through research. |
-| Q4 | Designs (K4, K5) | First **"selectable once reviewed"**; on the follow-up, **the compare-only rule now, selection next sprint** | Unknown estimates in the compiler (`value: null` with `unknown_reason`); one researched design per pattern with a model role (at most two), `candidate-05` upward, labelled "Balanced, new" / "High assurance, new"; listed `infeasible` with every reason and its estimates, refused by `select`; and the compare-only rule (below), recorded in ADR-0018. Sprint 15 (selection) is registered in the governance `sprints.md` with its prerequisites. |
+| Q4 | Designs (K4, K5) | First **"selectable once reviewed"**; on the follow-up, **the compare-only rule now, selection next sprint** | Unknown estimates in the compiler (`value: null` with `unknown_reason`); one researched design per pattern with a model role (at most two), `candidate-05` upward, labelled "Balanced, new" / "High assurance, new"; listed `infeasible` with every reason and its estimates, refused by `select`; and the compare-only rule (below), recorded in ADR-0018. Sprint 15 (selection) is registered in the original spec repo's `sprints.md` with its prerequisites. |
 
 **The Q4 follow-up.** "Selectable once reviewed" conflicts with the prompt's §7 ("a
 researched design is shown with its reasons and never selected") and needs an evaluation
@@ -55,7 +55,7 @@ guards, one acceptance case and one browser spec.
 
 ## Recipes and requirements
 
-From the governance `skills.md`: **Model provider integration** (the egress, the one
+From the original spec repo's `skills.md`: **Model provider integration** (the egress, the one
 transport, what leaves the machine; read first: ADR-0009, ADR-0016,
 `docs/adr/0003-optional-model-provider-credentials.md`, TM-13, TM-20, `RR-042`,
 `tests/integration/test_offline_boundary.py`); **Governed pack** (untrusted component
@@ -229,10 +229,10 @@ Each milestone ends with one commit, its exit check green and a line under Progr
 ### Milestone 0 — Kickoff (`OAK-S14-001`)
 
 - Work: the ground check, the truth pass (Sprint 13 merged), the answers, Sprint 14
-  registered in governance, the branch, this plan, tasks claimed, the throwaway stack
+  registered in the original spec repo, the branch, this plan, tasks claimed, the throwaway stack
   `oak-s14` on 18080/15174.
 - Proof: `pnpm --dir web build` green; `journey.spec.ts` green on the throwaway stack.
-- Rollback: delete the branch; the governance edits are plain text.
+- Rollback: delete the branch; the original spec repo's edits are plain text.
 
 ### Milestone 1 — The decision record (`OAK-S14-001`)
 
@@ -240,12 +240,12 @@ Each milestone ends with one commit, its exit check green and a line under Progr
   line and the mirrored-from comment; rows in both indexes); the egress line in
   `AGENTS.md` and `docs/build/security-invariants.md`; TM-02/04/13/14/17 extended and
   `threat-coverage.md` rows; `RR-048` onward with the count updated in `STATUS.md`,
-  `CHANGELOG.md`, the register and the governance `STATUS.md`; Sprint 13's disclosure
+  `CHANGELOG.md`, the register and the original spec repo's `STATUS.md`; Sprint 13's disclosure
   gaps; `capabilities.yaml`, the hardware classes, `bindings/`, the draft `licences.yaml`
   (seeded from `PERMISSIVE_LICENCES`) and `harness-repositories.yaml`; the derived-terms
   function (`oak.compiler.research_terms` or similar, pure) with tests over every
   committed brief's intent and `tests/fixtures/research/intents/`.
-- Proof: governance validation green; the terms function emits only vocabulary terms over
+- Proof: the original spec repo's validation green; the terms function emits only vocabulary terms over
   every intent (the S2 check).
 - Rollback: revert the commit.
 
@@ -387,12 +387,12 @@ Each milestone ends with one commit, its exit check green and a line under Progr
 
 - [x] 2026-10-21 M0: ground check (origin/main `671d4a4`, no open PR, `0.9.0` latest, CI
   green on `main`, ports free, Docker 29.8.1); truth pass on `STATUS.md` and the Sprint 13
-  plan; the four answers and the Q4 follow-up; Sprint 14 registered in the governance
-  `sprints.md` with its authorization paragraph and Sprint 15 listed; governance at
+  plan; the four answers and the Q4 follow-up; Sprint 14 registered in the original spec repo's
+  `sprints.md` with its authorization paragraph and Sprint 15 listed; the original spec repo at
   `0.4.0-draft.14`; branch `sprint-14-research`; this plan; tasks claimed; the throwaway
   stack `oak-s14` healthy on 18080/15174; `pnpm --dir web build` green.
 - [x] 2026-10-21 M0 exit: `journey.spec.ts` green on the throwaway stack (1 passed, 16.7 s).
-- [x] 2026-10-21 M1: ADR-0018 in the governance tree and mirrored (both indexes, the
+- [x] 2026-10-21 M1: ADR-0018 in the original spec repo and mirrored (both indexes, the
   traceability row); the egress rule in `AGENTS.md` and `security-invariants.md` now covers
   research sources; `TM-02`, `TM-04`, `TM-13` (rewritten), `TM-14` and `TM-17` extended in
   place, line numbers unchanged; `RR-048`–`RR-053` (register at 53, quoted in both `STATUS.md`
@@ -402,7 +402,7 @@ Each milestone ends with one commit, its exit check green and a line under Progr
   two bindings) read by `ResearchVocabularyLoader`; `oak.compiler.derive_research_terms`
   with `terms_digest` and `classify_hardware`; `tests/unit/test_research_terms.py` (35) over
   the reference brief's intent, the example intent and four synthetic intents; `make
-  validate`, the unit and contract suites and governance validation green.
+  validate`, the unit and contract suites and the original spec repo's validation green.
 - [x] 2026-10-21 M2: `research-snapshot` and `research-review` schemas (`0.1.0`) with
   examples, registered in `EXAMPLE_BY_SCHEMA`, `schemas/README.md`, both kind tables, the
   workspace-manifest enum and the export-lineage check (`oak.community/research_snapshot_ref`,
@@ -593,7 +593,7 @@ Each milestone ends with one commit, its exit check green and a line under Progr
   §7 and needs an evaluation path that does not exist. One follow-up question offered:
   shown now and selectable next sprint; the compare-only rule now and selectable next; or
   selectable this sprint with the acceptance case rewritten. The owner chose the
-  compare-only rule now and selection as Sprint 15, which is registered in the governance
+  compare-only rule now and selection as Sprint 15, which is registered in the original spec repo's
   `sprints.md` with its prerequisites (a declarations review, an evaluation path for
   non-curated ids, installation image mapping, what `approved_for_context` requires).
 - 2026-10-21 M0, the compare-only rule's shape (to be recorded in ADR-0018 at M1 and built
@@ -748,7 +748,7 @@ determinism?
   bounded reader. (2) No claim exists yet; the hardware class `unknown` carries its meaning
   in the ADR and the docstring. (3) What leaves the machine is now defined, as data and a
   pure function, and nothing can send it yet: no transport call exists. The egress rule in
-  both governance files was widened on purpose, and the deterministic path imports nothing
+  both original spec repo files was widened on purpose, and the deterministic path imports nothing
   new.
 - **M2.** (1) No pinned name changed: the four reference digests, the case digest and the
   report golden are byte-identical, and every curated reason, label and id is as before.

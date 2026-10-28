@@ -55,7 +55,7 @@ def test_the_backstage_yaml_examples_parse_and_carry_no_credentials() -> None:
     for name in names:
         text = (BACKSTAGE / name).read_text(encoding="utf-8")
         documents = [document for document in yaml.safe_load_all(text) if document is not None]
-        # Single-document files only: the governance validator rejects multi-document
+        # Single-document files only: the original spec repo's validator rejects multi-document
         # YAML anywhere in the tree.
         assert len(documents) == 1, name
         assert isinstance(documents[0], dict), name

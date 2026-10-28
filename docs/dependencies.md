@@ -243,6 +243,53 @@ remove `reportlab` from `pyproject.toml` and `uv lock`. Recording a report then 
 
 ## Maintenance reviews
 
+### 2026-10-27 msgpack 1.2.1 to 1.2.3 (development only)
+
+On 2026-10-27 `pip-audit` began reporting `CVE-2026-114613` (`GHSA-j586-36cw-2gc2`,
+published that day) against the locked `msgpack` 1.2.1: its C extension leaks memory
+without bound when map-key validation or a container hook fails. It is fixed in 1.2.3.
+`make audit` had passed in CI on 2026-10-26, and failed on both of PR #40's runs the next
+day.
+
+`msgpack` is **not** in the runtime closure. `uv tree --no-dev --invert --package msgpack`
+finds no path to it. It reaches the development environment only through `cachecontrol`,
+which `pip-audit` uses for its cache, as `filelock` below does, so neither the wheel nor an
+image carries it, and nothing OAK runs imports it.
+
+`uv lock --upgrade-package 'msgpack==1.2.3'` moved nothing else. It takes 1.2.3, the
+release that carries the fix (2026-09-29), rather than the newest, 1.2.4: that was
+published on 2026-10-26, a day before the advisory, and changes only the behaviour of the
+pure-Python fallback, which nothing here needs. Checked for 1.2.3:
+- **Licence:** still Apache-2.0.
+- **Supported Python:** 3.10 and later, covering the pinned 3.13.12.
+- **Compatibility:** `cachecontrol` 0.14.4 accepts any `msgpack` from 0.5.2 to below 2.0
+  and calls only `msgpack.dumps` and `msgpack.loads`. `make audit` ran `pip-audit`, cache
+  included, on 1.2.3.
+
+No advisory was suppressed and no `pip-audit` ignore list was introduced.
+
+### 2026-10-26 filelock 3.32.3 to 4.2.4 (development only)
+
+On 2026-10-26 `pip-audit` began reporting three advisories against the locked `filelock`
+3.32.3: `CVE-2026-112907`, `CVE-2026-112913` and `CVE-2026-112940`, all fixed in 4.2.1.
+`make audit` had passed on 2026-10-23, and CI runs it on every push.
+
+`filelock` is **not** in the runtime closure. `uv tree --no-dev --invert --package filelock`
+finds no path to it. It reaches the development environment only through `cachecontrol`'s
+`filecache` extra, which `pip-audit` uses for its cache, so neither the wheel nor an image
+carries it, and nothing OAK runs imports it.
+
+The upgrade was taken anyway, as for `urllib3` below. `uv lock --upgrade-package filelock`
+moved nothing else, and took 4.2.4, the newest release: 4.2.2 to 4.2.4 followed the fix
+within two days and fix regressions in it. Checked for 4.2.4:
+- **Licence:** still MIT.
+- **Supported Python:** 3.11 and later, covering the pinned 3.13.12.
+- **Compatibility:** `cachecontrol` 0.14.4 sets no upper bound and takes only `FileLock`.
+  The 4.0.0 breaking change is confined to `SoftReadWriteLock`'s on-disk protocol, which
+  nothing here uses. `make audit` ran `pip-audit`, cache included, on 4.2.4.
+
+No advisory was suppressed and no `pip-audit` ignore list was introduced.
+
 ### 2026-10-15 source-map-js 1.2.1 to 1.2.2 (web build tooling only)
 
 `pnpm audit --audit-level=high` began failing on GHSA-68fv-2mgg-jv7q, an event-loop

@@ -157,6 +157,13 @@ mechanical migration; **breaking** otherwise.
   migrated), where it answered `200` whenever the database answered. The contract and the
   response shapes are unchanged; a deployment that runs `oak-db-migrate` first, as the
   Compose stack does, sees no difference.
+- The follow-ups to that batch change one error answer. **Breaking for a client that
+  matched the code:** a well-formed case id the server does not hold answers
+  `OAK-CASE-NOT-FOUND` on every case route, where it answered `OAK-WORKSPACE-NOT-FOUND`;
+  a malformed one already answered `OAK-CASE-NOT-FOUND`. The status (`404`) and the
+  opaque `detail` are unchanged, so a client that branches on the status sees no
+  difference. `OAK-WORKSPACE-NOT-FOUND` keeps one meaning, no workspace at a location,
+  which only the local CLI reports.
 - Until the baseline was refreshed after `0.9.0` was cut, it still held its Sprint 3
   contents. It did not guard the eight `/v1/models` operations. Nor did it guard two
   operations `0.7.1` published: the case list (`GET /v1/design-cases`) and the audit
@@ -257,8 +264,9 @@ mechanical migration; **breaking** otherwise.
     directory, exit `2` with `OAK-VALIDATE-KIND`, where they exited `2` with
     `OAK-VALIDATE-UNSAFE-PATH` and `OAK-VALIDATE-MALFORMED`.
   - Remote mode reports a case the server does not hold as `OAK-CASE-NOT-FOUND` (exit `2`),
-    naming it, where it printed the server's `OAK-WORKSPACE-NOT-FOUND`; REST and MCP are
-    unchanged. A `--server` URL may end in `/v1`.
+    naming it, where it printed the server's `OAK-WORKSPACE-NOT-FOUND`; REST and MCP
+    answer the same code since the follow-ups to that batch. A `--server` URL may end in
+    `/v1`.
   - `oak policy evaluate --engine opa` refuses an `opa` older than `1.0.0`, or one that
     reports no version, with `OAK-POLICY-ENGINE-UNAVAILABLE`.
   - `oak policy packs` no longer needs a workspace, and `oak models set-key` refuses an
@@ -286,6 +294,10 @@ mechanical migration; **breaking** otherwise.
   Sprint 10 closed it to `deterministic` | `online` | `local`. Its default is
   deterministic, so a client written against the previous registry gets exactly the
   previous behaviour; a model is called only when a client opts in.
+- **Breaking for a client that matched the code:** since the follow-ups to the pre-1.0
+  engineering batch, every tool that takes a `case_id` answers `OAK-CASE-NOT-FOUND` for a
+  case the server does not hold, as REST does, where it answered
+  `OAK-WORKSPACE-NOT-FOUND`. The result stays an error with the opaque message.
 
 ## Runner protocol
 

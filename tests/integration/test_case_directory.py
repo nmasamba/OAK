@@ -211,6 +211,7 @@ async def test_audit_trail_returns_ordered_events_and_hides_missing_cases(
         missing = await client.get("/v1/design-cases/design-case.missing/audit")
         assert missing.status_code == 404
         assert missing.headers["content-type"].startswith(PROBLEM_MEDIA_TYPE)
+        assert missing.json()["code"] == "OAK-CASE-NOT-FOUND"
 
 
 def test_audit_trail_is_available_from_the_file_repository(tmp_path: Path) -> None:

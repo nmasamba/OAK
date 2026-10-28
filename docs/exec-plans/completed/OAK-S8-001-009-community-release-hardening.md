@@ -539,7 +539,7 @@ as not-a-defect).
   depth.** Two data points cannot distinguish linear from super-linear growth. A third
   point would need a workspace builder that produces arbitrary revision depth, which does
   not exist; worth building before anyone claims a supported workspace size.
-- **`docs/traceability.md` in the governance repository cites evidence fixtures
+- **`docs/traceability.md` in the original spec repo cites evidence fixtures
   (`security-*`, `poison-*`, `licence-*`, `reg-*`, `EV-SEC`, `EV-TEN`, `EV-LIC`, `EV-DEP`)
   that exist nowhere in the implementation.** Not touched by this sprint, but it points at
   named security evidence a reader cannot find, which undermines the map exactly where it

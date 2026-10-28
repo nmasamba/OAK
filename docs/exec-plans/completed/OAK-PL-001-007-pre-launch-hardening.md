@@ -291,7 +291,7 @@ was used for every per-milestone verification below.
   register (`RR-035` style; count stays 38); refresh `RR-036` from the rescan; finalize the
   draft `0.7.1` release decision (evidence table, digest before/after, an explicit
   resolution of the `0.7.0` record's count illegibility) ending at **awaiting owner
-  approval**; update `STATUS.md`, `CHANGELOG.md`; update the governance repository's
+  approval**; update `STATUS.md`, `CHANGELOG.md`; update the original spec repo's
   `STATUS.md` (including its header-date drift and the "How to resume" contradiction) and
   `security-invariants.md`.
 - Proof: `make check` green (the count gate, version binding and error-reference staleness
@@ -507,18 +507,18 @@ observed immediately during Milestone 3.
   `README.md`/`SECURITY.md`/`docs/README.md` reference `0.7.1` and the draft decision;
   ADR-0002's "the bump cannot shift any canonical digest" is scoped to the `0.7.0`
   bump with the `0.7.1` digest-shifting re-cut recorded; `architecture.md` and the
-  governance `interface-contract` gain the three new runner checks (policy clauses,
-  registry allowlist, resolved-digest admission) — governance `interface-contract.md`
+  the original spec repo's `interface-contract` gain the three new runner checks (policy clauses,
+  registry allowlist, resolved-digest admission) — the original spec repo's `interface-contract.md`
   pending in this batch; `compiler-flow.md` cross-references the enforced policy;
   `schemas/README.md` cites both target fixtures; `STATUS.md`'s error-code claim is
-  corrected to "245 of the 265 codes that existed at `0.7.0`". Governance repo:
+  corrected to "245 of the 265 codes that existed at `0.7.0`". Original spec repo:
   `SECURITY.md` and `architecture.md` versions, `docs/roadmap.md`'s spent
   `OAK-S8-009` clause, and `docs/traceability.md`'s phantom fixture globs (an S8
   discovery never actioned) replaced with real evidence or explicit "none — planned".
   Deferred deliberately: scan-dependent repoints (`operations.md:42`,
   `SECURITY.md:89-92`, `dependencies.md` scan link) to M8 after the rescan;
   residual-risk entry rewrites and `threat-coverage.md` TM-08 to the register
-  close-out; governance `STATUS.md`/`IMPLEMENT.md` to the final close-out so they are
+  close-out; the original spec repo's `STATUS.md`/`IMPLEMENT.md` to the final close-out so they are
   written once, describing the finished state. Verified: `validate_repository`,
   `check_repository`, `check_toolchains` and all 124 contract tests green.
 - [x] 2026-08-24 M8 (`OAK-PL-007`, RR-038 + RR-036 rescan): `scripts/scan_images.py`
@@ -537,7 +537,7 @@ observed immediately during Milestone 3.
   zero fixable findings; the rebased unprivileged web image reports **no findings at
   any severity**; the API residue is the identical unfixable 3 CRITICAL / 14 HIGH
   that `RR-036` records, plus 8 UNKNOWN entries the scanner database now carries
-  without severity. `make audit` re-run clean at `0.7.1`. Governance
+  without severity. `make audit` re-run clean at `0.7.1`. The original spec repo's
   `security-invariants.md` supply-chain gap rewritten as closed. `make release`
   verified still Docker-free. Scan-dependent doc statements repointed
   (`operations.md`, `SECURITY.md`, `dependencies.md`). Full `make check` green
@@ -557,7 +557,7 @@ observed immediately during Milestone 3.
   discharged conditions. `CHANGELOG.md` `0.7.1` completed (Security/Added/Changed).
   `OAKCommunity/STATUS.md`: seven `OAK-PL` rows in claimed work, a hardening evidence
   block, the safety-boundary paragraph extended with the three new runner controls,
-  and the next-task line reduced to audit + PR + owner approval. Governance repo:
+  and the next-task line reduced to audit + PR + owner approval. Original spec repo:
   `STATUS.md` header/phase/next-task rewritten (date drift and the "How to resume"
   contradiction fixed), `IMPLEMENT.md` hand-off updated so a fresh agent cannot redo
   landed work.
@@ -699,7 +699,7 @@ manual pass over the unjudged remainder); 8 were refuted.
   the mutation-target semantic manifest also shift; stated fully now); the licence
   approval row claimed "no dependency changed" while the web base image publisher
   changed and `pnpm-lock.yaml` now locks the Node runtime — both now recorded in a
-  `docs/dependencies.md` maintenance review; the governance `STATUS.md` dropped the
+  `docs/dependencies.md` maintenance review; the original spec repo's `STATUS.md` dropped the
   audit/PR steps from its next-task line.
 
 ### Confirmed as designed, no change

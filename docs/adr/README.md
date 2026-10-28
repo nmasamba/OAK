@@ -16,7 +16,7 @@ Decisions about how *this repository* is built. Owned here.
 
 ## Architecture decisions (`architecture/`)
 
-Decisions about what OAK *is*, taken in the OAK governance repository, which holds the
+Decisions about what OAK *is*, taken in OAK's original spec repo, which holds the
 authoritative copies. The ones cited by shipped documentation are mirrored here verbatim
 so that a reader who has only this repository can follow the reference — a load-bearing
 justification a reader cannot resolve is worse than no citation.
@@ -34,7 +34,7 @@ justification a reader cannot resolve is worse than no citation.
 | [0017](architecture/0017-acknowledged-local-installation.md) | Install the chosen architecture only after two approvals, and start it only where the operator acknowledges it | Why an install needs an `architecture` approval as well as an `apply` approval, and why a target profile may start containers only from images it acknowledges, under the runner's fixed hardening flags ([signed-runner.md](../signed-runner.md), `RR-043`) |
 | [0018](architecture/0018-research-at-the-point-of-design.md) | Research at the point of design reaches comparison, never approval | Why a researched model or harness is shown with its evidence class and compared, but never approved or selected; which three hosts research may read and what leaves the machine; the two tiers, the research gates and the fixture source (`RR-048`–`RR-053`); the user-facing account is [docs/research.md](../research.md) |
 
-**Do not edit the mirrored copies.** Change the governance repository and re-mirror. They
+**Do not edit the mirrored copies.** Change the original spec repo and re-mirror. They
 carry a header saying so. A contract test
 (`tests/contract/test_adr_references.py`) fails if a shipped document cites an ADR that
 does not resolve to a file here.
@@ -42,7 +42,7 @@ does not resolve to a file here.
 ## Citing an ADR
 
 **The two series share a number space, so a bare number is ambiguous.** `ADR-0002` is
-"release versioning" here and "modular monolith" in the governance repository. Cite with a
+"release versioning" here and "modular monolith" in the original spec repo. Cite with a
 link, not a number. Shipped documents do not yet all follow this — `extension-sdk.md`, `dependencies.md`, `interfaces.md`, `architecture.md`, `platforms.md`, `compatibility.md`, `docs/README.md`, `security/residual-risk.md` and `security/threat-coverage.md` still cite the architecture series by bare number, and `tests/contract/test_adr_references.py` checks resolution, not disambiguation, so nothing catches it. New citations use the link form:
 
 Link the number to its file rather than writing the number alone. From a document in
@@ -55,15 +55,15 @@ Link the number to its file rather than writing the number alone. From a documen
 
 `tests/contract/test_adr_references.py` checks that every cited number *resolves to a
 file*; it cannot tell which series a bare number meant. The completed exec plans under
-`docs/exec-plans/` predate the mirror and cite the governance series by bare number — they
+`docs/exec-plans/` predate the mirror and cite the original spec repo's series by bare number — they
 are historical records and are excluded from the check for that reason, but a bare
-`ADR-0002` in one of them means the governance ADR, not this repository's.
+`ADR-0002` in one of them means the original spec repo's ADR, not this repository's.
 
 ## Writing a new one
 
 Implementation decisions go in this directory with the next number in the implementation
 series. Anything that changes what OAK is — a contract, a trust boundary, a distribution
-boundary — belongs in the governance repository instead.
+boundary — belongs in the original spec repo instead.
 
 Follow ADR-0002's shape where the decision warrants it: Status, Date, Owners, Requirement IDs, Context, Decision,
 Alternatives (with the reason each was rejected), Consequences, Revisit triggers. The

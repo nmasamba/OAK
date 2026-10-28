@@ -3,7 +3,7 @@
 # OAK-S11-001–008: install the chosen architecture, test it, record what was observed
 
 **Authorized by the owner on 2026-09-29.** The owner asked for the sprint in
-`SPRINT-11-PROMPT.md` (governance root) to be planned and implemented, with two additions:
+`SPRINT-11-PROMPT.md` (original spec repo) to be planned and implemented, with two additions:
 
 1. **Nothing is installed until the user has approved the architecture *and* the installation
    step**, as two separate approvals.
@@ -179,7 +179,7 @@ Requirements served:
 - `OAK-FR-ARC-006` (predictions compared with observations)
 - `OAK-FR-IMP-001` (the "observe" stage only; nothing downstream of it)
 - `EV-DEP-01`, `EV-DEP-02` and `EV-DEP-03`
-- The calibration list in governance `docs/evaluation-contract.md:111-123`
+- The calibration list in the original spec repo's `docs/evaluation-contract.md:111-123`
 
 ## Scope
 
@@ -280,12 +280,12 @@ Requirements served:
 
 - **Work:**
   - The branch and this plan.
-  - Sprint 11 registered in governance `sprints.md` from the backlog block, adjusted for the
+  - Sprint 11 registered in the original spec repo's `sprints.md` from the backlog block, adjusted for the
     owner's answers.
-  - Governance `STATUS.md` and `spec-manifest.yaml` updated.
+  - The original spec repo's `STATUS.md` and `spec-manifest.yaml` updated.
   - Tasks claimed in `OAKCommunity/STATUS.md`.
 - **Proof:** a baseline `make check` with PostgreSQL enabled on a throwaway database
-  (`oak-s11-testpg`, `127.0.0.1:15433`), with zero `make: ***` lines. The governance validator
+  (`oak-s11-testpg`, `127.0.0.1:15433`), with zero `make: ***` lines. The original spec repo's validator
   is clean.
 - **Rollback:** documentation only.
 
@@ -411,7 +411,7 @@ Requirements served:
   - `make check` with PostgreSQL enabled.
   - The real-daemon journey on the owner's machine, with the transcript below.
   - `make web-e2e` against a throwaway Compose project.
-  - `make validate`, `make openapi-compatibility` and the governance validator.
+  - `make validate`, `make openapi-compatibility` and the original spec repo's validator.
   - A multi-lens adversarial audit covering:
     - runner changes;
     - the architecture approval;
@@ -430,9 +430,9 @@ Requirements served:
   - `RR-023` re-scored;
   - threat-coverage verdicts, and the stale `STATUS.md` tally;
   - `docs/signed-runner.md`, the manual, the tour, the README and the interface contract;
-  - governance ADR-0017 and its mirror;
+  - the original spec repo's ADR-0017 and its mirror;
   - `evidence/sources.yaml` for the stand-in image.
-- **Proof:** the governance validator, `make check`, and the sweep table in this plan.
+- **Proof:** the original spec repo's validator, `make check`, and the sweep table in this plan.
 
 ### Milestone 9 — Close (`OAK-S11-008`)
 
@@ -557,13 +557,13 @@ the one `0.8.0` set (PR #23, `OAK-S10-008`).
 
 - [x] 2026-09-29 Branch `sprint-11-install-observe` from `origin/main` (`3f47312`); prompt claims verified by five read-only readers; the owner's four answers recorded.
 - [x] 2026-09-29 Baseline gates at `3f47312`, PostgreSQL suites on a throwaway database (`oak-s11-testpg`, `127.0.0.1:15433`): validate, format, lint, typecheck green; 667 unit and contract passed; integration 276 passed, 4 skipped — three PostgreSQL tests first failed because the fresh database had no schema, and passed after `oak-db-migrate`; 42 e2e passed (the docker apply cycle ran against the local daemon); `openapi-compatibility` and `web-build` green.
-- [x] 2026-09-29 Sprint 11 registered in governance `sprints.md`; governance `STATUS.md`, `spec-manifest.yaml`, `VERSION`, `README.md` and `CHANGELOG.md` at `0.4.0-draft.7`; governance validator passes; tasks claimed in `STATUS.md`.
+- [x] 2026-09-29 Sprint 11 registered in the original spec repo's `sprints.md`; the original spec repo's `STATUS.md`, `spec-manifest.yaml`, `VERSION`, `README.md` and `CHANGELOG.md` at `0.4.0-draft.7`; the original spec repo's validator passes; tasks claimed in `STATUS.md`.
 - [x] 2026-09-29 Milestone 2 (`48a7157`): `architecture` approval action in `approval`/`revocation` schemas, `APPROVAL_ACTIONS`, gitops and CLI help; `approve apply` refuses without a current architecture approval (`OAK-APPROVAL-ARCHITECTURE`); dispatch attaches both for `apply`; runner step 9 requires both and checks the approval's decision and installation digests against the dispatched bundle and plan; rollback/destroy approvals recordable at `deployed`/`observing`, others refused there; case-version-scoped default idempotency keys for approve and dispatch; a renewed approval is a successor version. `tests/integration/test_architecture_approval.py` (7). Mutation checks: 4/4 killed (apply without architecture, dispatch without it, runner without it, runner binding ignored).
 - [x] 2026-09-29 Milestones 3 and 4, landed as one commit (`08e1098`) because the smoke test lives inside `apply` (owner answer 2): container adapter `0.2.0` with the node-list parameter schema; `container_name_for`; `execution.component_images` and the hardened-start acknowledgement in the target-profile schema; `preflight.installation` and the superseded-pair refusal in the compiler (mutation targets only); runner `_check_installation` (case, target, derived names, acknowledged images, isolation, registry per container); idempotent create/adopt, foreign denial, owned-only verified removal with `--volumes`, self-compensation of exactly what was created; hardened start, bounded readiness with settle, `docker stats` memory; evidence kept on failure; key-based and URL-credential redaction; lease-deadline guard; `requested_kinds`/`failed_kind` in the completion payload. Tests: unit `test_runner_adapters.py` (rewritten, 50+ cases), `test_runner_evidence_redaction.py`, integration `test_topology_install.py` (17); `test_reference_digests.py` unchanged and green. Mutation checks: 21/21 killed after one survivor (the runner's `case_id` binding, masked by the name check) got its own test. Real daemon: `test_runner_journey.py` apply/rollback green; a manual hardened-start run reached `deployed` with both containers `ro=true net=none caps=[ALL] user=65534:65534 mem=268435456 pids=64 no-new-privileges log=none restart=no mounts=0`, smoke test 0.11–0.13 s, ~500 KiB each; rollback left zero containers.
 - [x] 2026-09-29 Milestone 5 (`eaa44dd`): `observation-record` schema `0.1.0` and example (recorded by `oak observe` from a real-daemon run), `observation_record` kind, `observation_recorded` audit event; the pure builder `oak.compiler.observation` scoring `EV-DEP-01/02/03` and the smoke test from accepted completions, one calibration row per objective and contract metric (all `unknown` with a reason code today), unpredicted startup and memory measurements, and the `evidence.observed-calibration` status naming what is missing; `ReleaseService.record_observation` and local-only `oak observe`; `deployed → observing`. Tests: `tests/unit/test_observation_builder.py` (15), `tests/integration/test_install_lifecycle.py` (5, the real `run_once` path with a scripted daemon), remote refusal of `observe` and `approve architecture`. The builder tests caught one real defect before commit: a candidate predicting none of the four calibrated measures read as "satisfied"; an unpredicted measure now counts as missing. Mutation checks: 11/11 killed after one survivor (a denied completion's guard) got a sharper assertion.
 - [x] 2026-09-29 Milestone 6 (`1169b8e`): `oak architecture` (local, and remote over the existing GET routes with digest verification; `tests/integration/test_remote_cli.py`); the assurance text correction under the declared digest shift (`deployment_bundle` `570abb66…` → `9da17d02…`, `runner_plan` `fad30959…` → `03c4541a…`, case `f54f3419…` → `61cee339…`; candidate and semantic unchanged), signed examples regenerated with `scripts/generate_examples.py`; BundlePage reads signature, approvals, runner results and observations, CasePage keeps the bundle link past `bundle_compiled`; the real-daemon e2e runs the whole exit demonstration (architecture, apply refused without the architecture approval, install, hardened containers running, idempotent re-apply, observe, rollback, observe again, zero containers) and skips only when `docker info` does not answer. Default idempotency keys for approve and dispatch now carry the case version.
-- [x] 2026-09-29 Milestone 7 (test sweep and audit): full `make check` with PostgreSQL green at `57342ea` (752 unit+contract earlier 727, 305 integration + 4 skipped, 43 e2e including the real-daemon exit demonstration, OpenAPI compatibility, web build); six-lens adversarial audit (29 raised, 28 survived refutation, all fixed in `20bc6f7` with regression tests; mutation checks on the fixes: 24/24 killed after two tests were sharpened); full `make check` green again after the fixes (752 unit+contract, 313 integration + 4 skipped, 43 e2e, zero `make: ***`); `make web-e2e` against the throwaway Compose project `oak-s11-web` (23 passed, the manual-capture spec skipped as designed); the web e2e specs typechecked with a scratch tsconfig; governance validator green.
-- [x] 2026-09-29 Milestone 8 (documentation and coherence, both repositories): a four-reader corpus sweep (145 proposals, verified against the code before each edit) applied by three editors plus the security/status slice by hand (`2b194bb`); `RR-043` added and the count moved to 43 in its two pinned places; `RR-013`, `RR-023` (re-scored: reachable now, key-based redaction), `RR-003`, `RR-031` rewritten; threat coverage `TM-02`, `TM-05`, `TM-08`, `TM-11`, `TM-18`, `TM-19` updated; governance ADR-0017 and its mirror; the manual's chapter 6 gains an install-test-observe section run verbatim against Docker, its screenshots recaptured from the throwaway stack and the PDF rebuilt (`03f413d`); governance `0.4.0-draft.8`.
+- [x] 2026-09-29 Milestone 7 (test sweep and audit): full `make check` with PostgreSQL green at `57342ea` (752 unit+contract earlier 727, 305 integration + 4 skipped, 43 e2e including the real-daemon exit demonstration, OpenAPI compatibility, web build); six-lens adversarial audit (29 raised, 28 survived refutation, all fixed in `20bc6f7` with regression tests; mutation checks on the fixes: 24/24 killed after two tests were sharpened); full `make check` green again after the fixes (752 unit+contract, 313 integration + 4 skipped, 43 e2e, zero `make: ***`); `make web-e2e` against the throwaway Compose project `oak-s11-web` (23 passed, the manual-capture spec skipped as designed); the web e2e specs typechecked with a scratch tsconfig; the original spec repo's validator green.
+- [x] 2026-09-29 Milestone 8 (documentation and coherence, both repositories): a four-reader corpus sweep (145 proposals, verified against the code before each edit) applied by three editors plus the security/status slice by hand (`2b194bb`); `RR-043` added and the count moved to 43 in its two pinned places; `RR-013`, `RR-023` (re-scored: reachable now, key-based redaction), `RR-003`, `RR-031` rewritten; threat coverage `TM-02`, `TM-05`, `TM-08`, `TM-11`, `TM-18`, `TM-19` updated; the original spec repo's ADR-0017 and its mirror; the manual's chapter 6 gains an install-test-observe section run verbatim against Docker, its screenshots recaptured from the throwaway stack and the PDF rebuilt (`03f413d`); the original spec repo's `0.4.0-draft.8`.
 - [x] 2026-09-29 Milestone 9 (close): plan moved to `completed/`, both `STATUS.md` files and changelogs updated, branch pushed and PR opened; the merge is the owner's. No tag, no release.
 - [x] 2026-09-30 PR #30 merged by the owner (`cb28160`, CI green on both checks, the real-daemon journey included), who then asked for the release to be cut.
 - [x] 2026-09-30 Milestone 10 (`OAK-S11-009`), branch `release-0.9.0`:

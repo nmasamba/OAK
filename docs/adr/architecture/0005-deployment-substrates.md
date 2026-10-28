@@ -1,6 +1,6 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <!--
-  Mirrored from the OAK governance repository, which holds the authoritative copy.
+  Mirrored from OAK's original spec repo, which holds the authoritative copy.
   It is reproduced here so that citations in shipped documentation resolve for a
   reader who has only this repository. Do not edit this copy; see docs/adr/README.md.
 -->

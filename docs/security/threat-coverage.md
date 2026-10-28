@@ -4,7 +4,7 @@
 
 Which tests exercise which threat, and — more usefully — which threats nothing exercises.
 
-The governance threat model defines twenty threats, `TM-01` to `TM-20`; `TM-20` is new in
+The original spec repo's threat model defines twenty threats, `TM-01` to `TM-20`; `TM-20` is new in
 Sprint 9, with the optional model provider that made it reachable. Before this
 release nothing connected them to the test suite: the string `TM-` appeared in three
 completed sprint plans and in **zero** test files, so coverage was rediscovered by hand
@@ -22,7 +22,7 @@ Verdict tally: **10 direct, 9 partial, 1 structural, 0 none.**
 
 Every test function cited below was verified to exist in the tree at the time of writing;
 a citation to a test that does not exist would make this document worse than nothing. The
-line number after each threat is its row in the governance `docs/threat-model.md`.
+line number after each threat is its row in the original spec repo's `docs/threat-model.md`.
 
 **This index is not an audit.** It records what the project tested itself. No external
 security review was commissioned for this release (`RR-028`).

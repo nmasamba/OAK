@@ -2,8 +2,8 @@
 
 # OAK-S12-001–007: OAK Studio, direction A ("Instrument")
 
-**Authorized by the owner on 2026-10-15** by launching `SPRINT-12-PROMPT.md` (governance
-root) and answering its four kickoff questions. The owner chose the look and the shape on
+**Authorized by the owner on 2026-10-15** by launching `SPRINT-12-PROMPT.md` (original spec
+repo) and answering its four kickoff questions. The owner chose the look and the shape on
 2026-10-12; this plan builds it faithfully, cheaply and correctly, and moves no boundary.
 
 Execution is on branch `sprint-12-instrument-ui`, branched from `origin/main` at `50f1673`
@@ -144,7 +144,7 @@ curl -sS "$OAK_API_BASE_URL/v1/design-cases/<id>/architecture?format=yaml" -D - 
   `X-Content-Type-Options: nosniff`, `Cache-Control: no-store`. Listed in
   `UNRELEASED_OPERATIONS`/`UNRELEASED_SCHEMAS` in
   `tests/unit/test_openapi_compatibility.py`; rows in `docs/interfaces.md` and the
-  governance `docs/build/interface-contract.md`; a CHANGELOG entry. The compatibility
+  the original spec repo's `docs/build/interface-contract.md`; a CHANGELOG entry. The compatibility
   baseline is not rewritten.
 - **Schemas, canonical objects, persistence, events, CLI, MCP:** none. Checked: the route
   composes from objects the case already holds.
@@ -330,7 +330,7 @@ Rollback is a revert of the branch. The throwaway stack is removed at the end wi
   returns the document with `Content-Disposition: attachment`, `nosniff` and
   `Cache-Control: no-store`; listed as unreleased (operation and its `ArchitectureFormat`
   schema) in `tests/unit/test_openapi_compatibility.py`; rows in `docs/interfaces.md` and
-  the governance `docs/build/interface-contract.md`; the changelog entry. The generator
+  the original spec repo's `docs/build/interface-contract.md`; the changelog entry. The generator
   gained `getArtifactBytes` (raw bytes plus the digest header) and
   `getArchitectureDocument`, both GET; the OpenAPI document and client regenerated with
   no Prettier drift. In the web: `downloads.ts` hashes the fetched bytes with

@@ -330,8 +330,8 @@ def test_remote_state_denials_surface_the_stable_codes(
         again = _invoke(live_server.url, *argv)
         assert again.exit_code == 0, (argv, _all_output(again))
 
-    # The server stores each case as a workspace and answers OAK-WORKSPACE-NOT-FOUND; the
-    # remote CLI reports it as the local CLI does, naming the case (OAK-V1-013).
+    # The server answers OAK-CASE-NOT-FOUND with an opaque detail (OAK-V1-017); the remote
+    # CLI names the case, as the local CLI does (OAK-V1-013).
     unknown = _invoke(live_server.url, "questions", "design-case.absent")
     assert unknown.exit_code == 2
     assert "OAK-CASE-NOT-FOUND" in _all_output(unknown)
