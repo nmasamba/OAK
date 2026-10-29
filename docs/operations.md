@@ -633,7 +633,7 @@ Global toolchain caches are shared with other projects and are **not** OAK's to 
 them yourself.
 
 The same applies to the third-party images OAK causes Docker to pull: `postgres:17.6-alpine`,
-`python:3.13.12-slim`, `node:24.18.0-alpine`, `nginxinc/nginx-unprivileged:1.29.1-alpine`,
+`python:3.13.12-slim`, `node:24.18.0-alpine`, `nginxinc/nginx-unprivileged:1.30.6-trixie`,
 `ghcr.io/astral-sh/uv:0.10.8` (a build stage of the API image),
 `docker.io/rancher/mirrored-pause:3.10` (pinned by digest; pulled when `oak-runner` installs
 from a shipped mutation profile, and by the Docker-gated end-to-end tests), and

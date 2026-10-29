@@ -179,8 +179,8 @@ def test_web_runtime_base_unpinning_is_rejected(tmp_path: Path) -> None:
     dockerfile = tree / "deploy/images/web.Dockerfile"
     dockerfile.write_text(
         re.sub(
-            r"^FROM nginxinc/nginx-unprivileged:(\d+\.\d+\.\d+)-alpine@sha256:[a-f0-9]{64}$",
-            r"FROM nginxinc/nginx-unprivileged:\1-alpine",
+            r"^FROM nginxinc/nginx-unprivileged:(\d+\.\d+\.\d+)-trixie@sha256:[a-f0-9]{64}$",
+            r"FROM nginxinc/nginx-unprivileged:\1-trixie",
             dockerfile.read_text(encoding="utf-8"),
             flags=re.MULTILINE,
         ),
@@ -836,9 +836,9 @@ def test_a_gate_that_could_pass_without_proving_its_claim_is_rejected(
         ),
         (
             "deploy/images/web.Dockerfile",
-            "COPY deploy/nginx/default.conf",
-            "RUN apk upgrade --no-cache\nCOPY deploy/nginx/default.conf",
-            "deploy/images/web.Dockerfile: no build-time package change; re-pin the base instead",
+            "ARG DEBIAN_SNAPSHOT=20261029T000000Z",
+            "ARG DEBIAN_SNAPSHOT=20261001T000000Z",
+            "deploy/images: both Dockerfiles must name one DEBIAN_SNAPSHOT date",
         ),
         (
             ".github/workflows/release.yml",
@@ -865,8 +865,8 @@ def test_a_gate_that_could_pass_without_proving_its_claim_is_rejected(
 def test_an_image_build_that_cannot_prove_it_reproduces_is_rejected(
     tmp_path: Path, relative: str, original: str, replacement: str, failure: str
 ) -> None:
-    """OAK-V1-035 (RR-006): the dated snapshot, the source date, no build-time change on
-    Alpine, and each workflow building both images twice."""
+    """OAK-V1-035 (RR-006): one dated snapshot in both Dockerfiles, the source date, and each
+    workflow building both images twice."""
 
     tree = _mirror(ROOT, tmp_path)
     path = tree / relative

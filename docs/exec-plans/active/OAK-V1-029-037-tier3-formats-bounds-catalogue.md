@@ -529,7 +529,9 @@ that a `0.9.0` workspace needs.
   through a rewrite of the base's `debian.sources`, apt run with `Check-Valid-Until` off
   and retries, apt's, dpkg's and ldconfig's clock-stamped files removed; the user created
   with `--no-log-init`, `chage --lastday 2026-01-01` and the account-file backups removed.
-  `web.Dockerfile`: no `apk upgrade`. `scripts/reproduce_images.py` builds each Dockerfile
+  `web.Dockerfile`: the trixie variant of the unprivileged nginx image, the same snapshot
+  rewrite and cleanup under `USER root`, then `USER nginx` again.
+  `scripts/reproduce_images.py` builds each Dockerfile
   twice (`--build-arg SOURCE_DATE_EPOCH=<the commit's time>`,
   `--output type=docker,rewrite-timestamp=true`, the second build `--no-cache`), compares
   the image IDs and writes the record; the release `images` job runs it for `linux/amd64`
@@ -537,17 +539,21 @@ that a `0.9.0` workspace needs.
   carries `reproducibility` and claims `byte_reproducible` only from a matching record;
   CI's `check-linux-arm64` job runs it for `linux/arm64`; both on
   `moby/buildkit:v0.34.0@sha256:b059f8d7…` through the buildx container driver.
-  `tools/check_toolchains.py` requires the snapshot and source-date arguments, no
-  `apk upgrade`, one pinned BuildKit in both workflows, the twice-built proof in both jobs
-  and the record handed to the scan. Proof: locally, on a container-driver builder running
+  `tools/check_toolchains.py` requires one snapshot date in both Dockerfiles, the
+  source-date argument, one pinned BuildKit in both workflows, the twice-built proof in
+  both jobs and the record handed to the scan. Proof: locally, on a container-driver builder running
   the pinned BuildKit, both images built twice for `linux/arm64` from `9b0d6d0` gave one
-  ID each (api `sha256:806692b3c17fdcdcaaefa8c2f7485ed39dbcdf3539e7c45a76e22730512f9a33`,
-  web `sha256:b6e7ddcf2683c675911005ce4edc344b9aa1f4365a3e8c314cd08da2b9132ea8`); the
+  ID each with the Alpine web base (api `sha256:806692b3…`, web `sha256:b6e7ddcf…`); the
+  scan of that web image then showed 60 fixable findings without `apk upgrade`, and the
+  newest upstream Alpine images still three, so the web image moved to the trixie variant
+  with the snapshot; **its twice-build proof and scan were still running when the session
+  that wrote this hit its usage limit (see the hand-over note), so the trixie web image is
+  not yet proven**; the
   first attempt differed on the API image by exactly `uv_cache.json` and the RECORD line
   naming it, found by comparing the two builds' layers entry by entry, and reproduced once
   those were removed; `linux/amd64` is the release job's and the PR's CI to prove.
   `tests/contract/test_toolchain_contract.py` (eight new cases: the snapshot, the source
-  date, `apk upgrade`, the proof step in each workflow, the record handed to the scan, an
+  date, a web snapshot date differing from the API's, the proof step in each workflow, the record handed to the scan, an
   unpinned and a divergent BuildKit, and the arm64 case re-pointed) and
   `test_image_scan_gate.py` (the provenance claims reproducibility only from a record that
   proves it); `make toolchain-check` green. `release-process.md` (Images, the checklist's
@@ -734,8 +740,12 @@ that a `0.9.0` workspace needs.
   `snapshot.debian.org` at the date `ARG DEBIAN_SNAPSHOT` names, so the API image's
   security updates are the ones published up to that date and the date moves at each
   release (a checklist item in `release-process.md`); the register's `RR-036` names that
-  move as the remedy. Alpine keeps no dated archive, so the web image drops `apk upgrade`
-  and takes fixes by re-pinning its base digest, the prompt's second option for it.
+  move as the remedy. Alpine keeps no dated archive, and the newest upstream Alpine image
+  (built 2026-10-19) still carried three fixable CRITICAL/HIGH findings, so dropping
+  `apk upgrade` for a newer base digest, the prompt's second option, would have failed
+  the scan gate: the web image moves to the trixie variant of the same unprivileged nginx
+  image (`1.30.6-trixie`, 246 MB where the Alpine one was about 50 MB) and takes its
+  packages from the same snapshot, so both images follow one rule.
 - 2026-10-29 M7. **The claim is per platform and per builder.** A build is proven by
   building twice with no cached layer and comparing image IDs; the release job proves
   `linux/amd64`, CI's arm64 job proves `linux/arm64`, and the provenance says

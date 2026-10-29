@@ -239,9 +239,10 @@ What makes two builds one image (`RR-006`, closed by Tier 3's Batch A):
   release** (the checklist below), which is how reproducibility and `RR-036`'s updates
   coexist: a release takes the fixes published up to its snapshot, and `make scan-images`
   still decides whether the image ships.
-- The web image applies no build-time upgrade, because Alpine keeps no dated archive; its
-  package set is its base image's pinned digest, and a fix reaches it by re-pinning that
-  digest to a newer upstream image.
+- The web image runs on the trixie variant of the same unprivileged nginx image and takes
+  Debian's packages from the same snapshot date: its Alpine variant had no dated archive to
+  pin to, and the newest upstream Alpine image still carried fixable findings, so neither
+  upgrading at build time nor standing still could satisfy both the proof and the scan.
 - The API image's user is created with a fixed shadow date and without the account
   files' backups, and what apt, dpkg and ldconfig write with the build's clock is removed.
 - Every build passes `SOURCE_DATE_EPOCH`, the source commit's time: Python compiles
@@ -266,9 +267,10 @@ Two honest caveats:
 
 Base images *are* pinned by tag **and** immutable `sha256` digest in both Dockerfiles and
 in `compose.yaml`, and `make toolchain-check` fails if the `uv`, Python, Node,
-unprivileged-nginx runtime or Compose PostgreSQL pins drift, if the snapshot or the source
-date leaves the API Dockerfile, if the web Dockerfile changes packages at build time, if a
-workflow builds the images without proving them twice or on an unpinned BuildKit — and
+unprivileged-nginx runtime or Compose PostgreSQL pins drift, if either Dockerfile loses its
+snapshot date or the two name different dates, if the source date leaves the API
+Dockerfile, if a workflow builds the images without proving them twice or on an unpinned
+BuildKit — and
 separately if the running Python or the pnpm-provisioned Node differs from the pins.
 
 To prove the images locally, for the platform your machine builds natively, on a builder
@@ -317,8 +319,7 @@ release after `0.9.0` also carries the maintainer's signature over `SHA256SUMS`.
 - [ ] `make check` green with `OAK_TEST_DATABASE_URL` on a fresh, migrated database — verified
       by reading the output, not the exit code; it names any PostgreSQL-gated test it skipped
 - [ ] `make scan-images` green — no *fixable* CRITICAL or HIGH in either image
-- [ ] `ARG DEBIAN_SNAPSHOT` in `deploy/images/api.Dockerfile` moved to the release day and
-      the web image's base digest re-pinned to the current upstream image, so the release
+- [ ] `ARG DEBIAN_SNAPSHOT` in both Dockerfiles moved to the release day, so the release
       takes the security updates published since the last one; `make scan-images` green
       on the result, and the release's `image-reproducibility.json` says `reproduced: true`
 - [ ] Reference-case byte-stability verified directly against the previous mainline

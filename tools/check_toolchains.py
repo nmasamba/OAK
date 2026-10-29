@@ -484,7 +484,7 @@ def check(root: Path = ROOT) -> list[str]:
     # else in the repository, so the only checkable property is that each stays pinned by
     # tag plus immutable digest; an unpinned line here previously escaped drift detection.
     if not re.search(
-        r"^FROM nginxinc/nginx-unprivileged:\d+\.\d+\.\d+-alpine@sha256:[a-f0-9]{64}$",
+        r"^FROM nginxinc/nginx-unprivileged:\d+\.\d+\.\d+-trixie@sha256:[a-f0-9]{64}$",
         web_dockerfile,
         flags=re.MULTILINE,
     ):
@@ -555,20 +555,23 @@ def check(root: Path = ROOT) -> list[str]:
 
     _check_platform_jobs(workflow, compose_image, failures)
 
-    # Reproducible images (RR-006): a dated Debian snapshot and the source date in the
-    # API Dockerfile, no build-time package change in the Alpine one, one pinned BuildKit
-    # wherever a workflow builds the images, each build proven twice, and the release
-    # scan folding the proof into its provenance.
-    if not re.search(r"^ARG DEBIAN_SNAPSHOT=\d{8}T\d{6}Z$", api_dockerfile, flags=re.MULTILINE):
-        failures.append(
-            "deploy/images/api.Dockerfile: expected ARG DEBIAN_SNAPSHOT=<YYYYMMDDTHHMMSSZ>"
-        )
+    # Reproducible images (RR-006): one dated Debian snapshot in both Dockerfiles and the
+    # source date in the API one, one pinned BuildKit wherever a workflow builds the
+    # images, each build proven twice, and the release scan folding the proof into its
+    # provenance.
+    snapshots = {}
+    for label, text in (("api", api_dockerfile), ("web", web_dockerfile)):
+        match = re.search(r"^ARG DEBIAN_SNAPSHOT=(\d{8}T\d{6}Z)$", text, flags=re.MULTILINE)
+        if match is None:
+            failures.append(
+                f"deploy/images/{label}.Dockerfile: expected ARG DEBIAN_SNAPSHOT=<YYYYMMDDTHHMMSSZ>"
+            )
+        else:
+            snapshots[label] = match.group(1)
+    if len(set(snapshots.values())) > 1:
+        failures.append("deploy/images: both Dockerfiles must name one DEBIAN_SNAPSHOT date")
     if not re.search(r"^ARG SOURCE_DATE_EPOCH$", api_dockerfile, flags=re.MULTILINE):
         failures.append("deploy/images/api.Dockerfile: expected ARG SOURCE_DATE_EPOCH")
-    if re.search(r"^RUN .*apk (upgrade|add)", web_dockerfile, flags=re.MULTILINE):
-        failures.append(
-            "deploy/images/web.Dockerfile: no build-time package change; re-pin the base instead"
-        )
     release_pin = _check_image_reproduction(
         release_workflow, "release workflow", "images", "linux/amd64", failures
     )

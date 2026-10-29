@@ -16,14 +16,30 @@ RUN pnpm build
 
 # Unprivileged runtime: the master process runs as uid 101 (`nginx`), not root, and the
 # pid file and caches live under /tmp, so the image tolerates a read-only root
-# filesystem. It listens on 8080, which needs no privilege (RR-037).
-FROM nginxinc/nginx-unprivileged:1.29.1-alpine@sha256:27985295bdb22a1ef8f712863210bd5877c0f3006494a593e86b3fe0fa55467e
+# filesystem. It listens on 8080, which needs no privilege (RR-037). The Debian (trixie)
+# variant of the image rather than the Alpine one: Alpine keeps no dated package archive,
+# so an Alpine image could either upgrade at build time and never reproduce, or stay at
+# its base's packages and fail the scan gate; Debian's dated snapshot gives both.
+FROM nginxinc/nginx-unprivileged:1.30.6-trixie@sha256:ec0f7ecb1fbd84959ac114e65fb36074ffc97d4d51db0f18ee925162d889dcef
 
-# No build-time upgrade: Alpine keeps no dated package archive, so `apk upgrade` would
-# make the image depend on when it was built. The base digest is the whole package set,
-# and a fix Alpine publishes reaches the image by re-pinning that digest to a newer
-# upstream image, which `make scan-images` asks for when a finding is fixable (RR-006,
-# RR-036).
+# Apply Debian's security updates as of the same fixed date as the API image, from the
+# dated snapshot.debian.org archive, so the result depends on the date and not on when the
+# build ran (RR-006); the date moves at each release (RR-036). apt needs root; the runtime
+# user is restored immediately after. What apt, dpkg and ldconfig log carries the build's
+# own clock, so it goes.
+ARG DEBIAN_SNAPSHOT=20261029T000000Z
+USER root
+RUN sed -i \
+        -e "s|http://deb.debian.org/debian-security|http://snapshot.debian.org/archive/debian-security/${DEBIAN_SNAPSHOT}|" \
+        -e "s|http://deb.debian.org/debian|http://snapshot.debian.org/archive/debian/${DEBIAN_SNAPSHOT}|" \
+        /etc/apt/sources.list.d/debian.sources \
+    && apt-get -o Acquire::Check-Valid-Until=false -o Acquire::Retries=5 update \
+    && apt-get -o Acquire::Check-Valid-Until=false -o Acquire::Retries=5 \
+        upgrade --yes --no-install-recommends \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* /var/cache/apt/*.bin /var/log/apt /var/log/dpkg.log \
+        /var/log/alternatives.log /var/cache/ldconfig/aux-cache
+USER nginx
 
 COPY deploy/nginx/default.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/web/dist /usr/share/nginx/html

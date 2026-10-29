@@ -392,12 +392,22 @@ runtime paths — and pinned by tag plus immutable digest, with the pin guarded 
 (`USER nginx` plus pre-chowned cache/pid paths), was rejected as re-implementing what the
 publisher already maintains. The publisher changes from the Docker Official Images
 programme to the `nginxinc` organisation — the upstream NGINX maintainers themselves —
-and the image lags Alpine's patch stream exactly as the official one did; the scan gate
-carries over unchanged, and since Tier 3's Batch A the build applies no `apk upgrade`
-(Alpine keeps no dated archive, and the images reproduce, `RR-006`), so a fix reaches the
-image by re-pinning this `FROM` line's digest. The `0.9.0` scan reports no findings at any
-severity for the rebuilt image, as the `0.8.0` and `0.7.1` scans did. Rollback is restoring
-the previous `FROM` line and its pin.
+and the image lags Alpine's patch stream exactly as the official one did, so the scan
+gate carries over unchanged. The `0.9.0` scan reports no findings at any severity for the
+rebuilt image, as the `0.8.0` and `0.7.1` scans did. Rollback is restoring the previous
+`FROM` line and its pin.
+
+**Since Tier 3's Batch A (2026-10-29) the web image runs on the trixie variant of the same
+unprivileged image** (`nginxinc/nginx-unprivileged:1.30.6-trixie`, pinned by tag and
+digest; same publisher, same uid 101, port 8080 and `/tmp` paths) rather than the Alpine
+one. The images now reproduce (`RR-006`), which needs every package to come from a dated
+source: Debian's `snapshot.debian.org` offers one, Alpine offers none, and the newest
+upstream Alpine image still carried fixable findings, so an Alpine web image could either
+upgrade at build time and never reproduce, or stand still and fail the scan gate. The
+trixie variant takes Debian's security updates from the same snapshot date as the API
+image, moved at each release. The cost is size: about 246 MB where the Alpine image was
+about 50 MB. Rollback is restoring the Alpine `FROM` line, its `apk upgrade` and the
+`-alpine` pattern in `make toolchain-check`, and the reproducibility claim with it.
 
 **pnpm-managed Node.js runtime.** The capability gap was `RR-034`: nothing made the Node
 that builds the web artifacts be the pinned one. `devEngines.runtime` in `package.json`

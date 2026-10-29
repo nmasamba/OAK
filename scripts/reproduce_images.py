@@ -5,8 +5,8 @@ A build is reproducible for a platform when a second build of the same commit, w
 cached layer, gives the same image ID. This script does exactly that for each Dockerfile
 it is given: the first build may use the cache, the second never does, and the two IDs
 must match. What makes the match possible lives in the Dockerfiles (Debian packages from a
-dated `snapshot.debian.org` archive, a user whose shadow entry carries a fixed date, no
-build-time upgrade on Alpine) and in the build itself: `SOURCE_DATE_EPOCH` is the source
+dated `snapshot.debian.org` archive in both images, a user whose shadow entry carries a
+fixed date) and in the build itself: `SOURCE_DATE_EPOCH` is the source
 commit's time, passed as a build argument so that BuildKit stamps the image config with it
 and Python compiles hash-based bytecode, and the exporter rewrites every layer's file
 timestamps to it (`rewrite-timestamp=true`, BuildKit 0.13 or later).

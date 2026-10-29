@@ -58,6 +58,10 @@ class _SubmissionStore:
         assert self.existing is not None
         return EnqueuedOperation(self.existing, duplicate=False)
 
+    def active_count(self) -> int:
+        # The cap on operations per tenant (RR-024) asks before a new one is queued.
+        return 0
+
     def __getattr__(self, name: str) -> Any:
         raise AssertionError(f"unexpected operation-store call: {name}")
 

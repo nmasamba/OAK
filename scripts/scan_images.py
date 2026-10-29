@@ -84,7 +84,7 @@ def _build(tag: str, dockerfile: str, platform: str) -> None:
     once made a local rescan report five fixable HIGH findings for CVE-2026-14456
     (OpenSSL) against images that were clean. A fresh build still says what the
     Dockerfiles as they stand produce, which is what the gate judges; moving the
-    snapshot date, or re-pinning the web image's base, is how a fix reaches an image.
+    snapshot date both Dockerfiles name is how a fix reaches the images.
     """
 
     print(f"building {tag} for {platform}", file=sys.stderr)
