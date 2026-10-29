@@ -546,9 +546,14 @@ that a `0.9.0` workspace needs.
   ID each with the Alpine web base (api `sha256:806692b3…`, web `sha256:b6e7ddcf…`); the
   scan of that web image then showed 60 fixable findings without `apk upgrade`, and the
   newest upstream Alpine images still three, so the web image moved to the trixie variant
-  with the snapshot; **its twice-build proof and scan were still running when the session
-  that wrote this hit its usage limit (see the hand-over note), so the trixie web image is
-  not yet proven**; the
+  with the snapshot (`121142f`), and both images built twice again gave one ID each (api
+  `sha256:63aa901d7ea063a5d13687590d5a57972c552cc04c1fbf4f16a63e857e1da117`, web
+  `sha256:caabde7986158fe07cf4982b57fa169fd5687b0bc5bf1c45e2efa88cab9039e5`, from the
+  tree at `ec9a9ae` with that change applied); `scripts/scan_images.py --build` on the
+  result, with the record handed in, reports no fixable CRITICAL or HIGH in either image
+  (API: 44 HIGH with no vendor fix, as before; web: 1 CRITICAL and 58 HIGH with no vendor
+  fix, Debian's, where the Alpine image had reported none) and a provenance that says
+  `byte_reproducible: true` for `linux/arm64`; the
   first attempt differed on the API image by exactly `uv_cache.json` and the RECORD line
   naming it, found by comparing the two builds' layers entry by entry, and reproduced once
   those were removed; `linux/amd64` is the release job's and the PR's CI to prove.
