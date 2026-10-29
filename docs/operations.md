@@ -455,6 +455,19 @@ a detached bundle's semantic manifest and, since Tier 3's Batch A, its assurance
 are bound by digest, and a bundle written before that edge reports its assurance plan
 `unbound`.
 
+**What a restored history says.** Importing a server export onto a server
+(`oak --server import`, `POST /v1/design-cases:import`) restores the case with its
+history as written: the file adapter checks every digest, the hash chain and the tenant,
+not who acted, so the actors and interface origins of the restored events are the
+export's claims, as good as the export's custody. The restore then records one
+`workspace_restored` event under the importing command's actor, naming the export's
+manifest, its digest and the number of events restored (`oak.community/restored_from`
+on the case): read the history from that event backwards as the export's word, and from
+it forwards as the server's own. Importing the same export again is answered as a
+duplicate of that restore; an export of another state of the case is refused. A local
+workspace's export is not restored on a server at all; it is re-created from its brief
+and confirmed answers under the importing actor (`workspace_imported`).
+
 ---
 
 ## Securing a local deployment

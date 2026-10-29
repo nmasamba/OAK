@@ -235,7 +235,11 @@ Notes:
   from a server still imports as itself, on a server or into a local workspace; one whose
   manifest names a server workspace but that holds an approval, a plan signature, a
   dispatch, a runner message, an observation or a revocation, which only a local workspace
-  writes, is refused on a server with `OAK-IMPORT-AUTHORITY`.
+  writes, is refused on a server with `OAK-IMPORT-AUTHORITY`. A server restore keeps the
+  export's history as written, so the actors and origins of the restored events are the
+  export's claims, and then records a `workspace_restored` event under the importing
+  command's actor (`oak.community/restored_from` names the export): the first event the
+  server itself attests.
 - `oak validate` is a server-free read-only checker (export, bundle, webhook)
   intended for CI and portals. It checks schema validity, digest integrity, and
   the execution-field ban across all three kinds. For a compiled bundle it

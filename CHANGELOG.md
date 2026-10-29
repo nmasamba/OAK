@@ -114,6 +114,16 @@ and launched on 2026-10-29; this is its first batch: formats, bounds and the cat
   number from 0 to a million refuses to start, or refuses the command, with the new
   `OAK-LIMIT-CONFIG`. Every REST operation now documents `429` with `Retry-After`, and
   the access log names a refused request's limit by its code, never the address.
+- **A server restore records the importer** (Tier 2's follow-up on restored history).
+  `oak --server import` and `POST /v1/design-cases:import` of a server export keep the
+  export's history as written, whose actors and origins are the export's claims, and then
+  record one `workspace_restored` audit event (new, additive) under the importing
+  command's actor with `interface_origin: import`, the case and event extension
+  `oak.community/restored_from` naming the export's manifest, its digest, the case
+  version and the number of events restored; the status does not change and the case
+  comes back one patch version on. Importing the same export again, under any key, is a
+  duplicate of that restore; an export of another state of the case is refused with
+  `OAK-IDEMPOTENCY-CONFLICT` as before. A local `oak import` is unchanged.
 
 #### Changed
 

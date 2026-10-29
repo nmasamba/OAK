@@ -221,8 +221,11 @@ Planned at kickoff; each milestone records what shipped, as `docs/compatibility.
   address out, so a refused request's line carries the limit's code only.
 - `OAK-V1-035`: build-time only; the release evidence records the snapshot date and the
   BuildKit version.
-- `OAK-V1-036`: a new audit event a server writes on restore (an existing or additive event
-  type), with `interface_origin: import`.
+- `OAK-V1-036` (shipped): `workspace_restored` in the audit event's `event_type` enum
+  (additive), written by a server restore of a server export under the importing actor
+  with `interface_origin: import`, and the case and event extension
+  `oak.community/restored_from`; the restored case comes back one patch version on;
+  importing the same export again is a duplicate whatever the key.
 
 ## Milestones
 
@@ -498,6 +501,22 @@ that a `0.9.0` workspace needs.
   `Retry-After`. `configuration.md` (four rows), `operations.md` (Limits, five
   troubleshooting rows), `compatibility.md`, `performance.md`, `threat-coverage.md`
   (`TM-14`), `RR-024` and `RR-041` bounded, the changelog, `CONTRIBUTING.md`.
+- [x] 2026-10-29 M6 (`OAK-V1-036`). `DesignCaseService.record_restore` (sharing
+  `_record_origin` with `record_recreation`) writes `workspace_restored` with
+  `oak.community/restored_from` (the export's manifest id and digest, the case id and
+  version, the number of events restored) after `CommunityControlPlane.import_design_case`
+  has restored a server export, under the importing command's actor with
+  `interface_origin: import`; the restore's duplicate check accepts a destination whose
+  case records a restore from this export's digest, so the same export imports again as a
+  duplicate under any key while another state of the case is still
+  `OAK-IDEMPOTENCY-CONFLICT`. Proof: `tests/integration/test_local_to_server.py` (the
+  restored event keeps the export's actor and the restore event carries the importer's,
+  the origin on the case and the event, the status unchanged; a second import under the
+  same and another key is a duplicate with no second event; a later export of the case is
+  refused), the schema and contract suites. Three mutations killed: the restore not
+  recorded, the duplicate check ignoring the recorded origin, and the event's origin not
+  `import`. `compatibility.md`, `interfaces.md`, `operations.md` (Export: what a restored
+  history says), `threat-coverage.md` (`TM-12`), the changelog.
 
 ## Decisions
 
@@ -663,6 +682,18 @@ that a `0.9.0` workspace needs.
 - 2026-10-29 M5. **Bounded, not closed.** `RR-024` and `RR-041` move to Low with what
   remains stated: no per-job cost or token figure, a limiter that counts per process, and
   no tenant-wide model budget; closing them is the register review's call at 1.0.
+- 2026-10-29 M6. **Record the importer, keep the history.** The prompt's recommendation:
+  a server export's restore is the backup path, and re-creation would lose history. The
+  restored events are the export's claims and stay as written; one event under the
+  importing actor marks where the server's own attestation begins, and the documents say
+  so in those words. A distinct event type (`workspace_restored`) rather than a second
+  meaning for `workspace_imported`, so a reader of history needs no extension to tell a
+  restore from a re-creation.
+- 2026-10-29 M6. **Idempotent by the export's digest.** Appending an event made the
+  destination's manifest differ from the import's, which the old duplicate check read as
+  a conflict on every re-import; the check now also accepts a destination whose case
+  records a restore from this export's digest, so a retry under any key is a duplicate,
+  while an export of another state is refused as before.
 
 ## Discoveries and follow-ups
 

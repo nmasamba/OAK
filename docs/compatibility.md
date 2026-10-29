@@ -119,7 +119,7 @@ mechanical migration; **breaking** otherwise.
   by the `workspace_imported` audit event, which a server now writes for the first time,
   with `interface_origin: import`. Both are optional, through the schemas' open
   `extensions`, so no schema changes.
-- Tier 3's Batch A adds `workspace_migrated` and `runner_heartbeat` to the audit event's `event_type` enum
+- Tier 3's Batch A adds `workspace_migrated`, `runner_heartbeat` and `workspace_restored` to the audit event's `event_type` enum
   (additive; written only by `oak workspace migrate`, when a step reshaped the design case
   or added objects) and the case and event extension `oak.community/migration`, which
   names the formats, the steps, the digest of the manifest migrated from and the objects
@@ -334,7 +334,8 @@ mechanical migration; **breaking** otherwise.
     new code `OAK-IMPORT-REPLAY`; an export claiming another tenant still exits `2` with
     `OAK-IMPORT-SCOPE`, a case the server holds with `OAK-CASE-EXISTS`, and a server-named
     export holding approvals or runner records with `OAK-IMPORT-AUTHORITY`. A server export
-    of a case once re-created elsewhere is restored as itself ("Imported …"). A local
+    of a case once re-created elsewhere is restored as itself ("Imported …"; since Tier
+    3's Batch A with a `workspace_restored` event under the importer, below). A local
     `oak import` is unchanged.
   - `oak ingest` refuses a runner completion whose journal no longer reaches the entry an
     accepted completion for the same lease named (`OAK-INGEST-JOURNAL`); the message stays
@@ -403,6 +404,17 @@ mechanical migration; **breaking** otherwise.
     `OAK-LIMIT-CONFIG` when one of `OAK_REQUESTS_PER_MINUTE_PER_ADDRESS`,
     `OAK_REQUESTS_PER_MINUTE_PER_TENANT`, `OAK_OPERATIONS_PER_TENANT` or
     `OAK_MODEL_REQUESTS_PER_CASE_PER_DAY` is not a whole number from 0 to a million.
+  - A server restore of a server export (`oak --server import`,
+    `POST /v1/design-cases:import`) keeps the export's history as written and then
+    records one `workspace_restored` audit event under the importing command's actor,
+    with `interface_origin: import` and the case and event extension
+    `oak.community/restored_from` (the export's manifest id and digest, the case version
+    and the number of events restored), so the restored case comes back one patch version
+    on from the export, its status unchanged. The actors and origins of the restored
+    events are the export's claims; the restore event is the first the server itself
+    attests. Importing the same export again, under any key, is answered as a duplicate
+    of that restore; an export of another state of the case is refused with
+    `OAK-IDEMPOTENCY-CONFLICT` as before.
 
 ## MCP
 
