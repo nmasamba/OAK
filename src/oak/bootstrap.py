@@ -58,6 +58,7 @@ from oak.application import (
 from oak.application.design_case import ModelInterpreterFactory
 from oak.application.gitops import GitOpsRenderer
 from oak.application.rendering import DeploymentRenderService
+from oak.application.workspace_format import WorkspaceFormatService
 from oak.compiler import DeterministicBriefInterpreter
 from oak.contracts import SchemaRegistry
 from oak.domain import RESEARCH_HOSTS, OAKError, SystemInformation
@@ -149,6 +150,13 @@ def create_design_case_service(
         model_interpreter_factory=model_interpreter_factory,
         proposal_limits=model_proposal_limits(),
     )
+
+
+def create_workspace_format_service(workspace: Path) -> WorkspaceFormatService:
+    """The explicit format commands over a file workspace: status and migrate."""
+
+    registry = SchemaRegistry.from_directory(canonical_schema_directory())
+    return WorkspaceFormatService(FileWorkspaceRepository(workspace, registry), registry)
 
 
 def model_timeout_seconds() -> float:

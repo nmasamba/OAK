@@ -18,7 +18,7 @@ writes no decision record, signs nothing and publishes nothing.
 
 - Owner/agent: owner-directed coding agent
 - Started: 2026-10-29
-- Last updated: 2026-10-29 (M0, kickoff)
+- Last updated: 2026-10-29 (M1, the workspace format migration)
 - State: in-progress
 - Claimed tasks: `OAK-V1-029`–`OAK-V1-037`
 
@@ -343,7 +343,30 @@ that a `0.9.0` workspace needs.
 
 ## Progress
 
-(Empty until the work happens.)
+- [x] 2026-10-29 M0. Kickoff: branch `tier3-formats` from `e8f98da` (CI run 40857131329
+  green), this plan, the claim in both repositories, the owner's four answers recorded
+  (`f095bad`).
+- [x] 2026-10-29 M1 (`OAK-V1-029`). `oak.domain.workspace_format` (the format chain, the
+  invariant keys and the four rules a step is held to, enforced by `migrate_manifest`); the
+  file adapter's `raw_manifest`, an in-memory overlay for objects a migration produced but
+  has not written, `format_report`, `migration_outcome` and `commit_migration`, with
+  export and import of an older format as it is; `WorkspaceFormatService` and the
+  `WorkspaceFormatPort`; `oak workspace status` and `oak workspace migrate` (local-only);
+  `oak validate export` and `oak import` reporting `migration_needed`; the
+  `workspace_migrated` event type and the `oak.community/migration` extension. Proof: 34
+  unit cases of the rules (`tests/unit/test_workspace_format_rules.py`); 10 integration
+  tests through the adapter, the service and the CLI with a synthetic older format
+  (`tests/workspace_format_support.py`): refused on every command but status and export,
+  the export byte-for-byte, imported as it is, migrated once with its successor and event
+  and twice as a no-op, byte-identical under two `PYTHONHASHSEED` values in two
+  interpreters, an unknown format refused everywhere including export and import, a
+  corrupt object stopping an older export, a changed workspace refusing the planned
+  commit, objects on a case-less workspace refused, a manifest-only step recording
+  nothing, and `--server` refused; the `0.9.0` corpus (43 objects, from a detached
+  worktree at `v0.9.0`) imports, migrates as a no-op, runs `questions`, `architecture` and
+  `report --record`, exports and validates (`tests/integration/test_workspace_corpus.py`).
+  Four mutations killed: the format gate, the source-digest check on commit, an export
+  that migrated, and the rewrite rule. Unit and contract suites: 1,355 passed.
 
 ## Decisions
 
@@ -371,6 +394,35 @@ that a `0.9.0` workspace needs.
   therefore proven on a synthetic older format that the tests register as a step, and on
   the real `0.9.0` corpus, for which migration is a no-op; no real step ships, as the prompt
   scopes it.
+- 2026-10-29 M1. **Where the format knowledge lives.** The chain and its rules are pure
+  domain code (`oak.domain.workspace_format`), so the file adapter applies them to files
+  and the application runs the command without either importing the other; the
+  PostgreSQL store does not implement the format port, because its format is the alembic
+  revision `oak-db-migrate` carries forward. A step returns the manifest at its target
+  format, the objects it added and, when the stored design case no longer reads under the
+  current schema or now refers to a new object, that case at the current shape; the
+  application, not the step, records the successor and the audit event, so no step can
+  write history.
+- 2026-10-29 M1. **Refusal codes.** A format the chain knows but does not serve is
+  `OAK-WORKSPACE-MIGRATE`, naming the command; a format no step accepts is
+  `OAK-WORKSPACE-FORMAT`, naming the build that reads it (the one case that used to be
+  `OAK-WORKSPACE-CORRUPT`, recorded as breaking for a script that matched the code);
+  `OAK-WORKSPACE-CORRUPT` keeps its meaning, an unreadable or invalid manifest or object; a
+  step that breaks a rule, or a migration planned against a manifest that changed, is
+  `OAK-WORKSPACE-MIGRATION`. An unknown format is refused on export too: nothing about
+  its index can be believed, so copying it would copy an unknown.
+- 2026-10-29 M1. **Export reads the invariant keys.** Every format keeps
+  `schema_version`, `id`, `tenant_id` and the index's `digest` and `size_bytes` where they
+  are, so an older workspace is exported from those alone, after the chain has proven in
+  memory that it reads; the manifest is copied byte for byte and nothing a step produced
+  is written. `oak import` keeps the older format too, and `oak workspace migrate` is
+  run there: import never migrates implicitly either.
+- 2026-10-29 M1. **A migration event names the source record.** The lineage check
+  requires an event that names an intent to name the source record the intent was read
+  from, as every interpretation and confirmation event does; the first version of the
+  migration event named none and the migrated workspace failed its own validation, which
+  the two-interpreter test caught. The reference comes from the case's
+  `oak.community/source_record_ref`, never from the new object.
 - 2026-10-29 M0. **Task numbering.** `OAK-V1-029` to `-036` are A1 to A8 in the prompt's
   order (migration, bundle edge, catalogue, reads, soak, budgets, images, restore) and
   `OAK-V1-037` is the review; the milestones run A1, then A2 with A3, then A4, A5, A6, A8,
@@ -379,7 +431,12 @@ that a `0.9.0` workspace needs.
 
 ## Discoveries and follow-ups
 
-(Empty until the work happens.)
+- 2026-10-29 M1. Two test files with one basename (`tests/unit/test_workspace_format.py`,
+  `tests/integration/test_workspace_format.py`) cannot be collected together without
+  package files; the unit file is `test_workspace_format_rules.py`.
+- 2026-10-29 M1. `oak export` read the current case before exporting, so the first
+  export of an older format was refused by the read; the command now reads the format
+  first and the case only when the format is current.
 
 ## Self-review
 

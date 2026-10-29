@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Atomic file-backed Community workspace repository."""
 
+import copy
 import fcntl
 import json
 import os
@@ -9,6 +10,7 @@ import shutil
 import tempfile
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +19,15 @@ from oak.domain import OAKError
 from oak.domain.artifacts import Artifact, ArtifactReference, canonical_json_bytes, content_digest
 from oak.domain.intake import BRIEF_MEDIA_TYPES
 from oak.domain.report import RENDERING_KIND, RENDERING_MAGIC, REPORT_EXTENSION
+from oak.domain.workspace_format import (
+    PRODUCTION_CHAIN,
+    FormatChain,
+    MigrationOutcome,
+    WorkspaceFormatReport,
+    index_digests,
+    manifest_format,
+    migrate_manifest,
+)
 from oak.ports.workspace import WorkspaceCommit, WorkspaceMutation
 
 OBJECT_DIGEST = re.compile(r"^sha256:([a-f0-9]{64})$")
@@ -86,6 +97,15 @@ OPAQUE_KINDS = frozenset({"brief_source", RENDERING_KIND})
 ReplaceFile = Callable[[Path, Path], None]
 
 
+@dataclass(frozen=True, slots=True)
+class RawManifest:
+    """A manifest as stored, believed only as far as the format it names."""
+
+    format: str
+    document: dict[str, Any]
+    content: bytes
+
+
 def validate_json_media_type(artifact: Artifact) -> None:
     """A schema-bound kind is stored under its own JSON media type and no other.
 
@@ -123,6 +143,7 @@ class FileWorkspaceRepository:
         registry: SchemaRegistry,
         *,
         replace_file: ReplaceFile = _replace_path,
+        chain: FormatChain = PRODUCTION_CHAIN,
     ) -> None:
         self.root = root
         self.control = root / ".oak"
@@ -131,6 +152,10 @@ class FileWorkspaceRepository:
         self.lock_path = self.control / "workspace.lock"
         self._registry = registry
         self._replace_file = replace_file
+        self._chain = chain
+        # Objects a migration produced but has not written: read before the disk while a
+        # migrated view is validated, and never outside that validation.
+        self._overlay: dict[str, bytes] = {}
 
     @staticmethod
     def discover(start: Path) -> Path:
@@ -173,24 +198,146 @@ class FileWorkspaceRepository:
                 shutil.rmtree(temporary)
 
     def manifest(self) -> dict[str, Any]:
+        raw = self.raw_manifest()
+        self._require_current_format(raw.format)
+        try:
+            self._validate_manifest(raw.document)
+            self._validate_workspace_lineage(raw.document)
+        except Exception as error:
+            raise OAKError(
+                "OAK-WORKSPACE-CORRUPT", "workspace manifest failed validation"
+            ) from error
+        return raw.document
+
+    def raw_manifest(self) -> RawManifest:
+        """The manifest as stored, believed only as far as its format name.
+
+        Every read starts here, and the format decides what may follow: the current
+        format is validated and served; an older one the chain knows is refused with the
+        command that carries it forward, or exported as it is; one no step accepts is
+        refused on every command, export included.
+        """
+
         if self.manifest_path.is_symlink() or not self.manifest_path.is_file():
             raise OAKError("OAK-WORKSPACE-NOT-FOUND", "workspace manifest is missing")
         try:
             if self.manifest_path.stat().st_size > MAXIMUM_ARTIFACT_BYTES:
                 raise ValueError("workspace manifest exceeds the local size limit")
-            document = load_json_document(self.manifest_path.read_text(encoding="utf-8"))
-        except (OSError, ValueError) as error:
+            content = self.manifest_path.read_bytes()
+            document = load_json_document(content.decode("utf-8"))
+        except (OSError, UnicodeDecodeError, ValueError) as error:
             raise OAKError("OAK-WORKSPACE-CORRUPT", "workspace manifest is invalid") from error
         if not isinstance(document, dict):
             raise OAKError("OAK-WORKSPACE-CORRUPT", "workspace manifest must be an object")
+        return RawManifest(format=manifest_format(document), document=document, content=content)
+
+    def format_report(self) -> WorkspaceFormatReport:
+        raw = self.raw_manifest()
+        steps = (
+            tuple(step.name for step in self._chain.path(raw.format))
+            if self._chain.is_known(raw.format)
+            else ()
+        )
+        workspace_id = raw.document.get("id")
+        reference = raw.document.get("current_case_ref")
+        case_id = reference.get("id") if isinstance(reference, dict) else None
+        return WorkspaceFormatReport(
+            workspace_id=workspace_id if isinstance(workspace_id, str) else "",
+            format=raw.format,
+            current_format=self._chain.current,
+            known_formats=self._chain.known_formats,
+            steps=steps,
+            case_id=case_id if isinstance(case_id, str) else None,
+        )
+
+    def migration_outcome(self) -> MigrationOutcome:
+        """The chain run in memory over the stored manifest; nothing on disk changes."""
+
+        raw = self.raw_manifest()
+        return migrate_manifest(
+            raw.document,
+            self._chain,
+            self._read_object,
+            source_digest=content_digest(raw.content),
+        )
+
+    def commit_migration(
+        self, outcome: MigrationOutcome, mutation: WorkspaceMutation | None
+    ) -> None:
+        """Write a migration the explicit command planned: its objects, then the manifest.
+
+        The outcome is bound to the manifest bytes it was computed from, so a workspace
+        that changed in between is refused rather than overwritten. The mutation, when
+        there is one, is the design-case successor and the audit event that record what
+        the migration reshaped; it goes through the same checks as every other commit.
+        """
+
+        with self._lock():
+            raw = self.raw_manifest()
+            if content_digest(raw.content) != outcome.source_digest:
+                raise OAKError(
+                    "OAK-WORKSPACE-MIGRATION",
+                    "the workspace changed after the migration was planned; run it again",
+                    retriable=True,
+                )
+            manifest = copy.deepcopy(outcome.manifest)
+            with self._overlaid(outcome.new_artifacts):
+                self._validate_outcome(outcome)
+                if mutation is not None:
+                    self._check_expected_version(manifest, mutation.expected_case_version)
+                    self._validate_mutation(manifest, mutation)
+            for artifact in outcome.new_artifacts:
+                self._write_object(artifact)
+            if mutation is not None:
+                for artifact in mutation.artifacts:
+                    self._write_object(artifact)
+                manifest = self._updated_manifest(manifest, mutation)
+            try:
+                self._validate_manifest(manifest)
+                self._validate_workspace_lineage(manifest)
+            except Exception as error:
+                raise OAKError(
+                    "OAK-WORKSPACE-MIGRATION", "the migrated workspace failed validation"
+                ) from error
+            self._atomic_manifest_write(manifest)
+
+    def _require_current_format(self, format_name: str) -> None:
+        if format_name == self._chain.current:
+            return
+        if self._chain.is_known(format_name):
+            raise OAKError(
+                "OAK-WORKSPACE-MIGRATE",
+                f"workspace format {format_name} is older than this build's "
+                f"{self._chain.current}; run `oak workspace migrate` to carry it forward, or "
+                "`oak export` to copy it as it is",
+            )
+        raise OAKError("OAK-WORKSPACE-FORMAT", self._chain.describe_unknown(format_name))
+
+    def _validate_outcome(self, outcome: MigrationOutcome) -> None:
+        """Validate a migrated view as the current format; the overlay must be active."""
+
         try:
-            self._validate_manifest(document)
-            self._validate_workspace_lineage(document)
+            self._validate_manifest(outcome.manifest)
+            self._validate_indexed_objects(outcome.manifest)
+            self._validate_workspace_lineage(outcome.manifest)
+        except OAKError:
+            raise
         except Exception as error:
             raise OAKError(
-                "OAK-WORKSPACE-CORRUPT", "workspace manifest failed validation"
+                "OAK-WORKSPACE-CORRUPT", "workspace failed validation at the current format"
             ) from error
-        return document
+
+    @contextmanager
+    def _overlaid(self, artifacts: tuple[Artifact, ...]) -> Iterator[None]:
+        previous = self._overlay
+        self._overlay = {
+            **previous,
+            **{artifact.digest: artifact.content for artifact in artifacts},
+        }
+        try:
+            yield
+        finally:
+            self._overlay = previous
 
     def current_case(self) -> dict[str, Any] | None:
         reference = self.manifest()["current_case_ref"]
@@ -262,21 +409,36 @@ class FileWorkspaceRepository:
         destination_parent = destination.parent.resolve()
         destination_parent.mkdir(parents=True, exist_ok=True)
         with self._lock():
-            manifest = self.manifest()
-            self._validate_indexed_objects(manifest)
-            self._validate_workspace_lineage(manifest)
+            raw = self.raw_manifest()
+            if raw.format == self._chain.current:
+                manifest = self.manifest()
+                self._validate_indexed_objects(manifest)
+                manifest_bytes = canonical_json_bytes(manifest)
+            else:
+                # An older format is exported as it is. The chain is run in memory to prove
+                # that the workspace reads, and nothing it produced is written anywhere:
+                # export is how a workspace is rescued, so it never migrates and never
+                # refuses a format this build knows.
+                outcome = self.migration_outcome()
+                with self._overlaid(outcome.new_artifacts):
+                    self._validate_outcome(outcome)
+                manifest = raw.document
+                manifest_bytes = raw.content
+            digests = index_digests(manifest, code="OAK-WORKSPACE-CORRUPT")
             temporary = Path(
                 tempfile.mkdtemp(prefix=f".{destination.name}.tmp-", dir=destination_parent)
             )
             try:
                 export_objects = temporary / "objects" / "sha256"
                 export_objects.mkdir(parents=True, mode=0o700)
-                self._write_new_file(temporary / "manifest.json", canonical_json_bytes(manifest))
-                for entry in manifest["artifact_index"]:
-                    digest = str(entry["digest"])
-                    self._write_new_file(
-                        export_objects / self._digest_hex(digest), self._read_object(digest)
-                    )
+                self._write_new_file(temporary / "manifest.json", manifest_bytes)
+                for digest, size in digests.items():
+                    content = self._read_object(digest)
+                    if len(content) != size:
+                        raise OAKError(
+                            "OAK-WORKSPACE-CORRUPT", "indexed artifact size does not match"
+                        )
+                    self._write_new_file(export_objects / self._digest_hex(digest), content)
                 self._replace_file(temporary, destination)
                 self._fsync_directory(destination_parent)
             finally:
@@ -310,21 +472,37 @@ class FileWorkspaceRepository:
         if not isinstance(manifest, dict):
             raise OAKError("OAK-IMPORT-INVALID", "import manifest must be an object")
         try:
-            self._validate_manifest(manifest)
-        except Exception as error:
-            raise OAKError("OAK-IMPORT-INVALID", "import manifest failed validation") from error
+            format_name = manifest_format(manifest)
+        except OAKError as error:
+            raise OAKError(
+                "OAK-IMPORT-INVALID", "import manifest names no readable format"
+            ) from error
+        if not self._chain.is_known(format_name):
+            raise OAKError(
+                "OAK-IMPORT-FORMAT", self._chain.describe_unknown(format_name, noun="export")
+            )
+        if format_name == self._chain.current:
+            try:
+                self._validate_manifest(manifest)
+            except Exception as error:
+                raise OAKError("OAK-IMPORT-INVALID", "import manifest failed validation") from error
+        digests = index_digests(manifest, code="OAK-IMPORT-INVALID")
 
         self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
         temporary = Path(tempfile.mkdtemp(prefix=".oak.tmp-", dir=self.root))
         try:
             imported_objects = temporary / "objects" / "sha256"
             imported_objects.mkdir(parents=True, mode=0o700)
-            for entry in manifest["artifact_index"]:
-                digest = str(entry["digest"])
-                source_object = source_digests / self._digest_hex(digest)
+            for digest, size in digests.items():
+                try:
+                    source_object = source_digests / self._digest_hex(digest)
+                except OAKError as error:
+                    raise OAKError(
+                        "OAK-IMPORT-INVALID", "an indexed import object digest is invalid"
+                    ) from error
                 if source_object.is_symlink() or not source_object.is_file():
                     raise OAKError("OAK-IMPORT-INVALID", "an indexed import object is missing")
-                if source_object.stat().st_size != int(entry["size_bytes"]):
+                if source_object.stat().st_size != size:
                     raise OAKError("OAK-IMPORT-INVALID", "an imported object size does not match")
                 content = source_object.read_bytes()
                 if content_digest(content) != digest:
@@ -332,9 +510,25 @@ class FileWorkspaceRepository:
                 self._write_new_file(imported_objects / self._digest_hex(digest), content)
             self._write_new_file(temporary / "manifest.json", canonical_json_bytes(manifest))
             try:
-                self._validate_export_tree(temporary, manifest)
+                if format_name == self._chain.current:
+                    self._validate_export_tree(temporary, manifest)
+                else:
+                    # An older format is imported as it is and validated through the
+                    # chain's in-memory view; `oak workspace migrate` is what writes it.
+                    outcome = migrate_manifest(
+                        manifest,
+                        self._chain,
+                        lambda digest: self._read_tree_object(imported_objects, digest),
+                        source_digest=content_digest(canonical_json_bytes(manifest)),
+                    )
+                    with self._overlaid(outcome.new_artifacts):
+                        self._validate_export_tree(temporary, outcome.manifest)
             except OAKError as error:
-                if error.code in {"OAK-ARTIFACT-INVALID", "OAK-ARTIFACT-KIND"}:
+                if error.code in {
+                    "OAK-ARTIFACT-INVALID",
+                    "OAK-ARTIFACT-KIND",
+                    "OAK-WORKSPACE-MIGRATION",
+                }:
                     # An index entry whose kind or media type does not fit its object is
                     # a refused import, under the import's own code (F2-1).
                     raise OAKError(
@@ -558,7 +752,15 @@ class FileWorkspaceRepository:
         self._fsync_directory(self.objects)
 
     def _read_object(self, digest: str) -> bytes:
-        path = self.objects / self._digest_hex(digest)
+        overlaid = self._overlay.get(digest)
+        if overlaid is not None:
+            if content_digest(overlaid) != digest:
+                raise OAKError("OAK-WORKSPACE-CORRUPT", "indexed artifact digest does not match")
+            return overlaid
+        return self._read_tree_object(self.objects, digest)
+
+    def _read_tree_object(self, objects: Path, digest: str) -> bytes:
+        path = objects / self._digest_hex(digest)
         if path.is_symlink() or not path.is_file():
             raise OAKError("OAK-WORKSPACE-CORRUPT", "indexed artifact object is missing")
         if path.stat().st_size > MAXIMUM_ARTIFACT_BYTES:

@@ -157,6 +157,7 @@ prohibition).
 | Read operation progress | — | — | ○ | ○ | ○ |
 | Cancel operation | — | — | ● | — | ● |
 | Export / import case | ● | ● | ● | — | ○ |
+| Inspect or migrate the workspace format (`oak workspace status`, `oak workspace migrate`) | ● | ✕ | — | ✕ | — |
 | Read audit / artifacts | — | — | ○ | — | ○ |
 | List design cases | — | — | ○ | — | ○ |
 | Render deployment artifacts | ● | ✕ | — | ✕ | — |
@@ -175,7 +176,7 @@ prohibition).
 
 Notes:
 
-- The **local-only** commands are `init`, `serve`, `mcp serve`, `keys`, `models`, `sign`, `approve` (every action, including `approve architecture`), `revoke-approval`, `dispatch`, `ingest`, `observe`, `gitops`, `policy`, `render`, `extensions` and `validate`.
+- The **local-only** commands are `init`, `serve`, `mcp serve`, `keys`, `models`, `sign`, `approve` (every action, including `approve architecture`), `revoke-approval`, `dispatch`, `ingest`, `observe`, `gitops`, `policy`, `render`, `extensions`, `validate` and `workspace`.
   With `--server` set they fail closed with `OAK-REMOTE-UNSUPPORTED` rather than
   acting on local state. None of them is reachable over MCP, and none but `models` over
   REST: the model configuration also has loopback `/v1/models` routes guarded by the
@@ -242,7 +243,9 @@ Notes:
   (runner-plan → deployment-bundle → architecture-decision) and that the runner
   plan is an inert draft; it does not bind `assurance-plan.json` or
   `semantic-manifest.json`, which carry no digest edge into the bundle spine, and
-  it does not re-run compilation. The authoritative integrity binding for a plan
+  it does not re-run compilation. An export at an older workspace format this build
+  knows imports as it is and is reported valid with `migration_needed`; its case is read
+  once `oak workspace migrate` has run. The authoritative integrity binding for a plan
   is the separately signed runner envelope and approval, not a review bundle.
   `oak validate webhook` verifies the signature against the pinned publisher key
   only, never the key embedded in the envelope.

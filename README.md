@@ -596,8 +596,7 @@ Some ways in, from a first afternoon to a bigger project:
   PostgreSQL. Native Windows support would start with replacing a Unix-only file lock (see
   [platforms.md](docs/platforms.md)).
 - **Harden the operations side.** Useful work includes metrics that leak nothing
-  (`RR-015`), a file-workspace format migration (`RR-017`), and reproducible container
-  images (`RR-006`).
+  (`RR-015`) and reproducible container images (`RR-006`).
 
 [CONTRIBUTING.md](CONTRIBUTING.md#where-you-could-help) has the full map, how to set up,
 and how changes are reviewed.

@@ -41,6 +41,7 @@ from oak.application.research import (
     ResearchService,
 )
 from oak.application.system_information import SystemInformationService
+from oak.application.workspace_format import MigrationResult, WorkspaceFormatService
 
 __all__ = [
     "ArtifactContent",
@@ -56,6 +57,7 @@ __all__ = [
     "EvaluationResult",
     "ExtensionService",
     "IngestResult",
+    "MigrationResult",
     "ModelConfigurationService",
     "ModelInterpreterFactory",
     "ModelSelection",
@@ -78,6 +80,7 @@ __all__ = [
     "SystemInformationService",
     "VerificationReport",
     "WorkerCycleResult",
+    "WorkspaceFormatService",
     "pack_summaries",
     "validate_key_input",
 ]

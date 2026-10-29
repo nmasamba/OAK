@@ -6,6 +6,38 @@ All notable changes to OAK Community are recorded here.
 
 ## Unreleased
 
+### Tier 3, Batch A (`OAK-V1-029`–`037`)
+
+Tier 3 of the owner's cost-benefit ranking of the backlog, moved ahead of 1.0 by the owner
+and launched on 2026-10-29; this is its first batch: formats, bounds and the catalogue.
+
+#### Added
+
+- **A file-workspace format migration** (`RR-017`, closed). The file adapter reads the
+  manifest's format before anything else. The current format (`0.4.0`, the one every
+  published release wrote) is served as before; an older format the migration chain knows
+  is refused on every command but `oak workspace status` and `oak export` with the new code
+  `OAK-WORKSPACE-MIGRATE`, naming the command that carries it forward; a format no step
+  accepts, which a newer build wrote, is refused on every command, `export` included, with
+  the new code `OAK-WORKSPACE-FORMAT` (where it was `OAK-WORKSPACE-CORRUPT`), and such an
+  export is refused by `oak import` with `OAK-IMPORT-FORMAT`. `oak export` copies a
+  workspace at any known format as it is, so a workspace can always be rescued; `oak import`
+  and `oak validate export` take such an export as it is and say it needs migrating
+  (`migration_needed`, `format` and `current_format` in their JSON). The new
+  `oak workspace migrate` (local-only) is the only command that migrates: it runs the chain
+  of pure, idempotent steps under the workspace lock, writes any object a step produced as
+  a new object, records a reshaped design case as a successor with the new
+  `workspace_migrated` audit event and the case and event extension
+  `oak.community/migration`, and leaves every stored object and the history as they were;
+  running it twice is a no-op, and two interpreters with different hash seeds write the
+  same bytes. A step that drops or rewrites a stored object, names an object it did not
+  produce, edits the history or changes the workspace identity is refused
+  (`OAK-WORKSPACE-MIGRATION`), as is a migration planned against a manifest that changed
+  before it was written. The shipped chain holds no step, because no release has written
+  another format; the mechanism is proven on a synthetic older format and on the `0.9.0`
+  reference workspace, committed under `tests/fixtures/workspaces/0.9.0/` as the corpus.
+  Downgrade is not supported.
+
 ### The pre-1.0 assurance batch (`OAK-V1-021`–`028`)
 
 Tier 2 of the owner's cost-benefit ranking of the backlog, launched on 2026-10-28.

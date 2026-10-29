@@ -355,22 +355,39 @@ its `downgrade()` deliberately raises — pinned by
 
 ### A file workspace
 
-There is no file-workspace format migration, and none is planned for `0.9.0`. A
-workspace whose manifest carries a `schema_version` this build does not know is refused
-with `OAK-WORKSPACE-CORRUPT` — on **every** command, including `export`, so it cannot be
-rescued after the fact
+A file workspace names its format in its manifest's `schema_version`: `0.4.0`, the format
+every published release wrote. This build reads the current format and carries an older
+one forward with `oak workspace migrate`, the only command that migrates. It runs the
+format's chain of pure, idempotent steps under the workspace lock, writes any object a step
+produced as a new object, records a reshaped design case as a successor with a
+`workspace_migrated` audit event, and leaves every stored object and the history as they
+were; running it twice is a no-op. Nothing migrates on an ordinary read: until it has run, a
+workspace at an older format is refused on every other command with
+`OAK-WORKSPACE-MIGRATE`, naming the command, and `oak workspace status` says where the
+workspace stands. `oak export` copies a workspace at any format this build knows **as it
+is**, so a workspace can always be rescued, and `oak import` and `oak validate export` take
+such an export as it is, saying it needs migrating. No published release has written a
+format other than the current one, so the shipped chain holds no step and upgrading to this
+tree needs nothing; the mechanism is what a future format bump ships with, in the same
+release, beside the PostgreSQL store's own alembic revision
+(`tests/integration/test_workspace_format.py`, and the `0.9.0` reference workspace in
+`tests/integration/test_workspace_corpus.py`).
+
+A format this build does not know, one a newer build wrote, is refused on every command,
+`export` included, with `OAK-WORKSPACE-FORMAT`, naming the build that reads it: nothing can
+be believed about such a manifest, and downgrade is not supported
 (`tests/integration/test_backup_restore.py::test_a_workspace_written_by_an_unknown_format_fails_closed`).
 
-**Therefore: `oak export` before upgrading.** The exported tree is the migration unit.
-`0.9.0` does not move any manifest `schema_version`, so upgrading to it needs nothing.
-Going back is different: once `0.9.0` records an observation in a workspace, the new
-`observation_record` kind means `0.8.0` can no longer validate that workspace's manifest.
-The same holds again for this tree: once it records a report (`architecture_report`,
-`report_narrative`, `report_rendering`) or research (`research_snapshot`,
-`research_review`) in a workspace, the published `0.9.0` cannot validate its manifest — on
-every command, including `export` — although this tree also reports `0.9.0`. Export before
-running an older build against a workspace.
-Make exporting first a habit before an upgrade ever needs it. Recorded as `RR-017`.
+**Therefore: `oak export` before upgrading.** The exported tree is what a newer build reads
+and, if it must, migrates. Going back is where it bites: once `0.9.0` records an observation
+in a workspace, the new `observation_record` kind means `0.8.0` can no longer validate that
+workspace's manifest. The same holds again for this tree: once it records a report
+(`architecture_report`, `report_narrative`, `report_rendering`), research
+(`research_snapshot`, `research_review`) or a migration (`workspace_migrated`) in a
+workspace, the published `0.9.0` cannot validate its manifest — on every command, including
+`export` — although this tree also reports `0.9.0`. Export before running an older build
+against a workspace. Make exporting first a habit before an upgrade ever needs it. `RR-017`
+records the mechanism as closed, and downgrade as unsupported.
 
 ### Rollback limits
 
@@ -389,7 +406,9 @@ success, `2` refusal or invalid input, `4` version or idempotency conflict.
 | Symptom | Likely cause | What to do |
 |---|---|---|
 | An operation never leaves `queued` | No worker running | Start `oak-worker`; check `pending_events` on the lag endpoint |
-| `OAK-WORKSPACE-CORRUPT` on every command | Manifest unreadable, or a schema version this build does not know | Run `scripts/verify_deployment.py --workspace`; if the manifest version is foreign, you need the build that wrote it |
+| `OAK-WORKSPACE-CORRUPT` on every command | The manifest or an indexed object is unreadable or invalid | Run `scripts/verify_deployment.py --workspace`; restore from your last `oak export` |
+| `OAK-WORKSPACE-MIGRATE` on every command but `workspace status` and `export` | The workspace is at an older format this build knows | Run `oak workspace migrate` once, or `oak export` to copy it as it is |
+| `OAK-WORKSPACE-FORMAT` on every command, `export` included | The manifest names a format this build does not read: a newer build wrote it | Use the build that wrote it, and export from there; downgrade is not supported |
 | `OAK-RUNNER-REPLAY` on every dispatch | The consumed-nonce ledger `$OAK_RUNNER_HOME/consumed-nonces.json` is corrupt; it deliberately refuses rather than reading as empty | Inspect the file. Remove it only if you accept that previously burned nonces become replayable — for the local fixture that is usually acceptable; record the decision |
 | `OAK-RUNNER-REVOCATION` on every dispatch | The mailbox's `revocations/manifest.json` is missing, the notice set does not match it, or the runner's recorded sequence is ahead of it | Re-publish the revocation state from the control plane (`oak revoke-approval`, or a fresh dispatch establishes an empty manifest). Do not hand-delete notices — the mismatch is the protection working |
 | `OAK-EXPECTED-VERSION` | Someone else advanced the case | Re-read the case and retry with the current version. This is a normal concurrency refusal, not a fault |

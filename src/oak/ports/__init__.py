@@ -32,6 +32,7 @@ from oak.ports.target import TargetProfilePort
 from oak.ports.workspace import (
     WorkspaceCommit,
     WorkspaceEvent,
+    WorkspaceFormatPort,
     WorkspaceMutation,
     WorkspaceRepository,
 )
@@ -67,6 +68,7 @@ __all__ = [
     "TargetProfilePort",
     "WorkspaceCommit",
     "WorkspaceEvent",
+    "WorkspaceFormatPort",
     "WorkspaceMutation",
     "WorkspaceRepository",
 ]
