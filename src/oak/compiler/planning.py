@@ -178,6 +178,7 @@ def compile_review_plan(
     bundle_document = _bundle_document(
         intent_ref=intent_ref,
         evaluation_contract_ref=evaluation_contract_ref,
+        assurance=assurance,
         candidate_document=candidate_document,
         decision=decision,
         target=target,
@@ -274,6 +275,7 @@ def _bundle_document(
     *,
     intent_ref: ArtifactReference,
     evaluation_contract_ref: ArtifactReference,
+    assurance: Artifact,
     candidate_document: dict[str, Any],
     decision: Artifact,
     target: dict[str, Any],
@@ -295,6 +297,9 @@ def _bundle_document(
         "architecture_decision_ref": decision.reference.to_document(),
         "intent_ref": intent_ref.to_document(),
         "evaluation_contract_ref": evaluation_contract_ref.to_document(),
+        # The edge `oak validate bundle` checks, so a detached bundle cannot pair a
+        # genuine spine with a substituted assurance plan (RR-008).
+        "assurance_plan_ref": assurance.reference.to_document(),
         "target": {
             "class": "local",
             "fingerprint": target_fingerprint,

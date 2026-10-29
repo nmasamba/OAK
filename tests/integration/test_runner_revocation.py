@@ -348,7 +348,8 @@ def test_the_nonce_ledger_round_trips_and_replaces_atomically(tmp_path) -> None:
     mailbox.consume_lease_nonce("b" * 64)
     assert mailbox.consumed_lease_nonces() == {"a" * 64, "b" * 64}
     ledger = home / "consumed-nonces.json"
-    assert json.loads(ledger.read_text(encoding="utf-8")) == sorted(["a" * 64, "b" * 64])
+    # Each nonce with its lease's expiry (none given here), kept until the lease lapses.
+    assert json.loads(ledger.read_text(encoding="utf-8")) == {"a" * 64: None, "b" * 64: None}
     assert not ledger.with_name(ledger.name + ".tmp").exists()
 
 

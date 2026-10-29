@@ -86,6 +86,52 @@ def test_a_real_bundle_validates_and_tampering_is_refused(
     assert denial.value.code == "OAK-VALIDATE-DIGEST"
 
 
+def test_the_bundle_binds_its_assurance_plan_and_a_substituted_one_is_refused(
+    compiled_workspace: Path, tmp_path: Path
+) -> None:
+    """RR-008: the bundle carries a digest edge to the assurance plan, and it is checked."""
+
+    bundle_directory = tmp_path / "bundle"
+    _write_bundle(compiled_workspace, bundle_directory)
+    bundle = json.loads((bundle_directory / "deployment-bundle.json").read_text())
+    assurance = json.loads((bundle_directory / "assurance-plan.json").read_text())
+    assert bundle["assurance_plan_ref"]["id"] == assurance["id"]
+    assert validate_bundle(bundle_directory)["assurance_plan"] == "bound"
+
+    assurance["extensions"]["oak.community/substituted"] = True
+    (bundle_directory / "assurance-plan.json").write_bytes(canonical_json_bytes(assurance) + b"\n")
+    with pytest.raises(OAKError) as denial:
+        validate_bundle(bundle_directory)
+    assert denial.value.code == "OAK-VALIDATE-DIGEST"
+    assert "assurance plan" in denial.value.message
+
+
+def test_a_bundle_written_before_the_edge_reports_its_assurance_plan_unbound(
+    tmp_path: Path,
+) -> None:
+    """A 0.9.0 bundle carries no edge: valid, and its assurance plan said to be unbound."""
+
+    workspace = tmp_path / "corpus"
+    create_design_case_service(workspace).import_from(
+        ROOT / "tests" / "fixtures" / "workspaces" / "0.9.0"
+    )
+    bundle_directory = tmp_path / "old-bundle"
+    _write_bundle(workspace, bundle_directory)
+    assert "assurance_plan_ref" not in json.loads(
+        (bundle_directory / "deployment-bundle.json").read_text()
+    )
+    result = validate_bundle(bundle_directory)
+    assert result["valid"] is True
+    assert result["assurance_plan"] == "unbound"
+    shown = runner.invoke(cli_app, ["validate", "bundle", str(bundle_directory)])
+    assert shown.exit_code == 0, shown.output
+    assert "assurance plan unbound" in shown.stdout
+    as_json = runner.invoke(
+        cli_app, ["validate", "bundle", str(bundle_directory), "--output", "json"]
+    )
+    assert json.loads(as_json.stdout)["assurance_plan"] == "unbound"
+
+
 def test_an_edited_semantic_manifest_is_refused(compiled_workspace: Path, tmp_path: Path) -> None:
     """F1-4: the bundle and every plan operation pin the semantic manifest's digest."""
 

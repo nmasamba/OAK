@@ -36,16 +36,19 @@ FIXED_CLOCK = "2026-08-18T12:00:00Z"
 # Recorded at 0.7.1 (`CHANGELOG.md`, "Versioning"; case `design-case.public-manual-qa@0.1.7`).
 # The bundle, runner-plan and case values moved once, in Sprint 11, when the assurance
 # plan's stale gate_3 reason and read-only control text were corrected (compatibility
-# rule 4; before and after in CHANGELOG.md). The candidate and semantic values did not.
+# rule 4; before and after in CHANGELOG.md). They moved a second time, with the candidate
+# and the catalogue snapshot, in Tier 3's Batch A (2026-10-29): the snapshot records the
+# provenance of every entry and the bundle carries an edge to the assurance plan. The
+# semantic manifest and the intents did not move either time.
 REFERENCE_DIGESTS = {
     ("deployment_bundle", "bundle.candidate-03.target.local-fixture"): (
-        "sha256:9da17d021cf9f1e61bb73b568927870272d466ec8d869f2ce3201ebaa505b539"
+        "sha256:3c8343512a5a8512ff7715b2317e8855327007a7c60b46520aa8d980c0f68796"
     ),
     ("runner_plan", "runner-plan.bundle.candidate-03.target.local-fixture"): (
-        "sha256:03c4541ade1943cd9e824eabb0a00290190fc2b30a08c737d237052e12dd6de0"
+        "sha256:13da46613588b2dc1011da5b50a6d72417ee28dfa0a0cb2e1f0d4d2f445e1bb8"
     ),
     ("architecture_candidate", "candidate-03"): (
-        "sha256:576b0ca62835a521439e44b280ffdfca79438323d45ae79e70521a27d14118b3"
+        "sha256:04c9b66176adf7ae264fbaaf42979cdac8670002756a089f8a6b9b9bf5f9a959"
     ),
     ("review_artifact", "semantic.candidate-03.target.local-fixture"): (
         "sha256:2ef34758128e13038d26b82847589b2b0ec2c5f25ba6ba56982a520a92a34d63"
@@ -55,7 +58,7 @@ REFERENCE_INTENT_ARTIFACTS = {
     "0.1.0": "sha256:54ff2c625088bd0686df568aeb71f5f3dfbb83085cd3526781b63659ab822d2c",
     "0.1.1": "sha256:d296166aef0f7df81a2e7b65fc99f8bd33a3582c948f0bc692566e65b0480f9f",
 }
-REFERENCE_CASE_DIGEST = "sha256:61cee33984c8140f428ef3710056d9a5f546f302346392133173c2848fb41990"
+REFERENCE_CASE_DIGEST = "sha256:10813ad6fa7962fddb06d87edcd7ac5a5317e7d30fc949fedb448063419291ea"
 
 # sha256 of `canonical_json_bytes(intent_document)` from
 # `DeterministicBriefInterpreter.interpret(brief, created_at=FIXED_CLOCK)` with no proposal.

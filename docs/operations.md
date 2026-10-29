@@ -38,11 +38,13 @@ The worker is not optional if you intend to use the API: candidate generation,
 evaluation, compilation and a consented research run are durable operations, and without
 a worker they stay queued forever with no error.
 
-The images apply their distribution's security updates at build time, so **rebuilding
-picks up patches**. `make scan-images` reports what a build currently carries. As of
-`0.9.0` the web image reports no findings at any severity and the API image has no
-CRITICAL findings and 44 HIGH with no vendor fix available — eight distinct advisories, most
-of them counted once per package Debian builds from one source
+Both images take Debian's security updates from the dated snapshot their Dockerfiles
+name, so **rebuilding reproduces the same image** (`RR-006`, closed by Tier 3's Batch A);
+a release moves that date to take the patches published since, and `make scan-images`
+reports what the Dockerfiles as they stand carry. As of `0.9.0` the web image (then on
+Alpine) reported no findings at any severity and the API image no CRITICAL findings and
+44 HIGH with no vendor fix available — eight distinct advisories, most of them counted
+once per package Debian builds from one source
 ([container-scan.md](release/0.9.0/container-scan.md)).
 
 Verify the release artifacts you downloaded before installing them — see
@@ -75,6 +77,16 @@ One setting deserves attention before you have any data: **`OAK_ARTIFACT_ROOT` d
 to the relative path `.oak/server-artifacts`**, resolved against whatever directory the
 process was started in. Set it to an absolute path now. A backup procedure cannot copy a
 directory whose location depends on where someone happened to be standing.
+
+**Limits.** The API admits 1,200 requests a minute from one client address and 6,000 for
+one tenant, a tenant may have 100 operations queued or running, and a case may record 100
+billable model requests a day; past each, the answer is `429` with `Retry-After`
+(`OAK-RATE-LIMIT-ADDRESS`, `OAK-RATE-LIMIT-TENANT`, `OAK-OPERATION-QUOTA`,
+`OAK-MODEL-BUDGET`). The four `OAK_*` rows in [configuration.md](configuration.md) set
+them, and `0` switches one off. The request limiter's state is the `oak-api` process's
+own: two processes count apart, and a restart forgets. Everything on this machine, the
+browser included, shares one client address as the API sees it, and the health probes are
+never counted against it.
 
 ---
 
@@ -187,9 +199,9 @@ directory that is not in either.
 | **Artifact bytes** | `$OAK_ARTIFACT_ROOT/sha256/` (Compose volume `oak-community_oak-artifacts`) | A filesystem copy |
 | **Model state** — *do not back this up* | `$OAK_CREDENTIALS_DIRECTORY` and `$OAK_MODELS_DIRECTORY` (Compose volume `oak-community_oak-model-state`) | Nothing. It holds user-supplied provider keys in plain text and can be re-entered in seconds; a backup of it is a copy of those keys (`RR-040`) |
 | Signing keys and trust anchors | `$OAK_TRUST_DIRECTORY` (default `~/.oak/trust`) | A **separate**, protected copy |
-| Outbound dispatch mailbox | `$OAK_DISPATCH_MAILBOX` (default `~/.oak/mailbox`) | A filesystem copy, if leases are in flight |
+| Outbound dispatch mailbox | `$OAK_DISPATCH_MAILBOX` (default `~/.oak/mailbox`) | A filesystem copy, if leases are in flight. The runner removes processed dispatch directories older than `OAK_RUNNER_DISPATCH_RETENTION_DAYS` (default 30) at the end of each run, never the newest nor one whose completion is not yet ingested |
 | Extension quarantine and activations | `$OAK_EXTENSIONS_DIRECTORY` (default `~/.oak/extensions`) | A filesystem copy |
-| Runner identity, journal, consumed nonces, the revocation-sequence mark, and `docker-config/`, the empty Docker client configuration the runner's `docker` commands use (a `run-*` directory there is a run's private working directory, removed when it ends: nothing to back up) | `$OAK_RUNNER_HOME` (default `~/.oak/runner`) | A **separate**, protected copy — it holds the runner's own Ed25519 private key |
+| Runner identity, journals (never removed), the consumed-nonce ledger (holding each nonce until its lease's expiry plus five minutes), the revocation-sequence mark, and `docker-config/`, the empty Docker client configuration the runner's `docker` commands use (a `run-*` directory there is a run's private working directory, removed when it ends: nothing to back up) | `$OAK_RUNNER_HOME` (default `~/.oak/runner`) | A **separate**, protected copy — it holds the runner's own Ed25519 private key |
 
 > **A `pg_dump` alone is not a backup.** Artifact bytes are read *only* from the artifact
 > root; the JSONB copy in `artifact_versions.canonical_document` is never read back at
@@ -355,22 +367,39 @@ its `downgrade()` deliberately raises — pinned by
 
 ### A file workspace
 
-There is no file-workspace format migration, and none is planned for `0.9.0`. A
-workspace whose manifest carries a `schema_version` this build does not know is refused
-with `OAK-WORKSPACE-CORRUPT` — on **every** command, including `export`, so it cannot be
-rescued after the fact
+A file workspace names its format in its manifest's `schema_version`: `0.4.0`, the format
+every published release wrote. This build reads the current format and carries an older
+one forward with `oak workspace migrate`, the only command that migrates. It runs the
+format's chain of pure, idempotent steps under the workspace lock, writes any object a step
+produced as a new object, records a reshaped design case as a successor with a
+`workspace_migrated` audit event, and leaves every stored object and the history as they
+were; running it twice is a no-op. Nothing migrates on an ordinary read: until it has run, a
+workspace at an older format is refused on every other command with
+`OAK-WORKSPACE-MIGRATE`, naming the command, and `oak workspace status` says where the
+workspace stands. `oak export` copies a workspace at any format this build knows **as it
+is**, so a workspace can always be rescued, and `oak import` and `oak validate export` take
+such an export as it is, saying it needs migrating. No published release has written a
+format other than the current one, so the shipped chain holds no step and upgrading to this
+tree needs nothing; the mechanism is what a future format bump ships with, in the same
+release, beside the PostgreSQL store's own alembic revision
+(`tests/integration/test_workspace_format.py`, and the `0.9.0` reference workspace in
+`tests/integration/test_workspace_corpus.py`).
+
+A format this build does not know, one a newer build wrote, is refused on every command,
+`export` included, with `OAK-WORKSPACE-FORMAT`, naming the build that reads it: nothing can
+be believed about such a manifest, and downgrade is not supported
 (`tests/integration/test_backup_restore.py::test_a_workspace_written_by_an_unknown_format_fails_closed`).
 
-**Therefore: `oak export` before upgrading.** The exported tree is the migration unit.
-`0.9.0` does not move any manifest `schema_version`, so upgrading to it needs nothing.
-Going back is different: once `0.9.0` records an observation in a workspace, the new
-`observation_record` kind means `0.8.0` can no longer validate that workspace's manifest.
-The same holds again for this tree: once it records a report (`architecture_report`,
-`report_narrative`, `report_rendering`) or research (`research_snapshot`,
-`research_review`) in a workspace, the published `0.9.0` cannot validate its manifest — on
-every command, including `export` — although this tree also reports `0.9.0`. Export before
-running an older build against a workspace.
-Make exporting first a habit before an upgrade ever needs it. Recorded as `RR-017`.
+**Therefore: `oak export` before upgrading.** The exported tree is what a newer build reads
+and, if it must, migrates. Going back is where it bites: once `0.9.0` records an observation
+in a workspace, the new `observation_record` kind means `0.8.0` can no longer validate that
+workspace's manifest. The same holds again for this tree: once it records a report
+(`architecture_report`, `report_narrative`, `report_rendering`), research
+(`research_snapshot`, `research_review`) or a migration (`workspace_migrated`) in a
+workspace, the published `0.9.0` cannot validate its manifest — on every command, including
+`export` — although this tree also reports `0.9.0`. Export before running an older build
+against a workspace. Make exporting first a habit before an upgrade ever needs it. `RR-017`
+records the mechanism as closed, and downgrade as unsupported.
 
 ### Rollback limits
 
@@ -389,11 +418,18 @@ success, `2` refusal or invalid input, `4` version or idempotency conflict.
 | Symptom | Likely cause | What to do |
 |---|---|---|
 | An operation never leaves `queued` | No worker running | Start `oak-worker`; check `pending_events` on the lag endpoint |
-| `OAK-WORKSPACE-CORRUPT` on every command | Manifest unreadable, or a schema version this build does not know | Run `scripts/verify_deployment.py --workspace`; if the manifest version is foreign, you need the build that wrote it |
-| `OAK-RUNNER-REPLAY` on every dispatch | The consumed-nonce ledger `$OAK_RUNNER_HOME/consumed-nonces.json` is corrupt; it deliberately refuses rather than reading as empty | Inspect the file. Remove it only if you accept that previously burned nonces become replayable — for the local fixture that is usually acceptable; record the decision |
+| `OAK-WORKSPACE-CORRUPT` on every command | The manifest or an indexed object is unreadable or invalid | Run `scripts/verify_deployment.py --workspace`; restore from your last `oak export` |
+| `OAK-WORKSPACE-MIGRATE` on every command but `workspace status` and `export` | The workspace is at an older format this build knows | Run `oak workspace migrate` once, or `oak export` to copy it as it is |
+| `OAK-WORKSPACE-FORMAT` on every command, `export` included | The manifest names a format this build does not read: a newer build wrote it | Use the build that wrote it, and export from there; downgrade is not supported |
+| `OAK-RUNNER-REPLAY` on every dispatch | The consumed-nonce ledger `$OAK_RUNNER_HOME/consumed-nonces.json` (a map of each nonce to its lease's expiry; a list written by `0.9` still reads) is corrupt; it deliberately refuses rather than reading as empty | Inspect the file. Remove it only if you accept that previously burned nonces become replayable — for the local fixture that is usually acceptable; record the decision |
+| `OAK-RUNNER-CONFIG` naming `OAK_RUNNER_HEARTBEAT_SECONDS` or `OAK_RUNNER_DISPATCH_RETENTION_DAYS` | The value is not a number in range (0 to 3600 seconds; 0 to 3650 days) | Fix the variable. `0` switches heartbeats off, or keeps every processed dispatch |
 | `OAK-RUNNER-REVOCATION` on every dispatch | The mailbox's `revocations/manifest.json` is missing, the notice set does not match it, or the runner's recorded sequence is ahead of it | Re-publish the revocation state from the control plane (`oak revoke-approval`, or a fresh dispatch establishes an empty manifest). Do not hand-delete notices — the mismatch is the protection working |
 | `OAK-EXPECTED-VERSION` | Someone else advanced the case | Re-read the case and retry with the current version. This is a normal concurrency refusal, not a fault |
 | `OAK-IDEMPOTENCY-CONFLICT` | An idempotency key was reused with different input | Use a new key, or send the original input |
+| `429 OAK-RATE-LIMIT-ADDRESS` or `OAK-RATE-LIMIT-TENANT` | More requests in a minute than the limit admits from one address or one tenant; everything on this machine shares one address | Wait the `Retry-After` seconds; raise `OAK_REQUESTS_PER_MINUTE_PER_ADDRESS` or `OAK_REQUESTS_PER_MINUTE_PER_TENANT`, or set one to `0` |
+| `429 OAK-OPERATION-QUOTA` | The tenant has `OAK_OPERATIONS_PER_TENANT` operations queued or running | Check that `oak-worker` is running and draining them; cancel one; or raise the value |
+| `429 OAK-MODEL-BUDGET` (`OAK-MODEL-BUDGET` on the CLI) | The case has recorded `OAK_MODEL_REQUESTS_PER_CASE_PER_DAY` billable model requests today | Use the deterministic mode, wait for 00:00 UTC, or raise the value |
+| `OAK-LIMIT-CONFIG` at start, or from a command | One of the four limit variables is not a whole number from 0 to 1000000 | Fix the value; `0` switches that limit off |
 | `OAK-REMOTE-UNSUPPORTED` | A local-only command was run with `--server` | Signing, approval (including `approve architecture`), dispatch, ingest, observation (`oak observe`), keys, model-provider configuration, extensions, policy, rendering and validation are local-only by design; the full list is in [interfaces.md](interfaces.md). `oak architecture` works in remote mode |
 | `OAK-REMOTE-UNAVAILABLE` | The control plane is unreachable | Check the URL and that `oak-api` is up |
 | Server refuses to start | `OAK_DATABASE_URL` unset (`oak-worker`, `oak-db-migrate`, `oak-mcp`), or a non-loopback bind without `OAK_ALLOW_NON_LOOPBACK` | See [configuration.md](configuration.md) |
@@ -416,9 +452,27 @@ oak validate export ./case-export
 ```
 
 `oak validate` needs no server and no database, so it works in CI and on a machine that
-has never run OAK. Read the scope of what it checks in [interfaces.md](interfaces.md) —
-in particular, a detached bundle's assurance plan and semantic manifest carry no digest
-edge into the bundle spine.
+has never run OAK. Read the scope of what it checks in [interfaces.md](interfaces.md):
+a detached bundle's semantic manifest and, since Tier 3's Batch A, its assurance plan
+are bound by digest, and a bundle written before that edge reports its assurance plan
+`unbound`.
+
+**What a restored history says.** Importing a server export onto a server
+(`oak --server import`, `POST /v1/design-cases:import`) restores the case with its
+history as written: the file adapter checks every digest, the hash chain and the tenant,
+not who acted, so the actors and interface origins of the restored events are the
+export's claims, as good as the export's custody. The restore then records one
+`workspace_restored` event under the importing command's actor, naming the export's
+manifest, its digest and the number of events restored (`oak.community/restored_from`
+on the case): read the history from that event backwards as the export's word, and from
+it forwards as the server's own. Importing the same export again is answered as a
+duplicate of that restore, with the case as the restore recorded it; an import that finds
+the export's state already there without a restore event (this server's own export
+imported back, or a restore interrupted between the workspace write and its event) is a
+duplicate too and records nothing, so a history restored without its event is one to
+read as the export's word throughout; an export of another state of the case is refused. A local
+workspace's export is not restored on a server at all; it is re-created from its brief
+and confirmed answers under the importing actor (`workspace_imported`).
 
 ---
 
@@ -582,7 +636,7 @@ Global toolchain caches are shared with other projects and are **not** OAK's to 
 them yourself.
 
 The same applies to the third-party images OAK causes Docker to pull: `postgres:17.6-alpine`,
-`python:3.13.12-slim`, `node:24.18.0-alpine`, `nginxinc/nginx-unprivileged:1.29.1-alpine`,
+`python:3.13.12-slim`, `node:24.18.0-alpine`, `nginxinc/nginx-unprivileged:1.30.6-trixie`,
 `ghcr.io/astral-sh/uv:0.10.8` (a build stage of the API image),
 `docker.io/rancher/mirrored-pause:3.10` (pinned by digest; pulled when `oak-runner` installs
 from a shipped mutation profile, and by the Docker-gated end-to-end tests), and

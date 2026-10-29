@@ -533,9 +533,10 @@ means:
   downloads files and copies the install commands, but it can't sign, approve or install
   anything.
 - **Your Hugging Face token is stored like a setting, not locked away.** Other programs
-  running as you can read it ([`RR-040`](docs/security/residual-risk.md)), nothing caps
-  what model calls spend ([`RR-041`](docs/security/residual-risk.md)), and a stored check
-  of the token describes the moment it was made, not now
+  running as you can read it ([`RR-040`](docs/security/residual-risk.md)), a case may make
+  at most a configured number of billable model requests a day but nothing prices what
+  they cost ([`RR-041`](docs/security/residual-risk.md)), and a stored check of the token
+  describes the moment it was made, not now
   ([`RR-042`](docs/security/residual-risk.md)).
 - **The report is a record, not an approval, and its PDF is plain.** The architecture
   report is composed only from the case's records, and a reader may still take it for
@@ -596,8 +597,7 @@ Some ways in, from a first afternoon to a bigger project:
   PostgreSQL. Native Windows support would start with replacing a Unix-only file lock (see
   [platforms.md](docs/platforms.md)).
 - **Harden the operations side.** Useful work includes metrics that leak nothing
-  (`RR-015`), a file-workspace format migration (`RR-017`), and reproducible container
-  images (`RR-006`).
+  (`RR-015`) and compaction or archival of a workspace's history (`RR-030`).
 
 [CONTRIBUTING.md](CONTRIBUTING.md#where-you-could-help) has the full map, how to set up,
 and how changes are reviewed.

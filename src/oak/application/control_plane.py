@@ -29,6 +29,7 @@ from oak.application.design_case import (
     DesignResult,
     ModelInterpreterFactory,
 )
+from oak.application.model_budget import DEFAULT_MODEL_REQUESTS_PER_CASE_PER_DAY
 from oak.application.operations import OperationService, OperationSubmission
 from oak.application.recreation import ReplayPlan, replay_plan
 from oak.application.report.service import ReportNarratorFactory, ReportResult, ReportService
@@ -42,6 +43,7 @@ from oak.application.research import (
 from oak.compiler import DeterministicBriefInterpreter
 from oak.contracts import SchemaRegistry
 from oak.domain import ArtifactReference, OAKError, canonical_json_bytes, content_digest
+from oak.domain.design_case import next_patch_version
 from oak.ports import (
     BriefIntakePort,
     CaseDirectoryPort,
@@ -128,6 +130,7 @@ class CommunityControlPlane:
         report_renderer: ReportRendererPort | None = None,
         report_narrator_factory: ReportNarratorFactory | None = None,
         oak_version: str = "unknown",
+        model_requests_per_day: int = DEFAULT_MODEL_REQUESTS_PER_CASE_PER_DAY,
         research_vocabulary: ResearchVocabularyPort | None = None,
         research_source_factory: SourceFactory | None = None,
         research_source_mode: SourceMode | None = None,
@@ -136,6 +139,7 @@ class CommunityControlPlane:
     ) -> None:
         self._repository_factory = repository_factory
         self._operation_service_factory = operation_service_factory
+        self._model_requests_per_day = model_requests_per_day
         self._intake = intake
         self._interpreter = interpreter
         self._catalogue = catalogue
@@ -465,6 +469,19 @@ class CommunityControlPlane:
             )
 
         repository = self._repository_factory(workspace_id, context.tenant_id)
+        # The restore keeps the export's history as written, actors and origins included:
+        # those are the export's claims. The importer is recorded after it, under this
+        # command's actor, as the first event the server itself attests; the origin names
+        # the export so that importing it again is answered as a duplicate (RR-001's
+        # restored-history follow-up).
+        export_digest = content_digest(canonical_json_bytes(manifest))
+        origin = {
+            "manifest_id": workspace_id,
+            "manifest_digest": export_digest,
+            "case_id": case_id,
+            "case_version": str(current_reference["version"]),
+            "audit_events": len(manifest["audit_events"]),
+        }
         duplicate = False
         with tempfile.TemporaryDirectory(prefix="oak-api-import-") as temporary_name:
             temporary = Path(temporary_name)
@@ -481,14 +498,40 @@ class CommunityControlPlane:
             except OAKError as error:
                 if error.code != "OAK-WORKSPACE-EXISTS":
                     raise
-                if repository.manifest() != manifest:
+                if repository.manifest() != manifest and not self._restored_from(
+                    repository, export_digest
+                ):
                     raise OAKError(
                         "OAK-IDEMPOTENCY-CONFLICT",
                         "import destination contains different canonical state",
                     ) from error
+                # The export's state is here already: this server's own export imported
+                # back, a restore by an earlier build, or one interrupted after the
+                # workspace was written and before its event. The three cannot be told
+                # apart, so none records an event; the last shows as a restored history
+                # with no `workspace_restored` in it.
                 duplicate = True
         case = self._require_case(repository)
         self._verify_case(case_id, case)
+        if duplicate:
+            case = self._restored_case(repository, origin, case)
+        else:
+            # The event's key is the restore's own, derived from the import's key and the
+            # export: the export carries the origin's idempotency records, and a key the
+            # origin had used would otherwise collide with them after the workspace exists.
+            case = (
+                self._design_service(workspace_id, context.tenant_id)
+                .record_restore(
+                    origin,
+                    replace(
+                        context,
+                        interface_origin="import",
+                        expected_version=str(case["version"]),
+                        idempotency_key=self._restore_key(context.idempotency_key, export_digest),
+                    ),
+                )
+                .case
+            )
         intent = None
         if isinstance(case.get("intent_ref"), dict):
             intent = repository.read_json_artifact(
@@ -497,6 +540,44 @@ class CommunityControlPlane:
         return DesignResult(case=case, intent=intent, duplicate=duplicate)
 
     # ----- research at the point of design (Sprint 14, ADR-0018) ----------------------
+
+    @staticmethod
+    def _restored_from(repository: WorkspaceRepository, export_digest: str) -> bool:
+        """Whether the destination's case records a restore from the export with this digest."""
+
+        case = repository.current_case()
+        restored = ((case or {}).get("extensions") or {}).get("oak.community/restored_from")
+        return isinstance(restored, dict) and restored.get("manifest_digest") == export_digest
+
+    @staticmethod
+    def _restore_key(import_key: str, export_digest: str) -> str:
+        digest = export_digest.removeprefix("sha256:")[:24]
+        key = content_digest(import_key.encode("utf-8")).removeprefix("sha256:")[:24]
+        return f"restore:{digest}:{key}"
+
+    @staticmethod
+    def _restored_case(
+        repository: WorkspaceRepository, origin: dict[str, Any], current: dict[str, Any]
+    ) -> dict[str, Any]:
+        """The case as the restore recorded it: the version after the export's, not where
+        the case has gone since, as a re-created import's retry answers too."""
+
+        recorded = next_patch_version(str(origin["case_version"]))
+        for entry in repository.manifest().get("artifact_index", []):
+            if (
+                entry.get("kind") == "design_case"
+                and entry.get("id") == origin["case_id"]
+                and str(entry.get("version")) == recorded
+            ):
+                return repository.read_json_artifact(
+                    ArtifactReference(
+                        id=str(entry["id"]),
+                        version=str(entry["version"]),
+                        digest=str(entry["digest"]),
+                        media_type=str(entry["media_type"]),
+                    )
+                )
+        return current
 
     def _recreate(self, plan: ReplayPlan, context: CommandContext) -> DesignResult:
         """Re-create a local export's case through this server's own steps.
@@ -764,6 +845,7 @@ class CommunityControlPlane:
             self._registry,
             model_interpreter_factory=self._model_interpreter_factory,
             proposal_limits=self._proposal_limits,
+            model_requests_per_day=self._model_requests_per_day,
         )
 
     def _planning_service(self, workspace_id: str, tenant_id: str) -> CandidatePlanningService:
@@ -802,6 +884,7 @@ class CommunityControlPlane:
             oak_version=self._oak_version,
             narrator_factory=self._report_narrator_factory,
             proposal_limits=self._proposal_limits,
+            model_requests_per_day=self._model_requests_per_day,
         )
 
     @staticmethod

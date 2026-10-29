@@ -49,10 +49,17 @@ def run_worker(
     while True:
         current = clock()
         started = time.perf_counter()
+
+        def renew() -> tuple[str, str]:
+            moment = clock()
+            return _timestamp(moment), _timestamp(moment + timedelta(seconds=LEASE_SECONDS))
+
         try:
             result = worker.run_once(
                 now=_timestamp(current),
                 lease_expires_at=_timestamp(current + timedelta(seconds=LEASE_SECONDS)),
+                # Extended between the worker's steps, from each step's own start (RR-031).
+                renew=renew,
             )
         except Exception as error:
             if once:

@@ -26,8 +26,10 @@ class _Worker:
         self.failures = list(failures)
         self.calls: list[dict[str, str]] = []
 
-    def run_once(self, *, now: str, lease_expires_at: str) -> Any:
+    def run_once(self, *, now: str, lease_expires_at: str, renew: Any = None) -> Any:
         self.calls.append({"now": now, "lease_expires_at": lease_expires_at})
+        if renew is not None:
+            self.calls[-1]["renewed"] = renew()
         if self.failures:
             raise self.failures.pop(0)
         return WorkerCycleResult(operation=None, outbox_claimed=0, outbox_applied=0)
@@ -86,3 +88,18 @@ def test_the_lease_is_longer_than_the_research_deadline() -> None:
     run_worker(worker, once=True, clock=lambda: moment)  # type: ignore[arg-type]
     assert worker.calls[0]["lease_expires_at"] == "2026-10-23T12:02:00Z"
     assert LEASE_SECONDS >= 2 * DEADLINE_SECONDS
+
+
+def test_the_loop_hands_the_worker_a_renewal_read_from_the_clock() -> None:
+    """RR-031: a lease extended between steps is measured from the step's own start."""
+
+    moments = iter(
+        [
+            datetime(2026, 10, 23, 12, 0, 0, tzinfo=UTC),  # the cycle's start
+            datetime(2026, 10, 23, 12, 0, 45, tzinfo=UTC),  # when the step renews
+        ]
+    )
+    worker = _Worker([])
+    run_worker(worker, once=True, clock=lambda: next(moments))  # type: ignore[arg-type]
+    assert worker.calls[0]["lease_expires_at"] == "2026-10-23T12:02:00Z"
+    assert worker.calls[0]["renewed"] == ("2026-10-23T12:00:45Z", "2026-10-23T12:02:45Z")

@@ -146,6 +146,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        with:
+          # BuildKit pinned by version and digest: timestamp rewriting needs 0.13 or later,
+          # and the reproducibility evidence records the builder (RR-006).
+          driver-opts: image=moby/buildkit:v0.34.0@sha256:b059f8d7226d0b326bc871af489a5dddf65e36af4d20d14251b072974d9ee87c
 
       - name: Read the release version
         id: version
@@ -154,21 +158,16 @@ jobs:
       # The release's own images, built and scanned for its evidence. CI builds them too
       # (web-e2e and check-linux-arm64), but a force-included directory missing from the
       # build context has broken them before, and this is the build the evidence names.
-      - name: Build the API image
+      # Each is built twice, the second time with no cached layer, and the two image IDs
+      # must match: that is the reproducibility claim, for linux/amd64 (RR-006).
+      - name: Build both images twice for linux/amd64 and compare
         run: |
-          docker buildx build \
+          mkdir -p image-evidence
+          python3 scripts/reproduce_images.py \
             --platform linux/amd64 \
-            --file deploy/images/api.Dockerfile \
-            --tag oak-community/api:${{ steps.version.outputs.value }} \
-            --load .
-
-      - name: Build the web image
-        run: |
-          docker buildx build \
-            --platform linux/amd64 \
-            --file deploy/images/web.Dockerfile \
-            --tag oak-community/web:${{ steps.version.outputs.value }} \
-            --load .
+            --output image-evidence/image-reproducibility.json \
+            deploy/images/api.Dockerfile deploy/images/web.Dockerfile
+          cat image-evidence/image-reproducibility.json
 
       - name: Prove the API image runs the packaged entrypoint
         run: |
@@ -179,8 +178,8 @@ jobs:
             exit 1
           }
 
-      # Recorded as provenance, not as a reproducibility claim: OAK's image builds are
-      # not byte-reproducible today (see docs/security/residual-risk.md, RR-006).
+      # The IDs of the images the evidence names; the reproducibility record above holds
+      # the second build's IDs beside them.
       - name: Record image digests
         run: |
           mkdir -p image-evidence
@@ -198,6 +197,7 @@ jobs:
         run: |
           python3 scripts/scan_images.py \
             --platform linux/amd64 \
+            --reproducibility image-evidence/image-reproducibility.json \
             --output image-evidence/container-scan.json
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

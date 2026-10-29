@@ -13,6 +13,7 @@ from oak.application.context import CommandContext
 from oak.domain import OAKError, canonical_json_bytes, content_digest
 from oak.ports import (
     EnqueuedOperation,
+    OperationLease,
     OperationRecord,
     OperationSpec,
     OperationStore,
@@ -24,6 +25,10 @@ ALLOWED_OPERATION_KINDS = frozenset(
 )
 FORBIDDEN_OPERATION_FIELDS = frozenset({"argv", "command", "executable", "shell", "shell_command"})
 OperationHandler = Callable[[dict[str, Any]], dict[str, Any]]
+# A fresh (now, lease_expires_at) pair, read from the clock when a step starts (RR-031).
+LeaseRenewal = Callable[[], tuple[str, str]]
+# The most operations a tenant may have queued or running at once (RR-024); `0` is no cap.
+DEFAULT_OPERATIONS_PER_TENANT = 100
 
 
 @dataclass(frozen=True, slots=True)
@@ -33,9 +38,16 @@ class OperationSubmission:
 
 
 class OperationService:
-    def __init__(self, store: OperationStore, *, environment_id: str = "local") -> None:
+    def __init__(
+        self,
+        store: OperationStore,
+        *,
+        environment_id: str = "local",
+        maximum_active: int = DEFAULT_OPERATIONS_PER_TENANT,
+    ) -> None:
         self._store = store
         self._environment_id = environment_id
+        self._maximum_active = max(0, maximum_active)
 
     def submit(
         self,
@@ -106,7 +118,10 @@ class OperationService:
             return OperationSubmission(existing, duplicate=True)
         if precondition is not None:
             precondition()
-        enqueued: EnqueuedOperation = self._store.enqueue(spec)
+        # A duplicate is answered above whatever the queue holds; a new operation joins it
+        # only while the tenant is under its cap, which the store judges under one lock
+        # with the insert, so two submissions cannot both find room for one (RR-024).
+        enqueued: EnqueuedOperation = self._store.enqueue(spec, maximum_active=self._maximum_active)
         return OperationSubmission(enqueued.operation, enqueued.duplicate)
 
     def get(self, operation_id: str) -> OperationRecord:
@@ -157,6 +172,7 @@ class OperationWorker:
         worker_id: str,
         now: str,
         lease_expires_at: str,
+        renew: LeaseRenewal | None = None,
     ) -> OperationRecord | None:
         lease = self._store.claim(
             worker_id=worker_id,
@@ -179,6 +195,7 @@ class OperationWorker:
             checkpoint={"stage": "started", "attempt": lease.operation.attempt_count},
             recorded_at=now,
         )
+        lease = self._renewed(lease, renew)
         try:
             result = handler(lease.operation.request)
         except OAKError as error:
@@ -205,7 +222,19 @@ class OperationWorker:
         # cannot undo that: the operation succeeded, with its result, and still shows the
         # request (`cancel_requested`). Reporting it cancelled with the result dropped
         # told the client nothing happened while the case had moved on (F2-8).
+        lease = self._renewed(lease, renew)
         return self._store.succeed(lease, result=result, completed_at=now)
+
+    def _renewed(self, lease: OperationLease, renew: LeaseRenewal | None) -> OperationLease:
+        """Extend the lease at a step boundary, measured from that moment rather than from
+        the start of the cycle, so a long step runs under a lease of its own length; a lease
+        another worker has since claimed is reported as lost here, before the step runs or
+        its result is recorded (RR-031)."""
+
+        if renew is None:
+            return lease
+        now, lease_expires_at = renew()
+        return self._store.heartbeat(lease, now=now, lease_expires_at=lease_expires_at)
 
 
 @dataclass(frozen=True, slots=True)
@@ -231,11 +260,14 @@ class CommunityWorker:
         self._worker_id = worker_id
         self._projection_name = projection_name
 
-    def run_once(self, *, now: str, lease_expires_at: str) -> WorkerCycleResult:
+    def run_once(
+        self, *, now: str, lease_expires_at: str, renew: LeaseRenewal | None = None
+    ) -> WorkerCycleResult:
         operation = self._operation_worker.run_once(
             worker_id=self._worker_id,
             now=now,
             lease_expires_at=lease_expires_at,
+            renew=renew,
         )
         messages = self._outbox_store.claim(
             consumer_id=self._worker_id,

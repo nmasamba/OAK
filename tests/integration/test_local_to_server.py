@@ -234,8 +234,47 @@ def test_an_answer_whose_value_cannot_be_recovered_is_refused(tmp_path: Path) ->
 
 
 def test_an_export_from_a_server_still_imports_as_itself(tmp_path: Path) -> None:
-    """The server-shaped path is unchanged: its identity is the server's, so it is restored."""
+    """The server-shaped path restores the case: its identity is the server's. Since Tier
+    3's Batch A the restore records the importer after the restored history, whose actors
+    are the export's claims (OAK-V1-036)."""
 
+    origin = _server(tmp_path / "origin")
+    brief = (ROOT / "examples/briefs/public-manual-qa.yaml").read_bytes()
+    origin.create_design_case(
+        original_name="public-manual-qa.yaml",
+        content=brief,
+        context=replace(_context("origin"), actor="exporting-user"),
+    )
+    exported = origin.export_design_case(CASE_ID, tenant_id="local")
+    plane = _server(tmp_path)
+
+    result = plane.import_design_case(exported, context=_context("server-shaped"))
+    case = result.case
+
+    assert result.duplicate is False
+    assert "oak.community/recreated_from" not in case["extensions"]
+    events = _events(plane)
+    assert [event["event_type"] for event in events] == ["case_created", "workspace_restored"]
+    restored, importer = events
+    assert restored["actor"] == "exporting-user", "the restored event keeps the export's claim"
+    assert importer["actor"] == "server-user"
+    assert importer["interface_origin"] == "import"
+    assert importer["case_version"] == case["version"] != "0.1.0"
+    origin_record = case["extensions"]["oak.community/restored_from"]
+    assert origin_record == importer["extensions"]["oak.community/restored_from"]
+    assert origin_record == {
+        "manifest_id": exported["manifest"]["id"],
+        "manifest_digest": content_digest(canonical_json_bytes(exported["manifest"])),
+        "case_id": CASE_ID,
+        "case_version": "0.1.0",
+        "audit_events": 1,
+    }
+    assert case["status"] == "draft", "a restore changes no status"
+
+
+def test_importing_a_server_export_again_is_a_duplicate_whatever_the_key(
+    tmp_path: Path,
+) -> None:
     origin = _server(tmp_path / "origin")
     brief = (ROOT / "examples/briefs/public-manual-qa.yaml").read_bytes()
     origin.create_design_case(
@@ -243,11 +282,25 @@ def test_an_export_from_a_server_still_imports_as_itself(tmp_path: Path) -> None
     )
     exported = origin.export_design_case(CASE_ID, tenant_id="local")
     plane = _server(tmp_path)
+    first = plane.import_design_case(exported, context=_context("restore-once"))
 
-    case = plane.import_design_case(exported, context=_context("server-shaped")).case
+    same_key = plane.import_design_case(exported, context=_context("restore-once"))
+    assert same_key.duplicate is True and same_key.case == first.case
+    other_key = plane.import_design_case(exported, context=_context("restore-again"))
+    assert other_key.duplicate is True and other_key.case == first.case
+    assert [event["event_type"] for event in _events(plane)] == [
+        "case_created",
+        "workspace_restored",
+    ], "a second import recorded a second restore"
 
-    assert "oak.community/recreated_from" not in case["extensions"]
-    assert [event["event_type"] for event in _events(plane)] == ["case_created"]
+    # A later export of the same case is another state: refused, never silently restored
+    # over what the server holds.
+    origin.interpret(CASE_ID, _user_step(_context("origin-moved"), "0.1.0"))
+    moved = origin.export_design_case(CASE_ID, tenant_id="local")
+    with pytest.raises(OAKError) as refusal:
+        plane.import_design_case(moved, context=_context("restore-moved"))
+    assert refusal.value.code == "OAK-IDEMPOTENCY-CONFLICT"
+    assert len(_events(plane)) == 2
 
 
 def _brief_digest(exported: dict[str, Any]) -> str:
@@ -465,6 +518,86 @@ def test_a_retried_import_returns_what_it_recorded_not_where_the_case_went_since
     assert again.duplicate is True
     assert again.case == first.case
     assert again.intent == first.intent
+
+
+def test_a_restore_records_its_event_under_a_key_of_its_own(tmp_path: Path) -> None:
+    """Review W1: the export carries the origin's idempotency records, so the restore's
+    event cannot borrow the import's key; it derives one from the key and the export."""
+
+    origin = _server(tmp_path / "origin")
+    brief = (ROOT / "examples/briefs/public-manual-qa.yaml").read_bytes()
+    origin.create_design_case(
+        original_name="public-manual-qa.yaml", content=brief, context=_context("shared")
+    )
+    exported = origin.export_design_case(CASE_ID, tenant_id="local")
+    plane = _server(tmp_path)
+
+    result = plane.import_design_case(exported, context=_context("shared"))
+
+    assert result.duplicate is False
+    assert [event["event_type"] for event in _events(plane)] == [
+        "case_created",
+        "workspace_restored",
+    ]
+    restore = _events(plane)[-1]
+    assert restore["idempotency_key"].startswith("restore:")
+    assert restore["idempotency_key"] != _context("shared").idempotency_key
+
+
+def test_a_restore_interrupted_before_its_event_stays_without_one(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Review W1, what remains: the import and its event are two writes, and a workspace
+    left between them cannot be told from this server's own export imported back, so the
+    next import answers it as a duplicate and records nothing; the derived key removed the
+    natural trigger (an import key the origin had used), and this pins the window."""
+
+    from oak.application.design_case import DesignCaseService
+
+    origin = _server(tmp_path / "origin")
+    brief = (ROOT / "examples/briefs/public-manual-qa.yaml").read_bytes()
+    origin.create_design_case(
+        original_name="public-manual-qa.yaml", content=brief, context=_context("origin")
+    )
+    exported = origin.export_design_case(CASE_ID, tenant_id="local")
+    plane = _server(tmp_path)
+
+    def crash(self: Any, *arguments: Any, **keywords: Any) -> Any:
+        raise OSError("the process died after the workspace was written")
+
+    monkeypatch.setattr(DesignCaseService, "record_restore", crash)
+    with pytest.raises(OSError):
+        plane.import_design_case(exported, context=_context("first-try"))
+    assert [event["event_type"] for event in _events(plane)] == ["case_created"]
+    monkeypatch.undo()
+
+    again = plane.import_design_case(exported, context=_context("second-try"))
+
+    assert again.duplicate is True
+    assert [event["event_type"] for event in _events(plane)] == ["case_created"]
+
+
+def test_a_repeated_import_answers_with_the_case_the_restore_recorded(tmp_path: Path) -> None:
+    """Review W6: like a re-created import's retry, a repeat names the restore's case, not
+    where the case went since."""
+
+    origin = _server(tmp_path / "origin")
+    brief = (ROOT / "examples/briefs/public-manual-qa.yaml").read_bytes()
+    origin.create_design_case(
+        original_name="public-manual-qa.yaml", content=brief, context=_context("origin")
+    )
+    exported = origin.export_design_case(CASE_ID, tenant_id="local")
+    plane = _server(tmp_path)
+    restored = plane.import_design_case(exported, context=_context("restore")).case
+    assert restored["version"] == "0.1.1"
+    moved = plane.interpret(CASE_ID, _user_step(_context("moved"), "0.1.1")).case
+    assert moved["version"] == "0.1.2"
+
+    again = plane.import_design_case(exported, context=_context("again"))
+
+    assert again.duplicate is True
+    assert again.case == restored
+    assert plane.get_design_case(CASE_ID, tenant_id="local").case["version"] == "0.1.2"
 
 
 def test_the_recorded_origin_comes_from_the_manifest_not_the_case_document(

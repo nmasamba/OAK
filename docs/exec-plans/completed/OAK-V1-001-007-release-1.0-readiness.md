@@ -369,6 +369,21 @@ Each item names what it takes.
    pin third-party actions by commit SHA (F4-14's note); move off the deprecated Starlette
    test client.
 
+**What Tier 3's Batch A changed in this list (2026-10-29, `OAK-V1-029`–`037`).** Item 2:
+1.0 can now promise a stored-format path, because the file workspace reads its manifest's
+format first and `oak workspace migrate` carries an older format forward through a chain
+of pure, idempotent steps (`RR-017` closed), and the REST contract documents `429` with
+`Retry-After` on every operation (the request, operation and model limits, `RR-024` and
+`RR-041` bounded); the OpenAPI baseline rewrite at the release retires that unreleased
+entry too. Item 3: the decision record's 54 entries now include `RR-017`, `RR-008`,
+`RR-025` and `RR-006` as closed, `RR-004`'s catalogue clause closed, and `RR-030` and
+`RR-031` bounded; `RR-036`'s remedy is moving `DEBIAN_SNAPSHOT` in both Dockerfiles. Item 4:
+the release evidence gains `image-reproducibility.json` from the `images` job, which builds
+each image twice for `linux/amd64` on a pinned BuildKit, and `image-provenance.json` claims
+`byte_reproducible` only from that record; the snapshot date moves at each release
+(`release-process.md`'s checklist). Item 1 is unchanged: the version bump still touches
+what it touched, and the batch bumped nothing.
+
 ### Review findings (M3, 2026-10-23)
 
 Four independent finders (local CLI F1, server and upgrades F2, web F3, runner and release

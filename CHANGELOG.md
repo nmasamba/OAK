@@ -6,6 +6,219 @@ All notable changes to OAK Community are recorded here.
 
 ## Unreleased
 
+### Tier 3, Batch A (`OAK-V1-029`–`037`)
+
+Tier 3 of the owner's cost-benefit ranking of the backlog, moved ahead of 1.0 by the owner
+and launched on 2026-10-29; this is its first batch: formats, bounds and the catalogue.
+
+#### Added
+
+- **A file-workspace format migration** (`RR-017`, closed). The file adapter reads the
+  manifest's format before anything else. The current format (`0.4.0`, the one every
+  published release wrote) is served as before; an older format the migration chain knows
+  is refused on every command but `oak workspace status` and `oak export` with the new code
+  `OAK-WORKSPACE-MIGRATE`, naming the command that carries it forward; a format no step
+  accepts, which a newer build wrote, is refused on every command, `export` included, with
+  the new code `OAK-WORKSPACE-FORMAT` (where it was `OAK-WORKSPACE-CORRUPT`), and such an
+  export is refused by `oak import` with `OAK-IMPORT-FORMAT`. `oak export` copies a
+  workspace at any known format as it is, so a workspace can always be rescued; `oak import`
+  and `oak validate export` take such an export as it is and say it needs migrating
+  (`migration_needed`, `format` and `current_format` in their JSON). The new
+  `oak workspace migrate` (local-only) is the only command that migrates: it runs the chain
+  of pure, idempotent steps under the workspace lock, writes any object a step produced as
+  a new object, records a reshaped design case as a successor with the new
+  `workspace_migrated` audit event and the case and event extension
+  `oak.community/migration`, and leaves every stored object and the history as they were;
+  running it twice is a no-op, and two interpreters with different hash seeds write the
+  same bytes. A step that drops or rewrites a stored object, names an object it did not
+  produce, edits the history or changes the workspace identity is refused
+  (`OAK-WORKSPACE-MIGRATION`), as is a migration planned against a manifest that changed
+  before it was written. The shipped chain holds no step, because no release has written
+  another format; the mechanism is proven on a synthetic older format and on the `0.9.0`
+  reference workspace, committed under `tests/fixtures/workspaces/0.9.0/` as the corpus.
+  Downgrade is not supported.
+- **The bundle binds its assurance plan** (`RR-008`, closed). `deployment-bundle.json`
+  carries `assurance_plan_ref`, a digest edge to `assurance-plan.json`, and
+  `oak validate bundle` checks it: a substituted assurance plan is `OAK-VALIDATE-DIGEST`,
+  and the output names the binding (`assurance plan bound`; `assurance_plan` in the
+  JSON). A bundle written before the edge, a `0.9.0` one, say, still validates and
+  reports `assurance plan unbound`, plainly, never verified. Nothing is re-signed: a
+  runner plan compiled from an old bundle still verifies.
+- **An activated extension feeds the catalogue only under the operator's trust anchors**
+  (`RR-025` closed; `RR-004`'s catalogue clause closed, its policy clause open). Until
+  now a component-manifest or architecture-pattern extension could be activated and fed
+  nothing. `oak candidates`, and the server's candidate generation, now read every active
+  extension of those classes and, before a document enters the catalogue, check again
+  that its activation record validates and names its manifest by digest, that its steward
+  signature verifies against a key pinned in the trust directory now (never a key the
+  pack carries), that its declared compatibility range still holds for this OAK, and that
+  every payload file matches the digest the signed manifest declares, parsing what was
+  verified; a failure refuses the compile with the new code `OAK-CATALOGUE-EXTENSION`
+  rather than leaving the extension out, and a pack that reuses an id the catalogue holds,
+  of either kind, is refused as a duplicate; a research run reads the same catalogue. The extension verifier and the catalogue feed share one signature check
+  (`oak.contracts.signatures.verify_pinned_signature`). The catalogue snapshot records
+  the provenance of every entry (curated, an extension with its id, version, manifest
+  digest, signer key id and activation time, or research) and lists its patterns with
+  theirs. The curated catalogue inside the wheel is not signed on its own: the release
+  signature covers the wheel, the verifier and any pinned key together.
+- **Workspace reads measured and bounded** (`RR-030`, its growth clause still open). The
+  file workspace's manifest read was measured at four depths with hardware provenance
+  (`docs/performance/workspace-growth-2026-10-29.json`, read in `docs/performance.md`): the
+  first read in a process verifies the whole lineage at about 4.4 ms per audit event,
+  linearly from the reference journey (8 events, 43 indexed artifacts, 34 ms) to 500
+  events (2.2 s); the 283 ms recorded for the journey at `0.7.0` was mostly schema
+  meta-validation, gone since Sprint 13. New: the file adapter keeps a per-process cache of
+  the manifests it has verified, keyed on the manifest's path and the digest of its bytes
+  and holding 64 entries, so a later read of the same bytes in the same process (the API
+  and the worker are long-lived) parses without verifying again, under 6 ms at 500 events.
+  A mutation's validation, an export and a migration verify in full whatever the cache
+  holds, every object a command opens still checks its digest, and a changed manifest byte
+  is a different key; what a cached read skips is the walk over the history's objects, so
+  an audit artifact changed on disk after a process's first read is noticed when opened,
+  by the next mutation, export or migration, or by the next process. A CLI command
+  is one process and pays the first read once: `oak questions` costs about one second of
+  interpreter start-up plus that read. Nothing compacts or archives history.
+  `scripts/benchmark.py --only workspace_growth` measures the curve into a dated file
+  under `docs/performance/`.
+- **Runner and worker soak limits** (`RR-031`, bounded). The runner's consumed-nonce
+  ledger now maps each nonce to its lease's expiry and keeps it until that expiry plus
+  five minutes of clock skew, for ever when the expiry is unknown, so it holds the leases
+  in play (a ledger written by `0.9`, a list, is read and kept). Processed dispatch
+  directories are removed at the end of a run once older than
+  `OAK_RUNNER_DISPATCH_RETENTION_DAYS` (new; default 30, `0` keeps every one), never the
+  newest, one whose completion `oak ingest` has not taken, or a journal, and
+  `oak-runner status` still ties every journal to its completions. A journal is read and
+  verified once per run and appended from the head kept in memory, and one that does not
+  verify is never extended. `oak-worker` extends an operation's lease between the
+  worker's steps, from each step's own start, through the store's `heartbeat`. And the
+  runner publishes a signed `heartbeat` message while a dispatch runs, at the next step
+  boundary once `OAK_RUNNER_HEARTBEAT_SECONDS` (new; default 30, `0` publishes none) have
+  passed, each naming its lease and the journal's head: a report that moves no state and
+  extends no lease. `oak ingest` records each as a `runner_heartbeat` audit event
+  (`oak.community/runner_heartbeat_refs` on the case), a lease's heartbeats before its
+  completion, lists them under `heartbeats` in its JSON (`accepted` still holds the
+  completions) and says `… and N heartbeat(s)`, and refuses a completion whose journal
+  falls short of a head a heartbeat named (`OAK-INGEST-JOURNAL`). A `0.9` control plane
+  acknowledges a heartbeat without recording it; a `0.9` runner publishes none.
+- **Budgets and rate limits** (`RR-024` and `RR-041`, bounded). The API admits
+  `OAK_REQUESTS_PER_MINUTE_PER_ADDRESS` (new; 1,200) requests a minute from one client
+  address and `OAK_REQUESTS_PER_MINUTE_PER_TENANT` (new; 6,000) for one tenant, a
+  minute's burst then that allowance, and answers the next with `429`, a problem document
+  (`OAK-RATE-LIMIT-ADDRESS` or `OAK-RATE-LIMIT-TENANT`, `retriable`) and `Retry-After` in
+  whole seconds; `/healthz` and `/readyz` are exempt; the state is the `oak-api` process's
+  own, nothing distributed. A tenant may have `OAK_OPERATIONS_PER_TENANT` (new; 100)
+  operations queued or running, judged by the store under one lock with the insert; the
+  next submission is refused with the new code `OAK-OPERATION-QUOTA` (`429`,
+  `Retry-After: 5`) while a repeated submission is still answered with its operation. A case may record `OAK_MODEL_REQUESTS_PER_CASE_PER_DAY`
+  (new; 100) billable model requests a UTC day, each model-backed interpretation or
+  narration counting one, read from the case's own history; the next is refused with the
+  new code `OAK-MODEL-BUDGET` (`429`, `Retry-After` to the next UTC day) before anything
+  is sent, on the CLI, the API and MCP alike, and a request the provider refused or that
+  failed is not counted. `0` switches any of the four off; a value that is not a whole
+  number from 0 to a million refuses to start, or refuses the command, with the new
+  `OAK-LIMIT-CONFIG`. Every REST operation now documents `429` with `Retry-After`, and
+  the access log names a refused request's limit by its code, never the address.
+- **A server restore records the importer** (Tier 2's follow-up on restored history).
+  `oak --server import` and `POST /v1/design-cases:import` of a server export keep the
+  export's history as written, whose actors and origins are the export's claims, and then
+  record one `workspace_restored` audit event (new, additive) under the importing
+  command's actor with `interface_origin: import`, the case and event extension
+  `oak.community/restored_from` naming the export's manifest, its digest, the case
+  version and the number of events restored; the status does not change and the case
+  comes back one patch version on. Importing the same export again, under any key, is a
+  duplicate of that restore, answered with the case as the restore recorded it; an import
+  that finds the export's state already there without a restore event (this server's own
+  export imported back, or a restore interrupted between the workspace write and its
+  event) is a duplicate too and records nothing; an export of another state of the case
+  is refused with
+  `OAK-IDEMPOTENCY-CONFLICT` as before. A local `oak import` is unchanged.
+- **Reproducible container images** (`RR-006`, closed per platform; the owner's Q3
+  answer of 2026-10-29: pin). The API image takes Debian's packages, security updates
+  included, from the dated `snapshot.debian.org` archive its Dockerfile names
+  (`ARG DEBIAN_SNAPSHOT`, moved at each release), creates its user with a fixed shadow
+  date and removes what apt, dpkg and ldconfig write with the build's clock; the web image
+  moves from the Alpine to the trixie variant of the same unprivileged nginx image
+  (`nginxinc/nginx-unprivileged:1.30.6-trixie`; Alpine keeps no dated archive, and the
+  newest upstream Alpine image still carried fixable findings) and takes its packages from
+  the same snapshot, and `compose.yaml`'s web health check probes with `curl`, which that
+  image ships, instead of busybox `wget`; both are built with `SOURCE_DATE_EPOCH` set
+  to the source commit's time, so Python compiles hash-based bytecode and BuildKit
+  rewrites every layer timestamp. The new `scripts/reproduce_images.py` builds each image
+  twice, the second time with no cached layer, and fails unless the two image IDs match;
+  the release workflow's `images` job runs it for `linux/amd64` and CI's
+  `check-linux-arm64` job for `linux/arm64`, both on BuildKit `v0.34.0` pinned by digest,
+  and `make toolchain-check` requires one snapshot date in both Dockerfiles, the source
+  date, the pinned BuildKit and the twice-built proof in both workflows. The
+  image provenance claims `byte_reproducible: true` only from the record of two matching
+  builds, naming the platform, the builder, the snapshot date and both image IDs; a
+  Compose build or a build on another BuildKit makes no claim.
+
+#### Changed
+
+- A `workspace_imported` event recorded on a case past interpretation names the case's
+  intent and the source record it was read from, as every other event after
+  interpretation does, so such a case still validates; the import path records the event
+  on a draft case, whose bytes are unchanged.
+- **The four reference digests move, once** (compatibility rule 4; the owner's Q1
+  answer of 2026-10-29, taken so that 1.0 is cut after the move). The catalogue snapshot
+  now records provenance and lists its patterns, and the bundle carries the assurance-plan
+  edge; every compiled artifact is bound to the snapshot, so for the reference case
+  (`design-case.public-manual-qa@0.1.7`, `candidate-03`, the `local-fixture` target) the
+  catalogue snapshot moved from `sha256:5cd534484f9777bccd95f544bfdad3d5a96a47fb0baf891c6df3a36caf75d434` to
+  `sha256:403a75d212827d3d2d566ae8275c1cf4d4b0a836c87ecbf1c5c01a960482665c`, `candidate-03`
+  from `sha256:576b0ca62835a521439e44b280ffdfca79438323d45ae79e70521a27d14118b3` to
+  `sha256:04c9b66176adf7ae264fbaaf42979cdac8670002756a089f8a6b9b9bf5f9a959`, the bundle
+  from `sha256:9da17d021cf9f1e61bb73b568927870272d466ec8d869f2ce3201ebaa505b539` to
+  `sha256:3c8343512a5a8512ff7715b2317e8855327007a7c60b46520aa8d980c0f68796`, the runner
+  plan from `sha256:03c4541ade1943cd9e824eabb0a00290190fc2b30a08c737d237052e12dd6de0` to
+  `sha256:13da46613588b2dc1011da5b50a6d72417ee28dfa0a0cb2e1f0d4d2f445e1bb8`, and the case
+  from `sha256:61cee33984c8140f428ef3710056d9a5f546f302346392133173c2848fb41990` to
+  `sha256:10813ad6fa7962fddb06d87edcd7ac5a5317e7d30fc949fedb448063419291ea`. The semantic
+  manifest (`sha256:2ef34758…`) and the intent artifacts did not move. The two report
+  goldens and the published example report are regenerated with the new values; nothing
+  stored in an existing workspace changes, and an old bundle, export or runner plan still
+  reads and verifies.
+
+#### Security
+
+Found by the batch's closing adversarial review and fixed before it closed:
+
+- A migration step can no longer relabel, re-kind, reorder or drop one of two index entries
+  that share bytes, nor drop a history key: every original index entry must stay as it was
+  and in its place, and `audit_events` and `idempotency_records` must equal the input's
+  (`OAK-WORKSPACE-MIGRATION`); an imported older export is validated on its migrated view,
+  as `validate export` validates it; a migration's commit checks its idempotency key before
+  it writes an object.
+- The catalogue feed validates each activation record against its schema and parses its
+  time at every read, re-checks the pack's declared compatibility with this OAK through the
+  verifier's own check, keys provenance by kind and id (a contributed id held by a document
+  of either kind is `OAK-CATALOGUE-DUPLICATE`), reads only the active directory, and parses
+  only the bytes it verified. Before, a forged activation record admitted a pack the
+  verifier had refused, a contributed manifest named like a curated pattern was recorded as
+  the pattern's provenance, and a malformed entry in quarantine stopped every compile.
+- The operation cap is judged by the store under one lock with the insert (an advisory
+  transaction lock on PostgreSQL); two concurrent submissions could both find room.
+- The request limiter's eviction forgets only keys owing nothing; a flood of fresh keys
+  could reset a limit.
+- The runner checks before each append that the journal file still ends at the head it
+  verified (`OAK-JOURNAL-TAMPERED`), and `head()` answers from that head; a heartbeat that
+  fails for any reason is dropped and spends no sequence, where a journal error inside it
+  became an operation failure and a rollback; a processed dispatch whose envelope cannot be
+  read is removed only when the journal ties it to a lease whose completion was ingested;
+  the heartbeat interval is `0` or at least one second, and the in-memory store refuses to
+  renew a lease it no longer holds.
+- The image provenance claims reproducibility only from a record about these images (the
+  platform, the artifact version, the source commit, a named builder, and a scan that did
+  not rebuild); divergent snapshot dates or an unknown BuildKit make no claim; the
+  toolchain check requires each command at the start of a line, where an `echo` of it
+  passed; each image build checks that the snapshot rewrite matched and that no live
+  mirror remains.
+- A restore's event is recorded under a key of its own, derived from the import's key and
+  the export, so an import key the origin had used no longer conflicts once the workspace
+  exists; a repeat import answers the case as the restore recorded it; a restore
+  interrupted between the workspace write and its event is a duplicate on the next import,
+  recorded nowhere, and the documents say so.
+
 ### The pre-1.0 assurance batch (`OAK-V1-021`–`028`)
 
 Tier 2 of the owner's cost-benefit ranking of the backlog, launched on 2026-10-28.

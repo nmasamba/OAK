@@ -138,16 +138,24 @@ jobs:
         env:
           OAK_SKIP_LEDGER: ${{ runner.temp }}/skips.jsonl
       - run: python3 scripts/check_skips.py "${{ runner.temp }}/skips.jsonl" check-linux-arm64
-      - name: Build both images natively for arm64
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        with:
+          # The same pinned BuildKit as the release workflow's images job (RR-006).
+          driver-opts: image=moby/buildkit:v0.34.0@sha256:b059f8d7226d0b326bc871af489a5dddf65e36af4d20d14251b072974d9ee87c
+      # Built twice natively, the second time with no cached layer, and the two image IDs
+      # must match: the reproducibility claim for linux/arm64, which this job alone proves.
+      - name: Build both images twice natively for arm64 and compare
         run: |
-          docker build --file deploy/images/api.Dockerfile --tag oak-ci/api:arm64 .
-          docker build --file deploy/images/web.Dockerfile --tag oak-ci/web:arm64 .
+          python3 scripts/reproduce_images.py \
+            --platform linux/arm64 \
+            --prefix oak-ci \
+            deploy/images/api.Dockerfile deploy/images/web.Dockerfile
           for image in api web; do
-            architecture="$(docker image inspect --format '{{.Architecture}}' "oak-ci/$image:arm64")"
+            architecture="$(docker image inspect --format '{{.Architecture}}' "oak-ci/$image:$(cat VERSION)")"
             echo "$image: $architecture"
             test "$architecture" = arm64
           done
-          test "$(docker run --rm oak-ci/api:arm64 oak --version)" = "$(cat VERSION)"
+          test "$(docker run --rm oak-ci/api:$(cat VERSION) oak --version)" = "$(cat VERSION)"
 
   # The browser suite (RR-021). The 1.0 review's web defects were all browser-level, and no
   # other job drives a browser. The script builds the images from this commit, starts them

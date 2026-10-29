@@ -275,3 +275,25 @@ def test_expired_final_attempt_is_swept_to_safe_failure(
         "message": "operation failed safely",
         "retriable": False,
     }
+
+
+def test_active_count_sees_queued_and_running_operations_only(
+    operation_store: PostgreSQLOperationStore,
+) -> None:
+    """RR-024: the cap on operations per tenant counts what is queued or running."""
+
+    assert operation_store.active_count() == 0
+    operation_store.enqueue(_spec("operation.active-1", key="active-key-00000001"))
+    operation_store.enqueue(_spec("operation.active-2", key="active-key-00000002"))
+    assert operation_store.active_count() == 2
+    lease = operation_store.claim(
+        worker_id="worker-a", now=NOW, lease_expires_at="2026-08-17T11:02:00Z"
+    )
+    assert lease is not None
+    assert operation_store.active_count() == 2, "a running operation counts"
+    operation_store.succeed(lease, result={"ok": True}, completed_at=NOW)
+    assert operation_store.active_count() == 1
+    other = PostgreSQLOperationStore(
+        operation_store._engine, tenant_id="other", environment_id=operation_store.environment_id
+    )
+    assert other.active_count() == 0, "the count is the tenant's own"

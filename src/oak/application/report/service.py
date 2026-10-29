@@ -16,6 +16,10 @@ from dataclasses import dataclass, replace
 from typing import Any
 
 from oak.application.context import CommandContext
+from oak.application.model_budget import (
+    DEFAULT_MODEL_REQUESTS_PER_CASE_PER_DAY,
+    check_model_budget,
+)
 from oak.application.persistence import build_workspace_mutation
 from oak.application.report.composer import (
     MAIN_SECTIONS,
@@ -100,6 +104,7 @@ class ReportService:
         oak_version: str,
         narrator_factory: ReportNarratorFactory | None = None,
         proposal_limits: ProposalLimits | None = None,
+        model_requests_per_day: int = DEFAULT_MODEL_REQUESTS_PER_CASE_PER_DAY,
     ) -> None:
         self._repository = repository
         self._registry = registry
@@ -107,6 +112,7 @@ class ReportService:
         self._oak_version = oak_version
         self._narrator_factory = narrator_factory
         self._limits = proposal_limits or ProposalLimits()
+        self._model_requests_per_day = model_requests_per_day
 
     @staticmethod
     def resolve_narrative(narrative: str = "deterministic") -> str:
@@ -182,6 +188,13 @@ class ReportService:
         artifacts: list[Artifact] = []
         notes: Narrative | None = None
         if mode != "deterministic":
+            # The case's daily count of billable requests, before any note is asked for
+            # (RR-041).
+            check_model_budget(
+                self._repository,
+                occurred_at=context.occurred_at,
+                maximum=self._model_requests_per_day,
+            )
             notes, narrative_artifact = self._narrate(
                 mode, report_document(records, **arguments), current, suffix
             )

@@ -52,11 +52,15 @@ class _SubmissionStore:
         self.seen_specs.append(spec)
         return self.existing
 
-    def enqueue(self, spec: OperationSpec) -> EnqueuedOperation:
-        del spec
+    def enqueue(self, spec: OperationSpec, *, maximum_active: int = 0) -> EnqueuedOperation:
+        del spec, maximum_active
         self.enqueued = True
         assert self.existing is not None
         return EnqueuedOperation(self.existing, duplicate=False)
+
+    def active_count(self) -> int:
+        # The cap on operations per tenant (RR-024) asks before a new one is queued.
+        return 0
 
     def __getattr__(self, name: str) -> Any:
         raise AssertionError(f"unexpected operation-store call: {name}")

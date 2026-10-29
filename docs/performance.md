@@ -24,7 +24,10 @@ requirement:
 
 One run on each side cannot separate a small regression from the machine's own variation,
 so this is not evidence of either. The sections below keep the `0.7.0` figures and their
-full description.
+full description, except the workspace-growth section, which was re-measured on 2026-10-29
+at four depths and supersedes the last row of this table: the first manifest read after
+the reference journey is 34 ms on the current tree, not 283 ms, and the difference is
+Sprint 13's schema-validator reuse, not this machine.
 
 **These are observations, not a service level objective.** They were taken on a single
 developer laptop with no controlled environment, no warm-up isolation from operating-system
@@ -38,6 +41,13 @@ current tree into its own release directory, never over an earlier report:
 
 ```bash
 python scripts/benchmark.py --output docs/release/$(cat VERSION)/performance.json
+```
+
+The workspace-growth curve alone, which takes a few minutes, is `--only workspace_growth`,
+written beside its predecessors under `docs/performance/` with the date in the name:
+
+```bash
+python scripts/benchmark.py --only workspace_growth --output docs/performance/workspace-growth-$(date +%F).json
 ```
 
 Both reports describe the API read workload as "one interpreted reference case". It is
@@ -104,27 +114,65 @@ every audit artifact. Treat these as a floor.
 `GET /v1/design-cases` (the list) is not measured: it requires the PostgreSQL case
 directory and is unavailable in file mode.
 
+Since Tier 3's Batch A the API admits 1,200 requests a minute from one address by default,
+which takes the benchmark's reads (`--requests`, 200 per endpoint, so 600 and one create)
+in one burst; a larger `--requests` needs
+`OAK_REQUESTS_PER_MINUTE_PER_ADDRESS` raised, or `0`.
+
 ## Workspace growth — read this one
 
-This is the number most likely to affect a first user.
+This is the number most likely to affect a first user. It was re-measured on 2026-10-29,
+on the machine above, for Tier 3's Batch A (`OAK-V1-032`, `RR-030`):
+[performance/workspace-growth-2026-10-29.json](performance/workspace-growth-2026-10-29.json),
+with the hardware, toolchain and workload in its `provenance`, taken from the tree at
+`6261c35` with the cache change itself applied but not yet committed (`source_tree_dirty`
+says so). Four depths: a freshly initialised workspace; the workspace after the reference
+journey, which is 8 audit events and 43 indexed artifacts (the "43" the earlier figures
+named); and that workspace grown by synthetic revisions, each a recorded audit event with
+its artifacts, to 200 and 500 audit events. Three figures at each depth, ten samples of the
+reads and five of the command:
 
-| Indexed artifacts | Manifest read (median) | p95 |
-|---|---|---|
-| 0 | 3.8 ms | 4.0 ms |
-| 43 | **283.3 ms** | 296.1 ms |
+| Audit events (indexed artifacts) | First read in a process, median (p95) | A later read of the same bytes, median (p95) | `oak questions --output json`, median (p95) |
+|---|---|---|---|
+| 0 (0) | 0.3 ms (0.5 ms) | 0.2 ms (0.4 ms) | — |
+| 8 (43) | **33.8 ms** (34.4 ms) | 0.4 ms (0.4 ms) | 1.06 s (1.08 s) |
+| 200 (427) | 875 ms (902 ms) | 2.4 ms (5.7 ms) | 1.94 s (2.01 s) |
+| 500 (1,027) | 2.19 s (2.25 s) | 5.8 ms (5.8 ms) | 3.31 s (3.43 s) |
 
-The file workspace revalidates its entire audit lineage on every manifest read, and
-**nothing in OAK ever deletes history**. One complete reference journey produces 43 indexed
-artifacts and takes manifest reads from under 4 ms to over 280 ms — a factor of about 74.
+What the curve says:
 
-Two data points cannot distinguish linear growth from super-linear growth, and this release
-does not claim to know which it is. What it does claim: the cost grows, it grows steeply,
-and there is no compaction, pruning or archival mechanism. A long-lived workspace will get
-slower and will not get faster again. Recorded as `RR-030` in
-[security/residual-risk.md](security/residual-risk.md).
+- **The full verification is linear in the history**, at about 4.4 ms per audit event:
+  the slope from 8 to 200 events and the slope from 200 to 500 agree within one per
+  cent. Each event is one audit artifact and the artifacts it indexes, every one read and
+  digest-checked, and that walk is what the first read in a process pays. Two points could
+  not tell linear from super-linear growth; four can, through 500 events.
+- **The 283 ms recorded above for the journey was mostly schema meta-validation**, which
+  Sprint 13's `SchemaRegistry` removed by building each validator once; the same read is
+  34 ms on the current tree. Neither release report was re-run, so the table at the top
+  keeps what they measured.
+- **A later read in the same process does not verify again.** The file adapter keeps a
+  per-process cache of the manifests it has verified, keyed on the manifest's path and the
+  digest of its bytes, holding 64 entries, consulted on reads only: a read of the same
+  bytes costs the parse, under 6 ms at 500 events. The API and the worker are long-lived
+  processes, so their reads after the first are the middle column. A CLI command is one
+  process and pays the first read once per command, which is why `oak questions` is about
+  one second of interpreter start-up plus one full verification.
+- **What the cache does not change:** the first read in each process, and so the cost of
+  each CLI command, grows with the history, and nothing compacts, prunes or archives it. A
+  long-lived workspace's commands get slower, now at a known, linear rate, and do not get
+  faster again. Recorded as `RR-030` in [security/residual-risk.md](security/residual-risk.md),
+  measured and bounded, still open on that clause.
+- **What the cache never does, and what it skips:** a mutation's validation, an export and
+  a migration verify the manifest in full whatever the cache holds, every object a command
+  opens still checks its digest, and a changed manifest byte is a different key, so a
+  manifest edited on disk is verified again (`tests/integration/test_workspace_verification_cache.py`).
+  What a cached read skips is the walk over the history's objects: an audit artifact
+  changed or removed on disk after a process's first read is noticed when a command opens
+  it, by the next mutation, export or migration, or by the next process, not by a cached
+  manifest read in the same process.
 
-The practical mitigation today is that a workspace is per design case, and `oak export`
-produces a portable tree you can archive.
+The practical mitigation for a workspace that has grown is still that a workspace is per
+design case, and `oak export` produces a portable tree you can archive.
 
 ## Not measured
 
@@ -138,15 +186,28 @@ Stated rather than silently omitted:
 | Concurrent API load | No load driver exists. Every figure above is single-client and sequential |
 | PostgreSQL control plane | Every figure above is file-mode. The persistent path was exercised for correctness, not timed |
 
-## Known soak hazards
+## Soak limits
 
-Not measured, but visible in the code and worth an operator knowing:
+Not measured, but bounded since Tier 3's Batch A (`RR-031`), and worth an operator knowing
+what still grows:
 
-- The runner rewrites its consumed-nonces file in full on every dispatch.
-- Processed dispatch directories are never cleaned up.
-- The runner journal is re-read on every append.
-- `OperationWorker.run_once` never heartbeats against its hard-coded 60-second lease, so a
-  job approaching 60 seconds risks being re-claimed while still running.
-
-None of these matters at the scale this release is used at. All of them get worse with
-volume, and none is bounded by anything today.
+- The runner's consumed-nonce ledger holds each nonce until its lease's expiry plus five
+  minutes of skew, so it is the size of the leases in play, not of the runner's history; it
+  is still rewritten whole on each accepted dispatch. A nonce whose expiry is unknown (a
+  ledger written before this batch) is kept for ever.
+- Processed dispatch directories are removed at the end of a run once older than
+  `OAK_RUNNER_DISPATCH_RETENTION_DAYS` (default 30), except the newest and any whose
+  completion is not yet ingested. Journals are never removed and grow one file per
+  dispatch; `oak-runner status` reads every one.
+- A journal is read and verified once per run and appended from the head kept in memory,
+  so a dispatch's cost no longer grows with its own journal's length; a heartbeat reads the
+  journal to name its head, at most once per `OAK_RUNNER_HEARTBEAT_SECONDS`.
+- `OperationWorker.run_once` extends its lease between its steps, from each step's own
+  start, so a handler may run up to the lease's 120 seconds from the moment it starts
+  rather than from the cycle's; the lease itself is not configurable, and a handler that
+  runs longer is still re-claimed while running (by nothing, with the one worker Compose
+  runs). The runner's lease is not extended by its heartbeats, which report; an `apply`
+  still stops at the lease's expiry (`OAK-RUNNER-LEASE`).
+- The control plane keeps every heartbeat it records as an audit event with the message as
+  an artifact, so a long install adds one event per heartbeat to the case's history, which
+  the curve above prices at about 4.4 ms per event on every first read.

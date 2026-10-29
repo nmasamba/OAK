@@ -166,11 +166,11 @@ def test_a_workspace_written_by_an_unknown_format_fails_closed(
 ) -> None:
     """The upgrade rule for file mode, made explicit.
 
-    There is no file-workspace format migration. A manifest carrying a
-    `schema_version` this build does not know is refused — and, importantly, it is
-    refused on *export* too, so a workspace cannot be rescued after the fact. That is
-    why the operator documentation says export before upgrading, and why it is a
-    documented limitation rather than a silent one.
+    A manifest carrying a format no step in this build's chain accepts is refused on
+    every command, export included: nothing can be believed about its index, so nothing
+    is copied. A format the chain knows is the other case, and `oak export` copies it as
+    it is (`tests/integration/test_workspace_format.py`). Either way, export before
+    upgrading, and downgrade is not supported.
     """
 
     manifest_path = workspace / ".oak" / "manifest.json"
@@ -182,7 +182,11 @@ def test_a_workspace_written_by_an_unknown_format_fails_closed(
     with pytest.raises(OAKError) as refusal:
         repository.manifest()
 
-    assert refusal.value.code == "OAK-WORKSPACE-CORRUPT"
+    assert refusal.value.code == "OAK-WORKSPACE-FORMAT"
+    with pytest.raises(OAKError) as export_refusal:
+        repository.export_to(workspace.parent / "rescue")
+    assert export_refusal.value.code == "OAK-WORKSPACE-FORMAT"
+    assert not (workspace.parent / "rescue").exists()
 
 
 def test_the_alembic_baseline_refuses_to_downgrade() -> None:

@@ -79,14 +79,12 @@ def _build(tag: str, dockerfile: str, platform: str) -> None:
     """Build the image the scan will judge, without reusing any cached layer.
 
     `--no-cache` and `--pull` are the difference between a security scan and a
-    guess. Both Dockerfiles apply distro security updates at build time, and that
-    `RUN` layer caches: a rebuild days later reuses the package set from whenever the
-    layer was first created. That is how a local rescan reported five fixable HIGH
-    findings for CVE-2026-14456 (OpenSSL) against images that were clean — the cached
-    upgrade predated the fix, while a fresh build installed the patched packages. CI
-    runners start empty and never saw it. Cached layers fail toward false alarms
-    rather than missed findings, but a scan nobody can trust is worth no build time
-    saved.
+    guess. The API image's package set is the Debian snapshot its Dockerfile names
+    (RR-006), so a scan describes that date; before the snapshot a cached upgrade layer
+    once made a local rescan report five fixable HIGH findings for CVE-2026-14456
+    (OpenSSL) against images that were clean. A fresh build still says what the
+    Dockerfiles as they stand produce, which is what the gate judges; moving the
+    snapshot date both Dockerfiles name is how a fix reaches the images.
     """
 
     print(f"building {tag} for {platform}", file=sys.stderr)
@@ -184,9 +182,56 @@ def _provenance_document(
     docker_server: str,
     images: dict[str, dict[str, Any]],
     images_rebuilt: bool = True,
+    reproducibility: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Shape follows scripts/build_release.py::_write_provenance for the Python dist."""
+    """Shape follows scripts/build_release.py::_write_provenance for the Python dist.
 
+    `reproducibility` is the record `scripts/reproduce_images.py` wrote for these images:
+    only a record that says the two builds matched makes the provenance claim
+    byte-reproducibility, and only for the platform and builder the record names.
+    """
+
+    # A record proves these images only when it is about them: the same platform, the
+    # same artifact version and source commit, a builder it names, and images this scan
+    # did not rebuild (a rebuild is another build, which the record says nothing about).
+    problems: list[str] = []
+    if reproducibility is not None:
+        if not reproducibility.get("reproduced"):
+            problems.append("the two builds of at least one image differ")
+        if reproducibility.get("platform") != requested_platform:
+            problems.append(
+                f"the record is for {reproducibility.get('platform')}, this scan for "
+                f"{requested_platform}"
+            )
+        if str(reproducibility.get("artifact_version")) != version:
+            problems.append("the record names another artifact version")
+        if reproducibility.get("source_commit") != source_commit:
+            problems.append("the record names another source commit")
+        if images_rebuilt:
+            problems.append("this scan rebuilt the images, which the record is not about")
+        if reproducibility.get("buildkit_version") in (None, "", "unknown"):
+            problems.append("the record names no BuildKit version")
+    reproduced = reproducibility is not None and not problems
+    if reproduced and reproducibility is not None:
+        reproducibility_note = (
+            f"Each image was built twice for {reproducibility.get('platform')} on BuildKit "
+            f"{reproducibility.get('buildkit_version')} with SOURCE_DATE_EPOCH "
+            f"{reproducibility.get('source_date_epoch')} and Debian snapshot "
+            f"{reproducibility.get('debian_snapshot')}, and the two builds gave one image "
+            "ID; the claim holds for that platform and builder (RR-006)."
+        )
+    elif reproducibility is not None:
+        reproducibility_note = (
+            "The record handed in does not prove these images: "
+            + "; ".join(problems)
+            + ". No reproducibility is claimed (RR-006)."
+        )
+    else:
+        reproducibility_note = (
+            "This run did not build the images twice, so it makes no reproducibility claim; "
+            "the release workflow's images job does, and records the comparison in "
+            "image-reproducibility.json (RR-006)."
+        )
     return {
         "artifact_version": version,
         "source_commit": source_commit,
@@ -207,11 +252,20 @@ def _provenance_document(
             "records what one build produced — bases, builder, image identifiers — not "
             "who produced it. See docs/release-process.md."
         ),
-        "byte_reproducible": False,
-        "reproducibility_note": (
-            "Container image builds are not byte-reproducible (RR-006): the "
-            "distribution-update layers depend on when the build ran."
+        "byte_reproducible": reproduced,
+        "reproducibility": (
+            {
+                "platform": reproducibility.get("platform"),
+                "buildkit_version": reproducibility.get("buildkit_version"),
+                "debian_snapshot": reproducibility.get("debian_snapshot"),
+                "source_date_epoch": reproducibility.get("source_date_epoch"),
+                "images": reproducibility.get("images"),
+                "problems": problems,
+            }
+            if reproducibility is not None
+            else None
         ),
+        "reproducibility_note": reproducibility_note,
     }
 
 
@@ -330,6 +384,11 @@ def main() -> int:
     parser.add_argument("--build", action="store_true", help="rebuild the images first")
     parser.add_argument("--platform", default="linux/amd64", help="platform to build and scan")
     parser.add_argument("--output", type=Path, help="write the JSON report here")
+    parser.add_argument(
+        "--reproducibility",
+        type=Path,
+        help="the record scripts/reproduce_images.py wrote for these images",
+    )
     arguments = parser.parse_args()
 
     try:
@@ -396,6 +455,11 @@ def main() -> int:
             docker_server=_docker_server_version(),
             images=provenance_images,
             images_rebuilt=bool(arguments.build),
+            reproducibility=(
+                json.loads(arguments.reproducibility.read_text(encoding="utf-8"))
+                if arguments.reproducibility
+                else None
+            ),
         )
         provenance_path = evidence_dir / "image-provenance.json"
         provenance_path.parent.mkdir(parents=True, exist_ok=True)

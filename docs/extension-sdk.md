@@ -27,6 +27,22 @@ Extension payloads are data. Nothing installs, downloads, or executes code:
 deployment renderers and runner adapters are reviewed in-tree source with
 pinned identities, and extensions bind or distribute governed documents only.
 
+Since Tier 3's Batch A an activated `component-manifest` or `architecture-pattern`
+extension feeds the compiler's catalogue (`RR-025`, `RR-004`'s catalogue clause).
+`oak candidates`, and the server's candidate generation, read every active extension of
+those classes and, before a document enters the catalogue, check again that its
+activation record names its manifest by digest, that its steward signature verifies
+against the trust directory **now** (a key removed since activation stops it; a key
+the pack carries counts for nothing), and that every payload file matches the digest
+the signed manifest declares. A failure refuses the compile with
+`OAK-CATALOGUE-EXTENSION`, naming the extension and the check, rather than leaving the
+extension out quietly; deactivate it, or restore what it needs. The catalogue snapshot
+records each entry's provenance (curated, or the extension's id, version, manifest
+digest, signer key id and activation time), so every compiled artifact is bound to who
+vouched for what it used. A contributed manifest cannot reuse a curated id, and a
+contributed pattern cannot add a variant: the pattern schema's `variant` enum is
+closed, so at this release a pattern extension can only be refused as a duplicate.
+
 ## The contributor journey
 
 ```bash
