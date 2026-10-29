@@ -237,6 +237,25 @@ async def test_an_unhandled_error_is_logged_by_type_only(captured: io.StringIO) 
 
 
 @pytest.mark.anyio
+async def test_an_unhandled_error_is_an_error_line_whatever_the_access_log_says(
+    captured: io.StringIO,
+) -> None:
+    api = _application(enabled=False)
+    api.user_middleware[0].kwargs["unhandled"] = lambda scope: JSONResponse(
+        {"code": "OAK-INTERNAL"}, status_code=500
+    )
+
+    response = await _get(api, "/v1/design-cases/broken")
+
+    assert response.status_code == 500
+    (line,) = [line for line in _lines(captured) if line["event"] == "request_failed"]
+    assert line["level"] == "ERROR" and line["error_type"] == "RuntimeError"
+    assert line["request_id"] == response.headers["x-oak-request-id"]
+    assert not [line for line in _lines(captured) if line["event"] == "request"]
+    assert SECRET not in captured.getvalue()
+
+
+@pytest.mark.anyio
 async def test_the_access_log_can_be_turned_off(captured: io.StringIO) -> None:
     response = await _get(_application(enabled=False), "/v1/design-cases/x")
 
@@ -303,6 +322,40 @@ def test_a_port_in_use_is_refused_with_a_code_that_names_it(
     assert stopped.value.code == 1
     (line,) = [line for line in _lines(captured) if line["event"] == "startup_failed"]
     assert line["code"] == "OAK-SERVE-BIND"
+    assert line["host"] == "127.0.0.1" and line["port"] == port
+
+
+def test_a_start_that_fails_to_build_the_app_never_says_it_is_listening(
+    monkeypatch: pytest.MonkeyPatch, captured: io.StringIO
+) -> None:
+    from oak.interfaces.api import server
+
+    def broken(self: object) -> None:
+        raise ValueError(f"could not parse {SECRET}")
+
+    monkeypatch.setattr(server, "configure_logging", lambda component: None)
+    monkeypatch.setattr(server.uvicorn.Config, "load", broken)
+    monkeypatch.setattr(server, "_serve", lambda config, bound: pytest.fail("served"))
+    with pytest.raises(ValueError):
+        server.run_server("127.0.0.1", 0, model_token="t" * 32)
+    assert not [line for line in _lines(captured) if line["event"] == "api_listening"]
+
+
+def test_ctrl_c_after_a_graceful_shutdown_ends_the_server_quietly(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`uvicorn.run` swallowed the re-raised SIGINT; serving a bound socket must too."""
+
+    from oak.interfaces.api import server
+
+    def interrupted(self: object, sockets: object = None) -> None:
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(server.uvicorn.Server, "run", interrupted)
+    try:
+        server._serve(server.uvicorn.Config("oak.interfaces.api.app:app"), None)
+    except KeyboardInterrupt:
+        pytest.fail("Ctrl-C escaped the server as a traceback")
 
 
 def test_a_failing_one_shot_worker_logs_by_type_and_exits(

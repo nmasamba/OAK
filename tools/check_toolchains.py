@@ -117,7 +117,7 @@ def _check_browser_suite(
         failures.append(f"{label}: the web-e2e job must not wait on another job")
     if "pnpm --dir web exec playwright install --with-deps chromium" not in runs:
         failures.append(f"{label}: the web-e2e job must install the Chromium Playwright pins")
-    if not any(_SUITE_RUN.fullmatch(run) for run in runs):
+    if _SUITE_RUN not in runs:
         failures.append(f"{label}: the web-e2e job must run scripts/run_browser_suite.py")
     # An allowlist of actions, not a list of upload names; the checkout keeps no token on
     # disk; and no expression in the job or the workflow-wide settings it inherits names a
@@ -148,12 +148,70 @@ def _check_browser_suite(
 
 
 _SHELLS = frozenset({"bash", "sh"})
-# The gate commands, whole: a `|| true` or `; exit 0` after one would make it pass anyway.
-_SUITE_RUN = re.compile(r"python3 scripts/run_browser_suite\.py [^|;&\n]+")
-_SKIP_CHECK = re.compile(r"python3 scripts/check_skips\.py [^|;&\n]+")
+# The gate commands, exactly: a `|| true`, a `--help` or any other argument would make one
+# pass without running it.
+_SUITE_RUN = (
+    'python3 scripts/run_browser_suite.py --project "oak-e2e-${{ github.run_id }}-'
+    '${{ github.run_attempt }}" --commit "${{ github.sha }}"'
+)
+_LEDGER = "${{ runner.temp }}/skips.jsonl"
 _CHECKOUT = "actions/checkout@"
 _BROWSER_ACTIONS = frozenset({"actions/checkout", "actions/setup-node"})
-_SECRET = re.compile(r"\bsecrets\b|github\.token|GITHUB_TOKEN")
+# A secret, or the job's token, in any spelling GitHub accepts: contexts are matched
+# without regard to case, and indexed or serialised as well as dotted.
+_SECRET = re.compile(
+    r"\bsecrets\b|github\s*(?:\.\s*token|\[\s*['\"]token['\"]\s*\])|github_token"
+    r"|tojson\(\s*github\s*\)",
+    re.IGNORECASE,
+)
+# Steps each gate must run as written, beside the ones checked above.
+_REQUIRED_RUNS = {
+    ("CI workflow", "check"): ("make build", "make audit"),
+    ("release workflow", "artifacts"): (
+        "make release",
+        "uv run python scripts/verify_release.py --checksums-only dist/release",
+    ),
+}
+
+
+def _check_workflow_settings(text: str, label: str, failures: list[str]) -> None:
+    """Nothing workflow-wide may turn every step into a no-op: no `defaults.run.shell` but
+    a real shell, and no `MAKE*` variable (`MAKEFLAGS=-n` makes `make check` a dry run)."""
+
+    try:
+        document = yaml.safe_load(text)
+    except yaml.YAMLError:
+        return
+    if not isinstance(document, dict):
+        return
+    defaults = document.get("defaults")
+    run_defaults = defaults.get("run") if isinstance(defaults, dict) else None
+    shell = run_defaults.get("shell") if isinstance(run_defaults, dict) else None
+    if shell is not None and shell not in _SHELLS:
+        failures.append(f"{label}: the workflow's default shell must be bash or sh")
+    scopes = [document.get("env")]
+    for job in (document.get("jobs") or {}).values():
+        if isinstance(job, dict):
+            scopes.append(job.get("env"))
+            scopes += [step.get("env") for step in job.get("steps", []) if isinstance(step, dict)]
+    if any(
+        str(key).upper().startswith(("MAKE", "GNUMAKE"))
+        for scope in scopes
+        if isinstance(scope, dict)
+        for key in scope
+    ):
+        failures.append(f"{label}: no step may set a MAKE variable")
+
+
+def _check_required_runs(text: str, label: str, failures: list[str]) -> None:
+    jobs = _jobs(text)
+    for (source, name), commands in _REQUIRED_RUNS.items():
+        if source != label:
+            continue
+        runs = _runs(jobs[name]) if isinstance(jobs.get(name), dict) else []
+        for command in commands:
+            if command not in runs:
+                failures.append(f"{label}: the {name} job must run `{command}`")
 
 
 def _jobs(text: str) -> dict[str, Any]:
@@ -205,12 +263,11 @@ def _check_counted_skips(
         isinstance(step, dict)
         and _binding(step)
         and str(step.get("run", "")).strip() == "make check"
-        and "OAK_SKIP_LEDGER" in (step.get("env") or {})
+        and step.get("env") == {"OAK_SKIP_LEDGER": _LEDGER}
         for step in steps
     )
-    checked = any(
-        _SKIP_CHECK.fullmatch(run) and run.endswith(f" {key}")
-        for run in (_runs(job) if isinstance(job, dict) else [])
+    checked = f'python3 scripts/check_skips.py "{_LEDGER}" {key}' in (
+        _runs(job) if isinstance(job, dict) else []
     )
     if not (ledgered and checked):
         failures.append(f"{label}: the {name} job must count its skips against {key}")
@@ -469,6 +526,9 @@ def check(root: Path = ROOT) -> list[str]:
     _check_browser_suite(
         release_workflow, "release workflow", failures, gated=("artifacts", "images")
     )
+    for text, label in ((workflow, "CI workflow"), (release_workflow, "release workflow")):
+        _check_workflow_settings(text, label, failures)
+        _check_required_runs(text, label, failures)
 
     # The release builder must be the pinned builder. A release produced by a different
     # uv than the one CI and the container use is not the artifact anyone reviewed.

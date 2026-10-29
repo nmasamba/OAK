@@ -321,13 +321,18 @@ deleting the envelope does not hide a cut. `signed_head` says what the compariso
 | `matched` | The journal reaches the entry the newest signed completion names |
 | `missing_from_journal` | It does not, and `chain` is `truncated` |
 | `none` | No completion of this dispatch signed by this runner is in the mailbox, so there was nothing to compare: an interrupted dispatch before its report, or a mailbox someone cleaned |
+| `other_key` | The only completions of this dispatch verify under a key that is not the runner's current one: the key was replaced since (the next `run-once` or `identity` makes a new one when it is missing), or someone signed one. Nothing could be compared; compare the journal with those completions by hand |
 | `unchecked` | `OAK_RUNNER_MAILBOX` is not set, the runner has no key yet (and the mailbox holds no completion), or the chain did not verify |
 
-With the mailbox set, a runner key that cannot be read, or none beside completions a key
-signed, stops `status` with `OAK-RUNNER-KEY` (exit `70`) rather than reporting journals it
-could not compare: moving the key aside would otherwise turn a cut journal back into
-`verified`. A file in the mailbox that is not even a readable completion (malformed, nested
-past the interpreter's limit, or holding a `NaN`) is ignored, as an unsigned one is.
+With the mailbox set, a runner key that cannot be read, or none while the mailbox holds a
+completion that verifies under the key it carries, stops `status` with `OAK-RUNNER-KEY`
+(exit `70`) rather than reporting journals it could not compare: moving the key aside
+would otherwise turn a cut journal back into `verified`. Once a new key replaces it, the
+old completions read `other_key`. A file in the mailbox that does not verify under the key
+it carries (unsigned, malformed, nested past the interpreter's limit, or holding a `NaN`)
+is ignored, with a key or without one. Whoever can replace the key can also sign a
+completion naming a cut head; that is `RR-054`'s remaining risk, which the control plane's
+accepted record bounds.
 
 `missing_journals` lists each completion this runner signed that no journal file is tied
 to (`{"completion": <message id>, "lease": <lease id>}`): a journal deleted outright, whose

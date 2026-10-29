@@ -547,8 +547,9 @@ class CommunityControlPlane:
             # The case and every step before this one stand, under the server's own records;
             # say how far the replay got rather than only the step's own refusal. A step
             # refused because the case moved on can never pass on a retry: its expected
-            # version comes from the step before it, which a retry returns unchanged.
-            status = str(service.current().case["status"])
+            # version comes from the step before it, which a retry returns unchanged. How far
+            # the replay got is its own last step, not where another writer took the case.
+            status = str(result.case["status"])
             raise OAKError(
                 "OAK-IMPORT-REPLAY",
                 f"the case was re-created on the server up to {status}, where the server "

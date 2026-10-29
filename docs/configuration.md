@@ -22,7 +22,7 @@ changing one.
 |---|---|---|---|
 | `OAK_DATABASE_URL` | *(none — required)* | SQLAlchemy URL of the control-plane metadata database; there is no SQLite fallback. `oak-worker`, `oak-db-migrate` and `oak-mcp` refuse to start without it. `oak-api` and `oak serve` **do** start — they serve `/version`, `/healthz` and the `/v1/models` settings, report `/readyz` as **503 not ready**, print a warning, and refuse every design-case, candidate, artifact, operation and outbox request with **503 `OAK-DATABASE-UNCONFIGURED`** — so check `/readyz`, not the process, to know whether the API can work. **Carries a password in the Compose default**, so treat it as a secret | Yes |
 | `OAK_ARTIFACT_ROOT` | `.oak/server-artifacts` | Directory holding content-addressed artifact bytes. **Relative by default**, so it resolves against the process working directory — see the warning below | Yes |
-| `OAK_HOST` | `127.0.0.1` | Bind address for `oak-api` | Yes |
+| `OAK_HOST` | `127.0.0.1` | Bind address for `oak-api`. One address: `localhost` binds the IPv4 loopback address only | Yes |
 | `OAK_PORT` | `8080` | Bind port for `oak-api` | No |
 | `OAK_LOG_LEVEL` | `INFO` | Level of the JSON log lines `oak-api`, `oak-worker` and `oak-mcp` write to stderr: `DEBUG`, `INFO`, `WARNING` or `ERROR`; anything else refuses to start with `OAK-LOG-CONFIG`. Every line is built from an allowlist of fields at every level, `DEBUG` included (see [operations.md](operations.md#logs)) | No |
 | `OAK_ACCESS_LOG` | `true` | One log line per API request (route template, method, status, duration, request ID, and the error code where there was one); the health probes `/healthz` and `/readyz` are logged at `DEBUG`. `0`, `false` or `no` turns it off; every response still carries `X-OAK-Request-ID` | No |

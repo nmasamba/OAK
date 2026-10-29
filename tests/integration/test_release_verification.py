@@ -433,15 +433,21 @@ def test_a_key_hard_linked_out_of_the_release_is_never_used(
 
     key = _key(tmp_path / "attacker", "attacker")
     _sign(release_one, key)
-    carried = _pin(release_one / "allowed_signers", key)
-    linked = tmp_path / "elsewhere" / "allowed_signers"
-    linked.parent.mkdir()
-    os.link(carried, linked)
+    (release_one / "nested").mkdir()
+    for index, carried in enumerate(
+        (
+            _pin(release_one / "allowed_signers", key),
+            _pin(release_one / "nested" / "allowed_signers", key),
+        )
+    ):
+        linked = tmp_path / f"elsewhere-{index}" / "allowed_signers"
+        linked.parent.mkdir()
+        os.link(carried, linked)
 
-    result = _verify(release_one, "--allowed-signers", str(linked))
+        result = _verify(release_one, "--allowed-signers", str(linked))
 
-    assert result.returncode == EXIT_SIGNATURE
-    assert "cannot come from the release being verified" in result.stderr
+        assert result.returncode == EXIT_SIGNATURE, carried
+        assert "cannot come from the release being verified" in result.stderr
 
 
 def test_an_ssh_keygen_that_cannot_look_up_the_signer_is_not_called_a_bad_signature(

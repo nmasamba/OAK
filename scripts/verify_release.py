@@ -123,7 +123,7 @@ def _within(path: Path, directory: Path) -> bool:
 
     Compared by file identity, not by spelling: on a case-insensitive file system
     `Release/allowed_signers` is `release/allowed_signers`, and a hard link is the file it
-    links to.
+    links to, wherever in the directory that file is.
     """
 
     root = directory.stat()
@@ -131,7 +131,9 @@ def _within(path: Path, directory: Path) -> bool:
         return True
     key = path.stat()
     return any(
-        os.path.samestat(entry.stat(), key) for entry in directory.iterdir() if entry.is_file()
+        os.path.samestat(os.stat(os.path.join(folder, name), follow_symlinks=False), key)
+        for folder, _, names in os.walk(directory)
+        for name in names
     )
 
 

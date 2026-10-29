@@ -591,6 +591,44 @@ def test_status_refuses_to_compare_without_the_runner_key(
     assert capsys.readouterr().out == ""
 
 
+def test_status_says_a_cut_journal_s_completion_was_signed_by_another_key(
+    journey: Journey, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Once the moved key is replaced, as the next `identity` or `run-once` does, the old
+    completions verify under no current key; the journal says so, never "none"."""
+
+    from oak.runner.main import identity
+
+    _crash_mid_install(journey)
+    path = _journal(tmp_path)
+    path.write_text(path.read_text(encoding="utf-8").splitlines()[0] + "\n", encoding="utf-8")
+    runner_key = tmp_path / "runner" / "runner.key"
+    runner_key.rename(runner_key.with_name("runner.key.aside"))
+    identity()
+
+    journal = _status(capsys)
+    assert journal["signed_head"] == "other_key"
+
+
+def test_status_without_a_key_ignores_an_unsigned_file_in_the_mailbox(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Only a completion that verifies under the key it carries stops a keyless `status`."""
+
+    messages = tmp_path / "mailbox" / "messages"
+    messages.mkdir(parents=True)
+    (messages / "runner-message.completion.planted.1.json").write_text(
+        '{"kind": "completion", "id": "runner-message.completion.planted.1"}', encoding="utf-8"
+    )
+    monkeypatch.setenv("OAK_RUNNER_MAILBOX", str(tmp_path / "mailbox"))
+    monkeypatch.setenv("OAK_RUNNER_HOME", str(tmp_path / "home"))
+
+    report = _full_status(capsys)
+
+    assert report == {"journals": [], "missing_journals": []}
+    assert not (tmp_path / "home" / "runner.key").exists()
+
+
 def _publish_completion(journey: Journey, tmp_path: Path, sequence: int, **payload: object):
     """A completion for the dispatched lease, signed by the enrolled runner's own key."""
 

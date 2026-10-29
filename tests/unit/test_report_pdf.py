@@ -255,6 +255,12 @@ def test_latin_greek_and_cyrillic_print_and_anything_else_is_a_visible_replaceme
     assert pdf_text("12 µs", MONO) == "12 µs"
     # A compatibility character the font lacks prints as its plain form.
     assert pdf_text("\uff2f\uff21\uff2b") == "OAK"
+    # Mono has the Ohm sign, which NFC would turn into a Greek omega Mono lacks.
+    assert pdf_text("4.7 k\u2126", MONO) == "4.7 k\u2126"
+    # Lines are measured as pdf_text returns them and drawn through it again, so the
+    # result must be its own result, even where a fold composes with a following mark.
+    for text, font in (("\u01c8\u030c", pdf.FONT), ("\uff4a\u030c", pdf.FONT), ("k\u2126", MONO)):
+        assert pdf_text(pdf_text(text, font), font) == pdf_text(text, font)
     assert pdf_text("Ελληνικά Кириллица Łódź") == "Ελληνικά Кириллица Łódź"
     assert pdf_text("数据 report") == f"{REPLACEMENT}{REPLACEMENT} report"
     # Plex Mono has Cyrillic but no Greek.

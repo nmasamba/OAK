@@ -316,15 +316,17 @@ mechanical migration; **breaking** otherwise.
     `refused`, mapping each rejected message that was believed and then refused to its
     code; the human output names them too.
   - `oak-runner status` reports a fourth `chain` value, `truncated`, a `signed_head`
-    field (`matched`, `missing_from_journal`, `none` or `unchecked`) on each journal, and
+    field (`matched`, `missing_from_journal`, `none`, `other_key` or `unchecked`) on each journal, and
     a top-level `missing_journals` list. With `OAK_RUNNER_MAILBOX` set, a runner key it
-    cannot read, or none beside completions in the mailbox, exits `70` with
+    cannot read, or none beside a completion in the mailbox that verifies under the key it
+    carries, exits `70` with
     `OAK-RUNNER-KEY`, where it reported the journals as before.
   - `oak serve` and `oak-api` write the same allowlisted JSON log lines; uvicorn's own
     lines, `Uvicorn running on …` among them, are gone, and `api_listening` says where the
-    API listens. A port in use refuses with the new code `OAK-SERVE-BIND`, naming the
-    address (exit `2` from `oak serve`, a `startup_failed` line and exit `1` from
-    `oak-api`), where uvicorn printed its own error. Any other failure of `oak serve`
+    API listens; `localhost` binds the IPv4 loopback address only, where uvicorn's own
+    binding also took `::1`. A port in use refuses with the new code `OAK-SERVE-BIND`,
+    naming the address (exit `2` from `oak serve`; a `startup_failed` line with `host` and
+    `port`, and exit `1`, from `oak-api`), where uvicorn printed its own error. Any other failure of `oak serve`
     prints its code and message for an OAK error, or `OAK-SERVE-FAILED` and the error's
     type, where it printed `OAK-SAFE-BIND` and the message.
   - The release verifier (`scripts/verify_release.py`, `make verify-release`) requires

@@ -442,11 +442,18 @@ class _SignedHeads:
     A journal is tied to its completions by its dispatch, by the lease its own
     `lease_accepted` entry names and by the lease in the delivered envelope, so editing the
     envelope does not hide a cut journal. A completion tied to no journal is a journal that
-    is gone, and `missing` lists it.
+    is gone, and `missing` lists it. A completion signed by a key other than the current one
+    (the runner's key was replaced since, or someone signed one) cannot be compared, and a
+    journal tied only to such completions says so rather than reading as having none.
     """
 
-    def __init__(self, completions: list[dict[str, Any]] | None) -> None:
+    def __init__(
+        self,
+        completions: list[dict[str, Any]] | None,
+        others: list[dict[str, Any]] | None = None,
+    ) -> None:
         self._completions = completions
+        self._others = others or []
         self._claimed: set[str] = set()
         self._mailbox: RunnerMailbox | None = None
 
@@ -460,7 +467,9 @@ class _SignedHeads:
         if not mailbox_root:
             return cls(None)
         mailbox = RunnerMailbox(Path(mailbox_root).absolute(), home)
-        completions = mailbox.completions(None)
+        # Only a completion whose signature verifies under the key it carries counts: an
+        # unsigned or unreadable file anyone could drop in the mailbox decides nothing.
+        completions = [message for message in mailbox.completions(None) if _self_signed(message)]
         if not os.path.lexists(home / "runner.key"):
             if completions:
                 raise OAKError(
@@ -477,16 +486,17 @@ class _SignedHeads:
                 "the runner key cannot be read, so the journals cannot be compared with "
                 "the completions this runner signed",
             ) from error
-        signed = [
-            message for message in completions if _signed_head_of(message, runner.public_key_base64)
-        ]
-        heads = cls(signed)
+        current = runner.public_key_base64
+        signed = [message for message in completions if _signed_head_of(message, current)]
+        others = [message for message in completions if message not in signed]
+        heads = cls(signed, others)
         heads._mailbox = mailbox
         return heads
 
     def compare(self, dispatch_id: str, journal: RunnerJournal) -> str:
-        """`matched`, `missing_from_journal`, `none` (nothing signed to compare), or
-        `unchecked` (no mailbox or key, or a journal that cannot be read)."""
+        """`matched`, `missing_from_journal`, `none` (nothing signed to compare),
+        `other_key` (only completions signed by another key), or `unchecked` (no mailbox or
+        key, or a journal that cannot be read)."""
 
         if self._completions is None or self._mailbox is None:
             return "unchecked"
@@ -506,6 +516,8 @@ class _SignedHeads:
         ]
         self._claimed.update(str(message["id"]) for message in mine)
         if not mine:
+            if any(message["correlation_id"] in correlations for message in self._others):
+                return "other_key"
             return "none"
         newest = max(mine, key=lambda message: int(message["sequence"]))
         digest = str(newest["payload"]["journal_digest"])
@@ -530,6 +542,15 @@ class _SignedHeads:
             for message in sorted(self._completions, key=lambda message: str(message["id"]))
             if str(message["id"]) not in self._claimed
         ]
+
+
+def _self_signed(message: dict[str, Any]) -> bool:
+    """Whether a completion is signed, names a journal head, and verifies under the key it
+    carries (whoever that is)."""
+
+    signature = message.get("signature")
+    key = signature.get("public_key_base64") if isinstance(signature, dict) else None
+    return isinstance(key, str) and _signed_head_of(message, key)
 
 
 def _signed_head_of(message: dict[str, Any], public_key: str) -> bool:

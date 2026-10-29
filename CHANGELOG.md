@@ -40,7 +40,9 @@ Tier 2 of the owner's cost-benefit ranking of the backlog, launched on 2026-10-2
   (returned as the new `X-OAK-Request-ID` response header, a 500 included) and the error
   code where there was one, a refusal by the host, origin or size checks included;
   `OAK_ACCESS_LOG=false` turns it off, and the health probes `/healthz` and `/readyz` are
-  logged at `DEBUG`. It also says where it listens (`api_listening`, with host and port).
+  logged at `DEBUG`; an error nothing handled is also a `request_failed` line at `ERROR`,
+  whatever the access log's setting. It says where it listens once the application is
+  built (`api_listening`, with host and port; `localhost` is the IPv4 loopback only).
   The worker logs each operation cycle and each failed cycle (`cycle_failed`, with the
   error's code, or the new `OAK-WORKER-CYCLE` and its type for an error that is not
   OAK's). Every line is built from an allowlist: no brief, answer, key, token, header,
@@ -48,13 +50,15 @@ Tier 2 of the owner's cost-benefit ranking of the backlog, launched on 2026-10-2
   code only. `oak-mcp` logs only to stderr, so its start (`mcp_started`) shows in a
   terminal beside the replies. uvicorn's own lines are gone: its start-up and shut-down
   lines say nothing OAK's do not, and a port in use, which it reported as a line without a
-  cause, now refuses to start with the new code `OAK-SERVE-BIND` naming the address. A
-  refusal before logging is configured (an unknown level, a non-loopback bind without the
-  acknowledgement, a bad `OAK_PORT`, `OAK_WORKER_ID` or worker or MCP configuration) is
-  still plain `CODE: message` text; any other failure to start is a `startup_failed`
-  line. `oak serve` writes the same lines after its first, which prints the
-  model-configuration token for the browser: its stderr is a terminal's, not a log to
-  ship. Metrics remain out of scope.
+  cause, now refuses to start with the new code `OAK-SERVE-BIND` (`oak serve` prints the
+  address; `oak-api`'s `startup_failed` line carries it as `host` and `port`). A refusal
+  before logging is configured is still plain text: `CODE: message` for an unknown level,
+  a non-loopback bind without the acknowledgement, or worker or MCP configuration, and a
+  bare message for a bad `OAK_PORT` or `OAK_WORKER_ID`; any other failure to start is a
+  `startup_failed` line. `oak serve` writes the same lines after its first, which prints
+  the model-configuration token for the browser: its stderr is a terminal's, not a log to
+  ship; a failure of `oak serve` that is not OAK's prints the new `OAK-SERVE-FAILED` and
+  the error's type, exit `1`. Metrics remain out of scope.
 - **A local case can be moved onto a server.** `oak --server import` (and
   `POST /v1/design-cases:import`) of an export taken from a local workspace re-creates the
   case on the server from its brief and confirmed answers, through the server's own create,
@@ -101,8 +105,10 @@ Tier 2 of the owner's cost-benefit ranking of the backlog, launched on 2026-10-2
   completion for its dispatch still in the mailbox, believing only one its own key signed,
   and reports a journal that stops short of it as `chain: truncated`, requiring manual
   recovery, with a new `signed_head` field saying what it compared (`unchecked` without
-  the mailbox); with the mailbox set, a runner key it cannot read, or none beside
-  completions a key signed, stops it with `OAK-RUNNER-KEY` rather than comparing nothing. `oak ingest` refuses a completion whose
+  the mailbox, `other_key` when the only completions verify under a key that is not the
+  runner's current one); with the mailbox set, a runner key it cannot read, or none while
+  the mailbox holds a completion that verifies under the key it carries, stops it with
+  `OAK-RUNNER-KEY` rather than comparing nothing. `oak ingest` refuses a completion whose
   journal is shorter than, or as long but different from, one it already accepted for the
   lease, with the new code `OAK-INGEST-JOURNAL`; the message stays in the mailbox, and the
   JSON output's new `refused` map names each such message's code.
@@ -136,8 +142,9 @@ Found by the batch's closing adversarial review and fixed before it closed:
 - `make toolchain-check` refuses a gate step that is disabled (`if:`) or allowed to fail
   (`continue-on-error`), and a cache step or `github.token` in the browser-suite job.
 
-A second, wider review of the finished batch (57 findings confirmed by at least two of
-three skeptics each) found, and the batch fixed with tests:
+A second, wider review of the finished batch (57 findings confirmed, each by at least two
+skeptics; four judged by hand after the review ran out of time) found, and the batch
+fixed with tests, and a review of those fixes found 25 more, fixed the same way:
 
 - Two reports rendered at once in one API process read each other's glyphs from
   reportlab's shared font objects: a different PDF, `OAK-REPORT-RENDER`, or an internal
@@ -148,23 +155,30 @@ three skeptics each) found, and the batch fixed with tests:
 - `oak-runner status` printed a traceback, and no report, for a journal that was not UTF-8
   or not readable once a signed completion existed, and for a deeply nested or `NaN`
   completion anyone could drop in the mailbox; each is now reported or ignored. Moving the
-  runner key aside no longer turns a cut journal back into `verified`.
-- A 500 now carries `X-OAK-Request-ID` and its line `OAK-INTERNAL`; a host, origin or size
-  refusal's line keeps its code.
+  runner key aside no longer turns a cut journal back into `verified`, and once a new key
+  replaces it the old completions read `other_key`, not "none".
+- A 500 now carries `X-OAK-Request-ID` and its line `OAK-INTERNAL`, and is an `ERROR` line
+  even with the access log off; a host, origin or size refusal's line keeps its code.
+  Ctrl-C ends `oak-api` and `oak serve` quietly, as before.
 - Re-creating a local case: a deeply nested object is `OAK-IMPORT-REPLAY`, not an internal
   error; the origin step is inside the replay, so a case that moved on after it was created
-  says how far the replay got; a replay refused because another writer moved the case is
-  not retriable; a retried import returns the case it recorded, not where the user has
-  taken it since; and `oak --server import` of a server export of a case once re-created
-  elsewhere says "Imported", printing only the export's own workspace id.
+  says how far the replay itself got (not the user's later steps); a replay refused
+  because another writer moved the case is not retriable; a retried import returns the
+  case it recorded, not where the user has taken it since; and `oak --server import` of a
+  server export of a case once re-created elsewhere says "Imported", while a re-created
+  case's line names only the export's own, validated workspace id.
 - `make toolchain-check` compared the gate commands by prefix and substring, so
   `|| true`, a `shell:` or job `defaults` override, a `needs` on a skipped job, an
-  `if: always()` on a gated release job, a secret read as `secrets['…']`, `toJSON(secrets)`
-  or a workflow-wide `env`, or an upload through another action all passed. Each is
-  refused, and the `check` job and the release gate are pinned to `linux-x86_64` like the
-  other platforms.
+  `if: always()` on a gated release job, a workflow-wide default shell or `MAKEFLAGS`, a
+  `--help` argument, a disabled `make build`, `make audit`, `make release` or checksum
+  verification, a secret or token read as `secrets['…']`, `SECRETS.…`, `github['token']`,
+  `toJSON(secrets)`, `toJSON(github)` or a workflow-wide `env`, or an upload through
+  another action all passed. Each is refused, the gate commands are matched exactly, and
+  the `check` job and the release gate are pinned to `linux-x86_64` like the other
+  platforms.
 - The release verifier's "the key cannot come from the release" guard compares files,
-  not path spellings (a differently cased path on macOS, a hard link), and an
+  not path spellings (a differently cased path on macOS, a hard link anywhere in the
+  directory), and an
   `ssh-keygen` without `-Y find-principals` (OpenSSH before 8.2) is "cannot be checked",
   not "does not verify".
 

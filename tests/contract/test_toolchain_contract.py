@@ -734,6 +734,75 @@ _CHECKOUT_OFF = (
             "      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1\n",
             "CI workflow: the web-e2e job must upload nothing and read no secret",
         ),
+        (
+            "ci.yml",
+            "permissions:\n",
+            'defaults:\n  run:\n    shell: "true {0}"\npermissions:\n',
+            "CI workflow: the workflow's default shell must be bash or sh",
+        ),
+        (
+            "ci.yml",
+            "permissions:\n",
+            "env:\n  MAKEFLAGS: -n\npermissions:\n",
+            "CI workflow: no step may set a MAKE variable",
+        ),
+        (
+            "ci.yml",
+            "      - run: make audit\n",
+            "      - run: make audit\n        continue-on-error: true\n",
+            "CI workflow: the check job must run `make audit`",
+        ),
+        (
+            "ci.yml",
+            "      - run: make build\n",
+            "      - run: make build\n        if: false\n",
+            "CI workflow: the check job must run `make build`",
+        ),
+        (
+            "release.yml",
+            "        run: make release\n",
+            "        run: make release\n        continue-on-error: true\n",
+            "release workflow: the artifacts job must run `make release`",
+        ),
+        (
+            "release.yml",
+            "        run: uv run python scripts/verify_release.py --checksums-only dist/release\n",
+            "        run: uv run python scripts/verify_release.py --checksums-only dist/release\n"
+            "        if: false\n",
+            "release workflow: the artifacts job must run "
+            "`uv run python scripts/verify_release.py --checksums-only dist/release`",
+        ),
+        (
+            "ci.yml",
+            _X86_SKIPS,
+            "python3 scripts/check_skips.py --help check-linux-x86_64",
+            "CI workflow: the check job must count its skips against check-linux-x86_64",
+        ),
+        (
+            "ci.yml",
+            _SUITE_COMMAND,
+            "python3 scripts/run_browser_suite.py --help",
+            "CI workflow: the web-e2e job must run scripts/run_browser_suite.py",
+        ),
+        (
+            "ci.yml",
+            '--commit "${{ github.sha }}"\n',
+            "--commit \"${{ github.sha }}\"\n        env:\n          GH: ${{ github['token'] }}\n",
+            "CI workflow: the web-e2e job must upload nothing and read no secret",
+        ),
+        (
+            "ci.yml",
+            '--commit "${{ github.sha }}"\n',
+            '--commit "${{ github.sha }}"\n        env:\n'
+            "          CONTEXT: ${{ toJSON(github) }}\n",
+            "CI workflow: the web-e2e job must upload nothing and read no secret",
+        ),
+        (
+            "ci.yml",
+            '--commit "${{ github.sha }}"\n',
+            '--commit "${{ github.sha }}"\n        env:\n          HF: ${{ SECRETS.HF_TOKEN }}\n',
+            "CI workflow: the web-e2e job must upload nothing and read no secret",
+        ),
     ],
 )
 def test_a_gate_that_could_pass_without_proving_its_claim_is_rejected(

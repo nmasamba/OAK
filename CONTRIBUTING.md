@@ -178,7 +178,8 @@ and fails on any difference (`scripts/check_skips.py`). A new test gated on
 `OAK_TEST_DATABASE_URL` or a real Docker daemon raises the macOS row's count for its reason
 (that job has neither); a new skip reason, or a test behind the OPA or spec-repo gates,
 needs its count in every row whose job skips it. Run the gate with
-`OAK_SKIP_LEDGER=/tmp/skips.jsonl make check`, then
+`rm -f /tmp/skips.jsonl; OAK_SKIP_LEDGER=/tmp/skips.jsonl make check` (the ledger is appended
+to, across the gate's three test runs), then
 `python3 scripts/check_skips.py /tmp/skips.jsonl <job>` to see what a job would count. To run them locally:
 
 ```bash

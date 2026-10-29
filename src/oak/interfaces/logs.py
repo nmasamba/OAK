@@ -133,7 +133,7 @@ def log_event(logger: logging.Logger, level: int, event: str, **fields: object) 
     logger.log(level, event, extra={"oak": fields})
 
 
-def exit_on(logger: logging.Logger, event: str, error: BaseException) -> NoReturn:
+def exit_on(logger: logging.Logger, event: str, error: BaseException, **fields: object) -> NoReturn:
     """End the process on `error`, logged as its code and type, never its message.
 
     An unhandled exception would otherwise reach Python's own handler, which prints the
@@ -146,6 +146,7 @@ def exit_on(logger: logging.Logger, event: str, error: BaseException) -> NoRetur
         event,
         error_type=type(error).__name__,
         **({"code": error.code} if isinstance(error, OAKError) else {}),
+        **fields,
     )
     raise SystemExit(1)
 
@@ -155,6 +156,7 @@ _ASGIApp = Callable[
     Awaitable[None],
 ]
 _ACCESS = logging.getLogger("oak.api.access")
+_FAILURES = logging.getLogger("oak.api")
 
 
 class AccessLogMiddleware:
@@ -165,8 +167,10 @@ class AccessLogMiddleware:
     request ID is minted here, never taken from a header, and returned as
     `X-OAK-Request-ID` so a user can quote it. An error nothing handled is answered here
     by `unhandled`, because the server's own error middleware sits outside every
-    middleware and would send its 500 without the ID. The `quiet` routes (the health
-    probes a container healthcheck calls every few seconds) are logged at `DEBUG`.
+    middleware and would send its 500 without the ID; it is also logged as a
+    `request_failed` line at `ERROR`, whatever the access log's setting or the route. The
+    `quiet` routes (the health probes a container healthcheck calls every few seconds) are
+    logged at `DEBUG`.
     """
 
     def __init__(
@@ -215,6 +219,16 @@ class AccessLogMiddleware:
             error_type = type(error).__name__
             if responded or self._unhandled is None:
                 raise
+            route = getattr(scope.get("route"), "path", None)
+            log_event(
+                _FAILURES,
+                logging.ERROR,
+                "request_failed",
+                route=route if isinstance(route, str) else "unmatched",
+                request_id=request_id,
+                error_type=error_type,
+                code="OAK-INTERNAL",
+            )
             await self._unhandled(scope)(scope, receive, send_with_id)
         finally:
             if self._enabled:

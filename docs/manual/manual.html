@@ -973,8 +973,9 @@ uv run oak-runner run-once
     <code>OAK_RUNNER_MAILBOX</code> — pass both as shown, because the variables above were
     prefixes on the <code>run-once</code> command and do not persist. Without the mailbox
     it compares nothing (<code>signed_head</code> is <code>unchecked</code>); without the
-    home it reads the default one (<code>~/.oak/runner</code>) and reports an empty
-    journal list rather than failing.
+    home it reads the default one (<code>~/.oak/runner</code>), and with the mailbox set it
+    stops with <code>OAK-RUNNER-KEY</code> when that home has no key beside the run's signed
+    completions.
   </p>
   <h2>What a denial means</h2>
   <p>

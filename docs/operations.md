@@ -89,16 +89,18 @@ metrics**. What you have is the logs, a handful of endpoints and the database.
 (`docker compose logs api worker`), at `INFO` unless `OAK_LOG_LEVEL` says otherwise.
 Before its first line, `oak-api` may print up to three plain-text startup notices: the
 non-loopback bind warning, a missing `OAK_DATABASE_URL`, and where the model-configuration
-token was written. A refusal that comes before logging is set up is plain text too,
-`CODE: message`, exit `1`: an unknown `OAK_LOG_LEVEL` (`OAK-LOG-CONFIG`), a non-loopback
-bind without the acknowledgement (`OAK-SAFE-BIND`), a bad `OAK_PORT` or `OAK_WORKER_ID`, or
-the worker's or MCP server's own configuration (`OAK-WORKER-CONFIG`, `OAK-MCP-CONFIG`).
-Any other failure to start, a database URL that does not parse included, ends with a
-`startup_failed` line naming the error's type and code, never its message, and exits `1`;
-a port already in use is `OAK-SERVE-BIND`. A one-shot worker (`OAK_WORKER_ONCE=1`) whose
+token was written. A refusal that comes before logging is set up is plain text too, exit
+`1`: `CODE: message` for an unknown `OAK_LOG_LEVEL` (`OAK-LOG-CONFIG`), a non-loopback bind
+without the acknowledgement (`OAK-SAFE-BIND`), or the worker's or MCP server's own
+configuration (`OAK-WORKER-CONFIG`, `OAK-MCP-CONFIG`), and a bare message for a bad
+`OAK_PORT` or `OAK_WORKER_ID`. Any other failure to start, a database URL that does not
+parse included, ends with a `startup_failed` line naming the error's type and code, never
+its message (and, from `oak-api`, the host and port), and exits `1`; a port already in use
+is `OAK-SERVE-BIND`. A one-shot worker (`OAK_WORKER_ONCE=1`) whose
 cycle fails ends the same way with `cycle_failed`. `oak-api` serves from one process and,
-once bound, says where it listens (`api_listening`, with `host` and `port`); uvicorn's own
-start-up lines are not written.
+once the application is built and its socket listening, says where (`api_listening`, with
+`host` and `port`); uvicorn's own start-up lines are not written. `OAK_HOST` is one address:
+`localhost` listens on the IPv4 loopback address only.
 
 `oak serve` writes the same lines, after a first plain-text line that prints the
 model-configuration token itself, and its `#token=` link, for you to paste into the
@@ -120,7 +122,9 @@ when it matched none. The `request_id` is minted per request and returned to the
 the `X-OAK-Request-ID` response header, a `500` included, so a user can quote it in a report
 and you can find the line. The `code` is the error the response carried, a refusal by the
 host, origin or size checks included, and `OAK-INTERNAL` for an error nothing handled, whose
-type is the line's `error_type`. `oak-worker` writes `operation_cycle` (operation ID, kind,
+type is the line's `error_type`. Such an error is also a `request_failed` line at `ERROR`
+(route, request ID, type and code), written whatever `OAK_ACCESS_LOG` says and on the quiet
+routes too. `oak-worker` writes `operation_cycle` (operation ID, kind,
 outcome, attempt, duration and, on failure, the code) and `cycle_failed` (the error's code,
 or `OAK-WORKER-CYCLE` for an error that is not OAK's, and its type). `oak-mcp` writes
 `mcp_started` when it starts.

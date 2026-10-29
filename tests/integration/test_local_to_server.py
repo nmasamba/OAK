@@ -436,6 +436,8 @@ def test_an_import_whose_case_moved_on_between_steps_says_so_and_is_not_retriabl
 
     assert again.value.code == "OAK-IMPORT-REPLAY"
     assert "OAK-EXPECTED-VERSION" in again.value.message
+    # The replay itself got only as far as creating the case; the user interpreted it.
+    assert "up to draft" in again.value.message
     assert again.value.retriable is False
 
 

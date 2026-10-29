@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Loopback-safe ASGI process entrypoint."""
 
+import contextlib
 import ipaddress
 import logging
 import os
@@ -107,6 +108,7 @@ def run_server(
     )
     try:
         # uvicorn logs a failed bind (a library line, its text not written) and exits.
+        # `localhost` binds the IPv4 loopback address only, as uvicorn's own binding does.
         listening = config.bind_socket()
     except SystemExit as error:
         raise OAKError(
@@ -114,12 +116,17 @@ def run_server(
             f"cannot listen on {host}:{port}: the address is in use, is not this "
             "machine's, or needs a privilege this process lacks",
         ) from error
+    # The application is built and the socket listening before the line says so.
+    config.load()
+    listening.listen(config.backlog)
     log_event(_LOG, logging.INFO, "api_listening", host=host, port=port)
     _serve(config, listening)
 
 
 def _serve(config: uvicorn.Config, listening: Any) -> None:
-    uvicorn.Server(config).run(sockets=[listening])
+    # Ctrl-C after a graceful shutdown, which `uvicorn.run` also swallows.
+    with contextlib.suppress(KeyboardInterrupt):
+        uvicorn.Server(config).run(sockets=[listening])
 
 
 def _environment_flag(name: str) -> bool:
@@ -148,7 +155,7 @@ def main() -> None:
     try:
         run_server(host=host, port=port, allow_non_loopback=allow_non_loopback)
     except Exception as error:
-        exit_on(_LOG, "startup_failed", error)
+        exit_on(_LOG, "startup_failed", error, host=host, port=port)
 
 
 if __name__ == "__main__":  # pragma: no cover

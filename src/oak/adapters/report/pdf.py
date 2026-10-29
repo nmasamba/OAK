@@ -198,17 +198,23 @@ CROSS = frozenset({"fail", "revoked", "infeasible"})
 RING = frozenset({"unknown", "absent", "required"})
 
 
-def pdf_text(text: str, font: str = FONT) -> str:
-    """Text `font` can draw, as written where it has the glyphs.
+def _normalised(text: str, covered: frozenset[int]) -> str:
+    """NFC, except that a character the font has and NFC would replace is kept as written
+    (Plex Mono has the Ohm sign but not the Greek omega NFC makes it)."""
 
-    A compatibility character the font lacks becomes its plain form when the font has
-    that (a full-width letter its ASCII one); any other character it has no glyph for
-    becomes U+FFFD.
-    """
+    pieces: list[str] = []
+    start = 0
+    for index, character in enumerate(text):
+        if ord(character) in covered and unicodedata.normalize("NFC", character) != character:
+            pieces += [unicodedata.normalize("NFC", text[start:index]), character]
+            start = index + 1
+    pieces.append(unicodedata.normalize("NFC", text[start:]))
+    return "".join(pieces)
 
-    covered = coverage(font)
+
+def _drawable_once(text: str, covered: frozenset[int]) -> str:
     characters = []
-    for character in unicodedata.normalize("NFC", str(text)):
+    for character in _normalised(text, covered):
         if character in "\n\t":
             characters.append(" ")
         elif ord(character) in covered:
@@ -218,6 +224,25 @@ def pdf_text(text: str, font: str = FONT) -> str:
             drawable = plain != character and all(ord(part) in covered for part in plain)
             characters.append(plain if drawable else REPLACEMENT)
     return "".join(characters)
+
+
+def pdf_text(text: str, font: str = FONT) -> str:
+    """Text `font` can draw, as written where it has the glyphs.
+
+    A compatibility character the font lacks becomes its plain form when the font has
+    that (a full-width letter its ASCII one); any other character it has no glyph for
+    becomes U+FFFD. The result is its own result: lines are measured as this returns them
+    and drawn through it again, so a fold that composes with a combining mark after it is
+    settled here, not when the line is drawn.
+    """
+
+    covered = coverage(font)
+    drawable = str(text)
+    for _ in range(8):
+        previous, drawable = drawable, _drawable_once(drawable, covered)
+        if drawable == previous:
+            break
+    return drawable
 
 
 def measure(text: str, name: str, size: float) -> float:
