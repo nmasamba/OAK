@@ -19,12 +19,18 @@ from oak.application.design_case import (
     QuestionResult,
 )
 from oak.application.extensions import ExtensionService, VerificationReport
+from oak.application.model_budget import (
+    DEFAULT_MODEL_REQUESTS_PER_CASE_PER_DAY,
+    billable_requests_on,
+    check_model_budget,
+)
 from oak.application.model_configuration import (
     ModelConfigurationService,
     ModelSelection,
     validate_key_input,
 )
 from oak.application.operations import (
+    DEFAULT_OPERATIONS_PER_TENANT,
     CommunityWorker,
     OperationService,
     OperationSubmission,
@@ -44,6 +50,8 @@ from oak.application.system_information import SystemInformationService
 from oak.application.workspace_format import MigrationResult, WorkspaceFormatService
 
 __all__ = [
+    "DEFAULT_MODEL_REQUESTS_PER_CASE_PER_DAY",
+    "DEFAULT_OPERATIONS_PER_TENANT",
     "ArtifactContent",
     "AssuranceResult",
     "CandidatePlanningService",
@@ -81,6 +89,8 @@ __all__ = [
     "VerificationReport",
     "WorkerCycleResult",
     "WorkspaceFormatService",
+    "billable_requests_on",
+    "check_model_budget",
     "pack_summaries",
     "validate_key_input",
 ]

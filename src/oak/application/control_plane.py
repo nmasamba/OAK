@@ -29,6 +29,7 @@ from oak.application.design_case import (
     DesignResult,
     ModelInterpreterFactory,
 )
+from oak.application.model_budget import DEFAULT_MODEL_REQUESTS_PER_CASE_PER_DAY
 from oak.application.operations import OperationService, OperationSubmission
 from oak.application.recreation import ReplayPlan, replay_plan
 from oak.application.report.service import ReportNarratorFactory, ReportResult, ReportService
@@ -128,6 +129,7 @@ class CommunityControlPlane:
         report_renderer: ReportRendererPort | None = None,
         report_narrator_factory: ReportNarratorFactory | None = None,
         oak_version: str = "unknown",
+        model_requests_per_day: int = DEFAULT_MODEL_REQUESTS_PER_CASE_PER_DAY,
         research_vocabulary: ResearchVocabularyPort | None = None,
         research_source_factory: SourceFactory | None = None,
         research_source_mode: SourceMode | None = None,
@@ -136,6 +138,7 @@ class CommunityControlPlane:
     ) -> None:
         self._repository_factory = repository_factory
         self._operation_service_factory = operation_service_factory
+        self._model_requests_per_day = model_requests_per_day
         self._intake = intake
         self._interpreter = interpreter
         self._catalogue = catalogue
@@ -764,6 +767,7 @@ class CommunityControlPlane:
             self._registry,
             model_interpreter_factory=self._model_interpreter_factory,
             proposal_limits=self._proposal_limits,
+            model_requests_per_day=self._model_requests_per_day,
         )
 
     def _planning_service(self, workspace_id: str, tenant_id: str) -> CandidatePlanningService:
@@ -802,6 +806,7 @@ class CommunityControlPlane:
             oak_version=self._oak_version,
             narrator_factory=self._report_narrator_factory,
             proposal_limits=self._proposal_limits,
+            model_requests_per_day=self._model_requests_per_day,
         )
 
     @staticmethod

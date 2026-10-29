@@ -114,6 +114,10 @@ every audit artifact. Treat these as a floor.
 `GET /v1/design-cases` (the list) is not measured: it requires the PostgreSQL case
 directory and is unavailable in file mode.
 
+Since Tier 3's Batch A the API admits 1,200 requests a minute from one address by default,
+which takes the benchmark's 200 reads in one burst; a larger `--requests` needs
+`OAK_REQUESTS_PER_MINUTE_PER_ADDRESS` raised, or `0`.
+
 ## Workspace growth — read this one
 
 This is the number most likely to affect a first user. It was re-measured on 2026-10-29,

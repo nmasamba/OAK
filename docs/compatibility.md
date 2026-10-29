@@ -390,6 +390,19 @@ mechanical migration; **breaking** otherwise.
     `OAK-RUNNER-CONFIG` (exit `70`), publishes heartbeats while a dispatch runs, and
     removes processed dispatch directories older than the retention at the end of each
     run, reporting `cleaned N processed dispatch(es) …` on stderr.
+  - Every REST operation may answer `429` with a problem document and `Retry-After` in
+    whole seconds: `OAK-RATE-LIMIT-ADDRESS` and `OAK-RATE-LIMIT-TENANT` from the request
+    limiter (the health probes exempt), the new `OAK-OPERATION-QUOTA` from the cap on
+    operations queued or running per tenant, on submission, and the new `OAK-MODEL-BUDGET`
+    from the per-case daily model budget on `:interpret` and `:record-report` in a model
+    mode; the CLI and MCP answer the same two application codes. The contract documents
+    the `429` response and its header on every operation, an additive change under the
+    baseline check. `OAK-MODEL-RATE-LIMITED` keeps its `429`, without the header.
+  - `oak-api`, `oak serve` and `oak-mcp` refuse to start, and `oak interpret`,
+    `oak design` and `oak report --record` in a model mode refuse, with the new
+    `OAK-LIMIT-CONFIG` when one of `OAK_REQUESTS_PER_MINUTE_PER_ADDRESS`,
+    `OAK_REQUESTS_PER_MINUTE_PER_TENANT`, `OAK_OPERATIONS_PER_TENANT` or
+    `OAK_MODEL_REQUESTS_PER_CASE_PER_DAY` is not a whole number from 0 to a million.
 
 ## MCP
 

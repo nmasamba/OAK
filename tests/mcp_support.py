@@ -56,6 +56,12 @@ class MemoryOperationStore:
         with self._lock:
             return self.records.get(spec.operation_id)
 
+    def active_count(self) -> int:
+        with self._lock:
+            return sum(
+                1 for record in self.records.values() if record.state in {"queued", "running"}
+            )
+
     def enqueue(self, spec: OperationSpec) -> EnqueuedOperation:
         with self._lock:
             return self._enqueue(spec)

@@ -211,10 +211,14 @@ Planned at kickoff; each milestone records what shipped, as `docs/compatibility.
   expiry, a `0.9` list still read; the operation-store port already had `heartbeat`, which
   the worker now calls between its steps, so the port and the PostgreSQL adapter are
   unchanged.
-- `OAK-V1-034`: new `OAK_*` rows for every limit; `429` responses on existing operations
-  (an additive response code, listed as unreleased in the OpenAPI compatibility test);
-  new `OAK-*` codes for the limits; the log allowlist decides what of a client address may
-  be logged.
+- `OAK-V1-034` (shipped): `OAK_REQUESTS_PER_MINUTE_PER_ADDRESS`,
+  `OAK_REQUESTS_PER_MINUTE_PER_TENANT`, `OAK_OPERATIONS_PER_TENANT` and
+  `OAK_MODEL_REQUESTS_PER_CASE_PER_DAY`; `429` with `Retry-After` documented on every
+  REST operation (additive under the baseline check, listed in `compatibility.md`); the
+  new codes `OAK-RATE-LIMIT-ADDRESS`, `OAK-RATE-LIMIT-TENANT`, `OAK-OPERATION-QUOTA`,
+  `OAK-MODEL-BUDGET` and `OAK-LIMIT-CONFIG`; `OperationStore.active_count` on the port,
+  the PostgreSQL store and the in-memory test store; the log allowlist keeps the client
+  address out, so a refused request's line carries the limit's code only.
 - `OAK-V1-035`: build-time only; the release evidence records the snapshot date and the
   BuildKit version.
 - `OAK-V1-036`: a new audit event a server writes on restore (an existing or additive event
@@ -462,6 +466,38 @@ that a `0.9.0` workspace needs.
   renewing, and the runner never beating. `signed-runner.md` ("Heartbeats", "What the
   runner keeps"), `compatibility.md`, `operations.md`, `configuration.md`,
   `performance.md` ("Soak limits"), `threat-coverage.md`, `RR-031`, the changelog.
+- [x] 2026-10-29 M5 (`OAK-V1-034`). The request limiter: `oak.interfaces.api.limits` (a
+  token bucket per key, a minute's burst then the allowance per minute, at most 4,096
+  keys per limiter, state in the one API process) behind `_RequestLimitMiddleware`,
+  outside the loopback guard and inside the access log, keyed on the client address and
+  on the tenant the request claims, exempting `/healthz` and `/readyz`, answering `429`
+  through `_refusal` with `Retry-After` and `OAK-RATE-LIMIT-ADDRESS` or
+  `OAK-RATE-LIMIT-TENANT` (`OAK_REQUESTS_PER_MINUTE_PER_ADDRESS` 1,200,
+  `OAK_REQUESTS_PER_MINUTE_PER_TENANT` 6,000). The operation cap:
+  `OperationStore.active_count` on the port, the PostgreSQL store and the in-memory test
+  store; `OperationService.submit` refuses a new operation with `OAK-OPERATION-QUOTA`
+  (`429`, `Retry-After: 5`) once the tenant has `OAK_OPERATIONS_PER_TENANT` (100) queued
+  or running, after an idempotent duplicate is answered. The model budget:
+  `oak.application.model_budget` counts the case's model-backed interpretations and
+  narrations on the UTC day from its own audit history; `DesignCaseService.interpret` and
+  `ReportService.record` refuse the next with `OAK-MODEL-BUDGET` (`429`, `Retry-After`
+  to the next UTC day) at `OAK_MODEL_REQUESTS_PER_CASE_PER_DAY` (100), before anything is
+  sent. `bootstrap.read_limit` parses every value (`0` off, up to a million, else
+  `OAK-LIMIT-CONFIG`). Every operation in the contract documents `429` with `Retry-After`
+  (`openapi/oak.openapi.json` regenerated, the web client unchanged; the baseline check
+  passes, the change is additive and listed in `compatibility.md`). Proof:
+  `tests/unit/test_request_limits.py` (6), `tests/integration/test_api_limits.py` (7: at
+  the limit and past it with `Retry-After`, the probes exempt, the tenant key, zero off,
+  a bad value refusing the app, the access line with the code and no address, the
+  application's `429`s, the contract), `tests/integration/test_operation_quota.py` (3),
+  `tests/integration/test_model_budget.py` (5), `active_count` on PostgreSQL in
+  `test_operations.py` (gated; the macOS skip ledger counts it), the OpenAPI problem test
+  extended. Seven mutations killed: the limiter admitting everything, the probes not
+  exempt, the limiter's refusal without `Retry-After`, the cap never refusing, the budget
+  never refusing, narrations not counted, and the application's `429` without
+  `Retry-After`. `configuration.md` (four rows), `operations.md` (Limits, five
+  troubleshooting rows), `compatibility.md`, `performance.md`, `threat-coverage.md`
+  (`TM-14`), `RR-024` and `RR-041` bounded, the changelog, `CONTRIBUTING.md`.
 
 ## Decisions
 
@@ -596,6 +632,37 @@ that a `0.9.0` workspace needs.
   step runs under a lease of its own length; a lease another worker has since claimed is
   reported as lost there, before the step runs or its result is recorded. The port's
   `heartbeat` already existed; nothing in the PostgreSQL adapter changed.
+- 2026-10-29 M5. **The limits, and what they claim.** On by default and generous, as the
+  owner chose (Q2): 1,200 requests a minute per address and 6,000 per tenant (the browser
+  suite and `make check` build one app per test and stay far under; the benchmark's 200
+  reads fit one burst), 100 operations queued or running per tenant, 100 billable model
+  requests per case per day. The limiter's state is the API process's own and is claimed
+  as such: two processes or hosts each keep their own count, and a restart forgets it.
+- 2026-10-29 M5. **A token bucket, keyed on the claim.** A minute's burst then the
+  allowance per minute, so an interactive page is never refused and a flood is answered
+  before any header is examined (the limiter sits outside the loopback guard); the tenant
+  key is the `X-OAK-Tenant` header's claim, bounded in length, and each limiter remembers
+  at most 4,096 keys, so a stream of invented tenants or addresses cannot grow the table.
+- 2026-10-29 M5. **The address stays out of the log.** The allowlist does not carry it; a
+  refused request's line names the limit through its code (`…-ADDRESS` or `…-TENANT`) and
+  nothing else of the key.
+- 2026-10-29 M5. **The model budget is a count in the case's history.** A counter in
+  memory would be useless to the CLI, which is one process per command, and would forget
+  on restart; the audit history already records every model-backed interpretation (its
+  event names the interpreter) and every narration (its event lists the narrative
+  artifact), so the count is read from there and holds for the CLI, the API and MCP. A
+  request the provider refused or that failed records nothing and is not counted; the
+  adapters already stop it at one attempt and one retry. A case can be interpreted once,
+  so in practice the count bounds narrations; a user who starts new cases is bounded by
+  the request limits and the operation cap, not by this count, and the register says so.
+- 2026-10-29 M5. **`429` with `Retry-After` for all three.** The limiter answers in
+  middleware through `_refusal`; the cap and the budget are `OAKError`s the handler maps
+  to `429`, adding `Retry-After` (five seconds for the cap, the worker's poll; the time to
+  the next UTC day for the budget). `OAK-MODEL-RATE-LIMITED`, the provider's own limit,
+  keeps its `429` without the header, unchanged.
+- 2026-10-29 M5. **Bounded, not closed.** `RR-024` and `RR-041` move to Low with what
+  remains stated: no per-job cost or token figure, a limiter that counts per process, and
+  no tenant-wide model budget; closing them is the register review's call at 1.0.
 
 ## Discoveries and follow-ups
 
@@ -616,6 +683,9 @@ that a `0.9.0` workspace needs.
   event; the ingest sort above fixed it.
 - 2026-10-29 M4. The retention test first expected an old, ingested dispatch to survive a
   later run; it is exactly what the cleanup removes once it is no longer the newest.
+- 2026-10-29 M5. `scripts/generate_openapi.py` writes the web client from a fixed source,
+  so documenting `429` touched `openapi/oak.openapi.json` only; the compatibility checker
+  flags removed responses, not added ones.
 
 ## Self-review
 

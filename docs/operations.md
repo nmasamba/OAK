@@ -76,6 +76,16 @@ to the relative path `.oak/server-artifacts`**, resolved against whatever direct
 process was started in. Set it to an absolute path now. A backup procedure cannot copy a
 directory whose location depends on where someone happened to be standing.
 
+**Limits.** The API admits 1,200 requests a minute from one client address and 6,000 for
+one tenant, a tenant may have 100 operations queued or running, and a case may record 100
+billable model requests a day; past each, the answer is `429` with `Retry-After`
+(`OAK-RATE-LIMIT-ADDRESS`, `OAK-RATE-LIMIT-TENANT`, `OAK-OPERATION-QUOTA`,
+`OAK-MODEL-BUDGET`). The four `OAK_*` rows in [configuration.md](configuration.md) set
+them, and `0` switches one off. The request limiter's state is the `oak-api` process's
+own: two processes count apart, and a restart forgets. Everything on this machine, the
+browser included, shares one client address as the API sees it, and the health probes are
+never counted against it.
+
 ---
 
 ## Observe
@@ -414,6 +424,10 @@ success, `2` refusal or invalid input, `4` version or idempotency conflict.
 | `OAK-RUNNER-REVOCATION` on every dispatch | The mailbox's `revocations/manifest.json` is missing, the notice set does not match it, or the runner's recorded sequence is ahead of it | Re-publish the revocation state from the control plane (`oak revoke-approval`, or a fresh dispatch establishes an empty manifest). Do not hand-delete notices — the mismatch is the protection working |
 | `OAK-EXPECTED-VERSION` | Someone else advanced the case | Re-read the case and retry with the current version. This is a normal concurrency refusal, not a fault |
 | `OAK-IDEMPOTENCY-CONFLICT` | An idempotency key was reused with different input | Use a new key, or send the original input |
+| `429 OAK-RATE-LIMIT-ADDRESS` or `OAK-RATE-LIMIT-TENANT` | More requests in a minute than the limit admits from one address or one tenant; everything on this machine shares one address | Wait the `Retry-After` seconds; raise `OAK_REQUESTS_PER_MINUTE_PER_ADDRESS` or `OAK_REQUESTS_PER_MINUTE_PER_TENANT`, or set one to `0` |
+| `429 OAK-OPERATION-QUOTA` | The tenant has `OAK_OPERATIONS_PER_TENANT` operations queued or running | Check that `oak-worker` is running and draining them; cancel one; or raise the value |
+| `429 OAK-MODEL-BUDGET` (`OAK-MODEL-BUDGET` on the CLI) | The case has recorded `OAK_MODEL_REQUESTS_PER_CASE_PER_DAY` billable model requests today | Use the deterministic mode, wait for 00:00 UTC, or raise the value |
+| `OAK-LIMIT-CONFIG` at start, or from a command | One of the four limit variables is not a whole number from 0 to 1000000 | Fix the value; `0` switches that limit off |
 | `OAK-REMOTE-UNSUPPORTED` | A local-only command was run with `--server` | Signing, approval (including `approve architecture`), dispatch, ingest, observation (`oak observe`), keys, model-provider configuration, extensions, policy, rendering and validation are local-only by design; the full list is in [interfaces.md](interfaces.md). `oak architecture` works in remote mode |
 | `OAK-REMOTE-UNAVAILABLE` | The control plane is unreachable | Check the URL and that `oak-api` is up |
 | Server refuses to start | `OAK_DATABASE_URL` unset (`oak-worker`, `oak-db-migrate`, `oak-mcp`), or a non-loopback bind without `OAK_ALLOW_NON_LOOPBACK` | See [configuration.md](configuration.md) |

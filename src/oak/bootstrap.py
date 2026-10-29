@@ -44,6 +44,8 @@ from oak.adapters.signing import (
 )
 from oak.adapters.targets import LocalTargetProfile
 from oak.application import (
+    DEFAULT_MODEL_REQUESTS_PER_CASE_PER_DAY,
+    DEFAULT_OPERATIONS_PER_TENANT,
     CandidatePlanningService,
     CommunityControlPlane,
     CommunityWorker,
@@ -153,6 +155,7 @@ def create_design_case_service(
         registry,
         model_interpreter_factory=model_interpreter_factory,
         proposal_limits=model_proposal_limits(),
+        model_requests_per_day=model_requests_per_case_per_day(),
     )
 
 
@@ -198,6 +201,39 @@ def model_discovery_cache_seconds() -> int:
     except ValueError:
         value = 21_600
     return max(0, value)
+
+
+MAXIMUM_LIMIT = 1_000_000
+
+
+def read_limit(name: str, default: int) -> int:
+    """An `OAK_*` limit: a whole number from 0 to a million, `0` switching the limit off;
+    unset or blank is the default, and anything else is refused (`OAK-LIMIT-CONFIG`), so a
+    typo never runs the process with a limit it did not ask for."""
+
+    raw = os.getenv(name, "").strip()
+    if not raw:
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        value = -1
+    if value < 0 or value > MAXIMUM_LIMIT:
+        raise OAKError(
+            "OAK-LIMIT-CONFIG",
+            f"{name} must be a whole number from 0 to {MAXIMUM_LIMIT}; 0 switches the limit off",
+        )
+    return value
+
+
+def model_requests_per_case_per_day() -> int:
+    return read_limit(
+        "OAK_MODEL_REQUESTS_PER_CASE_PER_DAY", DEFAULT_MODEL_REQUESTS_PER_CASE_PER_DAY
+    )
+
+
+def operations_per_tenant() -> int:
+    return read_limit("OAK_OPERATIONS_PER_TENANT", DEFAULT_OPERATIONS_PER_TENANT)
 
 
 # A provider's chat answer is bounded by the proposal limits; its *catalogue* is a different
@@ -589,6 +625,7 @@ def create_report_service(workspace: Path) -> ReportService:
         oak_version=__version__,
         narrator_factory=create_report_narrator,
         proposal_limits=model_proposal_limits(),
+        model_requests_per_day=model_requests_per_case_per_day(),
     )
 
 
@@ -896,6 +933,9 @@ def create_persistent_control_plane() -> CommunityControlPlane:
             environment_id=environment_id,
         )
 
+    maximum_active = operations_per_tenant()
+    model_requests_per_day = model_requests_per_case_per_day()
+
     def operation_service_factory(tenant_id: str) -> OperationService:
         return OperationService(
             PostgreSQLOperationStore(
@@ -904,6 +944,7 @@ def create_persistent_control_plane() -> CommunityControlPlane:
                 environment_id=environment_id,
             ),
             environment_id=environment_id,
+            maximum_active=maximum_active,
         )
 
     def outbox_store_factory(tenant_id: str) -> PostgreSQLOutboxStore:
@@ -935,6 +976,7 @@ def create_persistent_control_plane() -> CommunityControlPlane:
         report_renderer=create_report_renderer(),
         report_narrator_factory=create_report_narrator,
         oak_version=__version__,
+        model_requests_per_day=model_requests_per_day,
         research_vocabulary=ResearchVocabularyLoader(canonical_catalogue_directory()),
         research_source_factory=lambda occurred_at: create_research_source(occurred_at=occurred_at),
         research_source_mode=research_source_mode,

@@ -9,6 +9,10 @@ from pathlib import Path
 from typing import Any
 
 from oak.application.context import CommandContext
+from oak.application.model_budget import (
+    DEFAULT_MODEL_REQUESTS_PER_CASE_PER_DAY,
+    check_model_budget,
+)
 from oak.application.persistence import build_workspace_mutation
 from oak.compiler import (
     DeterministicBriefInterpreter,
@@ -107,6 +111,7 @@ class DesignCaseService:
         *,
         model_interpreter_factory: ModelInterpreterFactory | None = None,
         proposal_limits: ProposalLimits | None = None,
+        model_requests_per_day: int = DEFAULT_MODEL_REQUESTS_PER_CASE_PER_DAY,
     ) -> None:
         self._repository = repository
         self._intake = intake
@@ -114,6 +119,7 @@ class DesignCaseService:
         self._registry = registry
         self._model_interpreter_factory = model_interpreter_factory
         self._proposal_limits = proposal_limits or ProposalLimits()
+        self._model_requests_per_day = model_requests_per_day
 
     def initialize(self, *, workspace_id: str, tenant_id: str, created_at: str) -> None:
         self._repository.initialize(
@@ -335,6 +341,12 @@ class DesignCaseService:
         proposal: dict[str, Any] | None = None
         proposal_artifact: Artifact | None = None
         if adapter is not None:
+            # The case's daily count of billable requests, before the brief is sent (RR-041).
+            check_model_budget(
+                self._repository,
+                occurred_at=context.occurred_at,
+                maximum=self._model_requests_per_day,
+            )
             proposal = self._bind_proposal(adapter, source_document, source_ref, source_content)
             proposal_artifact = json_artifact(
                 artifact_id=str(proposal["id"]),

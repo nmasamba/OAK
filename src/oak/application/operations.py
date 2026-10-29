@@ -27,6 +27,8 @@ FORBIDDEN_OPERATION_FIELDS = frozenset({"argv", "command", "executable", "shell"
 OperationHandler = Callable[[dict[str, Any]], dict[str, Any]]
 # A fresh (now, lease_expires_at) pair, read from the clock when a step starts (RR-031).
 LeaseRenewal = Callable[[], tuple[str, str]]
+# The most operations a tenant may have queued or running at once (RR-024); `0` is no cap.
+DEFAULT_OPERATIONS_PER_TENANT = 100
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,9 +38,16 @@ class OperationSubmission:
 
 
 class OperationService:
-    def __init__(self, store: OperationStore, *, environment_id: str = "local") -> None:
+    def __init__(
+        self,
+        store: OperationStore,
+        *,
+        environment_id: str = "local",
+        maximum_active: int = DEFAULT_OPERATIONS_PER_TENANT,
+    ) -> None:
         self._store = store
         self._environment_id = environment_id
+        self._maximum_active = max(0, maximum_active)
 
     def submit(
         self,
@@ -107,6 +116,17 @@ class OperationService:
         existing = self._store.idempotent(spec)
         if existing is not None:
             return OperationSubmission(existing, duplicate=True)
+        # A duplicate is answered above whatever the queue holds; a new operation joins it
+        # only while the tenant is under its cap (RR-024).
+        if self._maximum_active:
+            active = self._store.active_count()
+            if active >= self._maximum_active:
+                raise OAKError(
+                    "OAK-OPERATION-QUOTA",
+                    f"the tenant already has {active} operation(s) queued or running, the "
+                    "configured maximum; wait for one to finish or cancel one",
+                    retriable=True,
+                )
         if precondition is not None:
             precondition()
         enqueued: EnqueuedOperation = self._store.enqueue(spec)

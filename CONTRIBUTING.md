@@ -136,7 +136,9 @@ replaceable and owned by its own project. OAK compiles *to* them; it doesn't abs
 - Let policy decisions gate state transitions, not just record them (`RR-004`).
 - A signature and provenance gate for catalogue component manifests (`RR-025`), and real
   manifests backed by evidence.
-- Budgets and rate limits, including for model spend (`RR-024`, `RR-041`).
+- A per-job cost or token budget, and a tenant-wide model budget (`RR-024`, `RR-041`:
+  the request, operation and per-case model limits exist; the limiter's state is one
+  process's).
 - Closing the evidence loop. `oak observe` already records each prediction beside an
   observed value, but every observed cost, latency, quality and energy value is still
   `unknown`: the shipped profiles install a placeholder image, and nothing runs a

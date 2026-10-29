@@ -96,6 +96,24 @@ and launched on 2026-10-29; this is its first batch: formats, bounds and the cat
   completions) and says `… and N heartbeat(s)`, and refuses a completion whose journal
   falls short of a head a heartbeat named (`OAK-INGEST-JOURNAL`). A `0.9` control plane
   acknowledges a heartbeat without recording it; a `0.9` runner publishes none.
+- **Budgets and rate limits** (`RR-024` and `RR-041`, bounded). The API admits
+  `OAK_REQUESTS_PER_MINUTE_PER_ADDRESS` (new; 1,200) requests a minute from one client
+  address and `OAK_REQUESTS_PER_MINUTE_PER_TENANT` (new; 6,000) for one tenant, a
+  minute's burst then that allowance, and answers the next with `429`, a problem document
+  (`OAK-RATE-LIMIT-ADDRESS` or `OAK-RATE-LIMIT-TENANT`, `retriable`) and `Retry-After` in
+  whole seconds; `/healthz` and `/readyz` are exempt; the state is the `oak-api` process's
+  own, nothing distributed. A tenant may have `OAK_OPERATIONS_PER_TENANT` (new; 100)
+  operations queued or running; the next submission is refused with the new code
+  `OAK-OPERATION-QUOTA` (`429`, `Retry-After: 5`) while a repeated submission is still
+  answered with its operation. A case may record `OAK_MODEL_REQUESTS_PER_CASE_PER_DAY`
+  (new; 100) billable model requests a UTC day, each model-backed interpretation or
+  narration counting one, read from the case's own history; the next is refused with the
+  new code `OAK-MODEL-BUDGET` (`429`, `Retry-After` to the next UTC day) before anything
+  is sent, on the CLI, the API and MCP alike, and a request the provider refused or that
+  failed is not counted. `0` switches any of the four off; a value that is not a whole
+  number from 0 to a million refuses to start, or refuses the command, with the new
+  `OAK-LIMIT-CONFIG`. Every REST operation now documents `429` with `Retry-After`, and
+  the access log names a refused request's limit by its code, never the address.
 
 #### Changed
 

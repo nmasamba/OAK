@@ -11,7 +11,7 @@ import secrets
 import urllib.parse
 from collections.abc import Callable, MutableMapping, Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from typing import Annotated, Any
 
@@ -37,6 +37,7 @@ from oak.bootstrap import (
 )
 from oak.contracts import ContractValidationError
 from oak.domain import OAKError
+from oak.interfaces.api.limits import EXEMPT_PATHS, RequestLimits, TokenBucketLimiter
 from oak.interfaces.api.models import (
     ArtifactListResponse,
     AssurancePlanRequest,
@@ -282,6 +283,71 @@ def parse_allowed_hosts(value: str) -> frozenset[str]:
     return frozenset(hosts)
 
 
+class _RequestLimitMiddleware:
+    """Answer `429` with `Retry-After` past the per-address or per-tenant allowance.
+
+    The keys are the client address the server sees and the tenant the request claims (the
+    `X-OAK-Tenant` header, or the local tenant); the state is this process's own (RR-024).
+    The health probes are exempt, so a container healthcheck never counts against the
+    address it shares with everything else on the machine. The refusal goes through
+    `_refusal`, so the access line carries the limit's code and nothing of the address.
+    """
+
+    def __init__(self, app: ASGIApp, *, limits: RequestLimits, local_tenant: str) -> None:
+        self._app = app
+        self._by_address = TokenBucketLimiter(limits.per_address, clock=limits.clock)
+        self._by_tenant = TokenBucketLimiter(limits.per_tenant, clock=limits.clock)
+        self._local_tenant = local_tenant
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http" or scope.get("path", "") in EXEMPT_PATHS:
+            await self._app(scope, receive, send)
+            return
+        problem = self._limited(scope)
+        if problem is not None:
+            wait, code, detail = problem
+            response = _refusal(
+                scope,
+                Problem(
+                    title="Too many requests",
+                    status=429,
+                    code=code,
+                    detail=detail,
+                    retriable=True,
+                ),
+            )
+            response.headers["Retry-After"] = str(wait)
+            await response(scope, receive, send)
+            return
+        await self._app(scope, receive, send)
+
+    def _limited(self, scope: Scope) -> tuple[int, str, str] | None:
+        client = scope.get("client")
+        address = str(client[0]) if isinstance(client, tuple | list) and client else "unknown"
+        wait = self._by_address.admit(address)
+        if wait is not None:
+            return (
+                wait,
+                "OAK-RATE-LIMIT-ADDRESS",
+                "This address has sent more requests than the local API admits in a minute; "
+                "retry after the Retry-After seconds.",
+            )
+        tenant = self._local_tenant
+        for name, value in scope.get("headers", []):
+            if name == b"x-oak-tenant":
+                tenant = value.decode("latin-1")[:200] or tenant
+                break
+        wait = self._by_tenant.admit(tenant)
+        if wait is not None:
+            return (
+                wait,
+                "OAK-RATE-LIMIT-TENANT",
+                "The tenant has sent more requests than the local API admits in a minute; "
+                "retry after the Retry-After seconds.",
+            )
+        return None
+
+
 class _LoopbackGuardMiddleware:
     """Refuse requests a same-machine browser page or a rebound name could forge.
 
@@ -498,12 +564,28 @@ def _operation_response(record: Any, *, duplicate: bool = False) -> OperationRes
     )
 
 
+# How long a client should wait after a `429` the application raised: the operation cap
+# clears when the worker finishes one (its poll interval), and the model budget at the next
+# UTC day (RR-024, RR-041).
+OPERATION_QUOTA_RETRY_SECONDS = 5
+
+
+def _retry_after_seconds(code: str) -> int | None:
+    if code == "OAK-OPERATION-QUOTA":
+        return OPERATION_QUOTA_RETRY_SECONDS
+    if code == "OAK-MODEL-BUDGET":
+        now = datetime.now(UTC)
+        midnight = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+        return max(1, int((midnight - now).total_seconds()))
+    return None
+
+
 def _error_status(error: OAKError) -> int:
     if error.code in {"OAK-ACTOR-DENIED", "OAK-ORIGIN-DENIED", "OAK-MODEL-TOKEN-REQUIRED"}:
         return 403
     if error.code == "OAK-HOST-DENIED":
         return 400
-    if error.code == "OAK-MODEL-RATE-LIMITED":
+    if error.code in {"OAK-MODEL-RATE-LIMITED", "OAK-OPERATION-QUOTA", "OAK-MODEL-BUDGET"}:
         return 429
     if error.code == "OAK-DATABASE-UNCONFIGURED":
         return 503
@@ -538,6 +620,7 @@ def create_app(
     allowed_hosts: frozenset[str] | None = None,
     model_token: str | Callable[[], str | None] | None = None,
     model_configuration: Callable[[], ModelConfigurationService] | None = None,
+    request_limits: RequestLimits | None = None,
 ) -> FastAPI:
     """Build the API.
 
@@ -547,6 +630,9 @@ def create_app(
     serving process minted is read, so a server restart rotates it without a reload.
     ``model_configuration`` builds the service the `/v1/models` routes act on; it is called
     per request so a key stored from the CLI is visible to the API without a restart.
+    ``request_limits`` defaults to `OAK_REQUESTS_PER_MINUTE_PER_ADDRESS` and
+    `OAK_REQUESTS_PER_MINUTE_PER_TENANT`; a value outside 0 to a million refuses to build
+    the app (`OAK-LIMIT-CONFIG`).
     """
 
     application_service = service or create_system_information_service()
@@ -568,6 +654,7 @@ def create_app(
     else:
         token_provider = model_token
     model_configuration_factory = model_configuration or create_model_configuration_service
+    limits = request_limits if request_limits is not None else RequestLimits.from_environment()
     api = FastAPI(
         title="OAK Community API",
         summary="Local persistent Community control plane",
@@ -587,6 +674,12 @@ def create_app(
     api.add_middleware(_BoundedRequestMiddleware, maximum_bytes=MAXIMUM_REQUEST_BYTES)
     # Added last so it runs first: nothing is buffered or routed for a refused host/origin.
     api.add_middleware(_LoopbackGuardMiddleware, allowed_hosts=permitted_hosts)
+    # Outside the guard: a flood is answered before any header is examined (RR-024).
+    api.add_middleware(
+        _RequestLimitMiddleware,
+        limits=limits,
+        local_tenant=os.getenv("OAK_LOCAL_TENANT", "local"),
+    )
     # Outside even the guard, so a refused request is logged too (RR-015).
     api.add_middleware(
         AccessLogMiddleware,
@@ -631,6 +724,19 @@ def create_app(
                         "description": "The request was refused: a problem document",
                         "content": problem_content,
                     }
+                # Every operation can be answered `429` by the request limiter, and the
+                # operation and model routes by the operation cap and the model budget;
+                # `Retry-After` says how long to wait (RR-024).
+                responses["429"] = {
+                    "description": "Too many requests: a problem document, with Retry-After",
+                    "headers": {
+                        "Retry-After": {
+                            "description": "Whole seconds to wait before retrying",
+                            "schema": {"type": "integer", "minimum": 1},
+                        }
+                    },
+                    "content": problem_content,
+                }
                 responses["default"] = {
                     "description": "Any other refusal or failure: a problem document",
                     "content": problem_content,
@@ -693,7 +799,7 @@ def create_app(
         request.state.error_code = error.code
         status = _error_status(error)
         detail = "The requested resource was not found." if status == 404 else error.message
-        return _problem_response(
+        response = _problem_response(
             Problem(
                 title="OAK request failed",
                 status=status,
@@ -703,6 +809,10 @@ def create_app(
                 retriable=error.retriable,
             )
         )
+        wait = _retry_after_seconds(error.code)
+        if wait is not None:
+            response.headers["Retry-After"] = str(wait)
+        return response
 
     @api.exception_handler(ContractValidationError)
     async def contract_error_handler(

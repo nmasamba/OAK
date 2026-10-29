@@ -22,6 +22,9 @@ MAXIMUM_OPERATION_DOCUMENT_BYTES = 262_144
 TERMINAL_STATES = frozenset({"succeeded", "failed", "cancelled"})
 
 
+ACTIVE_STATES = ("queued", "running")
+
+
 class PostgreSQLOperationStore:
     """Persist operation state with tenant/environment scope on every query."""
 
@@ -105,6 +108,17 @@ class PostgreSQLOperationStore:
                 ) from error
             return EnqueuedOperation(raced_operation, duplicate=True)
         return EnqueuedOperation(self._record(row), duplicate=False)
+
+    def active_count(self) -> int:
+        """The tenant's operations that are queued or running, in this environment."""
+
+        with self._engine.connect() as connection:
+            value = connection.execute(
+                select(func.count())
+                .select_from(operations)
+                .where(self._scope(), operations.c.state.in_(ACTIVE_STATES))
+            ).scalar_one()
+        return int(value)
 
     def idempotent(self, spec: OperationSpec) -> OperationRecord | None:
         self._validate_spec(spec)
