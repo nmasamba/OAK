@@ -14,6 +14,7 @@
     "architecture_decision_ref": {"$ref": "common.schema.json#/$defs/artifactRef"},
     "intent_ref": {"$ref": "common.schema.json#/$defs/artifactRef"},
     "evaluation_contract_ref": {"$ref": "common.schema.json#/$defs/artifactRef"},
+    "assurance_plan_ref": {"$ref": "common.schema.json#/$defs/artifactRef"},
     "target": {
       "type": "object", "additionalProperties": false,
       "required": ["class", "fingerprint", "environment", "tenant_id", "network_mode"],

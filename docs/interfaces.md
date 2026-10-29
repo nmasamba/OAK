@@ -239,11 +239,12 @@ Notes:
 - `oak validate` is a server-free read-only checker (export, bundle, webhook)
   intended for CI and portals. It checks schema validity, digest integrity, and
   the execution-field ban across all three kinds. For a compiled bundle it
-  verifies the digest edges that exist in a detached directory
-  (runner-plan → deployment-bundle → architecture-decision) and that the runner
-  plan is an inert draft; it does not bind `assurance-plan.json` or
-  `semantic-manifest.json`, which carry no digest edge into the bundle spine, and
-  it does not re-run compilation. An export at an older workspace format this build
+  verifies the digest edges of a detached directory (runner-plan → deployment-bundle
+  → architecture-decision, deployment-bundle → assurance-plan since Tier 3's Batch A,
+  and the semantic manifest the bundle and every plan operation pin) and that the
+  runner plan is an inert draft; a bundle written before the assurance-plan edge is
+  reported valid with its assurance plan `unbound`, never verified; it does not re-run
+  compilation. An export at an older workspace format this build
   knows imports as it is and is reported valid with `migration_needed`; its case is read
   once `oak workspace migrate` has run. The authoritative integrity binding for a plan
   is the separately signed runner envelope and approval, not a review bundle.

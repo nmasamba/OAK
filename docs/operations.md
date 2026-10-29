@@ -435,9 +435,10 @@ oak validate export ./case-export
 ```
 
 `oak validate` needs no server and no database, so it works in CI and on a machine that
-has never run OAK. Read the scope of what it checks in [interfaces.md](interfaces.md) —
-in particular, a detached bundle's assurance plan and semantic manifest carry no digest
-edge into the bundle spine.
+has never run OAK. Read the scope of what it checks in [interfaces.md](interfaces.md):
+a detached bundle's semantic manifest and, since Tier 3's Batch A, its assurance plan
+are bound by digest, and a bundle written before that edge reports its assurance plan
+`unbound`.
 
 ---
 

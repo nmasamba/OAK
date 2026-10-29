@@ -37,6 +37,51 @@ and launched on 2026-10-29; this is its first batch: formats, bounds and the cat
   another format; the mechanism is proven on a synthetic older format and on the `0.9.0`
   reference workspace, committed under `tests/fixtures/workspaces/0.9.0/` as the corpus.
   Downgrade is not supported.
+- **The bundle binds its assurance plan** (`RR-008`, closed). `deployment-bundle.json`
+  carries `assurance_plan_ref`, a digest edge to `assurance-plan.json`, and
+  `oak validate bundle` checks it: a substituted assurance plan is `OAK-VALIDATE-DIGEST`,
+  and the output names the binding (`assurance plan bound`; `assurance_plan` in the
+  JSON). A bundle written before the edge, a `0.9.0` one, say, still validates and
+  reports `assurance plan unbound`, plainly, never verified. Nothing is re-signed: a
+  runner plan compiled from an old bundle still verifies.
+- **An activated extension feeds the catalogue only under the operator's trust anchors**
+  (`RR-025` closed; `RR-004`'s catalogue clause closed, its policy clause open). Until
+  now a component-manifest or architecture-pattern extension could be activated and fed
+  nothing. `oak candidates`, and the server's candidate generation, now read every active
+  extension of those classes and, before a document enters the catalogue, check again
+  that its activation record names its manifest by digest, that its steward signature
+  verifies against a key pinned in the trust directory now (never a key the pack
+  carries), and that every payload file matches the digest the signed manifest declares;
+  a failure refuses the compile with the new code `OAK-CATALOGUE-EXTENSION` rather than
+  leaving the extension out, and a pack that reuses a curated id is refused as a
+  duplicate. The extension verifier and the catalogue feed share one signature check
+  (`oak.contracts.signatures.verify_pinned_signature`). The catalogue snapshot records
+  the provenance of every entry (curated, an extension with its id, version, manifest
+  digest, signer key id and activation time, or research) and lists its patterns with
+  theirs. The curated catalogue inside the wheel is not signed on its own: the release
+  signature covers the wheel, the verifier and any pinned key together.
+
+#### Changed
+
+- **The four reference digests move, once** (compatibility rule 4; the owner's Q1
+  answer of 2026-10-29, taken so that 1.0 is cut after the move). The catalogue snapshot
+  now records provenance and lists its patterns, and the bundle carries the assurance-plan
+  edge; every compiled artifact is bound to the snapshot, so for the reference case
+  (`design-case.public-manual-qa@0.1.7`, `candidate-03`, the `local-fixture` target) the
+  catalogue snapshot moved from `sha256:5cd534484f9777bccd95f544bfdad3d5a96a47fb0baf891c6df3a36caf75d434` to
+  `sha256:403a75d212827d3d2d566ae8275c1cf4d4b0a836c87ecbf1c5c01a960482665c`, `candidate-03`
+  from `sha256:576b0ca62835a521439e44b280ffdfca79438323d45ae79e70521a27d14118b3` to
+  `sha256:04c9b66176adf7ae264fbaaf42979cdac8670002756a089f8a6b9b9bf5f9a959`, the bundle
+  from `sha256:9da17d021cf9f1e61bb73b568927870272d466ec8d869f2ce3201ebaa505b539` to
+  `sha256:3c8343512a5a8512ff7715b2317e8855327007a7c60b46520aa8d980c0f68796`, the runner
+  plan from `sha256:03c4541ade1943cd9e824eabb0a00290190fc2b30a08c737d237052e12dd6de0` to
+  `sha256:13da46613588b2dc1011da5b50a6d72417ee28dfa0a0cb2e1f0d4d2f445e1bb8`, and the case
+  from `sha256:61cee33984c8140f428ef3710056d9a5f546f302346392133173c2848fb41990` to
+  `sha256:10813ad6fa7962fddb06d87edcd7ac5a5317e7d30fc949fedb448063419291ea`. The semantic
+  manifest (`sha256:2ef34758…`) and the intent artifacts did not move. The two report
+  goldens and the published example report are regenerated with the new values; nothing
+  stored in an existing workspace changes, and an old bundle, export or runner plan still
+  reads and verifies.
 
 ### The pre-1.0 assurance batch (`OAK-V1-021`–`028`)
 

@@ -22,6 +22,12 @@ evaluation_contract_ref:
   digest: sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
   uri: examples/example-evaluation-contract.yaml
   media_type: application/yaml
+assurance_plan_ref:
+  id: assurance.public-manual-qa
+  version: 0.1.0
+  digest: sha256:9999999999999999999999999999999999999999999999999999999999999999
+  uri: examples/example-assurance-plan.yaml
+  media_type: application/yaml
 target:
   class: local
   fingerprint: sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff

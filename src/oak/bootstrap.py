@@ -8,7 +8,11 @@ from pathlib import Path
 from typing import Any
 
 from oak import __version__
-from oak.adapters.catalogue import LocalCatalogue, ResearchVocabularyLoader
+from oak.adapters.catalogue import (
+    ExtensionFedCatalogue,
+    LocalCatalogue,
+    ResearchVocabularyLoader,
+)
 from oak.adapters.credentials import (
     EnvironmentCredentialReference,
     FileCredentialStore,
@@ -621,7 +625,7 @@ def create_candidate_planning_service(workspace: Path) -> CandidatePlanningServi
     repository = FileWorkspaceRepository(workspace, registry)
     return CandidatePlanningService(
         repository,
-        LocalCatalogue(canonical_catalogue_directory(), registry),
+        compiler_catalogue(registry),
         LocalTargetProfile(registry),
         registry,
         research_vocabulary=ResearchVocabularyLoader(canonical_catalogue_directory()),
@@ -641,6 +645,19 @@ def canonical_policy_pack_directory() -> Path:
         if candidate is not None and candidate.is_dir():
             return candidate
     raise RuntimeError("OAK Community policy packs are not installed")
+
+
+def compiler_catalogue(registry: SchemaRegistry) -> ExtensionFedCatalogue:
+    """The catalogue every compile reads: the curated documents in the wheel, plus the
+    activated component-manifest and architecture-pattern extensions whose packs the
+    operator's trust directory vouches for when they are read."""
+
+    return ExtensionFedCatalogue(
+        LocalCatalogue(canonical_catalogue_directory(), registry),
+        LocalExtensionStore(default_extensions_directory(), registry),
+        load_steward_anchors,
+        registry,
+    )
 
 
 def default_extensions_directory() -> Path:
@@ -908,7 +925,7 @@ def create_persistent_control_plane() -> CommunityControlPlane:
         operation_service_factory,
         LocalBriefIntake(),
         DeterministicBriefInterpreter(),
-        LocalCatalogue(canonical_catalogue_directory(), registry),
+        compiler_catalogue(registry),
         LocalTargetProfile(registry),
         registry,
         outbox_store_factory,

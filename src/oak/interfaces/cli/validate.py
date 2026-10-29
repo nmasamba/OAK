@@ -222,11 +222,28 @@ def validate_bundle(source: Path) -> dict[str, Any]:
         )
     if str(runner_plan["status"]) != "draft":
         raise OAKError("OAK-VALIDATE-PLAN-STATUS", "runner plan is not an inert draft")
+    assurance_reference = bundle.get("assurance_plan_ref")
+    if isinstance(assurance_reference, dict):
+        assurance = documents["assurance-plan.json"]
+        if (
+            assurance_reference.get("digest") != digests["assurance-plan.json"]
+            or assurance_reference.get("id") != assurance["id"]
+            or str(assurance_reference.get("version")) != str(assurance["version"])
+        ):
+            raise OAKError(
+                "OAK-VALIDATE-DIGEST", "deployment bundle does not reference this assurance plan"
+            )
+        assurance_binding = "bound"
+    else:
+        # A bundle written before the assurance-plan edge carries none, so its assurance
+        # plan is not verified against it: said so, never reported as verified (RR-008).
+        assurance_binding = "unbound"
     return {
         "kind": "bundle",
         "valid": True,
         "bundle_id": str(bundle["id"]),
         "runner_plan_id": str(runner_plan["id"]),
+        "assurance_plan": assurance_binding,
         "digests": digests,
     }
 

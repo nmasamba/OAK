@@ -15,6 +15,9 @@ from oak.domain.artifacts import canonical_json_bytes, content_digest
 from oak.domain.runner_adapters import ADAPTER_IDENTITY_BY_ID, ALLOWED_KINDS_BY_ADAPTER
 
 SDK_VERSION = "1.0.0"
+#: The role whose pinned key vouches for an extension pack, at verification and again
+#: whenever an activated pack is read into the catalogue.
+STEWARD_ROLE = "extension-steward"
 
 POLICY_PACK_CLASS = "policy-pack"
 DEPLOYMENT_ADAPTER_CLASS = "deployment-adapter"

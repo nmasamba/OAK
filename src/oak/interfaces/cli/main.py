@@ -1103,7 +1103,15 @@ def validate(
             document = validation.validate_bundle(source)
             human = (
                 f"Bundle is valid: {document['bundle_id']} with inert draft plan "
-                f"{document['runner_plan_id']}"
+                f"{document['runner_plan_id']}; assurance plan "
+                + (
+                    "bound"
+                    if document["assurance_plan"] == "bound"
+                    else (
+                        "unbound: this bundle was written before the assurance-plan edge, so "
+                        "assurance-plan.json is not verified against it"
+                    )
+                )
             )
         elif kind == "webhook":
             if not public_key:

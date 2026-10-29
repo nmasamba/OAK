@@ -125,6 +125,16 @@ mechanical migration; **breaking** otherwise.
   names the formats, the steps, the digest of the manifest migrated from and the objects
   the migration added. A `0.9.0` reader cannot validate a workspace holding such an event;
   none can exist until a migration step ships.
+- Tier 3's Batch A adds the optional `assurance_plan_ref` to
+  `deployment-bundle.schema.json` (still `0.3.0`) and the optional per-entry `provenance`
+  and top-level `patterns` to `catalogue-snapshot.schema.json` (still `0.4.0`), both
+  additive, so every stored document validates. The compiler writes all three, which
+  moves the bytes of every newly compiled snapshot, candidate, decision, assurance plan,
+  bundle, runner plan and case: **the one deliberate digest move** of the batch, taken at
+  the owner's choice (Q1, 2026-10-29) so that 1.0 is cut after it, and recorded in
+  `CHANGELOG.md` with every reference value before and after (rule 4). No stored document
+  changes, and a bundle, export or runner plan written before the move still reads and
+  verifies; a `0.9.0` reader validates the new documents too.
 - Sprint 14 (unreleased, ADR-0018) made an objective's `value` in `common.schema.json`
   nullable, with `unknown_reason` required exactly when it is null. Every stored document
   still validates, because the compiler writes a null only for a candidate that holds a
@@ -360,6 +370,15 @@ mechanical migration; **breaking** otherwise.
     format this build does not read is refused with `OAK-WORKSPACE-FORMAT` (exit `2`),
     where it was `OAK-WORKSPACE-CORRUPT`; an unreadable or invalid manifest keeps
     `OAK-WORKSPACE-CORRUPT`.
+  - `oak validate bundle` checks the bundle's digest edge to `assurance-plan.json` and
+    its JSON gains `assurance_plan` (`bound` or `unbound`); a bundle written before the
+    edge is still valid and reports `unbound`, and a substituted plan is
+    `OAK-VALIDATE-DIGEST`.
+  - `oak candidates` (and the server's candidate generation) reads the activated
+    component-manifest and architecture-pattern extensions into the catalogue, and
+    refuses with the new code `OAK-CATALOGUE-EXTENSION` when one no longer verifies
+    against the trust directory; a contributed id that a curated entry holds is
+    `OAK-CATALOGUE-DUPLICATE`, as before.
 
 ## MCP
 

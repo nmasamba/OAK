@@ -18,7 +18,7 @@ writes no decision record, signs nothing and publishes nothing.
 
 - Owner/agent: owner-directed coding agent
 - Started: 2026-10-29
-- Last updated: 2026-10-29 (M1, the workspace format migration)
+- Last updated: 2026-10-29 (M2, the digest move: the bundle edge and the catalogue boundary)
 - State: in-progress
 - Claimed tasks: `OAK-V1-029`–`OAK-V1-037`
 
@@ -188,15 +188,20 @@ Planned at kickoff; each milestone records what shipped, as `docs/compatibility.
   command `oak workspace migrate` (local-only); new codes for a workspace at a known older
   format and at an unknown one; the manifest schema keeps its `const` for the current format
   and the versioned reader owns every older one. No stored document changes shape.
-- `OAK-V1-030`: `deployment-bundle.json` gains the assurance-plan digest edge (a new field,
-  so every newly compiled bundle's digest moves; this is Q1's move); `oak validate bundle`
-  gains the check and the "unbound" report for older bundles.
-- `OAK-V1-031`: the catalogue snapshot records provenance per entry (curated, or an activated
-  extension with its pack digest and signer), which moves the snapshot digest and so every
-  compiled artifact (Q1's move, in the same milestone); `oak extensions activate` keeps its
-  surface, and an activated component or pattern pack now reaches `compile_catalogue` when,
-  and only when, its signature verifies against the trust directory; the register says
-  which `RR-004` clause closed.
+- `OAK-V1-030` (shipped): `deployment-bundle.schema.json` (`0.3.0`) gains the optional
+  `assurance_plan_ref`, written by every compile, so every newly compiled bundle's digest
+  moves (Q1's move); `oak validate bundle` checks it, refuses a substituted plan with
+  `OAK-VALIDATE-DIGEST`, and its JSON gains `assurance_plan` (`bound`, or `unbound` for a
+  bundle written before the edge, which stays valid).
+- `OAK-V1-031` (shipped): `catalogue-snapshot.schema.json` (`0.4.0`) gains the optional
+  per-entry `provenance` and top-level `patterns`, written by every compile (Q1's move, in
+  the same milestone); `oak extensions activate` keeps its surface; an active
+  component-manifest or architecture-pattern pack reaches `compile_catalogue` when, and
+  only when, at the read, its activation record names its manifest, its steward signature
+  verifies against the trust directory and its payload matches the signed digests,
+  otherwise the compile refuses with the new `OAK-CATALOGUE-EXTENSION`; the extension
+  verifier and the feed share `oak.contracts.signatures.verify_pinned_signature`; the
+  register says `RR-004`'s catalogue clause closed and its policy clause did not.
 - `OAK-V1-032`: no contract change; a cache inside the file adapter and the measured curve.
 - `OAK-V1-033`: new `OAK_RUNNER_*` retention rows; a lease-extension method on the operation
   store port (and the in-memory store); the nonce ledger's shape may gain an expiry per
@@ -366,7 +371,27 @@ that a `0.9.0` workspace needs.
   worktree at `v0.9.0`) imports, migrates as a no-op, runs `questions`, `architecture` and
   `report --record`, exports and validates (`tests/integration/test_workspace_corpus.py`).
   Four mutations killed: the format gate, the source-digest check on commit, an export
-  that migrated, and the rewrite rule. Unit and contract suites: 1,355 passed.
+  that migrated, and the rewrite rule. Unit and contract suites: 1,355 passed (`5e2468a`).
+- [x] 2026-10-29 M2 (`OAK-V1-030`, `OAK-V1-031`). The bundle's `assurance_plan_ref` and
+  its check in `oak validate bundle`; `oak.adapters.catalogue.ExtensionFedCatalogue`,
+  which every compile reads through `bootstrap.compiler_catalogue` (the local CLI and the
+  server alike), re-checking each active component-manifest or architecture-pattern
+  extension's activation record, steward signature (against the trust directory, through
+  the one shared `verify_pinned_signature`) and payload digests before a document enters
+  the catalogue; per-entry `provenance` and the `patterns` list in the snapshot; the four
+  reference digests moved once and re-pinned, the two report goldens and the published
+  example report regenerated, the move written into `CHANGELOG.md` and `compatibility.md`.
+  Proof: `tests/integration/test_catalogue_extensions.py` (10 tests through the CLI: a
+  signed, activated component feeds the snapshot with its provenance and changes no
+  design; curated-only provenance; a deactivated extension no longer feeds; a tampered
+  payload, a signer no longer pinned, a pack dropped into the active directory, an altered
+  activation record and a signature by a key outside the trust directory each refuse the
+  compile; a curated id shadowed and a pattern duplicating a variant are refused as
+  duplicates); two validator tests (a substituted assurance plan refused; a `0.9.0` bundle
+  valid and `unbound`); `test_reference_digests.py` re-pinned; 1,417 unit, contract and
+  affected integration tests passed. Five mutations killed: the signature re-check, the
+  payload digest check, the missing activation record, the activation record's manifest
+  digest, and the assurance edge in the validator. `make lint` and `make validate` green.
 
 ## Decisions
 
@@ -423,6 +448,34 @@ that a `0.9.0` workspace needs.
   migration event named none and the migrated workspace failed its own validation, which
   the two-interpreter test caught. The reference comes from the case's
   `oak.community/source_record_ref`, never from the new object.
+- 2026-10-29 M2. **Where the gate lives.** At the read, not only at activation. An
+  activation proves what the trust directory said then; the catalogue feed asks again,
+  so a steward key removed since activation, a payload edited in the active directory,
+  a pack dropped there without activating it, or an activation record altered after the
+  fact each stop the next compile. The refusal is loud (`OAK-CATALOGUE-EXTENSION`),
+  never a quiet omission: an operator who activated an extension must not get a design
+  that left it out without a word.
+- 2026-10-29 M2. **One signature scheme.** The extension verifier's pinned-anchor check
+  moved into `oak.contracts.signatures.verify_pinned_signature`, which returns a reason
+  code; the verifier keeps its old report sentences through a map, and the catalogue feed
+  has its own. Trust anchors come from the operator's trust directory
+  (`bootstrap.load_steward_anchors`), never from the pack.
+- 2026-10-29 M2. **The schema additions are optional fields.** `assurance_plan_ref`,
+  per-entry `provenance` and `patterns` are written by every compile but optional in the
+  schemas, so every stored document, the `0.9.0` corpus included, still validates; the
+  validator reports an old bundle's assurance plan `unbound` instead of refusing it.
+- 2026-10-29 M2. **What moved, and what did not.** The snapshot's provenance moves the
+  snapshot digest, which every candidate names, so the candidate, the decision, the
+  assurance plan, the bundle (also for its new edge), the runner plan and the case moved;
+  the semantic manifest and the intents did not. The research golden moved for the same
+  reason (25 leaves), the reference report golden in 10 digest leaves; the published
+  example report was regenerated by substituting those values, which the equality test
+  confirms. The provenance of a researched manifest is `research`, named beside the
+  snapshot's existing `oak.community/research` extension.
+- 2026-10-29 M2. **A pattern extension cannot add a variant.** The pattern schema's
+  `variant` enum is closed to the four curated variants, so a contributed pattern can
+  only duplicate one and is refused; the feed still handles the class, and the guide
+  says so rather than implying a fifth design is a pack away.
 - 2026-10-29 M0. **Task numbering.** `OAK-V1-029` to `-036` are A1 to A8 in the prompt's
   order (migration, bundle edge, catalogue, reads, soak, budgets, images, restore) and
   `OAK-V1-037` is the review; the milestones run A1, then A2 with A3, then A4, A5, A6, A8,

@@ -188,6 +188,7 @@ class CandidatePlanningService:
                 documents.patterns,
                 self._registry,
                 created_at=context.occurred_at,
+                provenance=documents.provenance,
             )
             designs: tuple[ResearchedDesign, ...] = ()
         else:
@@ -204,6 +205,7 @@ class CandidatePlanningService:
                     case_key=current.id.removeprefix("design-case."),
                     researched_manifest_ids=frozenset(research["manifests"]),
                 ),
+                provenance=documents.provenance,
             )
             designs = researched_designs(
                 research["snapshot"],

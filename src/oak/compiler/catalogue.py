@@ -19,6 +19,8 @@ from oak.domain.catalogue_rules import (
 )
 
 MANIFEST_MEDIA_TYPE = "application/vnd.oak.component-manifest+json"
+CURATED_PROVENANCE: dict[str, Any] = {"origin": "curated"}
+RESEARCH_PROVENANCE: dict[str, Any] = {"origin": "research"}
 PATTERN_MEDIA_TYPE = "application/vnd.oak.architecture-pattern+json"
 SNAPSHOT_MEDIA_TYPE = "application/vnd.oak.catalogue-snapshot+json"
 
@@ -55,9 +57,19 @@ def compile_catalogue(
     *,
     created_at: str,
     research: ResearchInput | None = None,
+    provenance: dict[str, dict[str, Any]] | None = None,
 ) -> CompiledCatalogue:
     valid_at = _timestamp(created_at)
     researched_ids = research.researched_manifest_ids if research is not None else frozenset()
+    origins = provenance or {}
+
+    def origin_of(identifier: str) -> dict[str, Any]:
+        # Recorded on every entry: curated (inside the wheel), an activated extension the
+        # operator's trust anchors vouched for, or a researched manifest (ADR-0018).
+        if identifier in researched_ids:
+            return dict(RESEARCH_PROVENANCE)
+        return dict(origins.get(identifier, CURATED_PROVENANCE))
+
     manifests: list[Artifact] = []
     entries: list[dict[str, Any]] = []
     manifest_documents: dict[str, dict[str, Any]] = {}
@@ -95,6 +107,7 @@ def compile_catalogue(
                 "reasons": list(reasons),
                 "evidence_checked_at": evidence_checked_at,
                 "next_review_at": document["next_review_at"],
+                "provenance": origin_of(manifest_id),
             }
         )
         manifests.append(artifact)
@@ -140,6 +153,13 @@ def compile_catalogue(
         "valid_at": created_at,
         "policy_version": CURATED_RULES_VERSION,
         "entries": entries,
+        "patterns": [
+            {
+                "pattern_ref": artifact.reference.to_document(),
+                "provenance": origin_of(artifact.id),
+            }
+            for artifact in patterns
+        ],
         "eligible_manifest_ids": eligible_ids,
         "rejected_manifest_ids": rejected_ids,
         "extensions": {},
