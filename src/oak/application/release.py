@@ -77,6 +77,9 @@ class IngestResult:
     rejected: tuple[str, ...]
     # The code of each rejected message that was believed and then refused, by message id.
     refused: tuple[tuple[str, str], ...] = ()
+    # The runner's lease heartbeats recorded by this ingest, apart from the completions
+    # in `accepted`, which move the case (RR-031).
+    heartbeats: tuple[dict[str, Any], ...] = ()
 
 
 class ReleaseService:
@@ -555,24 +558,36 @@ class ReleaseService:
                 "runner's public identity with `oak keys enroll-runner` first",
             )
         accepted: list[dict[str, Any]] = []
+        heartbeats: list[dict[str, Any]] = []
         rejected: list[str] = []
         refused: list[tuple[str, str]] = []
         result_case = current_document
-        for message in self._transport.read_messages():
+        # A lease's heartbeats are recorded before its completion whatever order the
+        # mailbox lists them in, so the completion's journal is checked against every
+        # head the runner reported on the way (RR-031). The sort is stable: the mailbox's
+        # order holds otherwise.
+        messages = sorted(
+            self._transport.read_messages(), key=lambda item: item.get("kind") != "heartbeat"
+        )
+        for message in messages:
             message_id = str(message.get("id", ""))
             if not self._believable(message, runners, context):
                 rejected.append(message_id or "(unidentified)")
                 continue
-            if message["kind"] in {"completion", "evidence"}:
+            if message["kind"] in {"completion", "evidence", "heartbeat"}:
                 try:
-                    result_case = self._record_completion(message, context)
+                    result_case = (
+                        self._record_heartbeat(message, context)
+                        if message["kind"] == "heartbeat"
+                        else self._record_completion(message, context)
+                    )
                 except OAKError as error:
                     # Left where it is and reported, never acknowledged unrecorded: a
                     # later ingest offers it again (F4-7).
                     rejected.append(message_id)
                     refused.append((message_id, error.code))
                     continue
-                accepted.append(message)
+                (heartbeats if message["kind"] == "heartbeat" else accepted).append(message)
             # Acknowledged only once its own commit has landed, one message at a time.
             self._transport.acknowledge(message_id)
         return IngestResult(
@@ -580,6 +595,7 @@ class ReleaseService:
             accepted=tuple(accepted),
             rejected=tuple(rejected),
             refused=tuple(refused),
+            heartbeats=tuple(heartbeats),
         )
 
     def _believable(
@@ -837,6 +853,64 @@ class ReleaseService:
             artifacts=(artifact,),
         )
 
+    def _record_heartbeat(
+        self,
+        message: dict[str, Any],
+        context: CommandContext,
+    ) -> dict[str, Any]:
+        """Record a runner's signed lease heartbeat: a report of liveness and journal reach.
+
+        It moves no state and authorizes nothing. Its journal head becomes a floor that a
+        later completion for the lease must reach (`_check_journal_reach`), so a journal
+        cut after the runner reported progress is noticed here as well as on the runner.
+        """
+
+        input_digest = content_digest(canonical_json_bytes(message))
+        ingest_context = replace(
+            context,
+            idempotency_key=f"ingest:{input_digest.removeprefix('sha256:')}",
+            correlation_id=str(message["correlation_id"]),
+        )
+        duplicate = self._repository.idempotent_case(ingest_context.idempotency_key, input_digest)
+        if duplicate is not None:
+            return duplicate
+        payload = message.get("payload")
+        if (
+            not isinstance(payload, dict)
+            or not isinstance(payload.get("journal_digest"), str)
+            or not isinstance(payload.get("journal_sequence"), int)
+            or isinstance(payload.get("journal_sequence"), bool)
+            or int(payload["journal_sequence"]) < 0
+        ):
+            raise OAKError("OAK-INGEST-JOURNAL", "the heartbeat names no journal head")
+        current_document = self._require_case()
+        current = DesignCase.from_document(current_document)
+        ingest_context = replace(ingest_context, expected_version=current.version)
+        artifact = json_artifact(
+            artifact_id=str(message["id"]),
+            version="0.1.0",
+            kind="runner_message",
+            media_type=RUNNER_MESSAGE_MEDIA_TYPE,
+            document=message,
+        )
+        extensions = copy.deepcopy(current.extensions or {})
+        heartbeats = list(extensions.get("oak.community/runner_heartbeat_refs", []))
+        heartbeats.append(artifact.reference.to_document())
+        extensions["oak.community/runner_heartbeat_refs"] = heartbeats
+        successor = current.revise(
+            status=current.status,
+            updated_at=ingest_context.occurred_at,
+            extensions=extensions,
+        )
+        return self._publish(
+            current=current_document,
+            successor=successor,
+            event_type="runner_heartbeat",
+            context=ingest_context,
+            input_digest=input_digest,
+            artifacts=(artifact,),
+        )
+
     def _check_journal_reach(self, message: dict[str, Any], extensions: dict[str, Any]) -> None:
         """A completion's journal must reach as far as one already accepted for its lease.
 
@@ -863,13 +937,19 @@ class ReleaseService:
             not isinstance(sequence, int) or isinstance(sequence, bool) or sequence < 0
         ):
             raise OAKError("OAK-INGEST-JOURNAL", "the completion names an invalid journal length")
-        for reference in extensions.get("oak.community/runner_result_refs", []):
+        # Every head the runner reported for this lease before, by completion or by
+        # heartbeat, is a floor this completion's journal must reach.
+        earlier_references = [
+            *extensions.get("oak.community/runner_result_refs", []),
+            *extensions.get("oak.community/runner_heartbeat_refs", []),
+        ]
+        for reference in earlier_references:
             earlier = self._repository.read_json_artifact(
                 ArtifactReference.from_document(reference)
             )
             earlier_payload = earlier.get("payload")
             if (
-                earlier.get("kind") != "completion"
+                earlier.get("kind") not in {"completion", "heartbeat"}
                 or earlier.get("lease_id") != lease_id
                 or not isinstance(earlier_payload, dict)
             ):

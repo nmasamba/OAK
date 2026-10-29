@@ -6,6 +6,8 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -20,6 +22,9 @@ MESSAGE_DIRECTORY = "messages"
 ACKNOWLEDGED_DIRECTORY = "acknowledged"
 SAFE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$")
 PROCESSED_MARKER = ".processed"
+# A consumed nonce is replayable only while its lease is valid; it is kept this much
+# longer than the lease's expiry, against clocks that disagree (RR-031).
+NONCE_RETENTION_SKEW_SECONDS = 300
 
 
 class RunnerMailbox:
@@ -214,18 +219,25 @@ class RunnerMailbox:
         os.replace(scratch, path)
 
     def consumed_lease_nonces(self) -> frozenset[str]:
-        """The replay ledger, failing closed on corruption.
+        """The replay ledger's nonces, failing closed on corruption."""
+
+        return frozenset(self._nonce_ledger())
+
+    def _nonce_ledger(self) -> dict[str, str | None]:
+        """Each consumed nonce with its lease's expiry, failing closed on corruption.
 
         This used to return an empty set for an unreadable or malformed file — and
         because `consume_lease_nonce` rewrites the file from this reader's result, one
         corrupt read did not merely fail open once: the next consume permanently erased
-        every previously burned nonce. A ledger that cannot be read now refuses
-        (`OAK-RUNNER-REPLAY`) until an operator inspects or removes it deliberately.
+        every previously burned nonce. A ledger that cannot be read refuses
+        (`OAK-RUNNER-REPLAY`) until an operator inspects or removes it deliberately. A
+        ledger written before Tier 3's Batch A is a list of nonces: each is read with no
+        expiry, so none of them is ever dropped.
         """
 
         path = self._home / "consumed-nonces.json"
         if not path.is_file():
-            return frozenset()
+            return {}
         try:
             values = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError) as error:
@@ -233,20 +245,103 @@ class RunnerMailbox:
                 "OAK-RUNNER-REPLAY",
                 "the consumed-nonce ledger is unreadable; refusing to treat it as empty",
             ) from error
-        if not isinstance(values, list) or not all(isinstance(value, str) for value in values):
-            raise OAKError(
-                "OAK-RUNNER-REPLAY",
-                "the consumed-nonce ledger is malformed; refusing to treat it as empty",
-            )
-        return frozenset(values)
+        if isinstance(values, list) and all(isinstance(value, str) for value in values):
+            return dict.fromkeys(values)
+        if isinstance(values, dict) and all(
+            isinstance(key, str) and (value is None or isinstance(value, str))
+            for key, value in values.items()
+        ):
+            return dict(values)
+        raise OAKError(
+            "OAK-RUNNER-REPLAY",
+            "the consumed-nonce ledger is malformed; refusing to treat it as empty",
+        )
 
-    def consume_lease_nonce(self, nonce: str) -> None:
-        nonces = sorted({*self.consumed_lease_nonces(), nonce})
+    def consume_lease_nonce(
+        self, nonce: str, *, expires_at: str | None = None, now: str | None = None
+    ) -> None:
+        """Record a consumed nonce with its lease's expiry, dropping those whose lease has
+        lapsed.
+
+        A nonce can be replayed only while its lease is valid, so one whose expiry plus
+        the clock-skew allowance has passed can go; one whose expiry is unknown, or cannot
+        be read, is kept for ever. The file is still rewritten in full, but it holds only
+        the leases that could still be replayed (RR-031).
+        """
+
+        ledger = self._nonce_ledger()
+        ledger[nonce] = expires_at
+        current = _parse_time(now) if now is not None else None
+        if current is not None:
+            allowance = timedelta(seconds=NONCE_RETENTION_SKEW_SECONDS)
+            ledger = {
+                value: expiry
+                for value, expiry in ledger.items()
+                if (limit := _parse_time(expiry)) is None or limit + allowance > current
+            }
         path = self._home / "consumed-nonces.json"
         path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         scratch = path.with_name(path.name + ".tmp")
-        scratch.write_text(json.dumps(nonces) + "\n", encoding="utf-8")
+        scratch.write_text(json.dumps(dict(sorted(ledger.items()))) + "\n", encoding="utf-8")
         os.replace(scratch, path)
+
+    def clean_processed_dispatches(self, *, retention_seconds: int, now: float) -> tuple[str, ...]:
+        """Remove processed dispatch directories older than the retention.
+
+        Kept whatever their age: the newest processed dispatch, and any whose completion
+        is still in `messages/`, that is, not yet ingested. Journals are never removed;
+        they are the evidence, and `oak-runner status` ties each to its completions by
+        the lease its own entries name, so the comparison stays true without the
+        dispatch directory (RR-031).
+        """
+
+        if retention_seconds <= 0:
+            return ()
+        directory = self._root / DISPATCH_DIRECTORY
+        if not directory.is_dir():
+            return ()
+        processed: list[tuple[float, Path]] = []
+        for dispatch_dir in sorted(directory.iterdir()):
+            marker = dispatch_dir / PROCESSED_MARKER
+            if (
+                dispatch_dir.is_symlink()
+                or not dispatch_dir.is_dir()
+                or not is_safe_name(dispatch_dir.name)
+                or marker.is_symlink()
+                or not marker.is_file()
+            ):
+                continue
+            try:
+                processed.append((marker.stat().st_mtime, dispatch_dir))
+            except OSError:
+                continue
+        processed.sort(key=lambda item: (item[0], item[1].name))
+        removed: list[str] = []
+        for processed_at, dispatch_dir in processed[:-1]:
+            if now - processed_at < retention_seconds:
+                continue
+            correlations = {dispatch_dir.name}
+            lease_id = self.dispatch_lease_id(dispatch_dir.name)
+            if lease_id is not None:
+                correlations.add(lease_id)
+            if self._has_unacknowledged_message(correlations):
+                continue
+            try:
+                shutil.rmtree(dispatch_dir)
+            except OSError:
+                continue
+            removed.append(dispatch_dir.name)
+        return tuple(removed)
+
+    def _has_unacknowledged_message(self, correlations: set[str]) -> bool:
+        folder = self._root / MESSAGE_DIRECTORY
+        if not folder.is_dir():
+            return False
+        for path in folder.glob("*.json"):
+            document = _read_document(path)
+            if document is not None and document.get("correlation_id") in correlations:
+                return True
+        return False
 
     def publish_message(
         self,
@@ -299,6 +394,18 @@ class RunnerMailbox:
         with os.fdopen(descriptor, "wb") as stream:
             stream.write(payload_bytes)
         return message
+
+
+def _parse_time(value: object) -> datetime | None:
+    """A timestamp with a timezone, or None for anything that cannot be read as one."""
+
+    if not isinstance(value, str):
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed.astimezone(UTC) if parsed.tzinfo is not None else None
 
 
 def is_safe_name(value: object) -> bool:

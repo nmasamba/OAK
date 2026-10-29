@@ -203,9 +203,14 @@ Planned at kickoff; each milestone records what shipped, as `docs/compatibility.
   verifier and the feed share `oak.contracts.signatures.verify_pinned_signature`; the
   register says `RR-004`'s catalogue clause closed and its policy clause did not.
 - `OAK-V1-032`: no contract change; a cache inside the file adapter and the measured curve.
-- `OAK-V1-033`: new `OAK_RUNNER_*` retention rows; a lease-extension method on the operation
-  store port (and the in-memory store); the nonce ledger's shape may gain an expiry per
-  nonce (a runner-home file, not a canonical document).
+- `OAK-V1-033` (shipped): `OAK_RUNNER_HEARTBEAT_SECONDS` and
+  `OAK_RUNNER_DISPATCH_RETENTION_DAYS`; the runner publishes the `heartbeat` message kind
+  the schema always listed, `audit-event.schema.json` gains `runner_heartbeat` (additive)
+  and the case gains the extension `oak.community/runner_heartbeat_refs`; `oak ingest`'s
+  JSON gains `heartbeats`; the nonce ledger (a runner-home file) is a map of nonce to lease
+  expiry, a `0.9` list still read; the operation-store port already had `heartbeat`, which
+  the worker now calls between its steps, so the port and the PostgreSQL adapter are
+  unchanged.
 - `OAK-V1-034`: new `OAK_*` rows for every limit; `429` responses on existing operations
   (an additive response code, listed as unreleased in the OpenAPI compatibility test);
   new `OAK-*` codes for the limits; the log allowlist decides what of a client address may
@@ -417,6 +422,46 @@ that a `0.9.0` workspace needs.
   key without the bytes' digest, a commit reading through the cache, and the bound not
   enforced. `docs/performance.md` rewritten at "Workspace growth", `RR-030` measured and
   bounded with its growth clause open, the changelog.
+- [x] 2026-10-29 M4 (`OAK-V1-033`). The ledger: `RunnerMailbox.consume_lease_nonce`
+  records each nonce with its lease's expiry and drops those past expiry plus
+  `NONCE_RETENTION_SKEW_SECONDS` (300), keeping an unknown or unreadable expiry for ever,
+  and reads a `0.9` list ledger. Cleanup: `clean_processed_dispatches` at the end of
+  `run-once`, after `OAK_RUNNER_DISPATCH_RETENTION_DAYS` (default 30, 0 to 3650), keeping
+  the newest processed dispatch and any with a message still in `messages/`, never a
+  journal. The journal: `RunnerJournal` verifies the chain once per object and appends
+  from an in-memory head; `verify_chain` re-reads. The worker: `OperationWorker.run_once`
+  takes `renew`, a (now, lease_expires_at) pair read from the clock at each step, and
+  calls the store's `heartbeat` before the handler and before recording its result;
+  `run_worker` supplies it. The heartbeat (the owner's decision of 2026-10-29):
+  `LeaseHeartbeat` publishes a signed `heartbeat` message at a step boundary once the
+  interval has passed (`OAK_RUNNER_HEARTBEAT_SECONDS`, default 30; the acceptance beat
+  always), naming the journal's head; `execute_dispatch` beats at lease acceptance,
+  around each operation and through the container adapter's create, start and readiness
+  steps; a beat the mailbox refuses is dropped without a gap in the sequence.
+  `oak ingest` records a heartbeat as a `runner_heartbeat` event with the message as an
+  artifact under `oak.community/runner_heartbeat_refs`, sorts a batch so a lease's
+  heartbeats precede its completion, lists them apart from `accepted` (which stays the
+  completions), and `_check_journal_reach` takes every heartbeat head as a floor. Proof:
+  `tests/integration/test_runner_soak.py` (9 tests: a running dispatch publishes signed
+  heartbeats, ordered by head, that ingest records once; the default interval publishes
+  the acceptance beat alone; `0` publishes none and a bad value is `OAK-RUNNER-CONFIG`;
+  a completion short of a heartbeat's head is refused and the case does not move; a
+  heartbeat signed by an unenrolled key is rejected; processed dispatches are cleaned
+  after the retention, never the newest, an un-ingested one or a journal, and `status`
+  still reads `matched`; the ledger keeps a nonce while its lease could be replayed,
+  drops it after, keeps an unreadable or unknown expiry, and reads a `0.9` list),
+  `tests/unit/test_runner_journal_head.py` (one verified read per object, bytes identical
+  to a fresh object per append; a tampered journal is never extended),
+  `tests/unit/test_runner_heartbeat.py` (the interval, zero, and a dropped beat),
+  `tests/unit/test_operation_worker_renewal.py` and `test_worker_loop.py` (the renewal
+  from the step's own clock). `test_install_lifecycle.py`, `test_signed_runner.py`,
+  `test_runner_trust_boundary.py`, `test_runner_revocation.py` and `test_operations.py`
+  pass with the heartbeats on. Seven mutations killed: heartbeat heads not floors,
+  heartbeats not recorded first, cleanup taking the newest, cleanup ignoring an
+  un-ingested completion, the journal head skipping verification, the worker never
+  renewing, and the runner never beating. `signed-runner.md` ("Heartbeats", "What the
+  runner keeps"), `compatibility.md`, `operations.md`, `configuration.md`,
+  `performance.md` ("Soak limits"), `threat-coverage.md`, `RR-031`, the changelog.
 
 ## Decisions
 
@@ -525,6 +570,32 @@ that a `0.9.0` workspace needs.
   of a 500-event workspace at about 2 s; compaction or archival would change the stored
   format and stays open under `RR-030`, as the plan allowed only were the curve
   super-linear.
+- 2026-10-29 M4. **A heartbeat is a report.** The owner chose the signed heartbeat for
+  this batch rather than after 1.0; it moves no state, extends no lease (the runner's lease
+  deadline is unchanged) and is bound to its lease like a completion: believed only from
+  an enrolled runner for a dispatched lease. Its one effect on trust is a floor: the
+  journal head it names must be reached by the lease's completion.
+- 2026-10-29 M4. **Heartbeats before completions.** The filesystem mailbox lists messages
+  by name, which puts `completion` before `heartbeat`; ingest sorts each batch so a lease's
+  heartbeats are recorded first, and the sort is stable so nothing else moves. `accepted`
+  keeps meaning the completions, which existing readers count; the heartbeats are listed
+  apart, in the result and in the CLI's JSON.
+- 2026-10-29 M4. **Two meanings of zero.** `OAK_RUNNER_HEARTBEAT_SECONDS=0` switches
+  heartbeats off, which is what an operator means by it; the `run_once` test seam passes
+  the interval `LeaseHeartbeat` takes, where `0` beats at every boundary, so a journey can
+  be proven on a fake clock.
+- 2026-10-29 M4. **What cleanup keeps.** The newest processed dispatch whatever its age,
+  any whose completion is still in `messages/`, and every journal: the evidence stays, and
+  `status` ties it by the lease the journal's own first entry names, so the comparison
+  does not need the directory.
+- 2026-10-29 M4. **The ledger keeps what it cannot read.** A nonce with no expiry (a
+  `0.9` list) or an unreadable one is kept for ever: the ledger fails closed; only a lease
+  the runner knows has lapsed, plus five minutes of skew, lets a nonce go.
+- 2026-10-29 M4. **The worker renews from the step's clock.** The pair comes from the
+  worker loop's clock at the moment of the step, not from the cycle's `now`, so a long
+  step runs under a lease of its own length; a lease another worker has since claimed is
+  reported as lost there, before the step runs or its result is recorded. The port's
+  `heartbeat` already existed; nothing in the PostgreSQL adapter changed.
 
 ## Discoveries and follow-ups
 
@@ -540,6 +611,11 @@ that a `0.9.0` workspace needs.
 - 2026-10-29 M3. `record_recreation` wrote an event naming no intent; on a case past
   interpretation the lineage check refuses that, so the event names the intent and the
   source record there, and still nothing on a draft case.
+- 2026-10-29 M4. `FilesystemMailbox.read_messages` orders by file name, so a lease's
+  completion came before its heartbeats and the lifecycle journeys ended on a heartbeat
+  event; the ingest sort above fixed it.
+- 2026-10-29 M4. The retention test first expected an old, ingested dispatch to survive a
+  later run; it is exactly what the cleanup removes once it is no longer the newest.
 
 ## Self-review
 

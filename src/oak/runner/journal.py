@@ -53,14 +53,16 @@ class RunnerJournal:
 
     def __init__(self, path: Path) -> None:
         self._path = path
+        # The last entry's sequence and digest, read and verified from the file once per
+        # journal object and kept in memory for every later append (RR-031).
+        self._head: tuple[int, str | None] | None = None
 
     def append(self, entry_type: str, occurred_at: str, details: dict[str, Any]) -> JournalEntry:
         if entry_type not in ENTRY_TYPES:
             raise OAKError("OAK-JOURNAL-ENTRY", "journal entry type is not recognized")
-        entries = self.entries()
-        previous = entries[-1].digest if entries else None
+        count, previous = self._verified_head()
         entry = JournalEntry(
-            sequence=len(entries) + 1,
+            sequence=count + 1,
             previous_digest=previous,
             entry_type=entry_type,
             occurred_at=occurred_at,
@@ -73,7 +75,27 @@ class RunnerJournal:
             stream.write(canonical_json_bytes(entry.to_document()) + b"\n")
             stream.flush()
             os.fsync(stream.fileno())
+        self._head = (entry.sequence, entry.digest)
         return entry
+
+    def _verified_head(self) -> tuple[int, str | None]:
+        """The entry count and last digest to append after.
+
+        Read from the file and verified as a chain the first time this object appends,
+        then kept in memory: a long dispatch no longer re-reads its whole journal on
+        every entry, and a journal that does not verify is never extended.
+        """
+
+        if self._head is None:
+            previous: str | None = None
+            count = 0
+            for index, entry in enumerate(self.entries(), start=1):
+                if entry.sequence != index or entry.previous_digest != previous:
+                    raise OAKError("OAK-JOURNAL-TAMPERED", "journal hash chain does not verify")
+                previous = entry.digest
+                count = index
+            self._head = (count, previous)
+        return self._head
 
     def entries(self) -> tuple[JournalEntry, ...]:
         if not self._path.is_file():
@@ -106,11 +128,8 @@ class RunnerJournal:
         return tuple(entries)
 
     def verify_chain(self) -> None:
-        previous: str | None = None
-        for index, entry in enumerate(self.entries(), start=1):
-            if entry.sequence != index or entry.previous_digest != previous:
-                raise OAKError("OAK-JOURNAL-TAMPERED", "journal hash chain does not verify")
-            previous = entry.digest
+        self._head = None
+        self._verified_head()
 
     def digest(self) -> str:
         return self.head()[1]

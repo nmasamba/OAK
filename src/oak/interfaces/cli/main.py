@@ -1385,13 +1385,16 @@ def ingest(
             {
                 "case": result.case,
                 "accepted": list(result.accepted),
+                "heartbeats": list(result.heartbeats),
                 "rejected": list(result.rejected),
                 "refused": dict(result.refused),
             },
             output,
             human="\n".join(
                 (
-                    f"Ingested {len(result.accepted)} message(s); rejected {len(result.rejected)}",
+                    f"Ingested {len(result.accepted)} message(s)"
+                    + (f" and {len(result.heartbeats)} heartbeat(s)" if result.heartbeats else "")
+                    + f"; rejected {len(result.rejected)}",
                     *(f"refused {message_id}: {code}" for message_id, code in result.refused),
                 )
             ),

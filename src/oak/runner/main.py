@@ -15,7 +15,8 @@ import os
 import shutil
 import sys
 import tempfile
-from collections.abc import Iterator
+import time
+from collections.abc import Callable, Iterator
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -27,6 +28,7 @@ from oak.contracts.signatures import verify_signed_document
 from oak.domain import OAKError
 from oak.runner.adapters import ContainerFixtureAdapter, isolated_executor
 from oak.runner.execution import execute_dispatch
+from oak.runner.heartbeat import HEARTBEAT_INTERVAL_SECONDS, LeaseHeartbeat
 from oak.runner.identity import RunnerIdentity
 from oak.runner.journal import RunnerJournal
 from oak.runner.mailbox import RunnerMailbox, is_safe_name
@@ -57,8 +59,12 @@ def run_once(
     *,
     cancellation_requested: bool = False,
     adapter: ContainerFixtureAdapter | None = None,
+    heartbeat_interval_seconds: float | None = None,
 ) -> int:
-    """Process pending dispatches once. ``adapter`` is a test seam, never a CLI option.
+    """Process pending dispatches once. ``adapter`` and ``heartbeat_interval_seconds`` are
+    test seams, never CLI options. The interval is the one `LeaseHeartbeat` takes, so `0`
+    beats at every step boundary; it otherwise comes from the environment, where `0`
+    switches heartbeats off.
 
     One run at a time per runner home: a second run started while an install is still
     in its readiness wait would otherwise take the first run's journal for an interrupted
@@ -77,7 +83,11 @@ def run_once(
             ) from error
         with _run_directory(home) as work:
             return _run_once_locked(
-                home, work, cancellation_requested=cancellation_requested, adapter=adapter
+                home,
+                work,
+                cancellation_requested=cancellation_requested,
+                adapter=adapter,
+                heartbeat_interval_seconds=heartbeat_interval_seconds,
             )
     finally:
         os.close(lock)
@@ -113,8 +123,15 @@ def _run_once_locked(
     *,
     cancellation_requested: bool,
     adapter: ContainerFixtureAdapter | None,
+    heartbeat_interval_seconds: float | None = None,
 ) -> int:
     mailbox_root = _environment_path("OAK_RUNNER_MAILBOX")
+    retention_seconds = _dispatch_retention_seconds()
+    interval = (
+        heartbeat_interval_seconds
+        if heartbeat_interval_seconds is not None
+        else _heartbeat_interval_seconds()
+    )
     trust_directory = _environment_path("OAK_RUNNER_TRUST_ANCHORS")
     target_path = _environment_path("OAK_RUNNER_TARGET_PROFILE")
     runner_id = os.getenv("OAK_RUNNER_ID", "runner.local-fixture-runner")
@@ -194,8 +211,23 @@ def _run_once_locked(
             processed_any = True
             print(f"denied {dispatch_id}: {denial}", file=sys.stderr)
             continue
-        mailbox.consume_lease_nonce(str(envelope["lease"]["nonce"]))
+        mailbox.consume_lease_nonce(
+            str(envelope["lease"]["nonce"]),
+            expires_at=str(envelope["lease"]["expires_at"]),
+            now=now,
+        )
         journal.verify_chain()
+        container = adapter or ContainerFixtureAdapter(executor)
+        heartbeat = (
+            LeaseHeartbeat(
+                _heartbeat_publisher(mailbox, identity, envelope, correlation),
+                journal,
+                clock=container.clock,
+                interval_seconds=interval,
+            )
+            if interval is not None
+            else None
+        )
         outcome = execute_dispatch(
             verified,
             journal=journal,
@@ -203,7 +235,8 @@ def _run_once_locked(
             registry=registry,
             now=now,
             cancellation_requested=cancellation_requested,
-            adapter=adapter or ContainerFixtureAdapter(executor),
+            adapter=container,
+            heartbeat=heartbeat,
         )
         try:
             mailbox.publish_message(
@@ -243,7 +276,78 @@ def _run_once_locked(
         print(f"completed {dispatch_id}: {outcome.outcome}")
     if not processed_any:
         print("no pending dispatches")
+    removed = mailbox.clean_processed_dispatches(
+        retention_seconds=retention_seconds, now=time.time()
+    )
+    if removed:
+        print(
+            f"cleaned {len(removed)} processed dispatch(es) older than the retention",
+            file=sys.stderr,
+        )
     return 0
+
+
+def _heartbeat_publisher(
+    mailbox: RunnerMailbox,
+    identity: RunnerIdentity,
+    envelope: dict[str, Any],
+    correlation: str,
+) -> Callable[[int, dict[str, Any]], None]:
+    """Publish one signed heartbeat for a verified dispatch's lease."""
+
+    tenant_id = str(envelope["tenant_id"])
+    environment = str(envelope["environment"])
+    lease_id = str(envelope["lease"]["lease_id"])
+
+    def publish(sequence: int, payload: dict[str, Any]) -> None:
+        mailbox.publish_message(
+            identity,
+            kind="heartbeat",
+            tenant_id=tenant_id,
+            environment=environment,
+            correlation_id=correlation,
+            sequence=sequence,
+            lease_id=lease_id,
+            operation_id=None,
+            occurred_at=_now(),
+            payload=payload,
+        )
+
+    return publish
+
+
+def _dispatch_retention_seconds() -> int:
+    """`OAK_RUNNER_DISPATCH_RETENTION_DAYS`: processed dispatch directories older than this
+    are removed at the end of a run; `0` keeps every one."""
+
+    value = os.getenv("OAK_RUNNER_DISPATCH_RETENTION_DAYS", "30").strip()
+    try:
+        days = int(value)
+    except ValueError as error:
+        raise OAKError(
+            "OAK-RUNNER-CONFIG", "OAK_RUNNER_DISPATCH_RETENTION_DAYS must be a whole number of days"
+        ) from error
+    if days < 0 or days > 3650:
+        raise OAKError(
+            "OAK-RUNNER-CONFIG", "OAK_RUNNER_DISPATCH_RETENTION_DAYS must be between 0 and 3650"
+        )
+    return days * 86_400
+
+
+def _heartbeat_interval_seconds() -> float | None:
+    """`OAK_RUNNER_HEARTBEAT_SECONDS`: how often a running dispatch publishes a signed
+    heartbeat; `0` publishes none (returned as None)."""
+
+    value = os.getenv("OAK_RUNNER_HEARTBEAT_SECONDS", str(int(HEARTBEAT_INTERVAL_SECONDS))).strip()
+    try:
+        seconds = float(value)
+    except ValueError as error:
+        raise OAKError(
+            "OAK-RUNNER-CONFIG", "OAK_RUNNER_HEARTBEAT_SECONDS must be a number of seconds"
+        ) from error
+    if seconds < 0 or seconds > 3600 or seconds != seconds:
+        raise OAKError("OAK-RUNNER-CONFIG", "OAK_RUNNER_HEARTBEAT_SECONDS must be 0 to 3600")
+    return seconds or None
 
 
 def _resume_interrupted(

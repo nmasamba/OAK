@@ -119,7 +119,7 @@ mechanical migration; **breaking** otherwise.
   by the `workspace_imported` audit event, which a server now writes for the first time,
   with `interface_origin: import`. Both are optional, through the schemas' open
   `extensions`, so no schema changes.
-- Tier 3's Batch A adds `workspace_migrated` to the audit event's `event_type` enum
+- Tier 3's Batch A adds `workspace_migrated` and `runner_heartbeat` to the audit event's `event_type` enum
   (additive; written only by `oak workspace migrate`, when a step reshaped the design case
   or added objects) and the case and event extension `oak.community/migration`, which
   names the formats, the steps, the digest of the manifest migrated from and the objects
@@ -379,6 +379,17 @@ mechanical migration; **breaking** otherwise.
     refuses with the new code `OAK-CATALOGUE-EXTENSION` when one no longer verifies
     against the trust directory; a contributed id that a curated entry holds is
     `OAK-CATALOGUE-DUPLICATE`, as before.
+  - `oak ingest` records the runner's `heartbeat` messages (a `runner_heartbeat` audit
+    event each, `oak.community/runner_heartbeat_refs` on the case), a lease's heartbeats
+    before its completion, lists them under `heartbeats` in its JSON output (`accepted`
+    still holds the completions), and its human line says `… and N heartbeat(s)`; a
+    completion whose journal falls short of a head a heartbeat named is refused
+    (`OAK-INGEST-JOURNAL`), as one short of an accepted completion was.
+  - `oak-runner run-once` reads `OAK_RUNNER_HEARTBEAT_SECONDS` and
+    `OAK_RUNNER_DISPATCH_RETENTION_DAYS`, refusing a value out of range with
+    `OAK-RUNNER-CONFIG` (exit `70`), publishes heartbeats while a dispatch runs, and
+    removes processed dispatch directories older than the retention at the end of each
+    run, reporting `cleaned N processed dispatch(es) …` on stderr.
 
 ## MCP
 
@@ -425,6 +436,17 @@ mechanical migration; **breaking** otherwise.
   ingests, unless an earlier completion for the same lease named a sequence: a journal
   that can no longer show how far it reached is then refused like a shorter one
   (`OAK-INGEST-JOURNAL`). A `0.9` control plane ignores the field.
+- Tier 3's Batch A makes the runner publish the `heartbeat` message kind, which the
+  runner-message schema has listed since the protocol's first version: at most one per
+  `OAK_RUNNER_HEARTBEAT_SECONDS`, each naming its lease, a sequence of its own within the
+  lease, and the journal's head (`journal_sequence`, `journal_digest`) in its payload. A
+  `0.9` control plane believes a heartbeat, a signed runner message for a lease it
+  dispatched, and acknowledges it without recording it; a `0.9` runner publishes none, and
+  the control plane requires none. The `runner_heartbeat` audit event and the case
+  extension `oak.community/runner_heartbeat_refs` are additive. The runner's
+  consumed-nonce ledger, a file in the runner home and not a canonical document, changes
+  from a list of nonces to a map of nonce to lease expiry; a list written by `0.9` is read,
+  and its nonces are kept for ever.
 - Any change to signed-payload canonicalization is breaking for every existing
   signature and requires an explicit migration (re-signing) note; trust-anchor file
   formats follow the schema rules above.

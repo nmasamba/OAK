@@ -76,6 +76,26 @@ and launched on 2026-10-29; this is its first batch: formats, bounds and the cat
   interpreter start-up plus that read. Nothing compacts or archives history.
   `scripts/benchmark.py --only workspace_growth` measures the curve into a dated file
   under `docs/performance/`.
+- **Runner and worker soak limits** (`RR-031`, bounded). The runner's consumed-nonce
+  ledger now maps each nonce to its lease's expiry and keeps it until that expiry plus
+  five minutes of clock skew, for ever when the expiry is unknown, so it holds the leases
+  in play (a ledger written by `0.9`, a list, is read and kept). Processed dispatch
+  directories are removed at the end of a run once older than
+  `OAK_RUNNER_DISPATCH_RETENTION_DAYS` (new; default 30, `0` keeps every one), never the
+  newest, one whose completion `oak ingest` has not taken, or a journal, and
+  `oak-runner status` still ties every journal to its completions. A journal is read and
+  verified once per run and appended from the head kept in memory, and one that does not
+  verify is never extended. `oak-worker` extends an operation's lease between the
+  worker's steps, from each step's own start, through the store's `heartbeat`. And the
+  runner publishes a signed `heartbeat` message while a dispatch runs, at the next step
+  boundary once `OAK_RUNNER_HEARTBEAT_SECONDS` (new; default 30, `0` publishes none) have
+  passed, each naming its lease and the journal's head: a report that moves no state and
+  extends no lease. `oak ingest` records each as a `runner_heartbeat` audit event
+  (`oak.community/runner_heartbeat_refs` on the case), a lease's heartbeats before its
+  completion, lists them under `heartbeats` in its JSON (`accepted` still holds the
+  completions) and says `… and N heartbeat(s)`, and refuses a completion whose journal
+  falls short of a head a heartbeat named (`OAK-INGEST-JOURNAL`). A `0.9` control plane
+  acknowledges a heartbeat without recording it; a `0.9` runner publishes none.
 
 #### Changed
 

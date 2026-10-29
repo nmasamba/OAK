@@ -177,15 +177,28 @@ Stated rather than silently omitted:
 | Concurrent API load | No load driver exists. Every figure above is single-client and sequential |
 | PostgreSQL control plane | Every figure above is file-mode. The persistent path was exercised for correctness, not timed |
 
-## Known soak hazards
+## Soak limits
 
-Not measured, but visible in the code and worth an operator knowing:
+Not measured, but bounded since Tier 3's Batch A (`RR-031`), and worth an operator knowing
+what still grows:
 
-- The runner rewrites its consumed-nonces file in full on every dispatch.
-- Processed dispatch directories are never cleaned up.
-- The runner journal is re-read on every append.
-- `OperationWorker.run_once` never heartbeats against its hard-coded 60-second lease, so a
-  job approaching 60 seconds risks being re-claimed while still running.
-
-None of these matters at the scale this release is used at. All of them get worse with
-volume, and none is bounded by anything today.
+- The runner's consumed-nonce ledger holds each nonce until its lease's expiry plus five
+  minutes of skew, so it is the size of the leases in play, not of the runner's history; it
+  is still rewritten whole on each accepted dispatch. A nonce whose expiry is unknown (a
+  ledger written before this batch) is kept for ever.
+- Processed dispatch directories are removed at the end of a run once older than
+  `OAK_RUNNER_DISPATCH_RETENTION_DAYS` (default 30), except the newest and any whose
+  completion is not yet ingested. Journals are never removed and grow one file per
+  dispatch; `oak-runner status` reads every one.
+- A journal is read and verified once per run and appended from the head kept in memory,
+  so a dispatch's cost no longer grows with its own journal's length; a heartbeat reads the
+  journal to name its head, at most once per `OAK_RUNNER_HEARTBEAT_SECONDS`.
+- `OperationWorker.run_once` extends its lease between its steps, from each step's own
+  start, so a handler may run up to the lease's 120 seconds from the moment it starts
+  rather than from the cycle's; the lease itself is not configurable, and a handler that
+  runs longer is still re-claimed while running (by nothing, with the one worker Compose
+  runs). The runner's lease is not extended by its heartbeats, which report; an `apply`
+  still stops at the lease's expiry (`OAK-RUNNER-LEASE`).
+- The control plane keeps every heartbeat it records as an audit event with the message as
+  an artifact, so a long install adds one event per heartbeat to the case's history, which
+  the curve above prices at about 4.4 ms per event on every first read.
