@@ -69,7 +69,7 @@ documented flow uses it.
 | `OAK-IMPORT-DIGEST` | an imported object digest does not match; import object digest does not match; import object digest is invalid | `src/oak/adapters/persistence/file_workspace.py:575` |
 | `OAK-IMPORT-FORMAT` | *dynamic message* | `src/oak/adapters/persistence/file_workspace.py:547` |
 | `OAK-IMPORT-INVALID` | an imported artifact does not fit its indexed kind; an imported object size does not match; an indexed import object digest is invalid; and 16 more | `src/oak/adapters/persistence/file_workspace.py:531` |
-| `OAK-IMPORT-REPLAY` | *dynamic message* | `src/oak/application/control_plane.py:631` |
+| `OAK-IMPORT-REPLAY` | *dynamic message* | `src/oak/application/control_plane.py:634` |
 | `OAK-IMPORT-SCOPE` | import tenant does not match command authority; import workspace or tenant does not match destination | `src/oak/adapters/persistence/postgresql.py:367` |
 | `OAK-IMPORT-SIZE` | an import object exceeds the size limit; canonical import exceeds the size limit; import manifest exceeds the size limit | `src/oak/adapters/persistence/postgresql.py:382` |
 | `OAK-IMPORT-UNSAFE-PATH` | import object store is unsafe; import source must be a regular directory | `src/oak/adapters/persistence/file_workspace.py:520` |
@@ -351,13 +351,13 @@ documented flow uses it.
 | `OAK-OPERATION-DOCUMENT` | operation candidate is invalid; operation consent is invalid; operation document is invalid; and 2 more (some dynamic) | `src/oak/adapters/persistence/operations.py:599` |
 | `OAK-OPERATION-ERROR-CODE` | operation error code is invalid | `src/oak/adapters/persistence/operations.py:606` |
 | `OAK-OPERATION-FAILED` | the remote operation failed | `src/oak/application/operations.py:216` |
-| `OAK-OPERATION-KIND` | operation kind is not supported | `src/oak/application/control_plane.py:789` |
+| `OAK-OPERATION-KIND` | operation kind is not supported | `src/oak/application/control_plane.py:792` |
 | `OAK-OPERATION-LEASE` | heartbeat lease must extend into the future; operation lease must expire after claim time | `src/oak/adapters/persistence/operations.py:224` |
 | `OAK-OPERATION-LEASE-LOST` | operation lease is no longer current | `src/oak/adapters/persistence/operations.py:508` |
 | `OAK-OPERATION-NOT-CANCELLING` | operation has no cancellation request | `src/oak/adapters/persistence/operations.py:437` |
 | `OAK-OPERATION-NOT-FOUND` | operation was not found | `src/oak/adapters/persistence/operations.py:519` |
 | `OAK-OPERATION-QUOTA` | *dynamic message* | `src/oak/interfaces/api/app.py:574` |
-| `OAK-OPERATION-SCOPE` | operation workspace does not match its case | `src/oak/application/control_plane.py:771` |
+| `OAK-OPERATION-SCOPE` | operation workspace does not match its case | `src/oak/application/control_plane.py:774` |
 | `OAK-OPERATION-SIZE` | *dynamic message* | `src/oak/adapters/persistence/operations.py:601` |
 | `OAK-OPERATION-UNSAFE-FIELD` | operation request contains a prohibited execution field | `src/oak/application/operations.py:150` |
 | `OAK-OUTBOX-CONSUMER-FAILED` | *reason or mapping code; carries no fixed message* | `src/oak/application/operations.py:304` |
@@ -366,7 +366,7 @@ documented flow uses it.
 | `OAK-OUTBOX-LEASE` | outbox lease must expire after claim time | `src/oak/adapters/persistence/outbox.py:48` |
 | `OAK-OUTBOX-LEASE-LOST` | outbox delivery lease is no longer current | `src/oak/adapters/persistence/outbox.py:110` |
 | `OAK-OUTBOX-LIMIT` | outbox claim limit must be between 1 and 100 | `src/oak/adapters/persistence/outbox.py:44` |
-| `OAK-OUTBOX-UNAVAILABLE` | outbox observation is unavailable | `src/oak/application/control_plane.py:740` |
+| `OAK-OUTBOX-UNAVAILABLE` | outbox observation is unavailable | `src/oak/application/control_plane.py:743` |
 | `OAK-PROJECTION-NAME` | projection name is invalid | `src/oak/adapters/persistence/outbox.py:152` |
 | `OAK-WORKER-CONFIG` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/worker.py:115` |
 | `OAK-WORKER-CYCLE` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/worker.py:72` |
@@ -505,7 +505,7 @@ documented flow uses it.
 | `OAK-RESEARCH-REVIEW-SIZE` | *dynamic message* | `src/oak/application/research.py:287` |
 | `OAK-RESEARCH-REVIEW-STATE` | a research item is reviewed only while the case is ready for candidates | `src/oak/application/research.py:312` |
 | `OAK-RESEARCH-STATE` | research needs an interpreted case; this case has no intent yet; research runs only while the case is ready for candidates; once candidates exist the recorded design is kept as it is; the case holds no interpreted intent yet | `src/oak/application/research.py:123` |
-| `OAK-RESEARCH-UNAVAILABLE` | research is not configured on this server | `src/oak/application/control_plane.py:864` |
+| `OAK-RESEARCH-UNAVAILABLE` | research is not configured on this server | `src/oak/application/control_plane.py:867` |
 | `OAK-RESEARCH-UNREACHABLE` | *reason or mapping code; carries no fixed message* | `src/oak/adapters/models/research_sources.py:197` |
 | `OAK-RESEARCH-USAGE` | a review needs --rationale-file <file>; use exactly one of --accept or --reject; use exactly one of --plan or --consent <digest> | `src/oak/interfaces/cli/main.py:1718` |
 | `OAK-RESEARCH-VOCABULARY` | freshness window must be 1 to 365 days; hardware classes have no fallback; no research binding yields a capability; and 8 more (some dynamic) | `src/oak/adapters/catalogue/research_vocabulary.py:50` |

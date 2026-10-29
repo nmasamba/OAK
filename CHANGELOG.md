@@ -127,8 +127,10 @@ and launched on 2026-10-29; this is its first batch: formats, bounds and the cat
   version and the number of events restored; the status does not change and the case
   comes back one patch version on. Importing the same export again, under any key, is a
   duplicate of that restore, answered with the case as the restore recorded it; an import
-  that finds the export restored without its event (an interrupted attempt) records the
-  event; an export of another state of the case is refused with
+  that finds the export's state already there without a restore event (this server's own
+  export imported back, or a restore interrupted between the workspace write and its
+  event) is a duplicate too and records nothing; an export of another state of the case
+  is refused with
   `OAK-IDEMPOTENCY-CONFLICT` as before. A local `oak import` is unchanged.
 - **Reproducible container images** (`RR-006`, closed per platform; the owner's Q3
   answer of 2026-10-29: pin). The API image takes Debian's packages, security updates

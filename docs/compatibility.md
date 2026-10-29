@@ -421,10 +421,12 @@ mechanical migration; **breaking** otherwise.
     attests; its idempotency key is the restore's own, derived from the import's key and
     the export, because the export carries the origin's own records. Importing the same
     export again, under any key, is answered as a duplicate of that restore with the case
-    as the restore recorded it, not where it went since; an import that finds the export
-    restored without its event (an earlier attempt interrupted after the workspace was
-    written) records the event then; an export of another state of the case is refused
-    with `OAK-IDEMPOTENCY-CONFLICT` as before.
+    as the restore recorded it, not where it went since; an import that finds the export's
+    state already there without a restore event (this server's own export imported back,
+    or a restore interrupted after the workspace was written and before its event) is a
+    duplicate too and records nothing, so a restore interrupted in that one-commit window
+    shows as a restored history with no `workspace_restored` event; an export of another
+    state of the case is refused with `OAK-IDEMPOTENCY-CONFLICT` as before.
 
 ## MCP
 

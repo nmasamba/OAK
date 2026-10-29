@@ -498,16 +498,19 @@ class CommunityControlPlane:
             except OAKError as error:
                 if error.code != "OAK-WORKSPACE-EXISTS":
                     raise
-                if self._restored_from(repository, export_digest):
-                    duplicate = True
-                elif repository.manifest() != manifest:
+                if repository.manifest() != manifest and not self._restored_from(
+                    repository, export_digest
+                ):
                     raise OAKError(
                         "OAK-IDEMPOTENCY-CONFLICT",
                         "import destination contains different canonical state",
                     ) from error
-                # Otherwise the destination holds exactly the export and no restore
-                # event: a restore an earlier attempt (or an earlier build) left without
-                # its record, completed below rather than answered as a duplicate.
+                # The export's state is here already: this server's own export imported
+                # back, a restore by an earlier build, or one interrupted after the
+                # workspace was written and before its event. The three cannot be told
+                # apart, so none records an event; the last shows as a restored history
+                # with no `workspace_restored` in it.
+                duplicate = True
         case = self._require_case(repository)
         self._verify_case(case_id, case)
         if duplicate:

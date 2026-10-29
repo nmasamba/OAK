@@ -467,8 +467,10 @@ manifest, its digest and the number of events restored (`oak.community/restored_
 on the case): read the history from that event backwards as the export's word, and from
 it forwards as the server's own. Importing the same export again is answered as a
 duplicate of that restore, with the case as the restore recorded it; an import that finds
-the export restored without its event, after an interrupted attempt, records the event;
-an export of another state of the case is refused. A local
+the export's state already there without a restore event (this server's own export
+imported back, or a restore interrupted between the workspace write and its event) is a
+duplicate too and records nothing, so a history restored without its event is one to
+read as the export's word throughout; an export of another state of the case is refused. A local
 workspace's export is not restored on a server at all; it is re-created from its brief
 and confirmed answers under the importing actor (`workspace_imported`).
 
