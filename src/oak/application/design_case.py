@@ -605,6 +605,15 @@ class DesignCaseService:
         successor = current.revise(
             status=current.status, updated_at=context.occurred_at, extensions=extensions
         )
+        # An event names the case's intent and the source record it was read from, as every
+        # event after interpretation does; the import path records the origin on a draft
+        # case, where both are None, so its bytes are unchanged.
+        source_reference = extensions.get("oak.community/source_record_ref")
+        source_record_ref = (
+            ArtifactReference.from_document(source_reference)
+            if successor.intent_ref is not None and isinstance(source_reference, dict)
+            else None
+        )
         sequence = len(manifest["audit_events"]) + 1
         event_document = audit_event_document(
             sequence=sequence,
@@ -619,8 +628,8 @@ class DesignCaseService:
             idempotency_key=context.idempotency_key,
             input_digest=input_digest,
             occurred_at=context.occurred_at,
-            intent_ref=None,
-            source_record_ref=None,
+            intent_ref=successor.intent_ref,
+            source_record_ref=source_record_ref,
             extensions={"oak.community/recreated_from": copy.deepcopy(origin)},
         )
         event_artifact = self._audit_artifact(event_document, sequence)

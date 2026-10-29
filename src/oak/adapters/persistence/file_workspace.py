@@ -8,6 +8,8 @@ import os
 import re
 import shutil
 import tempfile
+import threading
+from collections import OrderedDict
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -32,6 +34,24 @@ from oak.ports.workspace import WorkspaceCommit, WorkspaceMutation
 
 OBJECT_DIGEST = re.compile(r"^sha256:([a-f0-9]{64})$")
 MAXIMUM_ARTIFACT_BYTES = 8_388_608
+# The per-process verification cache (RR-030): the digests of manifest bytes this process
+# has verified in full, by workspace. A later read of the same bytes skips only the work
+# those bytes are the input to, the manifest's own checks and the audit-lineage walk;
+# every object read still verifies its digest, a mutation, an export and a migration
+# always verify in full, and nothing is persisted. Bounded, so a long-lived process that
+# visits many workspaces holds a fixed number of entries.
+VERIFICATION_CACHE_SIZE = 64
+_verified_manifests: OrderedDict[tuple[str, str], None] = OrderedDict()
+_verification_lock = threading.Lock()
+
+
+def clear_verification_cache() -> None:
+    """Forget every verified manifest; the next read of each verifies in full again."""
+
+    with _verification_lock:
+        _verified_manifests.clear()
+
+
 KIND_SCHEMA = {
     "source_record": "source-record.schema.json",
     "system_intent": "system-intent.schema.json",
@@ -198,16 +218,55 @@ class FileWorkspaceRepository:
                 shutil.rmtree(temporary)
 
     def manifest(self) -> dict[str, Any]:
+        """The manifest, verified in full the first time this process reads these bytes.
+
+        A later read of byte-identical content skips the manifest's own checks and the
+        audit-lineage walk, which are functions of those bytes alone; a changed byte, a
+        changed workspace or a fresh process verifies in full again. Object reads are
+        not cached, and a mutation or an export never consults this (`_verified_manifest`).
+        """
+
         raw = self.raw_manifest()
         self._require_current_format(raw.format)
+        key = self._verification_key(raw)
+        with _verification_lock:
+            verified = key in _verified_manifests
+            if verified:
+                _verified_manifests.move_to_end(key)
+        if not verified:
+            self._verify(raw.document)
+            self._remember(key)
+        return raw.document
+
+    def _verified_manifest(self) -> dict[str, Any]:
+        """The manifest after a full verification whatever the cache holds: what a
+        mutation, an export and a migration start from."""
+
+        raw = self.raw_manifest()
+        self._require_current_format(raw.format)
+        self._verify(raw.document)
+        self._remember(self._verification_key(raw))
+        return raw.document
+
+    def _verify(self, document: dict[str, Any]) -> None:
         try:
-            self._validate_manifest(raw.document)
-            self._validate_workspace_lineage(raw.document)
+            self._validate_manifest(document)
+            self._validate_workspace_lineage(document)
         except Exception as error:
             raise OAKError(
                 "OAK-WORKSPACE-CORRUPT", "workspace manifest failed validation"
             ) from error
-        return raw.document
+
+    def _verification_key(self, raw: RawManifest) -> tuple[str, str]:
+        return (os.path.realpath(self.manifest_path), content_digest(raw.content))
+
+    @staticmethod
+    def _remember(key: tuple[str, str]) -> None:
+        with _verification_lock:
+            _verified_manifests[key] = None
+            _verified_manifests.move_to_end(key)
+            while len(_verified_manifests) > VERIFICATION_CACHE_SIZE:
+                _verified_manifests.popitem(last=False)
 
     def raw_manifest(self) -> RawManifest:
         """The manifest as stored, believed only as far as its format name.
@@ -387,7 +446,7 @@ class FileWorkspaceRepository:
 
     def commit(self, mutation: WorkspaceMutation) -> WorkspaceCommit:
         with self._lock():
-            manifest = self.manifest()
+            manifest = self._verified_manifest()
             duplicate = self._idempotent_result(manifest, mutation)
             if duplicate is not None:
                 return WorkspaceCommit(case_document=duplicate, duplicate=True)
@@ -411,7 +470,7 @@ class FileWorkspaceRepository:
         with self._lock():
             raw = self.raw_manifest()
             if raw.format == self._chain.current:
-                manifest = self.manifest()
+                manifest = self._verified_manifest()
                 self._validate_indexed_objects(manifest)
                 manifest_bytes = canonical_json_bytes(manifest)
             else:

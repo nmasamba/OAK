@@ -24,7 +24,10 @@ requirement:
 
 One run on each side cannot separate a small regression from the machine's own variation,
 so this is not evidence of either. The sections below keep the `0.7.0` figures and their
-full description.
+full description, except the workspace-growth section, which was re-measured on 2026-10-29
+at four depths and supersedes the last row of this table: the first manifest read after
+the reference journey is 34 ms on the current tree, not 283 ms, and the difference is
+Sprint 13's schema-validator reuse, not this machine.
 
 **These are observations, not a service level objective.** They were taken on a single
 developer laptop with no controlled environment, no warm-up isolation from operating-system
@@ -38,6 +41,13 @@ current tree into its own release directory, never over an earlier report:
 
 ```bash
 python scripts/benchmark.py --output docs/release/$(cat VERSION)/performance.json
+```
+
+The workspace-growth curve alone, which takes a few minutes, is `--only workspace_growth`,
+written beside its predecessors under `docs/performance/` with the date in the name:
+
+```bash
+python scripts/benchmark.py --only workspace_growth --output docs/performance/workspace-growth-$(date +%F).json
 ```
 
 Both reports describe the API read workload as "one interpreted reference case". It is
@@ -106,25 +116,54 @@ directory and is unavailable in file mode.
 
 ## Workspace growth — read this one
 
-This is the number most likely to affect a first user.
+This is the number most likely to affect a first user. It was re-measured on 2026-10-29,
+on the machine above, for Tier 3's Batch A (`OAK-V1-032`, `RR-030`):
+[performance/workspace-growth-2026-10-29.json](performance/workspace-growth-2026-10-29.json),
+with the hardware, toolchain and workload in its `provenance`, taken from the tree at
+`6261c35` with the cache change itself applied but not yet committed (`source_tree_dirty`
+says so). Four depths: a freshly initialised workspace; the workspace after the reference
+journey, which is 8 audit events and 43 indexed artifacts (the "43" the earlier figures
+named); and that workspace grown by synthetic revisions, each a recorded audit event with
+its artifacts, to 200 and 500 audit events. Three figures at each depth, ten samples of the
+reads and five of the command:
 
-| Indexed artifacts | Manifest read (median) | p95 |
-|---|---|---|
-| 0 | 3.8 ms | 4.0 ms |
-| 43 | **283.3 ms** | 296.1 ms |
+| Audit events (indexed artifacts) | First read in a process, median (p95) | A later read of the same bytes, median (p95) | `oak questions --output json`, median (p95) |
+|---|---|---|---|
+| 0 (0) | 0.3 ms (0.5 ms) | 0.2 ms (0.4 ms) | — |
+| 8 (43) | **33.8 ms** (34.4 ms) | 0.4 ms (0.4 ms) | 1.06 s (1.08 s) |
+| 200 (427) | 875 ms (902 ms) | 2.4 ms (5.7 ms) | 1.94 s (2.01 s) |
+| 500 (1,027) | 2.19 s (2.25 s) | 5.8 ms (5.8 ms) | 3.31 s (3.43 s) |
 
-The file workspace revalidates its entire audit lineage on every manifest read, and
-**nothing in OAK ever deletes history**. One complete reference journey produces 43 indexed
-artifacts and takes manifest reads from under 4 ms to over 280 ms — a factor of about 74.
+What the curve says:
 
-Two data points cannot distinguish linear growth from super-linear growth, and this release
-does not claim to know which it is. What it does claim: the cost grows, it grows steeply,
-and there is no compaction, pruning or archival mechanism. A long-lived workspace will get
-slower and will not get faster again. Recorded as `RR-030` in
-[security/residual-risk.md](security/residual-risk.md).
+- **The full verification is linear in the history**, at about 4.4 ms per audit event:
+  the slope from 8 to 200 events and the slope from 200 to 500 agree within one per
+  cent. Each event is one audit artifact and the artifacts it indexes, every one read and
+  digest-checked, and that walk is what the first read in a process pays. Two points could
+  not tell linear from super-linear growth; four can, through 500 events.
+- **The 283 ms recorded above for the journey was mostly schema meta-validation**, which
+  Sprint 13's `SchemaRegistry` removed by building each validator once; the same read is
+  34 ms on the current tree. Neither release report was re-run, so the table at the top
+  keeps what they measured.
+- **A later read in the same process does not verify again.** The file adapter keeps a
+  per-process cache of the manifests it has verified, keyed on the manifest's path and the
+  digest of its bytes, holding 64 entries, consulted on reads only: a read of the same
+  bytes costs the parse, under 6 ms at 500 events. The API and the worker are long-lived
+  processes, so their reads after the first are the middle column. A CLI command is one
+  process and pays the first read once per command, which is why `oak questions` is about
+  one second of interpreter start-up plus one full verification.
+- **What the cache does not change:** the first read in each process, and so the cost of
+  each CLI command, grows with the history, and nothing compacts, prunes or archives it. A
+  long-lived workspace's commands get slower, now at a known, linear rate, and do not get
+  faster again. Recorded as `RR-030` in [security/residual-risk.md](security/residual-risk.md),
+  measured and bounded, still open on that clause.
+- **What the cache never does:** a mutation's validation and an export verify the manifest
+  in full whatever the cache holds, object reads keep checking their digests, and a changed
+  byte is a different key, so a manifest edited on disk is verified again
+  (`tests/integration/test_workspace_verification_cache.py`).
 
-The practical mitigation today is that a workspace is per design case, and `oak export`
-produces a portable tree you can archive.
+The practical mitigation for a workspace that has grown is still that a workspace is per
+design case, and `oak export` produces a portable tree you can archive.
 
 ## Not measured
 

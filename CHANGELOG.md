@@ -60,9 +60,29 @@ and launched on 2026-10-29; this is its first batch: formats, bounds and the cat
   digest, signer key id and activation time, or research) and lists its patterns with
   theirs. The curated catalogue inside the wheel is not signed on its own: the release
   signature covers the wheel, the verifier and any pinned key together.
+- **Workspace reads measured and bounded** (`RR-030`, its growth clause still open). The
+  file workspace's manifest read was measured at four depths with hardware provenance
+  (`docs/performance/workspace-growth-2026-10-29.json`, read in `docs/performance.md`): the
+  first read in a process verifies the whole lineage at about 4.4 ms per audit event,
+  linearly from the reference journey (8 events, 43 indexed artifacts, 34 ms) to 500
+  events (2.2 s); the 283 ms recorded for the journey at `0.7.0` was mostly schema
+  meta-validation, gone since Sprint 13. New: the file adapter keeps a per-process cache of
+  the manifests it has verified, keyed on the manifest's path and the digest of its bytes
+  and holding 64 entries, so a later read of the same bytes in the same process (the API
+  and the worker are long-lived) parses without verifying again, under 6 ms at 500 events.
+  A mutation's validation and an export verify in full whatever the cache holds, object
+  reads keep checking their digests, and a changed byte is a different key. A CLI command
+  is one process and pays the first read once: `oak questions` costs about one second of
+  interpreter start-up plus that read. Nothing compacts or archives history.
+  `scripts/benchmark.py --only workspace_growth` measures the curve into a dated file
+  under `docs/performance/`.
 
 #### Changed
 
+- A `workspace_imported` event recorded on a case past interpretation names the case's
+  intent and the source record it was read from, as every other event after
+  interpretation does, so such a case still validates; the import path records the event
+  on a draft case, whose bytes are unchanged.
 - **The four reference digests move, once** (compatibility rule 4; the owner's Q1
   answer of 2026-10-29, taken so that 1.0 is cut after the move). The catalogue snapshot
   now records provenance and lists its patterns, and the bundle carries the assurance-plan

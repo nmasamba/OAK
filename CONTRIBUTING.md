@@ -125,8 +125,9 @@ replaceable and owned by its own project. OAK compiles *to* them; it doesn't abs
 
 - Metrics that leak nothing (`RR-015`'s open clause; the logs already do, from an
   allowlist). **Discuss first**, because of the data boundary.
-- Byte-reproducible container images (`RR-006`), and bounding how workspace reads grow
-  with history (`RR-030`).
+- Byte-reproducible container images (`RR-006`), and compaction or archival of a
+  workspace's history (`RR-030`: the first read in a process is measured and linear, and
+  later reads in that process are cached; nothing yet shortens the walk).
 - Release signing (`RR-005`): the verifier requires an SSH signature on every release after `0.9.0`; the
   key itself is the maintainer's to create and pin in `keys/allowed_signers`.
 

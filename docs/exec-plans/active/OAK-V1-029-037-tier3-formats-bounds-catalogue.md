@@ -392,6 +392,31 @@ that a `0.9.0` workspace needs.
   affected integration tests passed. Five mutations killed: the signature re-check, the
   payload digest check, the missing activation record, the activation record's manifest
   digest, and the assurance edge in the validator. `make lint` and `make validate` green.
+- [x] 2026-10-29 M3 (`OAK-V1-032`). The measurement: `scripts/benchmark.py --only
+  workspace_growth` grows the reference workspace by synthetic revisions (each a recorded
+  audit event with its artifacts, keyed by audit sequence) to 200 and 500 audit events and
+  measures, at 0, 8 (the reference journey: 43 indexed artifacts), 200 and 500 events, the
+  first manifest read in a process, a later read of the same bytes, and
+  `oak questions --output json` as a subprocess, with hardware provenance
+  (`docs/performance/workspace-growth-2026-10-29.json`, from the tree at `6261c35` with
+  the cache applied, uncommitted). Found: linear, about 4.4 ms per audit event (34 ms at
+  the journey, 875 ms at 200, 2.19 s at 500); the 283 ms recorded at `0.7.0` for the
+  journey was schema meta-validation, gone since Sprint 13; a cached read is under 6 ms at
+  500 events; a CLI command is about one second of start-up plus one verification. The
+  cache: `file_workspace.py` keeps a per-process ordered map of 64 verified manifests
+  keyed on the manifest's real path and the digest of its bytes, under a lock;
+  `manifest()` skips `_verify` on a hit; `commit`, `export_to` and the migration start
+  from `_verified_manifest()`, which always verifies; `clear_verification_cache` is
+  exported for the benchmark and the tests. `record_recreation` hardened on the way: its
+  event names the intent and the source record on a case past interpretation (the cache
+  test recorded one on a compiled case and the lineage check refused it). Proof:
+  `tests/integration/test_workspace_verification_cache.py` (6 tests: the first read
+  verifies and the second does not; a changed byte verifies again and a broken lineage is
+  refused; a mutation and an export verify in full whatever the cache holds; object reads
+  keep checking digests; the cache never exceeds its bound). Three mutations killed: the
+  key without the bytes' digest, a commit reading through the cache, and the bound not
+  enforced. `docs/performance.md` rewritten at "Workspace growth", `RR-030` measured and
+  bounded with its growth clause open, the changelog.
 
 ## Decisions
 
@@ -481,6 +506,25 @@ that a `0.9.0` workspace needs.
   `OAK-V1-037` is the review; the milestones run A1, then A2 with A3, then A4, A5, A6, A8,
   A7, the review, because the migration must exist before anything changes a stored shape,
   the digests move once, and the images need Docker and the longest CI runs.
+- 2026-10-29 M3. **What the cache is keyed on, and who may use it.** The manifest's real
+  path and the digest of its bytes: the bytes are what the skipped verification would have
+  read, so a manifest changed on disk, however slightly, is a miss. Reads only: a
+  mutation's validation, an export and a migration start from a full verification whatever
+  the cache holds, because they write from what they read. It holds 64 entries per
+  process, under a lock, and remembers nothing about objects: object reads keep checking
+  their digests.
+- 2026-10-29 M3. **The "43" point is the reference journey.** The prompt's depths (0, 43,
+  200, 500) mix the journey's artifact count with audit-event counts; the measurement
+  walks audit events, so it labels each depth by audit events with the indexed artifacts
+  beside: 0 (0), 8 (43), 200 (427), 500 (1,027).
+- 2026-10-29 M3. **Measured on the uncommitted tree.** The curve was taken with the cache
+  change applied and `6261c35` as the parent; the report says `source_tree_dirty: true`
+  and is kept as taken rather than re-run after the commit, which changes no code the
+  measurement runs.
+- 2026-10-29 M3. **No compaction.** Linear growth at 4.4 ms per event puts the first read
+  of a 500-event workspace at about 2 s; compaction or archival would change the stored
+  format and stays open under `RR-030`, as the plan allowed only were the curve
+  super-linear.
 
 ## Discoveries and follow-ups
 
@@ -490,6 +534,12 @@ that a `0.9.0` workspace needs.
 - 2026-10-29 M1. `oak export` read the current case before exporting, so the first
   export of an older format was refused by the read; the command now reads the format
   first and the case only when the format is current.
+- 2026-10-29 M3. The benchmark's synthetic revisions reused their idempotency keys across
+  calls, so a second growth step replayed the first's events as duplicates (308 events
+  where 500 were asked); the key now carries the audit sequence.
+- 2026-10-29 M3. `record_recreation` wrote an event naming no intent; on a case past
+  interpretation the lineage check refuses that, so the event names the intent and the
+  source record there, and still nothing on a draft case.
 
 ## Self-review
 

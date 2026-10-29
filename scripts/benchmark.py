@@ -131,12 +131,131 @@ def measure_reference_compiler(repetitions: int) -> dict[str, Any]:
     }
 
 
-def measure_workspace_growth(samples: int) -> dict[str, Any]:
-    """Read cost against workspace depth.
+GROWTH_EVENTS = (0, 8, 200, 500)
 
-    The file workspace revalidates its whole audit lineage on every manifest read, so
-    read latency is a function of how much history the workspace holds. Two depths are
-    enough to show the shape, and the shape is what an operator needs.
+
+def _append_synthetic_revisions(workspace: Path, count: int, stamp: str) -> None:
+    """Grow a compiled workspace by ``count`` revisions that change only an extension.
+
+    Each revision is a real commit through the adapter (a case successor and an audit
+    event, with the manifest verified in full first), so the history it leaves is one
+    the adapter would accept from any command; only its content is synthetic.
+    """
+
+    from oak.adapters.persistence import FileWorkspaceRepository
+    from oak.application.persistence import build_workspace_mutation
+    from oak.contracts import SchemaRegistry
+    from oak.domain import ArtifactReference, DesignCase, canonical_json_bytes, content_digest
+    from oak.domain.artifacts import json_artifact
+    from oak.domain.audit import audit_event_document
+
+    registry = SchemaRegistry.from_directory(ROOT / "schemas")
+    repository = FileWorkspaceRepository(workspace, registry)
+    for _ in range(count):
+        manifest = repository.manifest()
+        current_document = repository.current_case()
+        assert current_document is not None
+        current = DesignCase.from_document(current_document)
+        # Keyed by the event's sequence, never by a loop index: an idempotency key the
+        # workspace already holds replays that revision instead of appending one.
+        sequence = len(manifest["audit_events"]) + 1
+        extensions = dict(current.extensions or {})
+        extensions["oak.community/benchmark"] = {"revision": sequence}
+        successor = current.revise(status=current.status, updated_at=stamp, extensions=extensions)
+        source_reference = extensions.get("oak.community/source_record_ref")
+        input_digest = content_digest(canonical_json_bytes({"benchmark": sequence}))
+        key = f"benchmark-revision-{sequence:06d}"
+        event_document = audit_event_document(
+            sequence=sequence,
+            previous_event_digest=manifest["audit_events"][-1]["digest"],
+            case_id=successor.id,
+            case_version=successor.version,
+            event_type="workspace_imported",
+            actor="benchmark",
+            tenant_id="local",
+            interface_origin="cli",
+            correlation_id=f"correlation-{key}",
+            idempotency_key=key,
+            input_digest=input_digest,
+            occurred_at=stamp,
+            intent_ref=successor.intent_ref,
+            source_record_ref=(
+                ArtifactReference.from_document(source_reference)
+                if isinstance(source_reference, dict)
+                else None
+            ),
+        )
+        event = json_artifact(
+            artifact_id=str(event_document["id"]),
+            version=str(sequence),
+            kind="audit_event",
+            media_type="application/vnd.oak.audit-event+json",
+            document=event_document,
+        )
+        successor = successor.with_audit_head(event.digest)
+        case = json_artifact(
+            artifact_id=successor.id,
+            version=successor.version,
+            kind="design_case",
+            media_type="application/vnd.oak.design-case+json",
+            document=successor.to_document(),
+        )
+        repository.commit(
+            build_workspace_mutation(
+                workspace_id=str(manifest["id"]),
+                expected_case_version=current.version,
+                idempotency_key=key,
+                input_digest=input_digest,
+                artifacts=(event, case),
+                current_case_ref=case.reference,
+                event_artifact=event,
+                event_document=event_document,
+                updated_at=stamp,
+            )
+        )
+
+
+def _measure_workspace_point(workspace: Path, samples: int, cli_samples: int) -> dict[str, Any]:
+    from oak.adapters.persistence import FileWorkspaceRepository, clear_verification_cache
+    from oak.contracts import SchemaRegistry
+
+    repository = FileWorkspaceRepository(workspace, SchemaRegistry.from_directory(ROOT / "schemas"))
+    manifest = repository.manifest()
+    first_reads: list[float] = []
+    for _ in range(samples):
+        clear_verification_cache()
+        first_reads.append(_timed(repository.manifest))
+    cached_reads = [_timed(repository.manifest) for _ in range(samples)]
+    oak = Path(sys.executable).parent / "oak"
+    command_reads = [
+        _timed(
+            lambda: subprocess.run(
+                [str(oak), "questions", "--output", "json"],
+                cwd=workspace,
+                check=True,
+                capture_output=True,
+            )
+        )
+        for _ in range(cli_samples)
+    ]
+    return {
+        "audit_events": len(manifest["audit_events"]),
+        "indexed_artifacts": len(manifest["artifact_index"]),
+        "manifest_read_first": _summary(first_reads),
+        "manifest_read_cached": _summary(cached_reads),
+        "oak_questions_command": _summary(command_reads),
+    }
+
+
+def measure_workspace_growth(samples: int, cli_samples: int = 5) -> dict[str, Any]:
+    """Read cost against workspace depth (RR-030).
+
+    The file workspace verifies its whole audit lineage the first time a process reads a
+    manifest, so that read is a function of how much history the workspace holds; a later
+    read of the same bytes in the same process skips the walk. Four depths: freshly
+    initialised, the reference journey, and the journey grown to 200 and 500 audit events
+    by synthetic revisions. Each point also times `oak questions`, one interpreter per
+    command, which is what a CLI user pays.
     """
 
     from oak.adapters.persistence import FileWorkspaceRepository
@@ -145,37 +264,33 @@ def measure_workspace_growth(samples: int) -> dict[str, Any]:
 
     registry = SchemaRegistry.from_directory(ROOT / "schemas")
     points: list[dict[str, Any]] = []
-
     with tempfile.TemporaryDirectory() as scratch:
         empty = Path(scratch) / "empty"
-        repository = FileWorkspaceRepository(empty, registry)
-        repository.initialize(
+        FileWorkspaceRepository(empty, registry).initialize(
             workspace_id="workspace.benchmark",
             tenant_id="local",
             created_at="2026-08-21T12:00:00Z",
         )
-        points.append(
-            {
-                "indexed_artifacts": 0,
-                "manifest_read": _summary([_timed(repository.manifest) for _ in range(samples)]),
-            }
-        )
-
+        point = _measure_workspace_point(empty, samples, 0)
+        point["oak_questions_command"] = None
+        points.append(point)
     with tempfile.TemporaryDirectory() as scratch:
         harness = build_compiled_case(Path(scratch))
-        compiled = FileWorkspaceRepository(harness.workspace, registry)
-        indexed = len(compiled.manifest()["artifact_index"])
-        points.append(
-            {
-                "indexed_artifacts": indexed,
-                "manifest_read": _summary([_timed(compiled.manifest) for _ in range(samples)]),
-            }
-        )
-
+        points.append(_measure_workspace_point(harness.workspace, samples, cli_samples))
+        grown = len(FileWorkspaceRepository(harness.workspace, registry).manifest()["audit_events"])
+        for target in GROWTH_EVENTS[2:]:
+            print(f"  growing the workspace to {target} audit events…", file=sys.stderr)
+            _append_synthetic_revisions(harness.workspace, target - grown, harness.now)
+            grown = target
+            points.append(_measure_workspace_point(harness.workspace, samples, cli_samples))
     return {
         "description": (
-            "Manifest read latency at two workspace depths: freshly initialised, and after "
-            "the full reference journey. Nothing in OAK deletes history, so this only grows."
+            "Manifest read latency at four workspace depths: freshly initialised, after the "
+            "reference journey, and after synthetic revisions to 200 and 500 audit events. "
+            "The first read in a process verifies the lineage in full; a cached read is a "
+            "later read of the same bytes in the same process; the command figure is "
+            "`oak questions --output json` as a subprocess, interpreter start-up included. "
+            "Nothing in OAK deletes history, so this only grows."
         ),
         "points": points,
     }
@@ -308,23 +423,32 @@ def measure_operation_restart(database_url: str | None) -> dict[str, Any]:
     }
 
 
-def run(repetitions: int, requests: int, revisions: int) -> dict[str, Any]:
+MEASUREMENTS = ("reference_compiler", "workspace_growth", "api_reads", "operation_restart")
+
+
+def run(
+    repetitions: int, requests: int, revisions: int, only: tuple[str, ...] = MEASUREMENTS
+) -> dict[str, Any]:
     report: dict[str, Any] = {"provenance": provenance(), "measurements": {}}
     measurements = report["measurements"]
 
-    print("measuring the reference compiler path…", file=sys.stderr)
-    measurements["reference_compiler"] = measure_reference_compiler(repetitions)
+    if "reference_compiler" in only:
+        print("measuring the reference compiler path…", file=sys.stderr)
+        measurements["reference_compiler"] = measure_reference_compiler(repetitions)
 
-    print("measuring workspace read growth…", file=sys.stderr)
-    measurements["workspace_growth"] = measure_workspace_growth(revisions)
+    if "workspace_growth" in only:
+        print("measuring workspace read growth…", file=sys.stderr)
+        measurements["workspace_growth"] = measure_workspace_growth(revisions)
 
-    print("measuring API reads…", file=sys.stderr)
-    measurements["api_reads"] = measure_api_reads(requests)
+    if "api_reads" in only:
+        print("measuring API reads…", file=sys.stderr)
+        measurements["api_reads"] = measure_api_reads(requests)
 
-    print("measuring durable operation restart…", file=sys.stderr)
-    measurements["operation_restart"] = measure_operation_restart(
-        os.environ.get("OAK_TEST_DATABASE_URL")
-    )
+    if "operation_restart" in only:
+        print("measuring durable operation restart…", file=sys.stderr)
+        measurements["operation_restart"] = measure_operation_restart(
+            os.environ.get("OAK_TEST_DATABASE_URL")
+        )
 
     measurements["not_measured"] = {
         "outbox_drain_rate": (
@@ -350,9 +474,20 @@ def main() -> int:
     parser.add_argument("--repetitions", type=int, default=3, help="reference compiler runs")
     parser.add_argument("--requests", type=int, default=200, help="API read samples")
     parser.add_argument("--revisions", type=int, default=25, help="manifest read samples")
+    parser.add_argument(
+        "--only",
+        action="append",
+        choices=MEASUREMENTS,
+        help="run one measurement (repeatable); the default runs every one",
+    )
     arguments = parser.parse_args()
 
-    report = run(arguments.repetitions, arguments.requests, arguments.revisions)
+    report = run(
+        arguments.repetitions,
+        arguments.requests,
+        arguments.revisions,
+        tuple(arguments.only) if arguments.only else MEASUREMENTS,
+    )
     rendered = json.dumps(report, indent=2, sort_keys=True) + "\n"
     if arguments.output:
         arguments.output.parent.mkdir(parents=True, exist_ok=True)

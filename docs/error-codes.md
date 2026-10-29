@@ -48,34 +48,34 @@ documented flow uses it.
 
 | Code | Meaning | First raise site |
 |---|---|---|
-| `OAK-ARTIFACT-COLLISION` | artifact digest collision detected | `src/oak/adapters/persistence/file_workspace.py:736` |
-| `OAK-ARTIFACT-DIGEST` | artifact digest is invalid | `src/oak/adapters/persistence/file_workspace.py:1004` |
-| `OAK-ARTIFACT-IDENTITY` | artifact metadata does not match canonical content | `src/oak/adapters/persistence/file_workspace.py:653` |
-| `OAK-ARTIFACT-IMMUTABLE` | an immutable artifact version already has different content | `src/oak/adapters/persistence/file_workspace.py:670` |
-| `OAK-ARTIFACT-INVALID` | a brief source must carry a brief media type; a report rendering must be a PDF document; artifact media type does not fit its kind; and 2 more (some dynamic) | `src/oak/adapters/persistence/file_workspace.py:117` |
-| `OAK-ARTIFACT-KIND` | artifact kind is not supported | `src/oak/adapters/persistence/file_workspace.py:124` |
-| `OAK-ARTIFACT-NONCANONICAL` | canonical artifact bytes are not normalized | `src/oak/adapters/persistence/file_workspace.py:657` |
+| `OAK-ARTIFACT-COLLISION` | artifact digest collision detected | `src/oak/adapters/persistence/file_workspace.py:795` |
+| `OAK-ARTIFACT-DIGEST` | artifact digest is invalid | `src/oak/adapters/persistence/file_workspace.py:1063` |
+| `OAK-ARTIFACT-IDENTITY` | artifact metadata does not match canonical content | `src/oak/adapters/persistence/file_workspace.py:712` |
+| `OAK-ARTIFACT-IMMUTABLE` | an immutable artifact version already has different content | `src/oak/adapters/persistence/file_workspace.py:729` |
+| `OAK-ARTIFACT-INVALID` | a brief source must carry a brief media type; a report rendering must be a PDF document; artifact media type does not fit its kind; and 2 more (some dynamic) | `src/oak/adapters/persistence/file_workspace.py:137` |
+| `OAK-ARTIFACT-KIND` | artifact kind is not supported | `src/oak/adapters/persistence/file_workspace.py:144` |
+| `OAK-ARTIFACT-NONCANONICAL` | canonical artifact bytes are not normalized | `src/oak/adapters/persistence/file_workspace.py:716` |
 | `OAK-ARTIFACT-NOT-FOUND` | artifact was not found | `src/oak/adapters/persistence/postgresql.py:245` |
-| `OAK-ARTIFACT-SIZE` | artifact exceeds the local size limit | `src/oak/adapters/persistence/file_workspace.py:729` |
-| `OAK-EXPORT-EXISTS` | export destination already exists | `src/oak/adapters/persistence/file_workspace.py:408` |
+| `OAK-ARTIFACT-SIZE` | artifact exceeds the local size limit | `src/oak/adapters/persistence/file_workspace.py:788` |
+| `OAK-EXPORT-EXISTS` | export destination already exists | `src/oak/adapters/persistence/file_workspace.py:467` |
 | `OAK-EXPORT-OUTPUT` | --output is required; output directory already exists | `src/oak/interfaces/cli/main.py:897` |
 | `OAK-EXPORT-SIZE` | canonical export exceeds the size limit | `src/oak/adapters/persistence/postgresql.py:347` |
 | `OAK-IMPORT-AUTHORITY` | an export holding approvals, signatures or runner records imports only into a local workspace | `src/oak/application/control_plane.py:461` |
-| `OAK-IMPORT-DIGEST` | an imported object digest does not match; import object digest does not match; import object digest is invalid | `src/oak/adapters/persistence/file_workspace.py:509` |
-| `OAK-IMPORT-FORMAT` | *dynamic message* | `src/oak/adapters/persistence/file_workspace.py:481` |
-| `OAK-IMPORT-INVALID` | an imported artifact does not fit its indexed kind; an imported object size does not match; an indexed import object digest is invalid; and 15 more | `src/oak/adapters/persistence/file_workspace.py:465` |
+| `OAK-IMPORT-DIGEST` | an imported object digest does not match; import object digest does not match; import object digest is invalid | `src/oak/adapters/persistence/file_workspace.py:568` |
+| `OAK-IMPORT-FORMAT` | *dynamic message* | `src/oak/adapters/persistence/file_workspace.py:540` |
+| `OAK-IMPORT-INVALID` | an imported artifact does not fit its indexed kind; an imported object size does not match; an indexed import object digest is invalid; and 15 more | `src/oak/adapters/persistence/file_workspace.py:524` |
 | `OAK-IMPORT-REPLAY` | *dynamic message* | `src/oak/application/control_plane.py:553` |
 | `OAK-IMPORT-SCOPE` | import tenant does not match command authority; import workspace or tenant does not match destination | `src/oak/adapters/persistence/postgresql.py:367` |
 | `OAK-IMPORT-SIZE` | an import object exceeds the size limit; canonical import exceeds the size limit; import manifest exceeds the size limit | `src/oak/adapters/persistence/postgresql.py:382` |
-| `OAK-IMPORT-UNSAFE-PATH` | import object store is unsafe; import source must be a regular directory | `src/oak/adapters/persistence/file_workspace.py:454` |
-| `OAK-WORKSPACE-CORRUPT` | artifact reference is not canonical JSON; artifact reference is not indexed correctly; canonical artifact is not an object; and 13 more | `src/oak/adapters/persistence/file_workspace.py:207` |
-| `OAK-WORKSPACE-EXISTS` | import destination is already initialized; workspace is already initialized | `src/oak/adapters/persistence/file_workspace.py:173` |
-| `OAK-WORKSPACE-FORMAT` | *dynamic message* | `src/oak/adapters/persistence/file_workspace.py:314` |
-| `OAK-WORKSPACE-MIGRATE` | *dynamic message* | `src/oak/adapters/persistence/file_workspace.py:308` |
-| `OAK-WORKSPACE-MIGRATION` | the migrated workspace failed validation; the migration added objects to a workspace that holds no design case, so nothing can record them; the workspace changed after the migration was planned; run it again (some dynamic) | `src/oak/adapters/persistence/file_workspace.py:278` |
-| `OAK-WORKSPACE-MUTATION` | mutation is missing its audit event; mutation is missing its case artifact; outbox event identity changed; and 2 more | `src/oak/adapters/persistence/file_workspace.py:585` |
-| `OAK-WORKSPACE-NOT-FOUND` | no OAK workspace found; workspace is not initialized; workspace manifest is missing; and 1 more | `src/oak/adapters/persistence/file_workspace.py:166` |
-| `OAK-WORKSPACE-UNSAFE-PATH` | workspace root cannot be a symlink | `src/oak/adapters/persistence/file_workspace.py:170` |
+| `OAK-IMPORT-UNSAFE-PATH` | import object store is unsafe; import source must be a regular directory | `src/oak/adapters/persistence/file_workspace.py:513` |
+| `OAK-WORKSPACE-CORRUPT` | artifact reference is not canonical JSON; artifact reference is not indexed correctly; canonical artifact is not an object; and 13 more | `src/oak/adapters/persistence/file_workspace.py:1050` |
+| `OAK-WORKSPACE-EXISTS` | import destination is already initialized; workspace is already initialized | `src/oak/adapters/persistence/file_workspace.py:193` |
+| `OAK-WORKSPACE-FORMAT` | *dynamic message* | `src/oak/adapters/persistence/file_workspace.py:373` |
+| `OAK-WORKSPACE-MIGRATE` | *dynamic message* | `src/oak/adapters/persistence/file_workspace.py:367` |
+| `OAK-WORKSPACE-MIGRATION` | the migrated workspace failed validation; the migration added objects to a workspace that holds no design case, so nothing can record them; the workspace changed after the migration was planned; run it again (some dynamic) | `src/oak/adapters/persistence/file_workspace.py:337` |
+| `OAK-WORKSPACE-MUTATION` | mutation is missing its audit event; mutation is missing its case artifact; outbox event identity changed; and 2 more | `src/oak/adapters/persistence/file_workspace.py:644` |
+| `OAK-WORKSPACE-NOT-FOUND` | no OAK workspace found; workspace is not initialized; workspace manifest is missing; and 1 more | `src/oak/adapters/persistence/file_workspace.py:1048` |
+| `OAK-WORKSPACE-UNSAFE-PATH` | workspace root cannot be a symlink | `src/oak/adapters/persistence/file_workspace.py:190` |
 
 ### Design case: intake, interpretation, confirmation (35)
 
@@ -89,14 +89,14 @@ documented flow uses it.
 | `OAK-CONFIRM-ANSWERS` | --answers is required | `src/oak/interfaces/cli/main.py:440` |
 | `OAK-CONFIRM-CASE` | answers target a different design case | `src/oak/application/design_case.py:473` |
 | `OAK-CONFIRM-CONTROL` | answers contain a prohibited control or formatting character | `src/oak/application/design_case.py:448` |
-| `OAK-CONFIRM-DECISION` | confirmation decision is unsupported | `src/oak/application/design_case.py:911` |
+| `OAK-CONFIRM-DECISION` | confirmation decision is unsupported | `src/oak/application/design_case.py:920` |
 | `OAK-CONFIRM-DUPLICATE` | each question may be answered once | `src/oak/application/design_case.py:485` |
 | `OAK-CONFIRM-MALFORMED` | answers are malformed; confirmation input is not canonical JSON data | `src/oak/application/design_case.py:455` |
-| `OAK-CONFIRM-PATH` | confirmation path has no current value; confirmation path is outside intent spec; rejected claim path does not exist | `src/oak/application/design_case.py:1009` |
-| `OAK-CONFIRM-PROVENANCE` | claim has no provenance to confirm | `src/oak/application/design_case.py:1024` |
+| `OAK-CONFIRM-PATH` | confirmation path has no current value; confirmation path is outside intent spec; rejected claim path does not exist | `src/oak/application/design_case.py:1018` |
+| `OAK-CONFIRM-PROVENANCE` | claim has no provenance to confirm | `src/oak/application/design_case.py:1033` |
 | `OAK-CONFIRM-QUESTION` | answer references no open question | `src/oak/application/design_case.py:492` |
 | `OAK-CONFIRM-STATE` | claims can be confirmed only while the case needs confirmation | `src/oak/application/design_case.py:475` |
-| `OAK-CONFIRM-VALUE-MISMATCH` | confirmed value does not match the current canonical claim | `src/oak/application/design_case.py:891` |
+| `OAK-CONFIRM-VALUE-MISMATCH` | confirmed value does not match the current canonical claim | `src/oak/application/design_case.py:900` |
 | `OAK-INTAKE-ALIAS` | YAML aliases and anchors are not accepted | `src/oak/adapters/intake/local_file.py:120` |
 | `OAK-INTAKE-COMPLEXITY` | structured brief is too complex | `src/oak/adapters/intake/local_file.py:133` |
 | `OAK-INTAKE-CYCLE` | structured brief contains a cycle | `src/oak/adapters/intake/local_file.py:183` |
@@ -113,9 +113,9 @@ documented flow uses it.
 | `OAK-INTAKE-UNICODE-PATH` | brief filename must use NFC Unicode | `src/oak/adapters/intake/local_file.py:52` |
 | `OAK-INTAKE-UNSAFE-PATH` | brief filename must not contain a path; brief must be a regular non-symlink file (some dynamic) | `src/oak/adapters/intake/local_file.py:37` |
 | `OAK-INTAKE-VALUE-TYPE` | structured brief contains a non-JSON value | `src/oak/adapters/intake/local_file.py:210` |
-| `OAK-INTENT-NOT-FOUND` | design case has no intent artifact; interpreted design has no intent artifact | `src/oak/application/design_case.py:769` |
+| `OAK-INTENT-NOT-FOUND` | design case has no intent artifact; interpreted design has no intent artifact | `src/oak/application/design_case.py:778` |
 | `OAK-INTENT-PROVENANCE` | every populated scalar intent value must have exactly one provenance record | `src/oak/compiler/interpretation.py:1043` |
-| `OAK-SOURCE-MISSING` | draft case has no source record; intent has no source record | `src/oak/application/design_case.py:655` |
+| `OAK-SOURCE-MISSING` | draft case has no source record; intent has no source record | `src/oak/application/design_case.py:664` |
 
 ### Candidates, evaluation, selection and planning (22)
 
@@ -422,8 +422,8 @@ documented flow uses it.
 | `OAK-ACTOR-DENIED` | local actor is not authorized | `src/oak/interfaces/api/app.py:119` |
 | `OAK-CORRELATION-ID` | correlation ID must contain at least 8 characters; correlation id must contain at least 8 characters | `src/oak/application/candidate_planning.py:831` |
 | `OAK-DIRECTORY-UNAVAILABLE` | design-case directory is unavailable | `src/oak/application/control_plane.py:205` |
-| `OAK-EXPECTED-VERSION` | expected case version does not match current version (some dynamic) | `src/oak/adapters/persistence/file_workspace.py:720` |
-| `OAK-IDEMPOTENCY-CONFLICT` | idempotency key was already used for different input; idempotency key was already used for different operation input; import destination contains different canonical state | `src/oak/adapters/persistence/file_workspace.py:379` |
+| `OAK-EXPECTED-VERSION` | expected case version does not match current version (some dynamic) | `src/oak/adapters/persistence/file_workspace.py:779` |
+| `OAK-IDEMPOTENCY-CONFLICT` | idempotency key was already used for different input; idempotency key was already used for different operation input; import destination contains different canonical state | `src/oak/adapters/persistence/file_workspace.py:438` |
 | `OAK-IDEMPOTENCY-KEY` | cancellation idempotency key is invalid; idempotency key is required; idempotency key must contain 16 to 240 characters; and 2 more | `src/oak/adapters/persistence/operations.py:147` |
 | `OAK-PRECONDITION-INVALID` | expected version is required; weak entity tags are not accepted | `src/oak/interfaces/api/app.py:448` |
 | `OAK-REQUEST-INVALID` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/api/app.py:728` |
@@ -444,8 +444,8 @@ documented flow uses it.
 | Code | Meaning | First raise site |
 |---|---|---|
 | `OAK-ARCHITECTURE-UNSELECTED` | *dynamic message* | `src/oak/application/architecture.py:36` |
-| `OAK-AUDIT-LINEAGE` | audit event does not extend the current head; audit event result does not match its case; audit result does not match its event; and 10 more | `src/oak/adapters/persistence/file_workspace.py:618` |
-| `OAK-AUDIT-SEQUENCE` | audit event sequence is not contiguous | `src/oak/adapters/persistence/file_workspace.py:615` |
+| `OAK-AUDIT-LINEAGE` | audit event does not extend the current head; audit event result does not match its case; audit result does not match its event; and 10 more | `src/oak/adapters/persistence/file_workspace.py:1001` |
+| `OAK-AUDIT-SEQUENCE` | audit event sequence is not contiguous | `src/oak/adapters/persistence/file_workspace.py:674` |
 | `OAK-CONFIRM` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/cli/main.py:2648` |
 | `OAK-CONTRACT-INVALID` | *reason or mapping code; carries no fixed message* | `src/oak/interfaces/api/app.py:711` |
 | `OAK-CURSOR-INVALID` | pagination cursor is invalid | `src/oak/interfaces/api/app.py:471` |
