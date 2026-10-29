@@ -3,6 +3,9 @@
 
 from __future__ import annotations
 
+import io
+import json
+import logging
 from datetime import UTC, datetime
 from typing import Any
 
@@ -10,6 +13,7 @@ import pytest
 
 from oak.application import WorkerCycleResult
 from oak.domain import OAKError
+from oak.interfaces.logs import configure_logging
 from oak.interfaces.worker import LEASE_SECONDS, run_worker
 
 
@@ -29,7 +33,9 @@ class _Worker:
         return WorkerCycleResult(operation=None, outbox_claimed=0, outbox_applied=0)
 
 
-def test_a_failed_cycle_is_reported_by_code_and_the_loop_goes_on(capsys) -> None:
+def test_a_failed_cycle_is_reported_by_code_and_the_loop_goes_on(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     worker = _Worker(
         [
             OAKError("OAK-OPERATION-LEASE-LOST", "operation lease is no longer current"),
@@ -43,13 +49,26 @@ def test_a_failed_cycle_is_reported_by_code_and_the_loop_goes_on(capsys) -> None
         if len(worker.calls) >= 3:
             raise _Stop
 
-    with pytest.raises(_Stop):
-        run_worker(worker, once=False, sleep=sleep, poll_seconds=0.5)  # type: ignore[arg-type]
+    root = logging.getLogger()
+    saved = (root.handlers[:], root.level)
+    stream = io.StringIO()
+    monkeypatch.delenv("OAK_LOG_LEVEL", raising=False)
+    configure_logging("oak-worker", stream=stream)
+    try:
+        with pytest.raises(_Stop):
+            run_worker(worker, once=False, sleep=sleep, poll_seconds=0.5)  # type: ignore[arg-type]
+    finally:
+        root.handlers[:], level = saved
+        root.setLevel(level)
+        logging.captureWarnings(False)
 
     assert len(worker.calls) == 3
-    errors = capsys.readouterr().err
-    assert "OAK-OPERATION-LEASE-LOST" in errors and "ConnectionError" in errors
-    assert "secret detail" not in errors
+    lines = [json.loads(line) for line in stream.getvalue().splitlines()]
+    assert [(line["event"], line["code"], line["error_type"]) for line in lines] == [
+        ("cycle_failed", "OAK-OPERATION-LEASE-LOST", "OAKError"),
+        ("cycle_failed", "OAK-WORKER-CYCLE", "ConnectionError"),
+    ]
+    assert "secret detail" not in stream.getvalue()
     assert pauses[:2] == [1.0, 2.0], "it backs off rather than spinning"
 
 

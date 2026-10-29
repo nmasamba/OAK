@@ -195,8 +195,9 @@ Face token, if you store one. The four containers that keep running are capped a
 ## Install and first run
 
 Everything has been tested on **Macs with Apple silicon** (M-series). The command line
-has also been tested on **Linux**. The Docker stack should work there too, but so far
-it's only been run as Linux containers on a Mac. Intel Macs and Windows aren't supported,
+has also been tested on **Linux**. The Docker stack should work there too: CI builds it on
+Linux and starts it there for the browser tests, but nobody has yet installed and run it
+there the way you would. Intel Macs and Windows aren't supported,
 although the Windows Subsystem for Linux (WSL2) counts as Linux.
 [platforms.md](docs/platforms.md) says exactly what has been tested where.
 
@@ -329,7 +330,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 | Stop it (your cases are kept) | `docker compose down` |
 | Update to the latest code | Back up first if your cases matter ([operations.md](docs/operations.md#back-up)). Then `git pull` and `docker compose up -d --build` |
 | See what's running | `docker compose ps` |
-| See a service's output | `docker compose logs -f api`. That's startup messages and errors only, because OAK keeps no application log yet (`RR-015`) |
+| See a service's output | `docker compose logs -f api` (or `worker`). One JSON line per request or operation, with no brief, answer, key or token in it; quote a response's `X-OAK-Request-ID` to find its line ([operations.md](docs/operations.md#logs)) |
 | Delete everything and start over | `docker compose down --volumes`. **This deletes all your cases** |
 
 Always include `--build`. If nothing has changed it only costs a few seconds. If you've
@@ -408,9 +409,13 @@ printf '%s\n' \
 ```
 
 ```text
+{"component":"oak-mcp","event":"mcp_started","level":"INFO","logger":"oak.mcp","time":"..."}
 {"id": 1, "jsonrpc": "2.0", "result": {"capabilities": {"tools": {}}, "protocolVersion": "2025-06-18", "serverInfo": {"name": "oak-mcp", "version": "0.9.0"}}}
 {"id": 2, "jsonrpc": "2.0", "result": {"tools": [{"name": "oak_design_case_create", ...
 ```
+
+The first line is `oak-mcp`'s log, on stderr (`2>/dev/null` hides it); the replies are on
+stdout, which is all an assistant reads.
 
 **Connect your assistant.** Most AI assistants and code editors that support MCP accept a
 JSON entry like this one. Use the full path to your checkout:
@@ -536,9 +541,10 @@ means:
   report is composed only from the case's records, and a reader may still take it for
   more than it is ([`RR-044`](docs/security/residual-risk.md)). An opt-in model note is
   checked against its slide but can still mislead within those checks
-  ([`RR-045`](docs/security/residual-risk.md)). The PDF prints only Windows-1252 text and
-  carries no accessibility tags ([`RR-046`](docs/security/residual-risk.md)); the JSON
-  keeps every character.
+  ([`RR-045`](docs/security/residual-risk.md)). The PDF prints Latin, Greek and Cyrillic
+  in the embedded IBM Plex fonts, shows any other character as �, and carries no
+  accessibility tags ([`RR-046`](docs/security/residual-risk.md)); the JSON keeps every
+  character.
 - **Research finds; it doesn't vouch.** A newer model or harness that research surfaces
   is shown with its source, its date and how each claim is backed, and nothing more: OAK
   quotes what the Hub, the router and GitHub publish and never checks it
@@ -585,12 +591,13 @@ Some ways in, from a first afternoon to a bigger project:
   as vLLM or llama.cpp are on the backlog. So are packs, which are bundles of policy
   rules, domain knowledge or evaluation tests. See [extension-sdk.md](docs/extension-sdk.md).
 - **Widen where it runs.** Nobody has yet recorded a run of the Docker stack on an Intel
-  or AMD Linux machine. The automatic checks (CI) don't run on macOS or Arm machines yet
-  (`RR-014`). Native Windows support would start with replacing a Unix-only file lock (see
+  or AMD Linux machine as an operator would run it. The automatic checks (CI) run on Linux
+  (Intel and Arm) and on macOS (Apple silicon), but the macOS job has no Docker or
+  PostgreSQL. Native Windows support would start with replacing a Unix-only file lock (see
   [platforms.md](docs/platforms.md)).
-- **Harden the operations side.** Useful work includes logging and metrics that leak
-  nothing (`RR-015`), a file-workspace format migration (`RR-017`), and reproducible
-  container images (`RR-006`).
+- **Harden the operations side.** Useful work includes metrics that leak nothing
+  (`RR-015`), a file-workspace format migration (`RR-017`), and reproducible container
+  images (`RR-006`).
 
 [CONTRIBUTING.md](CONTRIBUTING.md#where-you-could-help) has the full map, how to set up,
 and how changes are reviewed.
@@ -603,7 +610,7 @@ and how changes are reviewed.
 |---|---|
 | [manual/OAK-Community-Manual.pdf](docs/manual/OAK-Community-Manual.pdf) | An illustrated walkthrough from install to uninstall, with screenshots of every workspace screen. The source is in [manual/](docs/manual/) |
 | [tour.md](docs/tour.md) | One case through every interface: browser, `curl`, remote CLI and an AI assistant over MCP |
-| [Releases](https://github.com/nmasamba/OAK/releases) | Published downloads: the Python package (a wheel, plus the source as an sdist), a software bill of materials (an SBOM, listing everything inside) and `SHA256SUMS`. They're checksummed but not signed, so [verify them](#verifying-a-release) before installing |
+| [Releases](https://github.com/nmasamba/OAK/releases) | Published downloads: the Python package (a wheel, plus the source as an sdist), a software bill of materials (an SBOM, listing everything inside) and `SHA256SUMS`. They're checksummed and, after `0.9.0`, signed by the maintainer, so [verify them](#verifying-a-release) before installing |
 | [platforms.md](docs/platforms.md) | Where OAK is supported, and where it isn't |
 | [interfaces.md](docs/interfaces.md) | CLI, REST, MCP and portals: setup, permissions, and what each one can do |
 | [research.md](docs/research.md) | Research at the point of design: what leaves the machine, the gates, the evidence words, and what research does not do |
@@ -626,34 +633,46 @@ enforces.
 The newest **published** release is `0.9.0`, on the
 [Releases page](https://github.com/nmasamba/OAK/releases), published on 2026-10-01. This
 tree still reports `0.9.0`, but it also holds the work listed under "Unreleased" in
-[CHANGELOG.md](CHANGELOG.md) (the rebuilt browser workspace, `oak report` and
-`oak research`), which the published `0.9.0` downloads do not contain. `0.8.0` was approved
+[CHANGELOG.md](CHANGELOG.md) (the rebuilt browser workspace, `oak report`,
+`oak research`, the PDF's Latin, Greek and Cyrillic, JSON logs, moving a local case onto a
+server, and the signature check in the verifier), which the published `0.9.0` downloads do
+not contain. `0.8.0` was approved
 but never published, so `0.7.1` is the published release before it.
 
 Each release comes with a `SHA256SUMS` file. It lists a fingerprint (a SHA-256 hash) for
 the wheel, the sdist, the SBOM and the licence list. A fifth file, `build-provenance.json`,
-describes the build and is deliberately left out of the list. Check your downloads
-against it from the download folder:
+describes the build and is deliberately left out of the list. Every release after `0.9.0`
+also has `SHA256SUMS.sig`, the maintainer's signature over the list. Check your downloads
+against the list from the download folder:
 
 ```bash
 sha256sum -c SHA256SUMS          # Linux
 shasum -a 256 -c SHA256SUMS      # macOS
 ```
 
-OAK also has a small verifier that behaves the same on both. It uses only Python's
-standard library and needs no OAK installation. It exits `0` if everything verifies, `2`
-on a mismatch, and `3` if the manifest or a file is missing or malformed:
+Those check the fingerprints only. OAK also has a small verifier that checks the
+signature too, and behaves the same on both. It uses only Python's standard library and
+needs no OAK installation, but checking the signature needs `ssh-keygen` (OpenSSH 8.2 or
+later). Take it and `keys/allowed_signers` from this repository's `main` branch, not from
+the release's tag (a key revoked since is still pinned at a tag, and the `0.7.1` and
+`0.9.0` tags have neither the signature check nor the file):
 
 ```bash
-python3 scripts/verify_release.py ./downloaded-release
+python3 scripts/verify_release.py ./downloaded-release --allowed-signers keys/allowed_signers
 ```
 
-What that proves: the files you have are the files the manifest lists. What it **doesn't**
-prove: who made them. OAK Community release artifacts are **unsigned**, because no
-maintainer signing key exists and this release doesn't invent one. Get `SHA256SUMS`
-through a channel you trust independently of the downloads.
-[release-process.md](docs/release-process.md#verifying-a-release) has the details.
+It exits `0` verified, `2` on a mismatch, `3` if the manifest or a file is missing or
+malformed, and `4` if the signature is missing, does not verify, or cannot be checked.
+What `0` proves: the files you have are the files the manifest lists, and the maintainer
+released them, by their SSH signature over `SHA256SUMS` against the key pinned in
+`keys/allowed_signers`. It names `build-provenance.json` as `UNLISTED`, because the list
+leaves it out. `0.7.1` and `0.9.0` were published unsigned and are recognised by their
+published manifests' digests, so for those get `SHA256SUMS` through a channel you trust
+independently of the downloads. [release-process.md](docs/release-process.md#verifying-a-release) has the
+details.
 
 ## Licence
 
-Licensed under the Apache License, Version 2.0. See [`LICENSE`](LICENSE).
+Licensed under the Apache License, Version 2.0. See [`LICENSE`](LICENSE). The IBM Plex
+fonts the report PDF embeds are under the SIL Open Font License 1.1
+([`src/oak/adapters/report/fonts/OFL-1.1-IBM-Plex.txt`](src/oak/adapters/report/fonts/OFL-1.1-IBM-Plex.txt)).

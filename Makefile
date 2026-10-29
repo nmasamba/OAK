@@ -4,7 +4,7 @@ UV_CACHE_DIR ?= .uv-cache
 UV := UV_CACHE_DIR=$(UV_CACHE_DIR) uv
 PNPM := pnpm
 
-.PHONY: bootstrap lock toolchain-check validate format format-check lint typecheck test test-integration test-e2e openapi-compatibility web-build web-e2e build check audit sbom scan-images release verify-release clean clean-all
+.PHONY: bootstrap lock toolchain-check validate format format-check lint typecheck test test-integration test-e2e openapi-compatibility web-build web-e2e web-e2e-isolated build check audit sbom scan-images release verify-release clean clean-all
 
 bootstrap:
 	$(UV) sync --frozen
@@ -61,6 +61,10 @@ web-build:
 
 web-e2e:
 	OAK_E2E_DOCKER=1 $(PNPM) --dir web e2e
+
+# The browser suite on a Compose project of its own, built from this tree; what CI runs.
+web-e2e-isolated:
+	$(UV) run python scripts/run_browser_suite.py
 
 build:
 	$(UV) build --no-build-isolation

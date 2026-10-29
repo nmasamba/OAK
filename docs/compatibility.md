@@ -92,6 +92,23 @@ mechanical migration; **breaking** otherwise.
   validate, and an export that holds a report cannot be imported by `0.9.0`.
   `report_rendering` is the second kind stored as bytes, beside `brief_source`, and is
   accepted only as a PDF.
+- The pre-1.0 assurance batch changes the bytes a report's PDF is drawn with: it embeds IBM
+  Plex subsets where it named the standard fonts, so Latin, Greek and Cyrillic print, text
+  prints as written where the font has the glyph (`10⁵` and `…` are no longer folded to
+  `105` and `...`), and any other character prints as U+FFFD instead of `?`. A newly
+  recorded PDF has new bytes, so the digests of what names it change with it: the case
+  revision that records the report, its `report_recorded` event and the workspace manifest. The
+  `architecture_report` document, its schema and the renderer identity it records
+  (`oak-report-renderer 1.0.0`) are unchanged, so a report recorded before and one recorded
+  after can name the same renderer version and differ in their PDFs; the PDF's Creator says
+  which (", IBM Plex"). A recorded `report_rendering` is stored and served as recorded,
+  never drawn again, so every report recorded before the change still verifies against its
+  digest.
+- The pre-1.0 assurance batch adds the case extension `oak.community/recreated_from` (the
+  local workspace, case, version and digest a server re-created a case from), also carried
+  by the `workspace_imported` audit event, which a server now writes for the first time,
+  with `interface_origin: import`. Both are optional, through the schemas' open
+  `extensions`, so no schema changes.
 - Sprint 14 (unreleased, ADR-0018) made an objective's `value` in `common.schema.json`
   nullable, with `unknown_reason` required exactly when it is null. Every stored document
   still validates, because the compiler writes a null only for a candidate that holds a
@@ -164,6 +181,18 @@ mechanical migration; **breaking** otherwise.
   opaque `detail` are unchanged, so a client that branches on the status sees no
   difference. `OAK-WORKSPACE-NOT-FOUND` keeps one meaning, no workspace at a location,
   which only the local CLI reports.
+- The pre-1.0 assurance batch changes three things and adds no operation or schema.
+  `POST /v1/design-cases:import` of an export taken from a local workspace re-creates the
+  case from its brief and confirmed answers and answers `201` with it, where it refused with
+  `OAK-IMPORT-SCOPE` (the new code `OAK-IMPORT-REPLAY` refuses one it cannot replay, and
+  names how far a replay that stopped part-way got); an export from a server imports as it
+  did. An import whose manifest names a server workspace but that holds an approval, a plan
+  signature, a dispatch, a runner message, an observation or a revocation, which no server
+  writes, is refused with the new code `OAK-IMPORT-AUTHORITY`, where `0.9` restored it.
+  Every response carries an `X-OAK-Request-ID` header, the ID of the request's log line, a
+  `500` included; it is additive and not declared in the OpenAPI document. A replay refused
+  because another writer moved the case on is not retriable, and a retried import answers
+  with the case the import recorded.
 - Until the baseline was refreshed after `0.9.0` was cut, it still held its Sprint 3
   contents. It did not guard the eight `/v1/models` operations. Nor did it guard two
   operations `0.7.1` published: the case list (`GET /v1/design-cases`) and the audit
@@ -271,6 +300,38 @@ mechanical migration; **breaking** otherwise.
     reports no version, with `OAK-POLICY-ENGINE-UNAVAILABLE`.
   - `oak policy packs` no longer needs a workspace, and `oak models set-key` refuses an
     unknown `--store` before it asks for the key; the codes are unchanged.
+- The pre-1.0 assurance batch changes these, each recorded in the changelog:
+  - `oak --server import` of an export taken from a local workspace re-creates the case on
+    the server from its brief and confirmed answers (exit `0`, "Re-created …"), where it
+    exited `2` with `OAK-IMPORT-SCOPE`. A case interpreted with a model, an answer that
+    cannot be recovered exactly, or a replay the server stops part-way exits `2` with the
+    new code `OAK-IMPORT-REPLAY`; an export claiming another tenant still exits `2` with
+    `OAK-IMPORT-SCOPE`, a case the server holds with `OAK-CASE-EXISTS`, and a server-named
+    export holding approvals or runner records with `OAK-IMPORT-AUTHORITY`. A server export
+    of a case once re-created elsewhere is restored as itself ("Imported …"). A local
+    `oak import` is unchanged.
+  - `oak ingest` refuses a runner completion whose journal no longer reaches the entry an
+    accepted completion for the same lease named (`OAK-INGEST-JOURNAL`); the message stays
+    in the mailbox and is listed under `rejected` on every ingest. Its JSON output gains
+    `refused`, mapping each rejected message that was believed and then refused to its
+    code; the human output names them too.
+  - `oak-runner status` reports a fourth `chain` value, `truncated`, a `signed_head`
+    field (`matched`, `missing_from_journal`, `none`, `other_key` or `unchecked`) on each journal, and
+    a top-level `missing_journals` list. With `OAK_RUNNER_MAILBOX` set, a runner key it
+    cannot read, or none beside a completion in the mailbox that verifies under the key it
+    carries, exits `70` with
+    `OAK-RUNNER-KEY`, where it reported the journals as before.
+  - `oak serve` and `oak-api` write the same allowlisted JSON log lines; uvicorn's own
+    lines, `Uvicorn running on …` among them, are gone, and `api_listening` says where the
+    API listens; `localhost` binds the IPv4 loopback address only, where uvicorn's own
+    binding also took `::1`. A port in use refuses with the new code `OAK-SERVE-BIND`,
+    naming the address (exit `2` from `oak serve`; a `startup_failed` line with `host` and
+    `port`, and exit `1`, from `oak-api`), where uvicorn printed its own error. Any other failure of `oak serve`
+    prints its code and message for an OAK error, or `OAK-SERVE-FAILED` and the error's
+    type, where it printed `OAK-SAFE-BIND` and the message.
+  - The release verifier (`scripts/verify_release.py`, `make verify-release`) requires
+    `SHA256SUMS.sig` for every release but `0.7.1` and `0.9.0` (exit `4`), so it refuses a
+    release you built yourself unless you pass `--checksums-only`.
 
 ## MCP
 
@@ -311,6 +372,12 @@ mechanical migration; **breaking** otherwise.
   `architecture` approval beside the `apply` approval. Completion payloads gained
   `requested_kinds` and `failed_kind`. Plans expire after a day and none is pinned, so no
   stored plan needs migrating.
+- The pre-1.0 assurance batch adds `journal_sequence` to every completion of a dispatch the
+  runner took up: the sequence of the journal entry whose digest `journal_digest` names.
+  The field is additive. A `0.9` runner's completion, which names only the digest, still
+  ingests, unless an earlier completion for the same lease named a sequence: a journal
+  that can no longer show how far it reached is then refused like a shorter one
+  (`OAK-INGEST-JOURNAL`). A `0.9` control plane ignores the field.
 - Any change to signed-payload canonicalization is breaking for every existing
   signature and requires an explicit migration (re-signing) note; trust-anchor file
   formats follow the schema rules above.

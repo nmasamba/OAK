@@ -216,10 +216,25 @@ Notes:
   matches `X-OAK-Artifact-Digest`) and the architecture document, but cannot import an
   export.
 - A server keeps one workspace per case, named from the case, while a local workspace is
-  named from its directory. An export from a local workspace therefore carries an identity
-  the server refuses (`oak --server import` answers `OAK-IMPORT-SCOPE`); an export taken
-  from a server imports into a local workspace. To move a local case onto a server, create
-  it there from the same brief and confirm the same answers.
+  named from its directory, so an export from a local workspace carries an identity the
+  server does not hold. `oak --server import` of such an export **re-creates** the case on
+  the server instead of restoring it: the server creates the case from the export's brief,
+  interprets it, and confirms the export's confirmed answers, round by round, through its
+  own steps, under the importing command's actor and tenant, with `interface_origin:
+  import` on every event. It records where the case came from (the local workspace, case,
+  version and digest) as a `workspace_imported` audit event and as the case extension
+  `oak.community/recreated_from`. Nothing else crosses: no candidates, selection, plan,
+  signature, approval or later history, which the user runs again on the server. Each
+  answer's value is read back from the exported intent and used only if it matches the
+  digest the export recorded for it; a case interpreted with a model, an answer that cannot
+  be recovered exactly, or an export that claims another tenant is refused before anything
+  is created (`OAK-IMPORT-REPLAY`, `OAK-IMPORT-SCOPE`), and a case the server already holds
+  is refused with `OAK-CASE-EXISTS`. The workspace identity is not rebound, because a
+  compiled mutation plan, its signature and any approval of it carry it. An export taken
+  from a server still imports as itself, on a server or into a local workspace; one whose
+  manifest names a server workspace but that holds an approval, a plan signature, a
+  dispatch, a runner message, an observation or a revocation, which only a local workspace
+  writes, is refused on a server with `OAK-IMPORT-AUTHORITY`.
 - `oak validate` is a server-free read-only checker (export, bundle, webhook)
   intended for CI and portals. It checks schema validity, digest integrity, and
   the execution-field ban across all three kinds. For a compiled bundle it

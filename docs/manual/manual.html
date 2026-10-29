@@ -198,6 +198,7 @@
     <tr><th>Requirement</th><th>Version</th><th>Notes</th></tr>
     <tr><td>macOS or Linux</td><td>macOS 11+ on Apple silicon (arm64) — Intel Macs are not supported; Linux glibc ≥ 2.27 (x86_64 and aarch64)</td><td>See <code>docs/platforms.md</code> for the authoritative matrix, including why dependency installation fails outright on macOS x86_64. Windows is not supported; WSL2 follows the Linux rows</td></tr>
     <tr><td><code>git</code></td><td>any recent</td><td>To clone the repository — and required even offline for the repository checks, which shell out to it</td></tr>
+    <tr><td><code>ssh-keygen</code></td><td>OpenSSH 8.2+</td><td>Checking a release's signature (ch. 7), and for contributors the repository checks, whose release-verification tests sign with throwaway keys. macOS and most Linux systems include it; a slim container may need <code>openssh-client</code></td></tr>
     <tr><td><code>uv</code></td><td>0.10.x</td><td>The source way. Installs and pins Python 3.13.12 itself</td></tr>
     <tr><td>Docker with Compose</td><td>any recent, daemon on the default socket</td><td>The browser workspace, REST and MCP (ch. 4 and 5) and the runner's install cycle (ch. 6), whose first install pulls <code>rancher/mirrored-pause</code> anonymously from Docker Hub. The runner gives Docker only <code>PATH</code> and an empty Docker configuration of its own, so <code>DOCKER_HOST</code>, CLI contexts and your registry credentials are never used, and rootless Docker, Colima and Podman socket shims cannot reach it (<code>RR-013</code>)</td></tr>
     <tr><td>Node.js + <code>pnpm</code></td><td>pnpm 11.15.1</td><td>Contributors only: <code>make bootstrap</code>, the repository checks and rebuilding this manual. The pinned Node 24.18.0 that pnpm downloads is only exercised by the web workspace, so your system Node version does not matter</td></tr>
@@ -477,9 +478,10 @@ uv run oak report --output ../report.json</code></pre>
     <code>local</code>, with <code>--record</code> (on its own it only earns a warning), also
     asks the model you configured for one short note per main slide,
     which the report prints under <em>Proposed by model</em> beside its own words; OAK drops
-    any note that claims an approval or holds a number its slide does not hold. The PDF uses
-    the standard Helvetica and Courier, so a character they lack prints as <code>?</code>; the
-    JSON document keeps every character.
+    any note that claims an approval or holds a number its slide does not hold. The PDF embeds
+    the IBM Plex fonts the workspace uses, so Latin, Greek and Cyrillic text prints as
+    written, and any other character prints as the replacement mark <code>�</code>; the JSON
+    document keeps every character.
   </p>
   <h2>Export and import</h2>
   <pre><code>uv run oak export --output ../case-export
@@ -613,7 +615,7 @@ uv run oak import ../case-export --directory ../restored
     <tr><th>To</th><th>Run, from the repository root</th></tr>
     <tr><td>Start the stack</td><td><code>docker compose up -d --build</code></td></tr>
     <tr><td>Check what is running</td><td><code>curl http://127.0.0.1:8080/version</code> · <code>docker compose ps</code></td></tr>
-    <tr><td>See a service's output</td><td><code>docker compose logs -f api</code> (or <code>worker</code>, <code>web</code>): startup messages and errors only, since OAK keeps no application log yet (<code>RR-015</code>)</td></tr>
+    <tr><td>See a service's output</td><td><code>docker compose logs -f api</code> (or <code>worker</code>): one JSON line per request or operation, with no brief, answer, key or token in it. A response's <code>X-OAK-Request-ID</code> header names its line</td></tr>
     <tr><td>Stop it, keeping your cases</td><td><code>docker compose down</code></td></tr>
     <tr><td>Update to newer code</td><td><code>git pull</code>, then <code>docker compose up -d --build</code>; the <code>migrate</code> service upgrades the database before the API starts. Back up first — see <code>docs/operations.md</code></td></tr>
     <tr><td>Start again from nothing</td><td><code>docker compose down --volumes</code>, which deletes the database, the artifact store, and the model-state volume holding any provider key you stored</td></tr>
@@ -706,11 +708,13 @@ uv run oak import ../case-export --directory ../restored
     output. This shell function plays the assistant for one request: it starts
     <code>oak-mcp</code> inside the <code>api</code> container, sends the mandatory
     <code>initialize</code> greeting and the request, and prints the reply.
+    <code>2&gt;/dev/null</code> drops the one log line <code>oak-mcp</code> writes to stderr
+    when it starts; the replies are on stdout.
   </p>
   <pre><code>oak_mcp() {
   printf '%s\n' \
     '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}' \
-    "$1" | docker compose exec -T api oak-mcp | tail -n 1
+    "$1" | docker compose exec -T api oak-mcp 2&gt;/dev/null | tail -n 1
 }
 OP=$(oak_mcp '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"oak_candidates_generate","arguments":{"case_id":"design-case.public-manual-qa","expected_version":"0.1.2","idempotency_key":"agent-generate-0001"}}}' \
   | jq -r '.result.structuredContent.operation_id')
@@ -942,16 +946,19 @@ uv run oak-runner run-once
     <code>"applied_kinds": ["verify", "apply", "rollback"]</code>. Then:
   </p>
   <pre><code>uv run oak ingest --output json</code></pre>
-  <pre><code>OAK_RUNNER_HOME=$PWD/runner-home uv run oak-runner status
+  <pre><code>OAK_RUNNER_MAILBOX=$OAK_DISPATCH_MAILBOX OAK_RUNNER_HOME=$PWD/runner-home \
+  uv run oak-runner status
 <span class="out">{
   "journals": [
     {
       "chain": "verified",
       "dispatch": "dispatch.public-manual-qa.14",
       "entries": 8,
-      "manual_recovery_required": false
+      "manual_recovery_required": false,
+      "signed_head": "matched"
     }
-  ]
+  ],
+  "missing_journals": []
 }</span></code></pre>
   <p>
     <code>ingest</code> verifies the runner's signed messages — delivery never implies
@@ -959,11 +966,16 @@ uv run oak-runner run-once
     moves the case to <code>deployed</code>; this one rolled back in the same run, so it
     is recorded as <code>runner_rolled_back</code> and the case's status does not change.
     <code>status</code> reports the journal's hash-chain integrity and
-    any manual-recovery state. <code>status</code> reads
-    <code>OAK_RUNNER_HOME</code> — pass it as shown, because the variables above were
-    prefixes on the <code>run-once</code> command and do not persist. Without it,
-    <code>status</code> reads the default home (<code>~/.oak/runner</code>) and reports
-    an empty journal list rather than failing.
+    any manual-recovery state, and, given the mailbox, compares each journal with the
+    newest completion the runner signed for it: <code>signed_head</code> is
+    <code>matched</code> here, and a journal whose last entries were cut would read
+    <code>truncated</code>. <code>status</code> reads <code>OAK_RUNNER_HOME</code> and
+    <code>OAK_RUNNER_MAILBOX</code> — pass both as shown, because the variables above were
+    prefixes on the <code>run-once</code> command and do not persist. Without the mailbox
+    it compares nothing (<code>signed_head</code> is <code>unchecked</code>); without the
+    home it reads the default one (<code>~/.oak/runner</code>), and with the mailbox set it
+    stops with <code>OAK-RUNNER-KEY</code> when that home has no key beside the run's signed
+    completions.
   </p>
   <h2>What a denial means</h2>
   <p>
@@ -1192,8 +1204,10 @@ uv run oak observe</code></pre>
     If you received OAK Community as built artifacts rather than as this repository,
     verify them before installing anything. The newest published release is
     <code>0.9.0</code>, on the project's GitHub Releases page; this manual also describes
-    the work added since (the rebuilt browser workspace, <code>oak report</code> and
-    <code>oak research</code>), which its downloads do not contain. <code>0.8.0</code> was approved but never published. To build the artifacts
+    the work added since (the rebuilt browser workspace, <code>oak report</code>,
+    <code>oak research</code>, the PDF's Latin, Greek and Cyrillic, JSON logs, moving a
+    local case onto a server, and the verifier's signature check), which its downloads do
+    not contain. <code>0.8.0</code> was approved but never published. To build the artifacts
     yourself, the repository does it with:
   </p>
   <pre><code>make release</code></pre>
@@ -1203,33 +1217,47 @@ uv run oak observe</code></pre>
     from outside the checkout, and emits an SBOM, a licence inventory, and
     <code>SHA256SUMS</code>. On the consuming side:
   </p>
-  <pre><code># in a checkout, against the build you just made
-make verify-release
+  <pre><code># in a checkout, against the unsigned dist/release you just built
+uv run python scripts/verify_release.py --checksums-only dist/release
 
-# what a consumer actually runs, against a downloaded directory
-python scripts/verify_release.py ./downloaded-release
+# what a consumer runs, with the verifier and the key file from the main branch
+# (the output below is from a signed test release; build-provenance.json, which the
+# manifest leaves out, is also named UNLISTED on stderr)
+python3 scripts/verify_release.py ./downloaded-release --allowed-signers keys/allowed_signers
 <span class="out">OK  THIRD-PARTY-LICENCES.md
-OK  oak-community-0.9.0.cdx.json
-OK  oak_community-0.9.0-py3-none-any.whl
-OK  oak_community-0.9.0.tar.gz
+OK  oak-community-1.0.0.cdx.json
+OK  oak_community-1.0.0-py3-none-any.whl
+OK  oak_community-1.0.0.tar.gz
 
 verified 4 artifact(s) against SHA256SUMS
-Checksums prove the bytes match the manifest. They do not prove who produced
-them: OAK Community release artifacts are unsigned.</span></code></pre>
+SHA256SUMS is signed by nmasamba, the key pinned in keys/allowed_signers</span></code></pre>
   <div class="note">
-    <code>make verify-release</code> is the in-checkout convenience: it runs the same
-    script against <code>dist/release</code>. If you received artifacts rather than this
-    repository, you have no Makefile — use the script directly (it is standard-library
-    only, imports nothing from OAK, and needs no installed OAK), or the equivalent
-    <code>shasum -a 256 -c SHA256SUMS</code> on macOS /
-    <code>sha256sum -c SHA256SUMS</code> on Linux. Exit codes: 0 verified, 2
-    verification failed, 3 the manifest or a listed file is missing or malformed.
+    <code>make verify-release</code> is the in-checkout convenience for a signed release
+    in <code>dist/release</code>; a build you just made is not signed, so check it with
+    <code>--checksums-only</code> as above. If you received artifacts rather than this
+    repository, use the script directly (it is standard-library only, imports nothing from
+    OAK, and needs no installed OAK), taking it and <code>keys/allowed_signers</code> from
+    the repository's <code>main</code> branch, not from the release's tag: a key revoked
+    since is still pinned at a tag, and the <code>0.7.1</code> and <code>0.9.0</code> tags
+    have neither the signature check nor the file. Checking the signature needs
+    <code>ssh-keygen</code> (OpenSSH 8.2 or later), which macOS and most Linux systems
+    include.
+    Exit codes: 0 verified, 2 verification failed, 3 the manifest or a listed file is
+    missing or malformed, 4 the signature is missing, does not verify or cannot be checked.
   </div>
   <p>
-    Be aware of what this does and does not prove: checksums prove the bytes match the manifest;
-    they do not prove who produced them. Release artifacts are deliberately not signed
-    yet (<code>RR-005</code> in the residual-risk register), and the container images
-    are not byte-reproducible (<code>RR-006</code>) — their SBOMs and provenance under
+    Be aware of what this does and does not prove. Checksums prove the bytes match the
+    manifest. Every release after <code>0.9.0</code> is signed: the maintainer signs that
+    manifest with a key held offline, and the verifier refuses a release whose signature is missing, made by any
+    other key, or does not match (<code>RR-005</code>); it never trusts a key that came with
+    the download. <code>0.7.1</code> and <code>0.9.0</code> were published before signing
+    began; the verifier recognises each by the digest of the manifest it was published with,
+    not by the names of the files, verifies the checksums and says the manifest is unsigned:
+  </p>
+  <pre><code><span class="out">SHA256SUMS is the unsigned manifest 0.9.0 was published with (RR-005), so checksums prove the bytes match it, not who produced them.</span></code></pre>
+  <p>
+    A signature says who released the artifacts, not how they were built. The container
+    images are not byte-reproducible (<code>RR-006</code>) — their SBOMs and provenance under
     <code>docs/release/0.9.0/</code> record what one build produced.
   </p>
 </section>

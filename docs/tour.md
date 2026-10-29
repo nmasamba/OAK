@@ -164,13 +164,14 @@ the work.
 Now play the part of an AI assistant. An assistant talks to OAK's MCP server by sending
 lines of JSON to it and reading the replies. This helper does exactly that for one
 request: it starts the server inside the `api` container, sends the mandatory `initialize`
-greeting and then your request, and prints the reply:
+greeting and then your request, and prints the reply. `2>/dev/null` drops the one log line
+`oak-mcp` writes to stderr when it starts; the replies are on stdout:
 
 ```bash
 oak_mcp() {
   printf '%s\n' \
     '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}' \
-    "$1" | docker compose exec -T api oak-mcp | tail -n 1
+    "$1" | docker compose exec -T api oak-mcp 2>/dev/null | tail -n 1
 }
 ```
 

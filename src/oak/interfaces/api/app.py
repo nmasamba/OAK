@@ -9,7 +9,7 @@ import json
 import os
 import secrets
 import urllib.parse
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, MutableMapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -73,6 +73,7 @@ from oak.interfaces.api.models import (
     SelectionResponse,
     VersionResponse,
 )
+from oak.interfaces.logs import AccessLogMiddleware, access_log_enabled
 
 PROBLEM_MEDIA_TYPE = "application/problem+json"
 MAXIMUM_REQUEST_BYTES = 94_371_840
@@ -162,6 +163,34 @@ def _problem_response(problem: Problem) -> JSONResponse:
     )
 
 
+def _refusal(scope: Scope, problem: Problem) -> JSONResponse:
+    """A problem a middleware answers itself, its code kept for the access line."""
+
+    scope.setdefault("state", {})["error_code"] = problem.code
+    return _problem_response(problem)
+
+
+def _internal_problem(correlation_id: str | None) -> Problem:
+    return Problem(
+        title="Internal error",
+        status=500,
+        code="OAK-INTERNAL",
+        detail="The request could not be completed safely.",
+        correlation_id=correlation_id,
+    )
+
+
+def _unhandled(scope: MutableMapping[str, Any]) -> JSONResponse:
+    """The 500 for an error no handler took, answered inside the access log's middleware."""
+
+    state = scope.setdefault("state", {})
+    state["error_code"] = "OAK-INTERNAL"
+    correlation_id = state.get("correlation_id")
+    return _problem_response(
+        _internal_problem(correlation_id if isinstance(correlation_id, str) else None)
+    )
+
+
 class _BoundedRequestMiddleware:
     """Buffer at most the documented request limit, including chunked bodies."""
 
@@ -183,13 +212,14 @@ class _BoundedRequestMiddleware:
                 continue
             body.extend(message.get("body", b""))
             if len(body) > self._maximum_bytes:
-                response = _problem_response(
+                response = _refusal(
+                    scope,
                     Problem(
                         title="Request too large",
                         status=413,
                         code="OAK-REQUEST-SIZE",
                         detail="The request exceeds the local API size limit.",
-                    )
+                    ),
                 )
                 await response(scope, receive, send)
                 return
@@ -278,7 +308,7 @@ class _LoopbackGuardMiddleware:
         }
         problem = self._refusal(scope.get("path", ""), headers)
         if problem is not None:
-            await _problem_response(problem)(scope, receive, send)
+            await _refusal(scope, problem)(scope, receive, send)
             return
         await self._app(scope, receive, send)
 
@@ -557,6 +587,13 @@ def create_app(
     api.add_middleware(_BoundedRequestMiddleware, maximum_bytes=MAXIMUM_REQUEST_BYTES)
     # Added last so it runs first: nothing is buffered or routed for a refused host/origin.
     api.add_middleware(_LoopbackGuardMiddleware, allowed_hosts=permitted_hosts)
+    # Outside even the guard, so a refused request is logged too (RR-015).
+    api.add_middleware(
+        AccessLogMiddleware,
+        enabled=access_log_enabled(),
+        unhandled=_unhandled,
+        quiet=frozenset({"/healthz", "/readyz"}),
+    )
 
     api.state.model_token_provider = token_provider
 
@@ -653,6 +690,7 @@ def create_app(
 
     @api.exception_handler(OAKError)
     async def oak_error_handler(request: Request, error: OAKError) -> JSONResponse:
+        request.state.error_code = error.code
         status = _error_status(error)
         detail = "The requested resource was not found." if status == 404 else error.message
         return _problem_response(
@@ -670,6 +708,7 @@ def create_app(
     async def contract_error_handler(
         request: Request, _error: ContractValidationError
     ) -> JSONResponse:
+        request.state.error_code = "OAK-CONTRACT-INVALID"
         # A schema-invalid input (an import manifest, confirmation answers) answered 500
         # with a traceback in the log; the CLI and MCP already called it what it is (F2-3).
         return _problem_response(
@@ -686,6 +725,7 @@ def create_app(
     async def validation_error_handler(
         request: Request, error: RequestValidationError
     ) -> JSONResponse:
+        request.state.error_code = "OAK-REQUEST-INVALID"
         return _problem_response(
             Problem(
                 title="Request validation failed",
@@ -700,6 +740,7 @@ def create_app(
     @api.exception_handler(StarletteHTTPException)
     async def http_error_handler(request: Request, error: StarletteHTTPException) -> JSONResponse:
         code = "OAK-NOT-FOUND" if error.status_code == 404 else "OAK-HTTP-ERROR"
+        request.state.error_code = code
         detail = (
             "The requested resource was not found."
             if error.status_code == 404
@@ -717,15 +758,8 @@ def create_app(
 
     @api.exception_handler(Exception)
     async def unexpected_error_handler(request: Request, _error: Exception) -> JSONResponse:
-        return _problem_response(
-            Problem(
-                title="Internal error",
-                status=500,
-                code="OAK-INTERNAL",
-                detail="The request could not be completed safely.",
-                correlation_id=getattr(request.state, "correlation_id", None),
-            )
-        )
+        # Reached only if the access log's middleware itself fails; it answers the rest.
+        return _problem_response(_internal_problem(getattr(request.state, "correlation_id", None)))
 
     @api.get("/healthz", response_model=HealthResponse, tags=["system"])
     def health() -> HealthResponse:

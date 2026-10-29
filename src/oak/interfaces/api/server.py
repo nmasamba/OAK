@@ -1,13 +1,20 @@
 # SPDX-License-Identifier: Apache-2.0
 """Loopback-safe ASGI process entrypoint."""
 
+import contextlib
 import ipaddress
+import logging
 import os
 import sys
+from typing import Any
 
 import uvicorn
 
 from oak.bootstrap import default_credentials_directory, mint_model_token
+from oak.domain import OAKError
+from oak.interfaces.logs import configure_logging, exit_on, log_event
+
+_LOG = logging.getLogger("oak.api")
 
 
 def is_loopback_host(host: str) -> bool:
@@ -54,8 +61,16 @@ def run_server(
     allow_non_loopback: bool = False,
     model_token: str | None = None,
 ) -> None:
-    """Bind the API after minting the per-process model-configuration token."""
+    """Bind the API after minting the per-process model-configuration token.
 
+    Logging is configured here, so `oak serve` writes the same allowlisted lines as
+    `oak-api`; an unknown `OAK_LOG_LEVEL` refuses with `OAK-LOG-CONFIG`. The socket is bound
+    before serving, through uvicorn (this module imports no network library: it listens, it
+    never calls out), so a port in use refuses with `OAK-SERVE-BIND` rather than uvicorn's
+    own exit, and a bound one is logged as `api_listening`.
+    """
+
+    configure_logging("oak-api")
     ensure_safe_bind(host, allow_non_loopback=allow_non_loopback)
     warning = bind_warning(
         host,
@@ -78,13 +93,40 @@ def run_server(
         f"{default_credentials_directory() / 'api-token'}; run `oak models token` to read it.",
         file=sys.stderr,
     )
-    uvicorn.run(
+    # OAK writes the access line itself, from an allowlist (oak.interfaces.logs); uvicorn's
+    # own access log would print the raw path and query string, and its default logging
+    # configuration would replace the allowlisted handler.
+    # One process: worker processes (`WEB_CONCURRENCY`) would start without this logging.
+    config = uvicorn.Config(
         "oak.interfaces.api.app:app",
         host=host,
         port=port,
+        workers=1,
         access_log=False,
+        log_config=None,
         server_header=False,
     )
+    try:
+        # uvicorn logs a failed bind (a library line, its text not written) and exits.
+        # `localhost` binds the IPv4 loopback address only, as uvicorn's own binding does.
+        listening = config.bind_socket()
+    except SystemExit as error:
+        raise OAKError(
+            "OAK-SERVE-BIND",
+            f"cannot listen on {host}:{port}: the address is in use, is not this "
+            "machine's, or needs a privilege this process lacks",
+        ) from error
+    # The application is built and the socket listening before the line says so.
+    config.load()
+    listening.listen(config.backlog)
+    log_event(_LOG, logging.INFO, "api_listening", host=host, port=port)
+    _serve(config, listening)
+
+
+def _serve(config: uvicorn.Config, listening: Any) -> None:
+    # Ctrl-C after a graceful shutdown, which `uvicorn.run` also swallows.
+    with contextlib.suppress(KeyboardInterrupt):
+        uvicorn.Server(config).run(sockets=[listening])
 
 
 def _environment_flag(name: str) -> bool:
@@ -100,14 +142,20 @@ def main() -> None:
         raise SystemExit("OAK_PORT must be an integer") from error
     if not 1 <= port <= 65535:
         raise SystemExit("OAK_PORT must be between 1 and 65535")
+    allow_non_loopback = _environment_flag("OAK_ALLOW_NON_LOOPBACK")
     try:
-        run_server(
-            host=host,
-            port=port,
-            allow_non_loopback=_environment_flag("OAK_ALLOW_NON_LOOPBACK"),
-        )
+        ensure_safe_bind(host, allow_non_loopback=allow_non_loopback)
     except ValueError as error:
         raise SystemExit(f"OAK-SAFE-BIND: {error}") from error
+    try:
+        # Before anything can be logged as JSON, so a bad level is said in plain text.
+        configure_logging("oak-api")
+    except OAKError as error:
+        raise SystemExit(f"{error.code}: {error.message}") from error
+    try:
+        run_server(host=host, port=port, allow_non_loopback=allow_non_loopback)
+    except Exception as error:
+        exit_on(_LOG, "startup_failed", error, host=host, port=port)
 
 
 if __name__ == "__main__":  # pragma: no cover

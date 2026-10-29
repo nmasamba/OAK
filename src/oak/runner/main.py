@@ -23,6 +23,7 @@ from typing import Any
 import yaml
 
 from oak.contracts import load_yaml_document
+from oak.contracts.signatures import verify_signed_document
 from oak.domain import OAKError
 from oak.runner.adapters import ContainerFixtureAdapter, isolated_executor
 from oak.runner.execution import execute_dispatch
@@ -224,6 +225,7 @@ def _run_once_locked(
                     "applied_kinds": list(outcome.applied_kinds),
                     "failed_kind": outcome.failed_kind,
                     "journal_digest": outcome.journal_digest,
+                    "journal_sequence": outcome.journal_sequence,
                     "detail": outcome.detail,
                     "evidence": list(outcome.evidence),
                 },
@@ -297,6 +299,7 @@ def _resume_interrupted(
                 },
             )
     with contextlib.suppress(OSError, ValueError, OAKError):
+        head = journal.head()
         mailbox.publish_message(
             identity,
             kind="completion",
@@ -314,7 +317,8 @@ def _resume_interrupted(
                 "requested_kinds": requested,
                 "applied_kinds": [],
                 "failed_kind": str(interrupted["kind"]) if interrupted else None,
-                "journal_digest": journal.digest(),
+                "journal_digest": head[1],
+                "journal_sequence": head[0],
                 "detail": "an earlier run was interrupted; inspect the journal and the "
                 "named resources before any further dispatch",
                 "evidence": [],
@@ -377,6 +381,7 @@ def identity() -> int:
 def status() -> int:
     home = _environment_path("OAK_RUNNER_HOME", str(Path.home() / ".oak" / "runner"))
     journals = sorted((home / "journals").glob("*.jsonl")) if (home / "journals").is_dir() else []
+    signed_heads = _SignedHeads.from_environment(home)
     report: dict[str, Any] = {"journals": []}
     for path in journals:
         journal = RunnerJournal(path)
@@ -403,16 +408,172 @@ def status() -> int:
             entries = 0
             manual_recovery = True
             chain = "unreadable"
+        signed_head = "unchecked"
+        if chain != "verified":
+            # Still tie the journal to its completions, so they are not listed as missing.
+            signed_heads.compare(path.stem, journal)
+        else:
+            # Any prefix of a valid journal verifies, so a journal whose last entries were
+            # removed reads as intact. The head this runner signed into its newest
+            # completion for the dispatch says how far the journal reached (RR-054).
+            signed_head = signed_heads.compare(path.stem, journal)
+            if signed_head == "missing_from_journal":
+                chain = "truncated"
+                manual_recovery = True
         report["journals"].append(
             {
                 "dispatch": path.stem,
                 "entries": entries,
                 "chain": chain,
+                "signed_head": signed_head,
                 "manual_recovery_required": manual_recovery,
             }
         )
+    # A journal that was deleted outright has no file to report; the completion this runner
+    # signed for it still names the lease, and its recovery state is unknown.
+    report["missing_journals"] = signed_heads.missing()
     print(json.dumps(report, indent=2, sort_keys=True))
     return 0
+
+
+class _SignedHeads:
+    """The journal heads this runner signed into the completions still in its mailbox.
+
+    A journal is tied to its completions by its dispatch, by the lease its own
+    `lease_accepted` entry names and by the lease in the delivered envelope, so editing the
+    envelope does not hide a cut journal. A completion tied to no journal is a journal that
+    is gone, and `missing` lists it. A completion signed by a key other than the current one
+    (the runner's key was replaced since, or someone signed one) cannot be compared, and a
+    journal tied only to such completions says so rather than reading as having none.
+    """
+
+    def __init__(
+        self,
+        completions: list[dict[str, Any]] | None,
+        others: list[dict[str, Any]] | None = None,
+    ) -> None:
+        self._completions = completions
+        self._others = others or []
+        self._claimed: set[str] = set()
+        self._mailbox: RunnerMailbox | None = None
+
+    @classmethod
+    def from_environment(cls, home: Path) -> _SignedHeads:
+        # `status` only reads: no mailbox configured, or no key yet, means nothing to
+        # compare with, never a key created as a side effect. A key that cannot be read,
+        # or none beside completions a key signed, would hide a cut journal as well as a
+        # missing mailbox does, so it stops `status` instead of reading as "unchecked".
+        mailbox_root = os.getenv("OAK_RUNNER_MAILBOX")
+        if not mailbox_root:
+            return cls(None)
+        mailbox = RunnerMailbox(Path(mailbox_root).absolute(), home)
+        # Only a completion whose signature verifies under the key it carries counts: an
+        # unsigned or unreadable file anyone could drop in the mailbox decides nothing.
+        completions = [message for message in mailbox.completions(None) if _self_signed(message)]
+        if not os.path.lexists(home / "runner.key"):
+            if completions:
+                raise OAKError(
+                    "OAK-RUNNER-KEY",
+                    "the mailbox holds completions but the runner home has no key to tell "
+                    "this runner's own from them",
+                )
+            return cls(None)
+        try:
+            runner = RunnerIdentity.load_or_create(home, os.getenv("OAK_RUNNER_ID", "runner"))
+        except OSError as error:
+            raise OAKError(
+                "OAK-RUNNER-KEY",
+                "the runner key cannot be read, so the journals cannot be compared with "
+                "the completions this runner signed",
+            ) from error
+        current = runner.public_key_base64
+        signed = [message for message in completions if _signed_head_of(message, current)]
+        others = [message for message in completions if message not in signed]
+        heads = cls(signed, others)
+        heads._mailbox = mailbox
+        return heads
+
+    def compare(self, dispatch_id: str, journal: RunnerJournal) -> str:
+        """`matched`, `missing_from_journal`, `none` (nothing signed to compare),
+        `other_key` (only completions signed by another key), or `unchecked` (no mailbox or
+        key, or a journal that cannot be read)."""
+
+        if self._completions is None or self._mailbox is None:
+            return "unchecked"
+        correlations = {dispatch_id}
+        lease_id = self._mailbox.dispatch_lease_id(dispatch_id)
+        if lease_id is not None:
+            correlations.add(lease_id)
+        try:
+            entries = journal.entries()
+        except (OAKError, OSError, ValueError):
+            entries = ()
+        for entry in entries:
+            if entry.entry_type == "lease_accepted" and is_safe_name(entry.details.get("lease_id")):
+                correlations.add(str(entry.details["lease_id"]))
+        mine = [
+            message for message in self._completions if message["correlation_id"] in correlations
+        ]
+        self._claimed.update(str(message["id"]) for message in mine)
+        if not mine:
+            if any(message["correlation_id"] in correlations for message in self._others):
+                return "other_key"
+            return "none"
+        newest = max(mine, key=lambda message: int(message["sequence"]))
+        digest = str(newest["payload"]["journal_digest"])
+        sequence = newest["payload"].get("journal_sequence")
+        try:
+            if isinstance(sequence, int) and not isinstance(sequence, bool):
+                reached = journal.contains_head(sequence, digest)
+            else:
+                # A completion from before the sequence was signed names only the digest.
+                reached = any(entry.digest == digest for entry in journal.entries())
+        except (OAKError, OSError, ValueError):
+            return "unchecked"
+        return "matched" if reached else "missing_from_journal"
+
+    def missing(self) -> list[dict[str, Any]]:
+        """Completions this runner signed whose journal no journal file is tied to."""
+
+        if self._completions is None:
+            return []
+        return [
+            {"completion": str(message["id"]), "lease": str(message["correlation_id"])}
+            for message in sorted(self._completions, key=lambda message: str(message["id"]))
+            if str(message["id"]) not in self._claimed
+        ]
+
+
+def _self_signed(message: dict[str, Any]) -> bool:
+    """Whether a completion is signed, names a journal head, and verifies under the key it
+    carries (whoever that is)."""
+
+    signature = message.get("signature")
+    key = signature.get("public_key_base64") if isinstance(signature, dict) else None
+    return isinstance(key, str) and _signed_head_of(message, key)
+
+
+def _signed_head_of(message: dict[str, Any], public_key: str) -> bool:
+    """Whether a completion is this runner's own, signed, and names a journal head."""
+
+    signature = message.get("signature")
+    payload = message.get("payload")
+    if not isinstance(signature, dict) or signature.get("public_key_base64") != public_key:
+        return False
+    try:
+        # The mailbox is untrusted: a document that cannot even be canonicalised (a NaN,
+        # say) is simply not this runner's.
+        if not verify_signed_document(message):
+            return False
+    except (RecursionError, TypeError, ValueError):
+        return False
+    return (
+        isinstance(payload, dict)
+        and isinstance(payload.get("journal_digest"), str)
+        and isinstance(message.get("sequence"), int)
+        and isinstance(message.get("correlation_id"), str)
+        and isinstance(message.get("id"), str)
+    )
 
 
 def main() -> int:

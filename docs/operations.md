@@ -46,9 +46,9 @@ of them counted once per package Debian builds from one source
 ([container-scan.md](release/0.9.0/container-scan.md)).
 
 Verify the release artifacts you downloaded before installing them — see
-[release-process.md](release-process.md#verifying-a-release). Remember that OAK
-Community artifacts are **unsigned**: checksums prove the bytes match the manifest, not
-who produced them.
+[release-process.md](release-process.md#verifying-a-release). The verifier also checks the
+maintainer's signature over the manifest; `0.7.1` and `0.9.0` are **unsigned**, so for
+them checksums prove the bytes match the manifest, not who produced them.
 
 ---
 
@@ -80,11 +80,73 @@ directory whose location depends on where someone happened to be standing.
 
 ## Observe
 
-Be realistic about what is available: OAK Community emits **no application logs and no
-metrics**. `oak-api` runs uvicorn with `access_log=False`
-(`run_server` in `src/oak/interfaces/api/server.py`), and nothing in `src/` configures a
-logger. What
-you have is a handful of endpoints and the database.
+Be realistic about what is available: OAK Community writes **application logs but no
+metrics**. What you have is the logs, a handful of endpoints and the database.
+
+### Logs
+
+`oak-api`, `oak-worker` and `oak-mcp` write one JSON object per line to **stderr**
+(`docker compose logs api worker`), at `INFO` unless `OAK_LOG_LEVEL` says otherwise.
+Before its first line, `oak-api` may print up to three plain-text startup notices: the
+non-loopback bind warning, a missing `OAK_DATABASE_URL`, and where the model-configuration
+token was written. A refusal that comes before logging is set up is plain text too, exit
+`1`: `CODE: message` for an unknown `OAK_LOG_LEVEL` (`OAK-LOG-CONFIG`), a non-loopback bind
+without the acknowledgement (`OAK-SAFE-BIND`), or the worker's or MCP server's own
+configuration (`OAK-WORKER-CONFIG`, `OAK-MCP-CONFIG`), and a bare message for a bad
+`OAK_PORT` or `OAK_WORKER_ID`. Any other failure to start, a database URL that does not
+parse included, ends with a `startup_failed` line naming the error's type and code, never
+its message (and, from `oak-api`, the host and port), and exits `1`; a port already in use
+is `OAK-SERVE-BIND`. A one-shot worker (`OAK_WORKER_ONCE=1`) whose
+cycle fails ends the same way with `cycle_failed`. `oak-api` serves from one process and,
+once the application is built and its socket listening, says where (`api_listening`, with
+`host` and `port`); uvicorn's own start-up lines are not written. `OAK_HOST` is one address:
+`localhost` listens on the IPv4 loopback address only.
+
+`oak serve` writes the same lines, after a first plain-text line that prints the
+model-configuration token itself, and its `#token=` link, for you to paste into the
+browser; it is the interactive command, so treat its stderr as a terminal, not a log to
+ship. Run `oak-api` (or Compose) where the log is kept: it prints only where the token was
+written. A refusal there is `CODE: message`, exit `2`, or `OAK-SERVE-FAILED` and the
+error's type, exit `1`, for one that is not OAK's.
+
+`oak-api` writes one access line per request; `OAK_ACCESS_LOG=false` turns it off. The
+health probes `/healthz` and `/readyz`, which Compose's healthcheck calls every two
+seconds, are logged at `DEBUG`. A line, as written (keys in alphabetical order):
+
+```json
+{"code":"OAK-CASE-NOT-FOUND","component":"oak-api","duration_ms":1.1,"event":"request","level":"INFO","logger":"oak.api.access","method":"GET","request_id":"8d6cb6bece211744","route":"/v1/design-cases/{case_id}","status":404,"time":"2026-10-29T02:55:21.519Z"}
+```
+
+The `route` is the template the request matched, never the path it named, and `unmatched`
+when it matched none. The `request_id` is minted per request and returned to the caller as
+the `X-OAK-Request-ID` response header, a `500` included, so a user can quote it in a report
+and you can find the line. The `code` is the error the response carried, a refusal by the
+host, origin or size checks included, and `OAK-INTERNAL` for an error nothing handled, whose
+type is the line's `error_type`. Such an error is also a `request_failed` line at `ERROR`
+(route, request ID, type and code), written whatever `OAK_ACCESS_LOG` says and on the quiet
+routes too. `oak-worker` writes `operation_cycle` (operation ID, kind,
+outcome, attempt, duration and, on failure, the code) and `cycle_failed` (the error's code,
+or `OAK-WORKER-CYCLE` for an error that is not OAK's, and its type). `oak-mcp` writes
+`mcp_started` when it starts.
+
+A line is built from an allowlist of fields (`src/oak/interfaces/logs.py`), never by
+redacting free text, so a brief, an answer, a model key, a token, a header, a query string,
+a request or response body, a research term, the tenant and the actor never appear. An
+exception appears as its type and, for an OAK error, its code; its message and traceback
+never do, because they can quote the request. A library's own record (uvicorn, SQLAlchemy)
+appears as its logger and level only. `tests/integration/test_log_leakage.py` runs a whole
+journey through the API and the worker with a sentinel in the brief (and the case id named
+from it), the answers, the actor, a tenant, a model key, a wrong capability token, a bearer
+token, a correlation ID, an idempotency key, a query string, a `Host` header, an exception
+message and a failing worker cycle, and fails if one reaches a log line; research terms and
+`oak-mcp` are not in that journey, and what keeps their words out is the allowlist itself,
+which no field can carry text through (`tests/unit/test_logs.py`). To join a line to what
+happened, read the case's audit trail, which records the actor, the tenant and the
+correlation ID under its own controls. Lines carry no tenant or environment field: OAK
+Community runs one local tenant, and a line holds nothing of a tenant's to scope; the
+original spec repo's rule to scope logs by tenant and environment is for a multi-tenant
+edition, which would add the scope with its own review. `oak-mcp` logs only to stderr: its
+stdout is the JSON-RPC protocol.
 
 This section is about observing the OAK services themselves. `oak observe` is a different
 thing: it records what an installed architecture did, from signed runner evidence, in an
@@ -106,11 +168,11 @@ curl --fail --silent http://127.0.0.1:8080/v1/system/outbox-lag
 ```
 
 To tell whether the worker is alive, watch `pending_events` on the lag endpoint while a
-compile runs: a number that only grows means the worker is not consuming. Container
-stdout (`docker compose logs worker`) carries process-level output only.
+compile runs: a number that only grows means the worker is not consuming, and the
+worker's `operation_cycle` lines say which operations it ran.
 
-The absence of logging and metrics is recorded as a limitation, not presented as a
-design goal — see `RR-015`.
+The absence of metrics is recorded as a limitation, not presented as a design goal — see
+`RR-015`.
 
 ---
 

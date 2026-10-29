@@ -941,12 +941,36 @@ def import_workspace(
                 ),
             )
             case = remote_mode.require_field(result_document, "case")
+            extensions = case.get("extensions") if isinstance(case, dict) else None
+            origin = (
+                extensions.get("oak.community/recreated_from")
+                if isinstance(extensions, dict)
+                else None
+            )
+            # Re-created from this export only if the origin the server recorded is this
+            # export's own case: a server export of a case once re-created elsewhere carries
+            # an origin too, and is restored as itself. The workspace named is the one in
+            # this export's manifest, which the server validated, never the case's text.
+            manifest = export_document["manifest"]
+            current = manifest.get("current_case_ref")
+            recreated = (
+                isinstance(origin, dict)
+                and isinstance(current, dict)
+                and origin.get("case_digest") == current.get("digest")
+            )
+            reference = (
+                f"{remote_mode.require_field(case, 'id')}@"
+                f"{remote_mode.require_field(case, 'version')}"
+            )
             _emit(
                 {"case": case, "intent": result_document.get("intent")},
                 output,
                 human=(
-                    f"Imported {remote_mode.require_field(case, 'id')}@"
-                    f"{remote_mode.require_field(case, 'version')}"
+                    f"Re-created {reference} from {manifest['id']}: its brief and confirmed "
+                    "answers, through the server's own steps; run the later steps again on "
+                    "the server"
+                    if recreated
+                    else f"Imported {reference}"
                 ),
             )
             return
@@ -985,8 +1009,13 @@ def serve(
         _abort(OAKError("OAK-REMOTE-UNSUPPORTED", "serve is local-only"))
 
     from oak.bootstrap import mint_model_token
-    from oak.interfaces.api.server import run_server
+    from oak.interfaces.api.server import ensure_safe_bind, run_server
 
+    try:
+        ensure_safe_bind(host, allow_non_loopback=allow_non_loopback)
+    except ValueError as error:
+        typer.echo(f"OAK-SAFE-BIND: {error}", err=True)
+        raise typer.Exit(code=2) from error
     try:
         token = mint_model_token()
         typer.echo(
@@ -995,9 +1024,13 @@ def serve(
             err=True,
         )
         run_server(host=host, port=port, allow_non_loopback=allow_non_loopback, model_token=token)
-    except (ValueError, OAKError) as error:
-        typer.echo(f"OAK-SAFE-BIND: {error}", err=True)
+    except OAKError as error:
+        # Its code and fixed message only; anything else is its type (oak.interfaces.logs).
+        typer.echo(f"{error.code}: {error.message}", err=True)
         raise typer.Exit(code=2) from error
+    except Exception as error:
+        typer.echo(f"OAK-SERVE-FAILED: {type(error).__name__}", err=True)
+        raise typer.Exit(code=1) from error
 
 
 @app.command()
@@ -1307,9 +1340,15 @@ def ingest(
                 "case": result.case,
                 "accepted": list(result.accepted),
                 "rejected": list(result.rejected),
+                "refused": dict(result.refused),
             },
             output,
-            human=(f"Ingested {len(result.accepted)} message(s); rejected {len(result.rejected)}"),
+            human="\n".join(
+                (
+                    f"Ingested {len(result.accepted)} message(s); rejected {len(result.rejected)}",
+                    *(f"refused {message_id}: {code}" for message_id, code in result.refused),
+                )
+            ),
         )
     except (OAKError, ContractValidationError, OSError, RuntimeError, ValueError) as error:
         _abort(error)

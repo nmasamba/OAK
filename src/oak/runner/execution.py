@@ -45,6 +45,7 @@ class ExecutionOutcome:
     journal_digest: str
     detail: str
     failed_kind: str | None = None
+    journal_sequence: int = 0
 
 
 def execute_dispatch(
@@ -66,6 +67,7 @@ def execute_dispatch(
             applied_kinds=(),
             evidence=(),
             journal_digest=journal.digest(),
+            journal_sequence=journal.head()[0],
             detail="journal requires explicit manual recovery before further work",
         )
     interrupted = journal.incomplete_operation()
@@ -80,6 +82,7 @@ def execute_dispatch(
             applied_kinds=(),
             evidence=(),
             journal_digest=journal.digest(),
+            journal_sequence=journal.head()[0],
             detail="a previous operation did not complete; inspect the journal",
         )
 
@@ -107,6 +110,7 @@ def execute_dispatch(
                 applied_kinds=tuple(applied),
                 evidence=_bounded(evidence, policy),
                 journal_digest=journal.digest(),
+                journal_sequence=journal.head()[0],
                 detail="cancellation observed before " + kind,
             )
         entry_type = "rollback_before" if kind == "rollback" else "operation_before"
@@ -177,6 +181,7 @@ def execute_dispatch(
                 applied_kinds=tuple(applied),
                 evidence=_bounded(evidence, policy),
                 journal_digest=journal.digest(),
+                journal_sequence=journal.head()[0],
                 detail=detail,
                 failed_kind=kind,
             )
@@ -198,6 +203,7 @@ def execute_dispatch(
         applied_kinds=tuple(applied),
         evidence=_bounded(evidence, policy),
         journal_digest=journal.digest(),
+        journal_sequence=journal.head()[0],
         detail="all requested operations completed",
     )
 

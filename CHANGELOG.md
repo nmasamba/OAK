@@ -6,6 +6,182 @@ All notable changes to OAK Community are recorded here.
 
 ## Unreleased
 
+### The pre-1.0 assurance batch (`OAK-V1-021`–`028`)
+
+Tier 2 of the owner's cost-benefit ranking of the backlog, launched on 2026-10-28.
+
+#### Added
+
+- **CI runs the browser suite** (`RR-021`). A `web-e2e` job beside `check`, and the same
+  job in the release workflow before it builds anything, runs
+  `scripts/run_browser_suite.py` (`make web-e2e-isolated`): the images are built from the
+  commit as a Compose project of their own on loopback ports of their own, with the
+  research fixture; `/version` must name the commit; and the run fails unless every test
+  passed and the tests that skipped are exactly the two manual captures. It uploads
+  nothing and its checkout keeps no token. `make toolchain-check` refuses either workflow
+  without the job, or with a step in it that uses an action other than checkout and
+  setup-node, or with an expression in the job or the workflow-wide settings that names a
+  secret or the job's token.
+- The API image reports the commit it was built from at `/version` when the build passes
+  `OAK_COMMIT` as a build argument; a build that passes none still reports `unknown`.
+- **CI proves a second and a third platform** (`RR-014`). `check-macos-arm64` runs
+  `make check` on `macos-15` in an asserted `macosx-11.0-arm64` environment, without
+  PostgreSQL or Docker, which GitHub's macOS runners lack; `check-linux-arm64` runs it on
+  `ubuntu-24.04-arm` with the PostgreSQL suites and the real-daemon runner journeys, and
+  builds both images natively for arm64. Every `check` job, and the release gate, asserts
+  the platform its environment reports (`linux-x86_64` for `check` and the release gate),
+  writes each skipped test and its reason to `OAK_SKIP_LEDGER`, and
+  `scripts/check_skips.py` fails the job unless they match `tests/expected-skips.json`. A
+  new gated or skipped test means editing that file (`CONTRIBUTING.md`).
+- **Application logging** (`RR-015`'s logging clause). `oak-api`, `oak-worker` and
+  `oak-mcp` write one JSON object per line to stderr, at `INFO` unless `OAK_LOG_LEVEL` says
+  otherwise (an unknown level refuses to start, `OAK-LOG-CONFIG`). `oak-api` writes an
+  access line per request: route template, method, status, duration, a minted request ID
+  (returned as the new `X-OAK-Request-ID` response header, a 500 included) and the error
+  code where there was one, a refusal by the host, origin or size checks included;
+  `OAK_ACCESS_LOG=false` turns it off, and the health probes `/healthz` and `/readyz` are
+  logged at `DEBUG`; an error nothing handled is also a `request_failed` line at `ERROR`,
+  whatever the access log's setting. It says where it listens once the application is
+  built (`api_listening`, with host and port; `localhost` is the IPv4 loopback only).
+  The worker logs each operation cycle and each failed cycle (`cycle_failed`, with the
+  error's code, or the new `OAK-WORKER-CYCLE` and its type for an error that is not
+  OAK's). Every line is built from an allowlist: no brief, answer, key, token, header,
+  query string, body, research term, tenant or actor, and an exception is its type and
+  code only. `oak-mcp` logs only to stderr, so its start (`mcp_started`) shows in a
+  terminal beside the replies. uvicorn's own lines are gone: its start-up and shut-down
+  lines say nothing OAK's do not, and a port in use, which it reported as a line without a
+  cause, now refuses to start with the new code `OAK-SERVE-BIND` (`oak serve` prints the
+  address; `oak-api`'s `startup_failed` line carries it as `host` and `port`). A refusal
+  before logging is configured is still plain text: `CODE: message` for an unknown level,
+  a non-loopback bind without the acknowledgement, or worker or MCP configuration, and a
+  bare message for a bad `OAK_PORT` or `OAK_WORKER_ID`; any other failure to start is a
+  `startup_failed` line. `oak serve` writes the same lines after its first, which prints
+  the model-configuration token for the browser: its stderr is a terminal's, not a log to
+  ship; a failure of `oak serve` that is not OAK's prints the new `OAK-SERVE-FAILED` and
+  the error's type, exit `1`. Metrics remain out of scope.
+- **A local case can be moved onto a server.** `oak --server import` (and
+  `POST /v1/design-cases:import`) of an export taken from a local workspace re-creates the
+  case on the server from its brief and confirmed answers, through the server's own create,
+  interpret and confirm steps, under the importing command's actor and tenant, with
+  `interface_origin: import` on every event; it refused with `OAK-IMPORT-SCOPE`. The origin
+  (local workspace, case, version and digest) is recorded as a `workspace_imported` audit
+  event and the case extension `oak.community/recreated_from`. Nothing else crosses: no
+  candidates, selection, plan, signature, approval or later history. Each answer's value is
+  read back from the exported intent and used only if it matches the digest recorded for
+  it. A case interpreted with a model, an answer that cannot be recovered exactly, or a
+  replay the server stops part-way is refused with the new code `OAK-IMPORT-REPLAY`; an
+  export claiming another tenant is still refused with `OAK-IMPORT-SCOPE`. The owner chose
+  re-creation over rebinding the identity (2026-10-28), because a compiled mutation plan,
+  its signature and any approval of it carry the workspace identity.
+- **Release artifacts must be signed** (`RR-005`, the owner's choice of an owner-held SSH
+  key). `scripts/verify_release.py` (`make verify-release`) checks `SHA256SUMS.sig` with
+  `ssh-keygen -Y verify`, in the `oak-release` namespace, against the key pinned in the new
+  `keys/allowed_signers` (`--allowed-signers` to name another copy of it), never against a
+  key inside the directory it verifies. A missing signature, no pinned key, another key or
+  manifest, or no `ssh-keygen` exits with the new code `4`. Only `0.7.1` and `0.9.0`,
+  published unsigned, verify without one, recognised by the SHA-256 of the `SHA256SUMS`
+  each was published with, never by a version the files name; the verifier says so. `--checksums-only` skips the signature and says it did; the release workflow
+  uses it, because the maintainer signs after that build. No key is pinned yet: the
+  maintainer pins one and signs `1.0.0` (`docs/release-process.md`).
+- **The PDF prints Latin, Greek and Cyrillic** (`RR-046`'s Unicode clause; the owner
+  reversed Sprint 13's K5, "no font file ships", on 2026-10-28). The renderer embeds
+  subsets of IBM Plex Sans and Plex Mono, vendored under the SIL Open Font License 1.1 and
+  pinned by SHA-256. Text prints as written: a compatibility character the font lacks
+  prints as its plain form (a full-width letter as its ASCII one), and any other character
+  it lacks as U+FFFD instead of `?`; the old renderer folded `10⁵` to `105`, `m²` to `m2`
+  and `…` to `...`. **The PDF's bytes change**, and with them the digest of whatever names
+  a newly recorded PDF (the case revision that records the report, its `report_recorded`
+  event and the workspace manifest); the report document, its JSON golden and the four
+  reference digests do not move, and the renderer keeps its recorded identity
+  (`oak-report-renderer 1.0.0`) because that identity is part of the report document. The
+  PDF's Creator now ends ", IBM Plex". A report recorded before this change keeps the PDF
+  it was recorded with, which is stored and served as recorded. The PDF still has no
+  structure tree. The wheel's licence is now `Apache-2.0 AND OFL-1.1`, for the fonts.
+- **A runner journal whose tail was cut is noticed** (`RR-054`). Every completion of a
+  dispatch the runner took up names its journal's head, `journal_sequence` beside
+  `journal_digest` (additive; a `0.9` runner's completion still ingests unless an earlier
+  completion for the same lease named a sequence).
+  With `OAK_RUNNER_MAILBOX` set, `oak-runner status` compares each journal with the newest
+  completion for its dispatch still in the mailbox, believing only one its own key signed,
+  and reports a journal that stops short of it as `chain: truncated`, requiring manual
+  recovery, with a new `signed_head` field saying what it compared (`unchecked` without
+  the mailbox, `other_key` when the only completions verify under a key that is not the
+  runner's current one); with the mailbox set, a runner key it cannot read, or none while
+  the mailbox holds a completion that verifies under the key it carries, stops it with
+  `OAK-RUNNER-KEY` rather than comparing nothing. `oak ingest` refuses a completion whose
+  journal is shorter than, or as long but different from, one it already accepted for the
+  lease, with the new code `OAK-INGEST-JOURNAL`; the message stays in the mailbox, and the
+  JSON output's new `refused` map names each such message's code.
+
+#### Security
+
+Found by the batch's closing adversarial review and fixed before it closed:
+
+- The release verifier no longer decides whether a signature is required from a version
+  the downloaded file names; only the two manifests published unsigned are exempt, by
+  digest. Every unsigned name below `1.0.0`, `1.0`, an epoch, or a pre-1.0 wheel beside a
+  platform wheel verified without a signature before.
+- A server refuses to restore an export whose manifest names a server workspace but that
+  holds approvals, plan signatures, dispatches, runner messages, observations or
+  revocations (`OAK-IMPORT-AUTHORITY`). Relabelling a local export's manifest, a field no
+  digest covers, restored its approval and signed plan on the server; that path predates
+  the batch.
+- `oak-api`, `oak-worker` and `oak-mcp` log a failure to start, or a failed one-shot
+  worker cycle, as its type and code and exit `1`; a database URL that did not parse died
+  with a traceback quoting part of its password. `oak serve` configures the same logging,
+  and the API runs one process, because uvicorn workers started by `WEB_CONCURRENCY`
+  configured none. The API package no longer builds the application when it is imported.
+- `oak-runner status` ties a journal to its completions through the lease its own first
+  entry names, so editing the delivered envelope no longer hides a cut, and lists in
+  `missing_journals` a signed completion whose journal was deleted. `oak ingest` refuses a
+  completion other than a denial that names no journal head.
+- Re-creating a local case refuses an export whose intents do not run from the
+  interpretation to the case's own intent, records its origin from the manifest's
+  schema-bounded reference rather than the unvalidated case document, and answers a
+  malformed object with `OAK-IMPORT-REPLAY` instead of an internal error.
+- `make toolchain-check` refuses a gate step that is disabled (`if:`) or allowed to fail
+  (`continue-on-error`), and a cache step or `github.token` in the browser-suite job.
+
+A second, wider review of the finished batch (57 findings confirmed, each by at least two
+skeptics; four judged by hand after the review ran out of time) found, and the batch
+fixed with tests, and a review of those fixes found 25 more, fixed the same way:
+
+- Two reports rendered at once in one API process read each other's glyphs from
+  reportlab's shared font objects: a different PDF, `OAK-REPORT-RENDER`, or an internal
+  error. One rendering runs at a time. `SOURCE_DATE_EPOCH` and `ttfAsciiReadable` no longer
+  reach the PDF's bytes (a malformed `SOURCE_DATE_EPOCH` failed every report), a font
+  registered elsewhere under a report font's name is refused rather than drawn, and laying
+  out a report no longer needs a rendering first.
+- `oak-runner status` printed a traceback, and no report, for a journal that was not UTF-8
+  or not readable once a signed completion existed, and for a deeply nested or `NaN`
+  completion anyone could drop in the mailbox; each is now reported or ignored. Moving the
+  runner key aside no longer turns a cut journal back into `verified`, and once a new key
+  replaces it the old completions read `other_key`, not "none".
+- A 500 now carries `X-OAK-Request-ID` and its line `OAK-INTERNAL`, and is an `ERROR` line
+  even with the access log off; a host, origin or size refusal's line keeps its code.
+  Ctrl-C ends `oak-api` and `oak serve` quietly, as before.
+- Re-creating a local case: a deeply nested object is `OAK-IMPORT-REPLAY`, not an internal
+  error; the origin step is inside the replay, so a case that moved on after it was created
+  says how far the replay itself got (not the user's later steps); a replay refused
+  because another writer moved the case is not retriable; a retried import returns the
+  case it recorded, not where the user has taken it since; and `oak --server import` of a
+  server export of a case once re-created elsewhere says "Imported", while a re-created
+  case's line names only the export's own, validated workspace id.
+- `make toolchain-check` compared the gate commands by prefix and substring, so
+  `|| true`, a `shell:` or job `defaults` override, a `needs` on a skipped job, an
+  `if: always()` on a gated release job, a workflow-wide default shell or `MAKEFLAGS`, a
+  `--help` argument, a disabled `make build`, `make audit`, `make release` or checksum
+  verification, a secret or token read as `secrets['…']`, `SECRETS.…`, `github['token']`,
+  `toJSON(secrets)`, `toJSON(github)` or a workflow-wide `env`, or an upload through
+  another action all passed. Each is refused, the gate commands are matched exactly, and
+  the `check` job and the release gate are pinned to `linux-x86_64` like the other
+  platforms.
+- The release verifier's "the key cannot come from the release" guard compares files,
+  not path spellings (a differently cased path on macOS, a hard link anywhere in the
+  directory), and an
+  `ssh-keygen` without `-Y find-principals` (OpenSSH before 8.2) is "cannot be checked",
+  not "does not verify".
+
 ### Follow-ups to the pre-1.0 batch (`OAK-V1-017`–`020`)
 
 The owner's answers to the three questions the batch left open. No digest moves; one

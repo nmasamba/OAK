@@ -10,12 +10,11 @@ version = "0.9.0"
 description = "Local-first control plane for designing, evaluating, and planning AI systems"
 readme = "README.md"
 requires-python = ">=3.13,<3.14"
-license = "Apache-2.0"
-license-files = ["LICENSE"]
+license = "Apache-2.0 AND OFL-1.1"
+license-files = ["LICENSE", "src/oak/adapters/report/fonts/OFL-1.1-IBM-Plex.txt"]
 authors = [{ name = "OAK Community contributors" }]
 classifiers = [
   "Development Status :: 2 - Pre-Alpha",
-  "License :: OSI Approved :: Apache Software License",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.13",
   "Typing :: Typed",

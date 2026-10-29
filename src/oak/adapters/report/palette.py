@@ -23,10 +23,12 @@ COVER_TEXT = "#EDEBE3"
 COVER_MUTED = "#B4B8AA"
 NOTE_GROUND = "#F4EEDD"
 
-FONT = "Helvetica"
-FONT_BOLD = "Helvetica-Bold"
-FONT_ITALIC = "Helvetica-Oblique"
-FONT_MONO = "Courier"
+# IBM Plex, the workspace's own type, embedded so that Latin, Greek and Cyrillic print
+# (RR-046); the files and their licence are in `fonts/` beside the renderer.
+FONT = "IBMPlexSans"
+FONT_BOLD = "IBMPlexSans-Bold"
+FONT_ITALIC = "IBMPlexSans-Italic"
+FONT_MONO = "IBMPlexMono"
 
 # (where it is used, text colour, background colour)
 TEXT_PAIRS: tuple[tuple[str, str, str], ...] = (

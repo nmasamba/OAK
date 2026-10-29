@@ -288,19 +288,66 @@ adapter's identity digest. No create carries a volume, an environment variable o
       "dispatch": "d0001",
       "entries": 7,
       "chain": "verified",
+      "signed_head": "matched",
       "manual_recovery_required": false
     }
-  ]
+  ],
+  "missing_journals": []
 }
 ```
 
-`chain` has three values, and the difference between the last two matters:
+`chain` has four values:
 
 | Value | Meaning |
 |---|---|
 | `verified` | The hash chain is intact end to end |
+| `truncated` | The chain verifies, but it stops short of the entry this runner signed into its newest completion for the dispatch: entries were removed from its end. Treated as requiring manual recovery |
 | `tampered` | The chain is readable but does not verify — an entry was altered, removed or reordered |
 | `unreadable` | A journal line could not be parsed at all: truncated, corrupt or the wrong shape. Reported rather than crashing the command, and treated as requiring manual recovery |
+
+A hash chain alone cannot show that its end was cut, because any prefix of a valid journal
+verifies. So every completion of a dispatch the runner took up names the head of its
+journal, the last entry's `journal_sequence` and its `journal_digest`, and, with
+`OAK_RUNNER_MAILBOX` set, `status` reads the newest completion for each dispatch that is
+still in the mailbox (`messages/` or `acknowledged/`), believing only one whose signature
+verifies under this runner's own key. Pass the mailbox to `status` as you do to `run-once`:
+without it nothing is compared.
+A journal is tied to its completions by its dispatch, by the lease its own
+`lease_accepted` entry names and by the lease in the delivered envelope, so editing or
+deleting the envelope does not hide a cut. `signed_head` says what the comparison found:
+
+| Value | Meaning |
+|---|---|
+| `matched` | The journal reaches the entry the newest signed completion names |
+| `missing_from_journal` | It does not, and `chain` is `truncated` |
+| `none` | No completion of this dispatch signed by this runner is in the mailbox, so there was nothing to compare: an interrupted dispatch before its report, or a mailbox someone cleaned |
+| `other_key` | The only completions of this dispatch verify under a key that is not the runner's current one: the key was replaced since (the next `run-once` or `identity` makes a new one when it is missing), or someone signed one. Nothing could be compared; compare the journal with those completions by hand |
+| `unchecked` | `OAK_RUNNER_MAILBOX` is not set, the runner has no key yet (and the mailbox holds no completion), or the chain did not verify |
+
+With the mailbox set, a runner key that cannot be read, or none while the mailbox holds a
+completion that verifies under the key it carries, stops `status` with `OAK-RUNNER-KEY`
+(exit `70`) rather than reporting journals it could not compare: moving the key aside
+would otherwise turn a cut journal back into `verified`. Once a new key replaces it, the
+old completions read `other_key`. A file in the mailbox that does not verify under the key
+it carries (unsigned, malformed, nested past the interpreter's limit, or holding a `NaN`)
+is ignored, with a key or without one. Whoever can replace the key can also sign a
+completion naming a cut head; that is `RR-054`'s remaining risk, which the control plane's
+accepted record bounds.
+
+`missing_journals` lists each completion this runner signed that no journal file is tied
+to (`{"completion": <message id>, "lease": <lease id>}`): a journal deleted outright, whose
+recovery state is unknown, so treat its lease as requiring manual recovery.
+
+The comparison defends against a journal cut by someone, or something (a restored backup,
+a clean-up script), that did not also remove the completions from the mailbox. It does not
+defend against whoever holds the runner's key and can write to the mailbox: they can sign
+a completion naming the cut head. What defends the record past that point is the control
+plane: `oak ingest` keeps every completion it accepted, out of reach of the runner's home,
+and refuses a completion for the same lease whose journal is shorter than one it accepted
+or as long with another last entry, and any completion but a denial that names no journal
+head (`OAK-INGEST-JOURNAL`). The refused message stays in the
+mailbox and is reported on every ingest. A longer journal is believed to extend the
+earlier one on the strength of the runner's signature over both (`RR-054`).
 
 **`run-once` reports whether the runner ran, not whether anything succeeded.** It exits `0`
 when every dispatch in the mailbox was *denied*, because denying a dispatch is the runner

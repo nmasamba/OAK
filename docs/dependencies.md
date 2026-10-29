@@ -25,6 +25,7 @@ substitute for those locks.
 | axe-core (via @axe-core/playwright) | Automated accessibility checks | web development only | MPL-2.0 |
 | Instrument Serif (via @fontsource/instrument-serif) | Display typeface, bundled and served same-origin | web only | OFL-1.1 |
 | IBM Plex Sans and IBM Plex Mono (via @fontsource/ibm-plex-sans, @fontsource/ibm-plex-mono) | Interface and monospace typefaces, bundled and served same-origin | web only | OFL-1.1 |
+| IBM Plex Sans (regular, bold, italic) and IBM Plex Mono, vendored TTFs | The report PDF's embedded fonts (pre-1.0 assurance batch, below) | report renderer adapter only; four files in the wheel, parsed by ReportLab's `TTFont` | OFL-1.1 |
 | keyring (optional extra `keychain`) | OS credential store for user-supplied model-provider keys | credentials adapter only; lazily imported; file store is the fallback | MIT (Linux pulls SecretStorage BSD-3-Clause and jeepney MIT; Windows pywin32-ctypes BSD-3-Clause) |
 | ReportLab | The architecture report as a PDF | report renderer adapter only (`oak.adapters.report`) | BSD-3-Clause |
 | Pillow (via ReportLab) | Required by ReportLab; OAK passes it no image | below the report renderer only | MIT-CMU (HPND) |
@@ -110,6 +111,50 @@ imports at the top of `web/src/main.tsx` and the three `--font-*` tokens in
 `web/src/tokens.css`. Only the weights the design uses are imported (serif 400 and 400
 italic; sans 400, 500 and 600; mono 400 and 500), so the bundle carries the subsets Vite
 references rather than every file the packages ship.
+
+## Pre-1.0 assurance batch: report fonts (2026-10-28)
+
+The capability gap is a PDF that prints the brief's own script (`RR-046`). The renderer used
+the PDF standard Helvetica and Courier so that no font file shipped (Sprint 13's decision
+K5), which limited it to Windows-1252. The owner reversed K5 on 2026-10-28 and chose Latin,
+Greek and Cyrillic. The renderer now embeds IBM Plex, the family the web workspace already
+uses (reviewed above for Sprint 12), through reportlab's own `TTFont` with subsetting, so
+no new Python dependency is added. Each embedded subset holds the font's printable ASCII
+range, which ReportLab always maps (`ttfAsciiReadable`, pinned on), and every other glyph
+the report draws. ReportLab's font objects are shared by the whole process, so the renderer
+draws one report at a time.
+
+| File | Upstream | SHA-256 |
+|---|---|---|
+| `IBMPlexSans-Regular.ttf` | `@ibm/plex-sans@1.1.0`, `packages/plex-sans/fonts/complete/ttf/` | `975dcda37d80f038dcd143c22e33ca2d97a0cc5a929aace1c749153b0fe1afa5` |
+| `IBMPlexSans-Bold.ttf` | `@ibm/plex-sans@1.1.0`, same directory | `9e6c74a889a700d707613d24548fe4ffa6bc59559a0689d2cf9e133bdcdafb2f` |
+| `IBMPlexSans-Italic.ttf` | `@ibm/plex-sans@1.1.0`, same directory | `a9c6ef9942c49e49d11e11a6dacc0b3a087978757e9b22a06b8ac22a6400fb15` |
+| `IBMPlexMono-Regular.ttf` | `@ibm/plex-mono@2.5.0`, `packages/plex-mono/fonts/complete/ttf/` | `7c6fbddca4b700be918f5f6183d9bd4464fa427fe435f0b480d77fe2bb8c5a43` |
+| `OFL-1.1-IBM-Plex.txt` | `LICENSE.txt` of both packages (one file) | `7e6b2818edbd8f6a01ae80641cc8f16a51080d08fb4e532be3a0b6f74adb07da` |
+
+- **Source.** IBM's own repository, github.com/IBM/plex, at the two release tags above
+  (2024-11-13 and 2026-06-11). Each file was checked against the git blob the tag names
+  before it was vendored.
+- **Licence.** SIL Open Font License 1.1, compatible with Apache-2.0 for bundling and
+  redistribution. It asks that the copyright notice and the licence travel with the
+  fonts, so `OFL-1.1-IBM-Plex.txt` sits beside them in `src/oak/adapters/report/fonts/`,
+  ships in the wheel and the sdist with them, and is listed in `license-files`, so it is
+  also in the wheel's `.dist-info/licenses/`, and the wheel's licence is
+  `Apache-2.0 AND OFL-1.1`. The release's `THIRD-PARTY-LICENCES.md` lists packages, so it
+  names the fonts in its preamble rather than as a row; the font's notice lives with the
+  font. The name "Plex" is a Reserved Font Name: the files are
+  embedded as subsets, which the OFL permits, and not modified or redistributed renamed.
+- **Pinning.** `FONT_FILES` in `src/oak/adapters/report/pdf.py` names each file's SHA-256,
+  and the renderer refuses to draw (`OAK-REPORT-RENDER`) with a file that differs.
+  `.gitattributes` marks the directory `-text`, so git keeps the licence's CRLF bytes.
+- **Size.** About 345 KB of the wheel (787 KB installed); a typical report embeds four
+  subsets, and the reference report's PDF is about 106 KB.
+- **Coverage.** Plex Sans has Latin, Greek and Cyrillic; Plex Mono has Latin and Cyrillic.
+  Text prints as written where the font has the glyph; a compatibility character it lacks
+  prints as its plain form, and any other character as U+FFFD, which both have.
+- **Replacement boundary.** Changing the family means new files and digests in
+  `FONT_FILES`, the four names in `src/oak/adapters/report/palette.py` and this table. The
+  PDF has no structure tree; a different renderer would be the way to tag it.
 
 ## Sprint 4 web test tooling review
 
@@ -205,7 +250,8 @@ adopted and one refused.
 **ReportLab 5.0.1 (BSD-3-Clause), adopted.** It is the long-established Python PDF
 library, released on 2026-08-20 and shipped as a pure-Python wheel (`py3-none-any`). OSV
 listed no known vulnerability on 2026-10-16. OAK uses its canvas, the standard Type 1 font
-metrics and nothing else:
+metrics and nothing else (as reviewed here; since the pre-1.0 assurance batch it embeds
+the vendored IBM Plex TTFs through `TTFont` instead of the standard fonts, reviewed above):
 - no platypus layout, no embedded font, no image, no hyperlink;
 - invariant mode for a byte-stable file, with the document dates taken from the report's
   own `generated_at` rather than the clock;

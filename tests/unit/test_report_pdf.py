@@ -9,25 +9,39 @@ reads the clock, the hash seed or the process environment would only differ betw
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import os
 import re
 import subprocess
 import sys
+import threading
 from pathlib import Path
 from typing import Any
 
 import pytest
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 
 from oak.adapters.report import PdfReportRenderer, pdf
-from oak.adapters.report.pdf import CONTENT_BOTTOM, PAGE_HEIGHT, paginate, pdf_text, wrap
+from oak.adapters.report.pdf import (
+    CONTENT_BOTTOM,
+    FONT_DIRECTORY,
+    FONT_FILES,
+    MONO,
+    PAGE_HEIGHT,
+    REPLACEMENT,
+    paginate,
+    pdf_text,
+    wrap,
+)
 from oak.domain import OAKError
 from oak.domain.report import MAXIMUM_RENDERING_BYTES, PDF_MEDIA_TYPE
 from tests.report_pdf_support import parse_pdf
 from tests.report_support import GOLDEN_REPORT, GOLDEN_RESEARCH_REPORT
 
 ROOT = Path(__file__).resolve().parents[2]
-STANDARD_FONTS = {"Helvetica", "Helvetica-Bold", "Helvetica-Oblique", "Courier"}
+VENDORED_FONTS = {"IBMPlexSans", "IBMPlexSans-Bold", "IBMPlexSans-Italic", "IBMPlexMono"}
 RENDER = (
     "import hashlib, json, sys; from oak.adapters.report import PdfReportRenderer; "
     "d = json.load(open(sys.argv[1])); "
@@ -55,15 +69,27 @@ RL_SETTINGS = {
     "RL_documentLang": "fr-FR",
     "RL_canvas_basefontname": "Courier",
     "RL_defaultEncoding": "MacRomanEncoding",
+    "RL_ttfAsciiReadable": "0",
 }
 
 
-def test_two_processes_draw_the_same_bytes(rendered: bytes) -> None:
+def test_two_processes_draw_the_same_bytes(rendered: bytes, tmp_path: Path) -> None:
     here = hashlib.sha256(rendered).hexdigest()
+    # reportlab also reads `~/.reportlab_settings`, and seeds the document ID from
+    # SOURCE_DATE_EPOCH even in invariant mode (failing on a value that is not a number).
+    (tmp_path / ".reportlab_settings").write_text("ttfAsciiReadable = 0\n", encoding="utf-8")
     digests = set()
-    for seed, settings in (("1", {}), ("2", RL_SETTINGS)):
+    for seed, settings in (
+        ("1", {}),
+        ("2", {**RL_SETTINGS, "SOURCE_DATE_EPOCH": "1700000000"}),
+        ("3", {"HOME": str(tmp_path), "SOURCE_DATE_EPOCH": "now"}),
+    ):
         environment = {
-            **{key: value for key, value in os.environ.items() if not key.startswith("RL_")},
+            **{
+                key: value
+                for key, value in os.environ.items()
+                if not key.startswith("RL_") and key != "SOURCE_DATE_EPOCH"
+            },
             "PYTHONHASHSEED": seed,
             "TZ": f"Etc/GMT+{seed}",
             **settings,
@@ -105,10 +131,15 @@ def test_the_document_dates_are_the_reports_own(rendered: bytes) -> None:
     assert b"/Author (local-user)" in info
 
 
-def test_only_standard_fonts_are_named_and_none_is_embedded(rendered: bytes) -> None:
+def test_only_the_vendored_fonts_are_named_each_embedded_as_a_subset(rendered: bytes) -> None:
+    """OAK-V1-026 (RR-046): no standard font, so no reader substitutes its own."""
+
     parsed = parse_pdf(rendered)
-    assert parsed.fonts <= STANDARD_FONTS
-    assert b"/FontFile" not in rendered
+    assert parsed.fonts == VENDORED_FONTS
+    assert rendered.count(b"/FontFile2") == len(re.findall(rb"/BaseFont /[A-Z]{6}\+", rendered))
+    assert b"/ToUnicode" in rendered
+    assert b"Helvetica" not in rendered and b"Courier" not in rendered
+    assert b"oak-report-renderer 1.0.0, IBM Plex)" in parse_pdf(rendered).info
 
 
 def test_the_reference_pdf_is_well_under_four_mebibytes(rendered: bytes) -> None:
@@ -139,20 +170,144 @@ def test_an_oversized_rendering_is_refused(monkeypatch: pytest.MonkeyPatch) -> N
 
 
 def test_a_malformed_document_is_a_render_error_not_a_crash() -> None:
+    for malformed in ({"sections": [{"blocks": []}]}, {**_golden(), "sections": []}):
+        with pytest.raises(OAKError) as refused:
+            PdfReportRenderer().render(malformed, PDF_MEDIA_TYPE)
+        assert refused.value.code == "OAK-REPORT-RENDER"
+
+
+def test_concurrent_renderings_draw_the_bytes_one_rendering_draws_alone() -> None:
+    """reportlab's font objects are shared by the process; two saves at once used to read
+    each other's glyphs (a different subset, a KeyError, or an uncaught IndexError)."""
+
+    composites = "".join(
+        chr(point)
+        for point in range(0xC0, 0x2000)
+        if point in pdf.coverage(pdf.FONT) and len(chr(point).encode()) > 1
+    )
+    document = _golden()
+    document["sections"][0]["subtitle"] = composites[:600]
+    alone = PdfReportRenderer().render(document, PDF_MEDIA_TYPE)
+    results: list[bytes | BaseException] = []
+
+    def render() -> None:
+        for _ in range(3):
+            try:
+                results.append(PdfReportRenderer().render(document, PDF_MEDIA_TYPE))
+            except BaseException as error:
+                results.append(error)
+
+    interval = sys.getswitchinterval()
+    sys.setswitchinterval(1e-5)
+    try:
+        threads = [threading.Thread(target=render) for _ in range(6)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+    finally:
+        sys.setswitchinterval(interval)
+    assert len(results) == 18
+    assert all(result == alone for result in results)
+
+
+def test_a_different_font_under_a_report_fonts_name_is_refused(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """reportlab keeps the first font registered under a name, so the pin is checked.
+
+    The impostor is built from the same file so that, unchecked, it would draw without
+    error: only the check can refuse it.
+    """
+
+    impostor = TTFont(pdf.FONT, io.BytesIO(pdf.font_bytes(pdf.FONT)))
+    monkeypatch.setitem(pdfmetrics._fonts, pdf.FONT, impostor)
     with pytest.raises(OAKError) as refused:
-        PdfReportRenderer().render({"sections": [{"blocks": []}]}, PDF_MEDIA_TYPE)
+        PdfReportRenderer().render(_golden(), PDF_MEDIA_TYPE)
     assert refused.value.code == "OAK-REPORT-RENDER"
 
 
-def test_characters_outside_the_standard_fonts_print_as_question_marks() -> None:
-    # Normalised first (NFKC), so an ellipsis becomes three full stops; Windows-1252
-    # punctuation such as the em dash and curly quotes survives.
-    assert pdf_text("Café · 36 USD — “quoted” …") == "Café · 36 USD — “quoted” ..."
-    assert pdf_text("数据 → ≤ ✓") == "?? ? ? ?"
+def test_a_report_is_laid_out_without_rendering_one_first() -> None:
+    """Measuring uses the pinned fonts directly, not reportlab's registry."""
+
+    run = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import json, sys; from oak.adapters.report.pdf import paginate; "
+            "print(len(paginate(json.load(open(sys.argv[1])))))",
+            str(GOLDEN_REPORT),
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+        cwd=ROOT,
+    )
+    assert int(run.stdout) == len(paginate(_golden()))
+
+
+def test_latin_greek_and_cyrillic_print_and_anything_else_is_a_visible_replacement() -> None:
+    """OAK-V1-026 (RR-046): never `?`, never dropped; the JSON report keeps every character."""
+
+    assert pdf_text("Café · 36 USD — “quoted” …") == "Café · 36 USD — “quoted” …"
+    # As written where the font has the glyph, never folded to another character.
+    assert pdf_text("10⁵ req/s in 4 m² ½ ™ H₂O ﬁle") == "10⁵ req/s in 4 m² ½ ™ H₂O ﬁle"
+    assert pdf_text("12 µs", MONO) == "12 µs"
+    # A compatibility character the font lacks prints as its plain form.
+    assert pdf_text("\uff2f\uff21\uff2b") == "OAK"
+    # Mono has the Ohm sign, which NFC would turn into a Greek omega Mono lacks.
+    assert pdf_text("4.7 k\u2126", MONO) == "4.7 k\u2126"
+    # Lines are measured as pdf_text returns them and drawn through it again, so the
+    # result must be its own result, even where a fold composes with a following mark.
+    for text, font in (("\u01c8\u030c", pdf.FONT), ("\uff4a\u030c", pdf.FONT), ("k\u2126", MONO)):
+        assert pdf_text(pdf_text(text, font), font) == pdf_text(text, font)
+    assert pdf_text("Ελληνικά Кириллица Łódź") == "Ελληνικά Кириллица Łódź"
+    assert pdf_text("数据 report") == f"{REPLACEMENT}{REPLACEMENT} report"
+    # Plex Mono has Cyrillic but no Greek.
+    assert pdf_text("Кириллица \u03b1", MONO) == f"Кириллица {REPLACEMENT}"
+    assert pdf_text("tab\tline\nbreak\x07") == f"tab line break{REPLACEMENT}"
     document = _golden()
-    document["sections"][0]["title"] = "数据 report"
+    document["sections"][0]["title"] = "数据 Ελληνικά Кириллица report"
     text = parse_pdf(PdfReportRenderer().render(document, PDF_MEDIA_TYPE)).page_texts[0]
-    assert "?? report" in text
+    assert f"{REPLACEMENT}{REPLACEMENT} Ελληνικά Кириллица report" in text
+
+
+def test_a_vendored_font_that_does_not_match_its_pin_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    for name in FONT_FILES.values():
+        (tmp_path / name[0]).write_bytes((FONT_DIRECTORY / name[0]).read_bytes())
+    tampered = tmp_path / FONT_FILES[MONO][0]
+    tampered.write_bytes(tampered.read_bytes() + b"\0")
+    monkeypatch.setattr(pdf, "FONT_DIRECTORY", tmp_path)
+    _forget_fonts()
+    try:
+        with pytest.raises(OAKError) as refused:
+            PdfReportRenderer().render(_golden(), PDF_MEDIA_TYPE)
+        assert refused.value.code == "OAK-REPORT-RENDER"
+    finally:
+        _forget_fonts()
+
+
+def _forget_fonts() -> None:
+    """Drop the built fonts and reportlab's registration of them, as a fresh process has."""
+
+    for name in FONT_FILES:
+        registered = pdfmetrics._fonts.pop(name, None)
+        if registered is not None:
+            pdfmetrics._dynFaceNames.pop(registered.face.name, None)
+    pdf.font_bytes.cache_clear()
+    pdf.vendored_font.cache_clear()
+    pdf.coverage.cache_clear()
+
+
+def test_the_vendored_fonts_ship_with_their_licence() -> None:
+    licence = (FONT_DIRECTORY / "OFL-1.1-IBM-Plex.txt").read_text(encoding="utf-8")
+    assert "SIL Open Font License, Version 1.1" in licence
+    assert {path.name for path in FONT_DIRECTORY.iterdir()} == {
+        *(file_name for file_name, _ in FONT_FILES.values()),
+        "OFL-1.1-IBM-Plex.txt",
+    }
 
 
 def test_long_tables_continue_with_their_header_repeated() -> None:
@@ -210,22 +365,22 @@ def test_a_long_case_title_is_shortened_in_the_footer_and_the_page_count_kept() 
 
 def test_wrapping_measures_each_character_once(monkeypatch: pytest.MonkeyPatch) -> None:
     calls = 0
-    measure = pdf.stringWidth
+    measure = pdf.measure
 
     def counting(text: str, font: str, size: float) -> float:
         nonlocal calls
         calls += 1
-        return float(measure(text, font, size))
+        return measure(text, font, size)
 
-    monkeypatch.setattr(pdf, "stringWidth", counting)
+    monkeypatch.setattr(pdf, "measure", counting)
     word = "x" * 12000
-    lines = wrap(word, "Helvetica", 10, 300)
+    lines = wrap(word, pdf.FONT, 10, 300)
     assert "".join(lines) == word
-    assert all(measure(line, "Helvetica", 10) <= 300 for line in lines)
+    assert all(measure(line, pdf.FONT, 10) <= 300 for line in lines)
     assert calls <= len(word) + 2
     calls = 0
     sentence = "Because the brief says so. " * 444
-    lines = wrap(sentence, "Helvetica", 10, 300)
+    lines = wrap(sentence, pdf.FONT, 10, 300)
     assert " ".join(lines).split() == sentence.split()
     assert calls <= len(sentence.split(" ")) + 2
 
@@ -265,7 +420,7 @@ def test_the_acceptance_report_renders_with_appendix_g_on_its_pages(
     assert "Balanced, new" in text
     assert "Claimed by release notes" in text
     assert len(parsed.pages) == len(paginate(golden))
-    assert parsed.fonts <= STANDARD_FONTS
+    assert parsed.fonts == VENDORED_FONTS
     assert len(rendered_research) <= MAXIMUM_RENDERING_BYTES
 
 
@@ -281,7 +436,7 @@ def test_a_long_component_identifier_ends_in_an_ellipsis_not_a_cut() -> None:
     diagram["nodes"][0]["component"] = long_name
     rendered = PdfReportRenderer().render(document, PDF_MEDIA_TYPE)
     text = " ".join(parse_pdf(rendered).page_texts)
-    # The standard fonts print the ellipsis as three dots (see `pdf_text`), so the fitted
-    # second line ends in "..." and the identifier is never cut mid-word.
+    # A fitted line ends in three full stops (`ELLIPSIS`), and the identifier is never cut
+    # mid-word.
     assert re.search(r"x{8,}\.\.\.", text)
     assert long_name not in text

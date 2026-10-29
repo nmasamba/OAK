@@ -17,8 +17,10 @@ throwaway environment containing only the locked runtime closure, then exercised
 working directory outside this checkout, so an artifact that cannot resolve its own
 packaged schemas never gets a checksum.
 
-Artifacts are **not signed**. No maintainer signing key exists, and this release does not
-invent one. See docs/release-process.md for what the checksums do and do not prove.
+This build signs nothing. The maintainer signs `SHA256SUMS` afterwards, offline, with the
+key pinned in `keys/allowed_signers`, and `scripts/verify_release.py` checks that
+signature (RR-005); `0.7.1` and `0.9.0` were published unsigned. See
+docs/release-process.md for what the checksums and the signature do and do not prove.
 """
 
 from __future__ import annotations
@@ -266,7 +268,10 @@ def _licence_inventory(sbom_path: Path, output: Path, version: str, locked: set[
         "",
         f"# Third-party licences — OAK Community {version}",
         "",
-        "OAK Community is licensed under Apache-2.0 (see `LICENSE`). The table below is",
+        "OAK Community is licensed under Apache-2.0 (see `LICENSE`). The IBM Plex fonts",
+        "the wheel carries for the report PDF are under the SIL Open Font License 1.1",
+        "(`oak/adapters/report/fonts/OFL-1.1-IBM-Plex.txt`, also in the wheel's licence",
+        "files); they are vendored files, not a package. The table below is",
         "generated from the release SBOM and lists every package in the **runtime**",
         "dependency closure of the released wheel. Development, test, lint and build",
         "tooling is not included, because it is not distributed.",
@@ -342,11 +347,14 @@ def _write_provenance(output: Path, version: str, extra: dict[str, Any]) -> Path
             "machine": platform.machine(),
             "uv": _run(["uv", "--version"]).strip(),
         },
+        # True of this build: the signature is made after it, by the maintainer, offline.
         "signed": False,
         "signing_note": (
-            "Release artifacts are unsigned. Checksums establish that the bytes you "
-            "have match the bytes this build produced; they do not establish who "
-            "produced them. See docs/release-process.md."
+            "This build signs nothing. Checksums establish that the bytes you have match "
+            "the bytes this build produced; who released them is established by the "
+            "maintainer's signature over SHA256SUMS, made after the build and shipped as "
+            "SHA256SUMS.sig, which scripts/verify_release.py checks (0.7.1 and 0.9.0 were "
+            "published unsigned). See docs/release-process.md."
         ),
         **extra,
     }

@@ -13,7 +13,7 @@ import os
 import re
 import tempfile
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -30,6 +30,7 @@ from oak.application.design_case import (
     ModelInterpreterFactory,
 )
 from oak.application.operations import OperationService, OperationSubmission
+from oak.application.recreation import ReplayPlan, replay_plan
 from oak.application.report.service import ReportNarratorFactory, ReportResult, ReportService
 from oak.application.research import (
     ResearchPlan,
@@ -90,6 +91,21 @@ class ArtifactContent:
     reference: ArtifactReference
     kind: str
     content: bytes
+
+
+# Records only the local release service writes (sign, approve, dispatch, ingest, observe,
+# revoke); a server's own export never holds one.
+LOCAL_AUTHORITY_KINDS = frozenset(
+    {
+        "approval",
+        "dispatch_envelope",
+        "observation_record",
+        "plan_signature",
+        "revocation_manifest",
+        "revocation_notice",
+        "runner_message",
+    }
+)
 
 
 class CommunityControlPlane:
@@ -409,8 +425,9 @@ class CommunityControlPlane:
             raise OAKError("OAK-IMPORT-INVALID", "import contains no current design case")
         case_id = str(current_reference["id"])
         workspace_id = str(manifest["id"])
-        if self._workspace_id(case_id) != workspace_id:
-            raise OAKError("OAK-IMPORT-SCOPE", "import case and workspace do not match")
+        # A workspace named otherwise than from its case is a local one: its identity is not
+        # the server's, so the case is re-created below rather than restored.
+        recreate = self._workspace_id(case_id) != workspace_id
         expected_digests = {str(entry["digest"]) for entry in manifest["artifact_index"]}
         decoded: dict[str, bytes] = {}
         total = len(canonical_json_bytes(manifest))
@@ -435,6 +452,17 @@ class CommunityControlPlane:
             decoded[digest] = content
         if set(decoded) != expected_digests:
             raise OAKError("OAK-IMPORT-INVALID", "canonical export objects are incomplete")
+        if recreate:
+            return self._recreate(replay_plan(manifest, decoded), context)
+        # Restored as itself only what a server could have written: a server has no approval,
+        # signing, dispatch or runner path, so an export holding their records came from a
+        # local workspace whatever its manifest says, and would bring that authority along.
+        if {str(entry["kind"]) for entry in manifest["artifact_index"]} & LOCAL_AUTHORITY_KINDS:
+            raise OAKError(
+                "OAK-IMPORT-AUTHORITY",
+                "an export holding approvals, signatures or runner records imports only into "
+                "a local workspace",
+            )
 
         repository = self._repository_factory(workspace_id, context.tenant_id)
         duplicate = False
@@ -469,6 +497,68 @@ class CommunityControlPlane:
         return DesignResult(case=case, intent=intent, duplicate=duplicate)
 
     # ----- research at the point of design (Sprint 14, ADR-0018) ----------------------
+
+    def _recreate(self, plan: ReplayPlan, context: CommandContext) -> DesignResult:
+        """Re-create a local export's case through this server's own steps.
+
+        Each step runs under the importing command's actor and tenant, as `import`, with a
+        key derived from the import's, so a retried import converges on the same case and
+        a step the server refuses stops the replay where it stands.
+        """
+
+        def step(name: str, expected_version: str | None) -> CommandContext:
+            digest = content_digest(f"{context.idempotency_key}\n{name}".encode())
+            return replace(
+                context,
+                idempotency_key=f"import.{name}.{digest.removeprefix('sha256:')[:32]}",
+                expected_version=expected_version,
+                interface_origin="import",
+            )
+
+        created = self.create_design_case(
+            original_name=plan.original_name,
+            content=plan.content,
+            context=step("create", None),
+        )
+        case_id = str(created.case["id"])
+        service = self._design_for_case(case_id, context.tenant_id)
+        result: CreateCaseResult | DesignResult = created
+        duplicate = created.duplicate
+        try:
+            result = service.record_recreation(
+                plan.origin, step("origin", str(created.case["version"]))
+            )
+            duplicate = duplicate and result.duplicate
+            if plan.interpreted:
+                result = self.interpret(case_id, step("interpret", str(result.case["version"])))
+                duplicate = duplicate and result.duplicate
+            for index, answers in enumerate(plan.rounds, start=1):
+                result = self.confirm(
+                    case_id,
+                    {
+                        "answers_version": "0.1.0",
+                        "design_case_id": case_id,
+                        "answers": list(answers),
+                    },
+                    step(f"confirm-{index}", str(result.case["version"])),
+                )
+                duplicate = duplicate and result.duplicate
+        except OAKError as error:
+            # The case and every step before this one stand, under the server's own records;
+            # say how far the replay got rather than only the step's own refusal. A step
+            # refused because the case moved on can never pass on a retry: its expected
+            # version comes from the step before it, which a retry returns unchanged. How far
+            # the replay got is its own last step, not where another writer took the case.
+            status = str(result.case["status"])
+            raise OAKError(
+                "OAK-IMPORT-REPLAY",
+                f"the case was re-created on the server up to {status}, where the server "
+                f"refused the next replayed step ({error.code}); continue it on the server",
+                retriable=error.retriable and error.code != "OAK-EXPECTED-VERSION",
+            ) from error
+        # What the import's own last step recorded, not the case as it stands now: a retried
+        # import of a case the user has carried on since returns what the import did.
+        return service.recorded(result.case, duplicate=duplicate)
 
     @_case_scoped
     def research_plan(self, case_id: str, *, tenant_id: str) -> ResearchPlan:

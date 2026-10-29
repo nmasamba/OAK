@@ -582,6 +582,67 @@ class DesignCaseService:
             duplicate=committed.duplicate,
         )
 
+    def record_recreation(self, origin: dict[str, Any], context: CommandContext) -> DesignResult:
+        """Record that a server re-created this case from a local export, and from which.
+
+        The origin is provenance only: the local workspace, case, version and digest the
+        export named. It grants nothing, and the case's status does not change.
+        """
+
+        input_digest = self._request_digest(context, {"recreated_from": origin})
+        context = self._normalized_context(context, "recreate", input_digest)
+        self._check_context(context)
+        manifest = self._repository.manifest()
+        if manifest["tenant_id"] != context.tenant_id:
+            raise OAKError("OAK-TENANT-MISMATCH", "workspace tenant does not match command")
+        duplicate_case = self._repository.idempotent_case(context.idempotency_key, input_digest)
+        if duplicate_case is not None:
+            return DesignResult(case=duplicate_case, intent=None, duplicate=True)
+        current_document = self._require_case()
+        current = DesignCase.from_document(current_document)
+        extensions = copy.deepcopy(current.extensions or {})
+        extensions["oak.community/recreated_from"] = copy.deepcopy(origin)
+        successor = current.revise(
+            status=current.status, updated_at=context.occurred_at, extensions=extensions
+        )
+        sequence = len(manifest["audit_events"]) + 1
+        event_document = audit_event_document(
+            sequence=sequence,
+            previous_event_digest=manifest["audit_events"][-1]["digest"],
+            case_id=successor.id,
+            case_version=successor.version,
+            event_type="workspace_imported",
+            actor=context.actor,
+            tenant_id=context.tenant_id,
+            interface_origin=context.interface_origin,
+            correlation_id=context.correlation_id,
+            idempotency_key=context.idempotency_key,
+            input_digest=input_digest,
+            occurred_at=context.occurred_at,
+            intent_ref=None,
+            source_record_ref=None,
+            extensions={"oak.community/recreated_from": copy.deepcopy(origin)},
+        )
+        event_artifact = self._audit_artifact(event_document, sequence)
+        successor = successor.with_audit_head(event_artifact.digest)
+        case_artifact = self._case_artifact(successor)
+        committed = self._repository.commit(
+            build_workspace_mutation(
+                workspace_id=str(manifest["id"]),
+                expected_case_version=context.expected_version,
+                idempotency_key=context.idempotency_key,
+                input_digest=input_digest,
+                artifacts=(event_artifact, case_artifact),
+                current_case_ref=case_artifact.reference,
+                event_artifact=event_artifact,
+                event_document=event_document,
+                updated_at=context.occurred_at,
+            )
+        )
+        return DesignResult(
+            case=committed.case_document, intent=None, duplicate=committed.duplicate
+        )
+
     def optional_proposal(
         self, adapter: ModelInterpreterPort, limits: ProposalLimits
     ) -> dict[str, Any]:
@@ -688,9 +749,13 @@ class DesignCaseService:
         self._repository.import_from(source)
 
     def current(self) -> DesignResult:
-        case = self._require_case()
+        return self.recorded(self._require_case(), duplicate=False)
+
+    def recorded(self, case: dict[str, Any], *, duplicate: bool) -> DesignResult:
+        """A result for a case version this workspace recorded, with the intent it names."""
+
         intent = self._intent_for_case(case) if isinstance(case.get("intent_ref"), dict) else None
-        return DesignResult(case=case, intent=intent, duplicate=False)
+        return DesignResult(case=case, intent=intent, duplicate=duplicate)
 
     def _require_case(self) -> dict[str, Any]:
         case = self._repository.current_case()

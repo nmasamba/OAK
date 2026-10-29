@@ -1,0 +1,35 @@
+{
+  "check-linux-x86_64": {
+    "PostgreSQL outbox assertion": 1,
+    "PostgreSQL portability assertion": 1,
+    "PostgreSQL-specific normalized transaction assertion": 1,
+    "PostgreSQL/file application parity assertion": 1,
+    "the optional opa binary is not installed; the built-in engine is authoritative": 7,
+    "the original spec repo is not checked out beside this one": 1
+  },
+  "check-linux-arm64": {
+    "PostgreSQL outbox assertion": 1,
+    "PostgreSQL portability assertion": 1,
+    "PostgreSQL-specific normalized transaction assertion": 1,
+    "PostgreSQL/file application parity assertion": 1,
+    "the optional opa binary is not installed; the built-in engine is authoritative": 7,
+    "the original spec repo is not checked out beside this one": 1
+  },
+  "check-macos-arm64": {
+    "OAK_TEST_DATABASE_URL is required for PostgreSQL contract tests": 7,
+    "OAK_TEST_DATABASE_URL is required for PostgreSQL directory tests": 2,
+    "OAK_TEST_DATABASE_URL is required for PostgreSQL operation tests": 5,
+    "OAK_TEST_DATABASE_URL is required for PostgreSQL restore tests": 3,
+    "OAK_TEST_DATABASE_URL is required for interface conformance tests": 1,
+    "OAK_TEST_DATABASE_URL is required for persistent API tests": 4,
+    "OAK_TEST_DATABASE_URL is required for the MCP handshake e2e test": 1,
+    "OAK_TEST_DATABASE_URL is required for the readiness revision tests": 7,
+    "PostgreSQL outbox assertion": 1,
+    "PostgreSQL portability assertion": 1,
+    "PostgreSQL-specific normalized transaction assertion": 1,
+    "PostgreSQL/file application parity assertion": 1,
+    "a reachable docker daemon with the stand-in image cached": 2,
+    "the optional opa binary is not installed; the built-in engine is authoritative": 7,
+    "the original spec repo is not checked out beside this one": 1
+  }
+}

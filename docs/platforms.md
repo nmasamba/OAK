@@ -35,18 +35,23 @@ paths: the CLI journey inside a linux/amd64 image, and the Compose control plane
 arm64 through a full backup-and-restore. The `0.8.0` and `0.7.0` rehearsals
 ([release/0.8.0/clean-room.md](release/0.8.0/clean-room.md),
 [release/0.7.0/clean-room.md](release/0.7.0/clean-room.md)) are kept as earlier records.
-"Expected" means every dependency publishes a wheel or image for the platform but nobody ran
-it end to end; treat it as unsupported until someone does and records it. A row is downgraded
+"Verified in CI" means a CI job runs that path's tests on that platform on every push; the
+notes name the job, and its skips are counted by reason against
+[`tests/expected-skips.json`](../tests/expected-skips.json), so a skip that widens fails the
+job rather than passing quietly. "Expected" means every dependency publishes a wheel or image
+for the platform but nobody ran it end to end; treat it as unsupported until someone does and
+records it. A row is downgraded
 to "Expected" rather than argued up — the Linux x86_64 control-plane row is Expected because
-CI never starts Compose or the installed services: it runs the PostgreSQL-gated suites
-against a database service, in process, which is not the control plane an operator runs.
+CI starts the Compose stack only as the browser suite's throwaway fixture, never as an
+installation an operator runs, and runs the PostgreSQL-gated suites against a database
+service, in process.
 
 | OS | Architecture | CLI only | Control plane | Signed runner | Notes |
 |---|---|---|---|---|---|
-| macOS 11+ | arm64 (Apple silicon) | Verified | Verified | Verified | The development and rehearsal platform. All three paths exercised by `make check` and the release rehearsal |
+| macOS 11+ | arm64 (Apple silicon) | Verified in CI | Verified | Verified | The development and rehearsal platform. CI's `check-macos-arm64` job runs `make check` on `macos-15` in a virtual environment it asserts is `macosx-11.0-arm64`. GitHub's macOS runners have no Docker and no service containers, so that job skips the PostgreSQL-gated suites and the real-daemon runner journeys (30 and 2 tests, counted): the control-plane and signed-runner paths are verified by the release rehearsal, not CI |
 | macOS | x86_64 (Intel) | **Not supported** | **Not supported** | **Not supported** | `cryptography` ≥ 49 publishes no macOS x86_64 wheel and there is no vendored Rust toolchain, so dependency installation fails outright. This includes a Rosetta interpreter on Apple silicon |
-| Linux (glibc) | x86_64 | Verified | Expected | Expected | **glibc ≥ 2.27**, set by `Pillow` (`manylinux_2_27_x86_64`), which ReportLab requires for the architecture report (Sprint 13); before that the floor was 2.24, set by `greenlet`, and `cryptography` and `psycopg-binary` would allow 2.17. CI runs `make check` on `ubuntu-latest`, and the rehearsal ran the reference CLI journey inside the `linux/amd64` image (Debian 13, glibc 2.41). The control-plane row is *not* verified here: CI runs the PostgreSQL-gated suites against a database service, but never starts Compose or the installed services (`RR-014`) |
-| Linux (glibc) | aarch64 | Verified | Verified | Expected | **glibc ≥ 2.27**, set by `psycopg-binary` and `Pillow` (both `manylinux_2_27_aarch64`); `greenlet` allows 2.24. The Compose stack — API, worker, migrations, web — runs as Linux aarch64 containers on the rehearsal machine and was exercised end to end, including a backup and restore of both state stores. The control-plane row therefore has a higher glibc floor than x86_64 |
+| Linux (glibc) | x86_64 | Verified in CI | Expected | Verified in CI | **glibc ≥ 2.27**, set by `Pillow` (`manylinux_2_27_x86_64`), which ReportLab requires for the architecture report (Sprint 13); before that the floor was 2.24, set by `greenlet`, and `cryptography` and `psycopg-binary` would allow 2.17. CI's `check` job runs `make check` on `ubuntu-latest`, in a virtual environment it asserts is `linux-x86_64`, the real-daemon runner journeys included (the signed read-only dispatch, signed apply and rollback of the fixture container, and the install-test-observe-remove demonstration, through the installed `oak` and `oak-runner`), and the rehearsal ran the reference CLI journey inside the `linux/amd64` image (Debian 13, glibc 2.41). The control-plane row is *not* verified here: CI runs the PostgreSQL-gated suites against a database service, and its `web-e2e` job drives the browser against a Compose stack built from the commit, but that stack is a test fixture, not an installation an operator runs |
+| Linux (glibc) | aarch64 | Verified in CI | Verified | Verified in CI | **glibc ≥ 2.27**, set by `psycopg-binary` and `Pillow` (both `manylinux_2_27_aarch64`); `greenlet` allows 2.24. The Compose stack — API, worker, migrations, web — runs as Linux aarch64 containers on the rehearsal machine and was exercised end to end, including a backup and restore of both state stores. The control-plane row therefore has a higher glibc floor than x86_64. CI's `check-linux-arm64` job runs `make check` on `ubuntu-24.04-arm` in a `linux-aarch64` virtual environment, the PostgreSQL-gated suites and the real-daemon runner journeys included, and builds both images natively for arm64; the control-plane row stays verified by rehearsal, because CI starts no Compose installation there |
 | Linux (musl, e.g. Alpine) | x86_64, aarch64 | Expected | Expected | Expected | musl 1.2 wheels exist for every native dependency, `Pillow` included |
 | Linux (glibc) | armv7l (32-bit ARM) | **Not supported** | **Not supported** | **Not supported** | `cryptography` publishes a `manylinux_2_31_armv7l` wheel but `psycopg-binary` publishes no armv7l wheel **and no sdist**, so there is no server path at any build cost. Since Sprint 13 `Pillow`, which ReportLab requires, publishes no armv7l wheel either. It does ship an sdist, so the CLI and the runner may build with a C toolchain and the image libraries, but that is unsupported |
 | Windows | any | **Not supported** | **Not supported** | **Not supported** | `src/oak/adapters/persistence/file_workspace.py` imports `fcntl` at module scope for workspace locking. The import fails on Windows before anything else runs. WSL2 is Linux and follows the Linux rows |
@@ -77,6 +82,9 @@ Three of the native dependencies behave very differently below their floor:
   `tools/check_repository.py`, which shells out to `git check-ignore`, so the gate needs a real
   working tree. Using the released sdist outside a checkout is fine for *running* OAK; it is
   not enough for running the repository gates.
+- **`ssh-keygen`** (OpenSSH 8.2 or later) for the gate too: the release-verification tests
+  sign with throwaway keys. macOS and most Linux systems include it; a slim container may
+  need `openssh-client`.
 
 On macOS, confirm the interpreter is arm64 before anything else — an Intel or Rosetta
 interpreter cannot install the dependency set at all:
@@ -121,7 +129,9 @@ It must print `macosx-11.0-arm64`. If it does not, recreate the environment with
 pnpm --dir web exec playwright install --with-deps chromium
 ```
 
-`make web-e2e` is not part of `make check`.
+`make web-e2e` is not part of `make check`. CI's `web-e2e` job runs it on `ubuntu-latest`
+(x86_64) on every push, and the release workflow's on every release run, through the script behind
+`make web-e2e-isolated` ([development.md](development.md#browser-end-to-end)).
 
 ## Kubernetes
 
@@ -162,8 +172,12 @@ Node never reaches a build. That closes the defect `RR-034` recorded: the `0.7.0
 rehearsal built on Node 22.17.1 against a 24.18.0 pin with every declaration-only gate
 green.
 
-CI (`.github/workflows/ci.yml`) runs `ubuntu-latest` x86_64 only. It has no macOS job, no
-arm64 job, and it builds no container image. The macOS arm64 rows in the table above are
-verified by local rehearsal, recorded in [release/0.9.0/](release/0.9.0/clean-room.md), not by automation —
-so a dependency bump that breaks macOS will not be caught until someone runs it. This is
-recorded as `RR-014`.
+CI (`.github/workflows/ci.yml`) runs `make check` on three platforms: `ubuntu-latest` x86_64
+(`check`), `macos-15` on Apple silicon (`check-macos-arm64`) and `ubuntu-24.04-arm`
+(`check-linux-arm64`), which also builds both container images natively for arm64; the
+`web-e2e` job builds them for x86_64 and drives the browser suite. Each `check` job fails
+unless its skips, by reason and count, are the ones `tests/expected-skips.json` lists for it.
+The macOS job cannot run the PostgreSQL suites or the Docker journeys, because GitHub's macOS
+runners have neither Docker nor service containers, so the macOS control-plane and
+signed-runner rows stay verified by the release rehearsal
+([release/0.9.0/](release/0.9.0/clean-room.md)). `RR-014` records what closed.

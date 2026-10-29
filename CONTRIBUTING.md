@@ -46,8 +46,10 @@ make bootstrap
 make check
 ```
 
-You need Python 3.13.12, `uv` 0.10.x, Node.js 24.18.0, `pnpm` 11.15.1 — and `git`, which
-is not obvious: `make check` shells out to `git check-ignore`. [platforms.md](docs/platforms.md)
+You need Python 3.13.12, `uv` 0.10.x, Node.js 24.18.0, `pnpm` 11.15.1 — and two that are
+not obvious: `git`, because `make check` shells out to `git check-ignore`, and
+`ssh-keygen` (OpenSSH 8.2 or later), because the release-verification tests sign with
+throwaway keys. [platforms.md](docs/platforms.md)
 has the full matrix, including the macOS arm64 requirement that will otherwise waste an hour.
 
 **`make check` reports success wrongly when backgrounded.** Verify it by counting `make: ***`
@@ -111,21 +113,23 @@ replaceable and owned by its own project. OAK compiles *to* them; it doesn't abs
 **Where OAK runs**
 
 - Record the first rehearsal of the Linux x86_64 control plane. That row of
-  [platforms.md](docs/platforms.md) is still "Expected" because nobody has run it.
-- Add CI jobs for macOS and arm64 (`RR-014`).
+  [platforms.md](docs/platforms.md) is still "Expected": CI starts the Compose stack there
+  only as the browser suite's throwaway fixture, never as an installation an operator runs.
+- Run the PostgreSQL suites and the runner's Docker journeys on macOS in CI. GitHub's macOS
+  runners have neither Docker nor service containers, so `check-macos-arm64` skips them.
 - Native Windows support starts with replacing the Unix-only `fcntl` workspace lock.
 - Let the runner reach rootless Docker, Colima or Podman (`RR-013`). **Discuss first**,
   because it touches the runner's hardening.
 
 **Operations and supply chain**
 
-- Logging and metrics that leak nothing (`RR-015`). **Discuss first**, because of the data
-  boundary.
+- Metrics that leak nothing (`RR-015`'s open clause; the logs already do, from an
+  allowlist). **Discuss first**, because of the data boundary.
 - A file-workspace format migration before the format ever changes (`RR-017`).
 - Byte-reproducible container images (`RR-006`), and bounding how workspace reads grow
   with history (`RR-030`).
-- Release signing (`RR-005`) needs a named key holder, which is a maintainer decision. The
-  tooling around it can still be prepared.
+- Release signing (`RR-005`): the verifier requires an SSH signature on every release after `0.9.0`; the
+  key itself is the maintainer's to create and pin in `keys/allowed_signers`.
 
 **Bigger directions (discuss first)**
 
@@ -161,12 +165,22 @@ invented marker fails collection. Shared harnesses are `tests/runner_support.py`
 (`build_compiled_case` drives the whole reference journey) and `tests/mcp_support.py`
 (file-backed control plane, in-memory operation store, `MCPClient`).
 
-**The PostgreSQL suites skip silently.** Roughly twenty tests — all but one under `tests/integration`, plus the installed-MCP handshake in `tests/e2e/test_mcp_interface.py` — are gated on
+**The PostgreSQL suites skip silently.** Thirty tests — all but one under `tests/integration`, plus the installed-MCP handshake in `tests/e2e/test_mcp_interface.py` — are gated on
 `OAK_TEST_DATABASE_URL`, and a skip looks exactly like a pass in the summary line, so a run
 without it ends by counting the tests it skipped. CI's `check` job and the release
 workflow's gate set it: each runs a PostgreSQL service and migrates it first, and
 `make toolchain-check` refuses either without them. A sprint's closing `make check` runs
-them too. To run them locally:
+them too.
+
+**Every CI job's skips are pinned.** Each `check` job, and the release gate, counts the
+tests it skipped by reason against [`tests/expected-skips.json`](tests/expected-skips.json)
+and fails on any difference (`scripts/check_skips.py`). A new test gated on
+`OAK_TEST_DATABASE_URL` or a real Docker daemon raises the macOS row's count for its reason
+(that job has neither); a new skip reason, or a test behind the OPA or spec-repo gates,
+needs its count in every row whose job skips it. Run the gate with
+`rm -f /tmp/skips.jsonl; OAK_SKIP_LEDGER=/tmp/skips.jsonl make check` (the ledger is appended
+to, across the gate's three test runs), then
+`python3 scripts/check_skips.py /tmp/skips.jsonl <job>` to see what a job would count. To run them locally:
 
 ```bash
 cat > compose.override.yaml <<'YML'
