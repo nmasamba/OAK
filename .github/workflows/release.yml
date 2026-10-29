@@ -3,9 +3,11 @@
 # Release build. Deliberately separate from ci.yml: the `check` job's green signal is
 # load bearing and this workflow does not touch it.
 #
-# It exists because ci.yml builds the wheel and sdist and then discards them, and never
-# builds a container image at all — the blind spot that left the API image unbuildable
-# from Sprint 6 until 2026-08-20 without any gate noticing.
+# It exists because ci.yml builds the wheel and sdist and then discards them, and keeps no
+# evidence of the container images it builds (the browser suite's Compose project and the
+# arm64 job's native builds): before those, a blind spot left the API image unbuildable
+# from Sprint 6 until 2026-08-20 without any gate noticing. This workflow builds the
+# release's own artifacts and images and the evidence describing them.
 #
 # This workflow publishes nothing. It produces artifacts and the evidence describing
 # them; the decision to publish anywhere is a separate, human one.
@@ -39,6 +41,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - run: corepack enable
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -92,6 +96,10 @@ jobs:
       - name: Bootstrap from the committed lockfiles
         run: make bootstrap
 
+      # The gate's skips are counted against CI's x86_64 row; this proves where it ran.
+      - name: Assert the venv is linux-x86_64
+        run: uv run python -c "import sysconfig, sys; platform = sysconfig.get_platform(); print(platform); sys.exit(platform != 'linux-x86_64')"
+
       # The runner journeys never pull their image themselves (tests need no network).
       - name: Fetch the runner journeys' stand-in image
         run: docker pull docker.io/rancher/mirrored-pause@sha256:ee6521f290b2168b6e0935a181d4cff9be1ac3f505666ef0e3c98fae8199917a
@@ -115,8 +123,8 @@ jobs:
         run: make release
 
       # The checksums only: the maintainer signs SHA256SUMS offline after this build, so a
-      # signature cannot exist yet. Consumers run `make verify-release`, which requires one
-      # from 1.0.0 on (RR-005, docs/release-process.md).
+      # signature cannot exist yet. Consumers run the verifier without the flag, which
+      # requires one for every release after 0.9.0 (RR-005, docs/release-process.md).
       - name: Verify the artifacts against their checksums, before signing
         run: uv run python scripts/verify_release.py --checksums-only dist/release
 
@@ -143,8 +151,9 @@ jobs:
         id: version
         run: echo "value=$(cat VERSION)" >> "$GITHUB_OUTPUT"
 
-      # Building alone is the point: nothing else in CI proves the images build, and a
-      # force-included directory missing from the build context has broken them before.
+      # The release's own images, built and scanned for its evidence. CI builds them too
+      # (web-e2e and check-linux-arm64), but a force-included directory missing from the
+      # build context has broken them before, and this is the build the evidence names.
       - name: Build the API image
         run: |
           docker buildx build \

@@ -33,15 +33,15 @@ CI and container builds are the reproducible builder boundary. They pin `uv` 0.1
 | `make scan-images` | Build and scan both container images, failing on any **fixable** CRITICAL or HIGH. Needs Docker and network; see [release-process.md](release-process.md) |
 | `make check` | Run the repository gate. It changes nothing in the tree; when a Docker daemon answers, `make test-e2e` also creates and removes containers on it (see below) |
 | `make release` | Build the release artifacts, SBOM, licence inventory and checksums; see [release-process.md](release-process.md) |
-| `make verify-release` | Verify a release directory against its `SHA256SUMS` |
+| `make verify-release` | Verify a signed release in `dist/release` against its `SHA256SUMS` and `SHA256SUMS.sig`; a build you just made is unsigned, so check it with `uv run python scripts/verify_release.py --checksums-only dist/release` |
 | `make clean` | Empty the `uv` cache |
 | `make clean-all` | Remove every build artifact, virtual environment and cache in the tree. It does **not** touch a `.oak` workspace — that is your data; see [operations.md](operations.md#uninstall) |
 
-The bootstrap step may use the public package registries, and downloads the pinned Node.js runtime for pnpm on first use. After dependencies are installed, `make check` requires no hosted service, credentials, model provider, database, or public network: the runner journeys that drive a real Docker daemon use the pinned stand-in image `docker.io/rancher/mirrored-pause:3.10` only if it is already cached, and are skipped otherwise (`docker pull docker.io/rancher/mirrored-pause@sha256:ee6521f290b2168b6e0935a181d4cff9be1ac3f505666ef0e3c98fae8199917a` once to run them; CI does this as a setup step). It does require `git`: `tools/check_repository.py` shells out to `git check-ignore`.
+The bootstrap step may use the public package registries, and downloads the pinned Node.js runtime for pnpm on first use. After dependencies are installed, `make check` requires no hosted service, credentials, model provider, database, or public network: the runner journeys that drive a real Docker daemon use the pinned stand-in image `docker.io/rancher/mirrored-pause:3.10` only if it is already cached, and are skipped otherwise (`docker pull docker.io/rancher/mirrored-pause@sha256:ee6521f290b2168b6e0935a181d4cff9be1ac3f505666ef0e3c98fae8199917a` once to run them; CI does this as a setup step). It does require `git`: `tools/check_repository.py` shells out to `git check-ignore`; and `ssh-keygen` (OpenSSH 8.2 or later), because the release-verification tests sign with throwaway keys.
 
 **`make check` reports success wrongly when backgrounded.** Verify it by counting `make: ***` lines in its output rather than by its exit code.
 
-**The PostgreSQL-gated integration suites skip silently.** Around twenty integration tests need `OAK_TEST_DATABASE_URL`, and a skip is indistinguishable from a pass in the summary line. `compose.yaml` publishes no host port for PostgreSQL, so run them like this:
+**The PostgreSQL-gated integration suites skip silently.** Thirty tests need `OAK_TEST_DATABASE_URL` (29 integration tests and the installed-MCP handshake), and a skip is indistinguishable from a pass in the summary line; CI counts each job's skips against `tests/expected-skips.json` (see `CONTRIBUTING.md`). `compose.yaml` publishes no host port for PostgreSQL, so run them like this:
 
 ```bash
 cat > compose.override.yaml <<'YML'

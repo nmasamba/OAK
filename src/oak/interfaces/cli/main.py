@@ -947,6 +947,17 @@ def import_workspace(
                 if isinstance(extensions, dict)
                 else None
             )
+            # Re-created from this export only if the origin the server recorded is this
+            # export's own case: a server export of a case once re-created elsewhere carries
+            # an origin too, and is restored as itself. The workspace named is the one in
+            # this export's manifest, which the server validated, never the case's text.
+            manifest = export_document["manifest"]
+            current = manifest.get("current_case_ref")
+            recreated = (
+                isinstance(origin, dict)
+                and isinstance(current, dict)
+                and origin.get("case_digest") == current.get("digest")
+            )
             reference = (
                 f"{remote_mode.require_field(case, 'id')}@"
                 f"{remote_mode.require_field(case, 'version')}"
@@ -955,10 +966,10 @@ def import_workspace(
                 {"case": case, "intent": result_document.get("intent")},
                 output,
                 human=(
-                    f"Re-created {reference} from {origin.get('workspace_id')}: its brief and "
-                    "confirmed answers, through the server's own steps; run the later steps "
-                    "again on the server"
-                    if isinstance(origin, dict)
+                    f"Re-created {reference} from {manifest['id']}: its brief and confirmed "
+                    "answers, through the server's own steps; run the later steps again on "
+                    "the server"
+                    if recreated
                     else f"Imported {reference}"
                 ),
             )

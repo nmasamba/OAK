@@ -319,6 +319,6 @@ def _read_document(path: Path) -> dict[str, Any] | None:
         if path.stat().st_size > MAXIMUM_DOCUMENT_BYTES:
             return None
         document = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+    except (OSError, RecursionError, ValueError):
         return None
     return document if isinstance(document, dict) else None

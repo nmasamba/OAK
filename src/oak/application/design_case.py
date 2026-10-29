@@ -749,9 +749,13 @@ class DesignCaseService:
         self._repository.import_from(source)
 
     def current(self) -> DesignResult:
-        case = self._require_case()
+        return self.recorded(self._require_case(), duplicate=False)
+
+    def recorded(self, case: dict[str, Any], *, duplicate: bool) -> DesignResult:
+        """A result for a case version this workspace recorded, with the intent it names."""
+
         intent = self._intent_for_case(case) if isinstance(case.get("intent_ref"), dict) else None
-        return DesignResult(case=case, intent=intent, duplicate=False)
+        return DesignResult(case=case, intent=intent, duplicate=duplicate)
 
     def _require_case(self) -> dict[str, Any]:
         case = self._repository.current_case()

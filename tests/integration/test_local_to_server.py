@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import base64
 import json
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -32,6 +33,7 @@ from tests.runner_support import ROOT, build_compiled_case
 pytestmark = pytest.mark.integration
 
 NOW = "2026-10-28T12:00:00Z"
+LATER = "2026-10-28T12:01:00Z"
 CASE_ID = "design-case.public-manual-qa"
 
 
@@ -72,6 +74,10 @@ def _server(tmp_path: Path) -> CommunityControlPlane:
 
 def _events(plane: CommunityControlPlane) -> list[dict[str, Any]]:
     return list(plane.list_audit_events(CASE_ID, tenant_id="local"))
+
+
+def _user_step(context: CommandContext, expected_version: str) -> CommandContext:
+    return replace(context, expected_version=expected_version)
 
 
 def _refused_with(plane: CommunityControlPlane, document: dict[str, Any], code: str) -> None:
@@ -380,6 +386,85 @@ def test_a_malformed_object_is_a_stable_refusal_not_an_internal_error(tmp_path: 
     _refused_with(_server(tmp_path), exported, "OAK-IMPORT-REPLAY")
 
 
+def test_a_deeply_nested_object_is_a_stable_refusal_not_an_internal_error(
+    tmp_path: Path,
+) -> None:
+    """A document nested past the interpreter's recursion limit is refused with a code."""
+
+    exported = _local_export(tmp_path)
+    content = b'{"a":' + b"[" * 50_000 + b"]" * 50_000 + b"}"
+    digest = content_digest(content)
+    entry = next(
+        entry for entry in exported["manifest"]["artifact_index"] if entry["kind"] == "design_case"
+    )
+    exported["manifest"]["artifact_index"].append(
+        {**entry, "id": "design-case.forged", "digest": digest, "size_bytes": len(content)}
+    )
+    exported["objects"].append(
+        {"digest": digest, "content_base64": base64.b64encode(content).decode("ascii")}
+    )
+    exported["objects"].sort(key=lambda item: item["digest"])
+
+    _refused_with(_server(tmp_path), exported, "OAK-IMPORT-REPLAY")
+
+
+def test_an_import_whose_case_moved_on_between_steps_says_so_and_is_not_retriable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A first attempt died after creating the case, and a user carried it on before the
+    retry: the origin step's version no longer holds, and no retry could pass it."""
+
+    from oak.application.design_case import DesignCaseService
+
+    exported = _local_export(tmp_path)
+    plane = _server(tmp_path)
+
+    def died(*_: Any, **__: Any) -> Any:
+        raise OAKError("OAK-STORE-UNAVAILABLE", "the store went away", retriable=True)
+
+    with monkeypatch.context() as patched:
+        patched.setattr(DesignCaseService, "record_recreation", died)
+        with pytest.raises(OAKError) as first:
+            plane.import_design_case(exported, context=_context("moved"))
+    assert first.value.code == "OAK-IMPORT-REPLAY" and first.value.retriable is True
+    created = plane.get_design_case(CASE_ID, tenant_id="local").case
+    user = _context("user")
+    plane.interpret(CASE_ID, _user_step(user, str(created["version"])))
+
+    with pytest.raises(OAKError) as again:
+        plane.import_design_case(exported, context=_context("moved"))
+
+    assert again.value.code == "OAK-IMPORT-REPLAY"
+    assert "OAK-EXPECTED-VERSION" in again.value.message
+    assert again.value.retriable is False
+
+
+def test_a_retried_import_returns_what_it_recorded_not_where_the_case_went_since(
+    tmp_path: Path,
+) -> None:
+    """The user generated candidates after the import; the retry returns the import's case,
+    which the remote CLI then names, not the user's later one."""
+
+    from oak.application import OperationWorker
+
+    exported = _local_export(tmp_path)
+    plane, store = build_file_control_plane(tmp_path / "server")
+    first = plane.import_design_case(exported, context=_context("returned"))
+    plane.submit_generate_candidates(
+        CASE_ID, _user_step(_context("carried-on"), str(first.case["version"]))
+    )
+    worker = OperationWorker(store, {"generate_candidates": plane.execute_operation})
+    assert worker.run_once(worker_id="test-worker", now=NOW, lease_expires_at=LATER) is not None
+    later = plane.get_design_case(CASE_ID, tenant_id="local").case
+    assert later["version"] != first.case["version"]
+
+    again = plane.import_design_case(exported, context=_context("returned"))
+
+    assert again.duplicate is True
+    assert again.case == first.case
+    assert again.intent == first.intent
+
+
 def test_the_recorded_origin_comes_from_the_manifest_not_the_case_document(
     tmp_path: Path,
 ) -> None:
@@ -462,3 +547,32 @@ def test_the_remote_cli_says_it_recreated_the_case(tmp_path: Path) -> None:
     assert result.exit_code == 0, result.output
     assert f"Re-created {CASE_ID}@" in result.output
     assert "from workspace.fixture" in result.output
+
+
+def test_the_remote_cli_says_it_imported_a_server_export_of_a_recreated_case(
+    tmp_path: Path,
+) -> None:
+    """A case re-created on one server and exported from it is restored as itself on the
+    next, with the origin it already carried: that is an import, not a re-creation."""
+
+    from oak.interfaces.cli.main import app as cli_app
+    from oak.interfaces.cli.remote import write_export_directory
+    from tests.integration.test_remote_cli import _LiveServer, runner
+
+    first = _server(tmp_path / "first")
+    first.import_design_case(_local_export(tmp_path), context=_context("first-server"))
+    write_export_directory(
+        tmp_path / "server-export", first.export_design_case(CASE_ID, tenant_id="local")
+    )
+    server = _LiveServer(tmp_path / "live")
+    server.start()
+    try:
+        result = runner.invoke(
+            cli_app, ["--server", server.url, "import", str(tmp_path / "server-export")]
+        )
+    finally:
+        server.stop()
+
+    assert result.exit_code == 0, result.output
+    assert f"Imported {CASE_ID}@" in result.output
+    assert "Re-created" not in result.output

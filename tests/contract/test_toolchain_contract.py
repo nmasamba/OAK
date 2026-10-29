@@ -637,3 +637,114 @@ def test_a_check_job_that_may_fail_quietly_is_rejected(tmp_path: Path) -> None:
     assert (
         "CI workflow: the check-macos-arm64 job must count its skips against check-macos-arm64"
     ) in failures
+
+
+_SUITE_COMMAND = (
+    'python3 scripts/run_browser_suite.py --project "oak-e2e-${{ github.run_id }}-'
+    '${{ github.run_attempt }}" --commit "${{ github.sha }}"'
+)
+_X86_SKIPS = 'python3 scripts/check_skips.py "${{ runner.temp }}/skips.jsonl" check-linux-x86_64'
+_MAC_ASSERT = "sys.exit(platform != 'macosx-11.0-arm64')\""
+_CHECKOUT_OFF = (
+    "      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1\n"
+    "        with:\n          persist-credentials: false\n"
+)
+
+
+@pytest.mark.parametrize(
+    ("workflow", "original", "replacement", "failure"),
+    [
+        (
+            "ci.yml",
+            _SUITE_COMMAND,
+            _SUITE_COMMAND + " || true",
+            "CI workflow: the web-e2e job must run scripts/run_browser_suite.py",
+        ),
+        (
+            "ci.yml",
+            _SUITE_STEP,
+            _SUITE_STEP + '        shell: "true {0}"\n',
+            "CI workflow: the web-e2e job must run scripts/run_browser_suite.py",
+        ),
+        (
+            "ci.yml",
+            _X86_SKIPS,
+            _X86_SKIPS + " || echo check-linux-x86_64",
+            "CI workflow: the check job must count its skips against check-linux-x86_64",
+        ),
+        (
+            "ci.yml",
+            _MAC_ASSERT,
+            _MAC_ASSERT + " || echo macosx-11.0-arm64",
+            "CI workflow: the check-macos-arm64 job must assert a macosx-11.0-arm64 venv",
+        ),
+        (
+            "ci.yml",
+            "  check-macos-arm64:\n    runs-on: macos-15\n",
+            "  check-macos-arm64:\n    runs-on: macos-15\n    needs: web-e2e\n",
+            "CI workflow: the check-macos-arm64 job must not wait on another job",
+        ),
+        (
+            "ci.yml",
+            "  check-linux-arm64:\n    runs-on: ubuntu-24.04-arm\n",
+            "  check-linux-arm64:\n    runs-on: ubuntu-24.04-arm\n"
+            '    defaults:\n      run:\n        shell: "true {0}"\n',
+            "CI workflow: the check-linux-arm64 job must count its skips against check-linux-arm64",
+        ),
+        (
+            "ci.yml",
+            "  check:\n    runs-on: ubuntu-latest\n",
+            "  check:\n    runs-on: ubuntu-24.04-arm\n",
+            "CI workflow: the check job must run on ubuntu-latest",
+        ),
+        (
+            "release.yml",
+            "    runs-on: ubuntu-latest\n    needs: web-e2e\n    # The gate below",
+            "    runs-on: ubuntu-24.04-arm\n    needs: web-e2e\n    # The gate below",
+            "release workflow: the artifacts job must run on ubuntu-latest",
+        ),
+        (
+            "release.yml",
+            "    runs-on: ubuntu-latest\n    needs: web-e2e\n    steps:",
+            "    runs-on: ubuntu-latest\n    needs: web-e2e\n    if: always()\n    steps:",
+            "release workflow: the images job must wait for the browser suite",
+        ),
+        (
+            "ci.yml",
+            '--commit "${{ github.sha }}"\n',
+            '--commit "${{ github.sha }}"\n        env:\n          ALL: ${{ toJSON(secrets) }}\n',
+            "CI workflow: the web-e2e job must upload nothing and read no secret",
+        ),
+        (
+            "ci.yml",
+            "permissions:\n",
+            "env:\n  HF_TOKEN: ${{ secrets['HF_TOKEN'] }}\npermissions:\n",
+            "CI workflow: the web-e2e job must upload nothing and read no secret",
+        ),
+        (
+            "ci.yml",
+            _SUITE_STEP,
+            "      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa"
+            " # v3.0.1\n        with:\n          path: web/test-results\n" + _SUITE_STEP,
+            "CI workflow: the web-e2e job must upload nothing and read no secret",
+        ),
+        (
+            "ci.yml",
+            _CHECKOUT_OFF,
+            "      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1\n",
+            "CI workflow: the web-e2e job must upload nothing and read no secret",
+        ),
+    ],
+)
+def test_a_gate_that_could_pass_without_proving_its_claim_is_rejected(
+    tmp_path: Path, workflow: str, original: str, replacement: str, failure: str
+) -> None:
+    """The final review: each of these edits left `make toolchain-check` green."""
+
+    tree = _mirror(ROOT, tmp_path)
+    path = tree / ".github/workflows" / workflow
+    text = path.read_text(encoding="utf-8")
+    assert text.count(original) == 1, original
+    path.write_text(text.replace(original, replacement), encoding="utf-8")
+
+    assert failure in check(tree)

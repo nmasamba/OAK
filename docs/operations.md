@@ -85,25 +85,45 @@ metrics**. What you have is the logs, a handful of endpoints and the database.
 
 ### Logs
 
-`oak-api` (and `oak serve`), `oak-worker` and `oak-mcp` write one JSON object per line to
-**stderr** (`docker compose logs api worker`), at `INFO` unless `OAK_LOG_LEVEL` says
-otherwise. Before its first line, `oak-api` may print up to three plain-text startup
-notices: the non-loopback bind warning, a missing `OAK_DATABASE_URL`, and where the
-model-configuration token was written. A process that cannot start, a database URL that
-does not parse included, ends with a `startup_failed` line naming the error's type and
-code, never its message, and exits `1`; a one-shot worker (`OAK_WORKER_ONCE=1`) whose
-cycle fails ends the same way with `cycle_failed`. `oak-api` serves from one process.
-`oak-api` writes one access line per request, `OAK_ACCESS_LOG=false` turns it off:
+`oak-api`, `oak-worker` and `oak-mcp` write one JSON object per line to **stderr**
+(`docker compose logs api worker`), at `INFO` unless `OAK_LOG_LEVEL` says otherwise.
+Before its first line, `oak-api` may print up to three plain-text startup notices: the
+non-loopback bind warning, a missing `OAK_DATABASE_URL`, and where the model-configuration
+token was written. A refusal that comes before logging is set up is plain text too,
+`CODE: message`, exit `1`: an unknown `OAK_LOG_LEVEL` (`OAK-LOG-CONFIG`), a non-loopback
+bind without the acknowledgement (`OAK-SAFE-BIND`), a bad `OAK_PORT` or `OAK_WORKER_ID`, or
+the worker's or MCP server's own configuration (`OAK-WORKER-CONFIG`, `OAK-MCP-CONFIG`).
+Any other failure to start, a database URL that does not parse included, ends with a
+`startup_failed` line naming the error's type and code, never its message, and exits `1`;
+a port already in use is `OAK-SERVE-BIND`. A one-shot worker (`OAK_WORKER_ONCE=1`) whose
+cycle fails ends the same way with `cycle_failed`. `oak-api` serves from one process and,
+once bound, says where it listens (`api_listening`, with `host` and `port`); uvicorn's own
+start-up lines are not written.
+
+`oak serve` writes the same lines, after a first plain-text line that prints the
+model-configuration token itself, and its `#token=` link, for you to paste into the
+browser; it is the interactive command, so treat its stderr as a terminal, not a log to
+ship. Run `oak-api` (or Compose) where the log is kept: it prints only where the token was
+written. A refusal there is `CODE: message`, exit `2`, or `OAK-SERVE-FAILED` and the
+error's type, exit `1`, for one that is not OAK's.
+
+`oak-api` writes one access line per request; `OAK_ACCESS_LOG=false` turns it off. The
+health probes `/healthz` and `/readyz`, which Compose's healthcheck calls every two
+seconds, are logged at `DEBUG`. A line, as written (keys in alphabetical order):
 
 ```json
-{"component":"oak-api","duration_ms":4.2,"event":"request","level":"INFO","logger":"oak.api.access","method":"POST","request_id":"9f3c1a0b7d2e4c55","route":"/v1/design-cases/{case_id}:confirm","status":409,"code":"OAK-EXPECTED-VERSION","time":"2026-10-28T12:00:00.000Z"}
+{"code":"OAK-CASE-NOT-FOUND","component":"oak-api","duration_ms":1.1,"event":"request","level":"INFO","logger":"oak.api.access","method":"GET","request_id":"8d6cb6bece211744","route":"/v1/design-cases/{case_id}","status":404,"time":"2026-10-29T02:55:21.519Z"}
 ```
 
 The `route` is the template the request matched, never the path it named, and `unmatched`
 when it matched none. The `request_id` is minted per request and returned to the caller as
-the `X-OAK-Request-ID` response header, so a user can quote it in a report and you can find
-the line. `oak-worker` writes `operation_cycle` (operation ID, kind, outcome, attempt,
-duration and, on failure, the code) and `cycle_failed` (code and exception type).
+the `X-OAK-Request-ID` response header, a `500` included, so a user can quote it in a report
+and you can find the line. The `code` is the error the response carried, a refusal by the
+host, origin or size checks included, and `OAK-INTERNAL` for an error nothing handled, whose
+type is the line's `error_type`. `oak-worker` writes `operation_cycle` (operation ID, kind,
+outcome, attempt, duration and, on failure, the code) and `cycle_failed` (the error's code,
+or `OAK-WORKER-CYCLE` for an error that is not OAK's, and its type). `oak-mcp` writes
+`mcp_started` when it starts.
 
 A line is built from an allowlist of fields (`src/oak/interfaces/logs.py`), never by
 redacting free text, so a brief, an answer, a model key, a token, a header, a query string,
@@ -111,10 +131,18 @@ a request or response body, a research term, the tenant and the actor never appe
 exception appears as its type and, for an OAK error, its code; its message and traceback
 never do, because they can quote the request. A library's own record (uvicorn, SQLAlchemy)
 appears as its logger and level only. `tests/integration/test_log_leakage.py` runs a whole
-journey with a sentinel in every such input and fails if one reaches a log line. To join a
-line to what happened, read the case's audit trail, which records the actor, the tenant and
-the correlation ID under its own controls. `oak-mcp` logs only to stderr: its stdout is the
-JSON-RPC protocol.
+journey through the API and the worker with a sentinel in the brief (and the case id named
+from it), the answers, the actor, a tenant, a model key, a wrong capability token, a bearer
+token, a correlation ID, an idempotency key, a query string, a `Host` header, an exception
+message and a failing worker cycle, and fails if one reaches a log line; research terms and
+`oak-mcp` are not in that journey, and what keeps their words out is the allowlist itself,
+which no field can carry text through (`tests/unit/test_logs.py`). To join a line to what
+happened, read the case's audit trail, which records the actor, the tenant and the
+correlation ID under its own controls. Lines carry no tenant or environment field: OAK
+Community runs one local tenant, and a line holds nothing of a tenant's to scope; the
+original spec repo's rule to scope logs by tenant and environment is for a multi-tenant
+edition, which would add the scope with its own review. `oak-mcp` logs only to stderr: its
+stdout is the JSON-RPC protocol.
 
 This section is about observing the OAK services themselves. `oak observe` is a different
 thing: it records what an installed architecture did, from signed runner evidence, in an

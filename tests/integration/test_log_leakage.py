@@ -3,11 +3,13 @@
 
 A whole journey runs through the API and the worker with a sentinel in every input that
 carries a secret or the user's words: the brief (and the case id named from it), the
-confirmed answers, a model key, a wrong capability token, a bearer token, a correlation ID,
-an idempotency key, a query string, an exception message and a failing worker cycle. Both
-processes' logging is captured at `DEBUG`, the most verbose level, and must hold lines but
-no sentinel. Signing keys and webhook secrets are absent: neither the API nor the worker
-receives one.
+confirmed answers, the actor, a tenant, a model key, a wrong capability token, a bearer
+token, a correlation ID, an idempotency key, a query string, a Host header, an exception
+message and a failing worker cycle. Both processes' logging is captured at `DEBUG`, the
+most verbose level, and must hold lines but no sentinel. Signing keys and webhook secrets
+are absent: neither the API nor the worker receives one. Research terms and `oak-mcp` are
+not in the journey; the allowlist itself (tests/unit/test_logs.py) is what keeps their
+words, like any other, out of a line.
 """
 
 from __future__ import annotations
@@ -36,6 +38,7 @@ ROOT = Path(__file__).resolve().parents[2]
 SENTINEL = "oaksentinel"
 TOKEN = "log-leakage-capability-token-0123456789"
 BASE_FIELDS = {"time", "level", "component", "logger", "event"}
+ACTOR = f"{SENTINEL}-actor"
 
 
 @pytest.fixture
@@ -67,6 +70,7 @@ def _headers(key: str, version: str | None = None) -> dict[str, str]:
     headers = {
         "Idempotency-Key": f"{SENTINEL}-idempotency-{key}",
         "X-Correlation-ID": f"{SENTINEL}-correlation-{key}",
+        "X-OAK-Actor": ACTOR,
         "Authorization": f"Bearer {SENTINEL}-bearer",
     }
     if version is not None:
@@ -77,6 +81,7 @@ def _headers(key: str, version: str | None = None) -> dict[str, str]:
 def test_a_whole_journey_logs_no_secret_and_no_user_content(
     tmp_path: Path, captured: io.StringIO, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    monkeypatch.setenv("OAK_LOCAL_ACTOR", ACTOR)
     control_plane, store = build_file_control_plane(tmp_path)
     application = create_app(
         control_plane=control_plane,
@@ -168,11 +173,20 @@ def test_a_whole_journey_logs_no_secret_and_no_user_content(
         def broken(*_: Any, **__: Any) -> Any:
             raise RuntimeError(f"failed while reading {SENTINEL} brief text")
 
+        assert (
+            client.get(
+                f"/v1/design-cases/{case_id}", headers={"X-OAK-Tenant": f"{SENTINEL}-tenant"}
+            ).status_code
+            == 404
+        )
+        assert (
+            client.get("/v1/design-cases", headers={"Host": f"{SENTINEL}.example"}).status_code
+            == 400
+        )
         monkeypatch.setattr(control_plane, "get_design_case", broken)
-        # The test client raises what the app did not handle, after the server's error
-        # middleware has answered 500 and the access line has been written.
-        with pytest.raises(RuntimeError):
-            client.get(f"/v1/design-cases/{case_id}")
+        failed = client.get(f"/v1/design-cases/{case_id}")
+        assert failed.status_code == 500 and failed.json()["code"] == "OAK-INTERNAL"
+        assert client.get("/healthz").status_code == 200
 
     class _Failing:
         def run_once(self, **_: Any) -> Any:
@@ -193,6 +207,35 @@ def test_a_whole_journey_logs_no_secret_and_no_user_content(
     assert events.count("request") >= 10, events
     assert "operation_cycle" in events and "cycle_failed" in events
     assert all(set(line) <= BASE_FIELDS | ALLOWED_FIELDS for line in lines)
-    assert {"status": 500, "error_type": "RuntimeError"}.items() <= lines_for(lines, 500)
+    # The 500 carries the request ID its line names, and the code it answered with.
+    assert {
+        "status": 500,
+        "error_type": "RuntimeError",
+        "code": "OAK-INTERNAL",
+        "request_id": failed.headers["x-oak-request-id"],
+    }.items() <= lines_for(lines, 500)
+    # A refusal the loopback guard answers itself keeps its code too.
+    assert {"route": "unmatched", "code": "OAK-HOST-DENIED"}.items() <= lines_for(lines, 400)
+    # The health probe a container healthcheck calls every two seconds is a DEBUG line.
+    (probe,) = [line for line in lines if line.get("route") == "/healthz"]
+    assert probe["level"] == "DEBUG"
     assert SENTINEL not in text.lower()
     assert "hf_" not in text and TOKEN not in text
+
+
+def test_an_oversized_request_is_logged_with_its_code(
+    tmp_path: Path, captured: io.StringIO, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The size limit answers before routing; its line still names the refusal."""
+
+    from oak.interfaces.api import app as api_module
+
+    monkeypatch.setattr(api_module, "MAXIMUM_REQUEST_BYTES", 64)
+    control_plane, _ = build_file_control_plane(tmp_path)
+    with ASGIClient(create_app(control_plane=control_plane)) as client:
+        refused = client.post("/v1/design-cases", content=SENTINEL.encode() * 64)
+    assert refused.status_code == 413
+
+    lines = [json.loads(line) for line in captured.getvalue().splitlines()]
+    assert {"status": 413, "code": "OAK-REQUEST-SIZE"}.items() <= lines_for(lines, 413)
+    assert SENTINEL not in captured.getvalue()

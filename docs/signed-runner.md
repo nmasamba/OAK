@@ -307,9 +307,11 @@ adapter's identity digest. No create carries a volume, an environment variable o
 
 A hash chain alone cannot show that its end was cut, because any prefix of a valid journal
 verifies. So every completion of a dispatch the runner took up names the head of its
-journal, the last entry's `journal_sequence` and its `journal_digest`, and `status` reads
-the newest completion for each dispatch that is still in the mailbox (`messages/` or
-`acknowledged/`), believing only one whose signature verifies under this runner's own key.
+journal, the last entry's `journal_sequence` and its `journal_digest`, and, with
+`OAK_RUNNER_MAILBOX` set, `status` reads the newest completion for each dispatch that is
+still in the mailbox (`messages/` or `acknowledged/`), believing only one whose signature
+verifies under this runner's own key. Pass the mailbox to `status` as you do to `run-once`:
+without it nothing is compared.
 A journal is tied to its completions by its dispatch, by the lease its own
 `lease_accepted` entry names and by the lease in the delivered envelope, so editing or
 deleting the envelope does not hide a cut. `signed_head` says what the comparison found:
@@ -319,7 +321,13 @@ deleting the envelope does not hide a cut. `signed_head` says what the compariso
 | `matched` | The journal reaches the entry the newest signed completion names |
 | `missing_from_journal` | It does not, and `chain` is `truncated` |
 | `none` | No completion of this dispatch signed by this runner is in the mailbox, so there was nothing to compare: an interrupted dispatch before its report, or a mailbox someone cleaned |
-| `unchecked` | `OAK_RUNNER_MAILBOX` is not set, the runner has no key yet, or the chain did not verify |
+| `unchecked` | `OAK_RUNNER_MAILBOX` is not set, the runner has no key yet (and the mailbox holds no completion), or the chain did not verify |
+
+With the mailbox set, a runner key that cannot be read, or none beside completions a key
+signed, stops `status` with `OAK-RUNNER-KEY` (exit `70`) rather than reporting journals it
+could not compare: moving the key aside would otherwise turn a cut journal back into
+`verified`. A file in the mailbox that is not even a readable completion (malformed, nested
+past the interpreter's limit, or holding a `NaN`) is ignored, as an unsigned one is.
 
 `missing_journals` lists each completion this runner signed that no journal file is tied
 to (`{"completion": <message id>, "lease": <lease id>}`): a journal deleted outright, whose

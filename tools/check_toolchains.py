@@ -113,22 +113,47 @@ def _check_browser_suite(
         return
     steps = [step for step in job.get("steps", []) if isinstance(step, dict)]
     runs = _runs(job)
+    if "needs" in job:
+        failures.append(f"{label}: the web-e2e job must not wait on another job")
     if "pnpm --dir web exec playwright install --with-deps chromium" not in runs:
         failures.append(f"{label}: the web-e2e job must install the Chromium Playwright pins")
-    if not any(run.startswith("python3 scripts/run_browser_suite.py ") for run in runs):
+    if not any(_SUITE_RUN.fullmatch(run) for run in runs):
         failures.append(f"{label}: the web-e2e job must run scripts/run_browser_suite.py")
-    uploads = any(
-        "upload-artifact" in str(step.get("uses", "")) or "/cache" in str(step.get("uses", ""))
-        for step in steps
-    )
-    text = yaml.safe_dump(job)
-    if uploads or "secrets." in text or "github.token" in text:
+    # An allowlist of actions, not a list of upload names; the checkout keeps no token on
+    # disk; and no expression in the job or the workflow-wide settings it inherits names a
+    # secret or the job's token.
+    actions = [str(step["uses"]).split("@", 1)[0] for step in steps if "uses" in step]
+    checkouts = [step for step in steps if str(step.get("uses", "")).startswith(_CHECKOUT)]
+    inherited = {key: document.get(key) for key in ("env", "defaults") if key in document}
+    text = yaml.safe_dump([job, inherited])
+    if (
+        any(action not in _BROWSER_ACTIONS for action in actions)
+        or not checkouts
+        or any(
+            (step.get("with") or {}).get("persist-credentials") is not False for step in checkouts
+        )
+        or _SECRET.search(text)
+    ):
         failures.append(f"{label}: the web-e2e job must upload nothing and read no secret")
     for name in gated:
         gate = jobs.get(name)
         needs = gate.get("needs", []) if isinstance(gate, dict) else []
-        if "web-e2e" not in ([needs] if isinstance(needs, str) else needs):
+        # `if: always()` would run the job after a failed suite.
+        if (
+            not isinstance(gate, dict)
+            or not _binding(gate)
+            or "web-e2e" not in ([needs] if isinstance(needs, str) else needs)
+        ):
             failures.append(f"{label}: the {name} job must wait for the browser suite")
+
+
+_SHELLS = frozenset({"bash", "sh"})
+# The gate commands, whole: a `|| true` or `; exit 0` after one would make it pass anyway.
+_SUITE_RUN = re.compile(r"python3 scripts/run_browser_suite\.py [^|;&\n]+")
+_SKIP_CHECK = re.compile(r"python3 scripts/check_skips\.py [^|;&\n]+")
+_CHECKOUT = "actions/checkout@"
+_BROWSER_ACTIONS = frozenset({"actions/checkout", "actions/setup-node"})
+_SECRET = re.compile(r"\bsecrets\b|github\.token|GITHUB_TOKEN")
 
 
 def _jobs(text: str) -> dict[str, Any]:
@@ -153,9 +178,20 @@ def _runs(job: dict[str, Any]) -> list[str]:
 
 
 def _binding(item: dict[str, Any]) -> bool:
-    """Whether a job or step always runs and fails its job when it fails."""
+    """Whether a job or step always runs, in a shell that stops on failure, and fails its
+    job when it fails."""
 
-    return "if" not in item and not item.get("continue-on-error")
+    defaults = item.get("defaults")
+    run_defaults = defaults.get("run") if isinstance(defaults, dict) else None
+    shells = (
+        item.get("shell"),
+        run_defaults.get("shell") if isinstance(run_defaults, dict) else None,
+    )
+    return (
+        "if" not in item
+        and not item.get("continue-on-error")
+        and all(shell is None or shell in _SHELLS for shell in shells)
+    )
 
 
 def _check_counted_skips(
@@ -173,32 +209,48 @@ def _check_counted_skips(
         for step in steps
     )
     checked = any(
-        run.startswith("python3 scripts/check_skips.py ") and run.endswith(f" {key}")
+        _SKIP_CHECK.fullmatch(run) and run.endswith(f" {key}")
         for run in (_runs(job) if isinstance(job, dict) else [])
     )
     if not (ledgered and checked):
         failures.append(f"{label}: the {name} job must count its skips against {key}")
 
 
-# The second platform (RR-014): each job, its pinned runner label and what proves where it ran.
+# The platforms (RR-014): each job, its pinned runner label, what proves where it ran and
+# the skips it is counted against.
 _PLATFORM_JOBS = {
-    "check-macos-arm64": ("macos-15", "macosx-11.0-arm64"),
-    "check-linux-arm64": ("ubuntu-24.04-arm", "linux-aarch64"),
+    "check": ("ubuntu-latest", "linux-x86_64", "check-linux-x86_64"),
+    "check-macos-arm64": ("macos-15", "macosx-11.0-arm64", "check-macos-arm64"),
+    "check-linux-arm64": ("ubuntu-24.04-arm", "linux-aarch64", "check-linux-arm64"),
 }
+_PLATFORM_ASSERT = (
+    'uv run python -c "import sysconfig, sys; platform = sysconfig.get_platform(); '
+    "print(platform); sys.exit(platform != '{tag}')\""
+)
+
+
+def _check_platform(
+    jobs: dict[str, Any], name: str, runner: str, tag: str, label: str, failures: list[str]
+) -> None:
+    """A job runs on its pinned runner, waits on no other job and proves its venv's platform."""
+
+    job = jobs.get(name)
+    if not isinstance(job, dict):
+        failures.append(f"{label}: the {name} job is missing")
+        return
+    if job.get("runs-on") != runner:
+        failures.append(f"{label}: the {name} job must run on {runner}")
+    if _PLATFORM_ASSERT.format(tag=tag) not in _runs(job):
+        failures.append(f"{label}: the {name} job must assert a {tag} venv")
 
 
 def _check_platform_jobs(text: str, compose_image: str | None, failures: list[str]) -> None:
     jobs = _jobs(text)
-    for name, (label, platform_tag) in _PLATFORM_JOBS.items():
-        job = jobs.get(name)
-        if not isinstance(job, dict):
-            failures.append(f"CI workflow: the {name} job is missing")
-            continue
-        if job.get("runs-on") != label:
-            failures.append(f"CI workflow: the {name} job must run on {label}")
-        if not any("sysconfig.get_platform()" in run and platform_tag in run for run in _runs(job)):
-            failures.append(f"CI workflow: the {name} job must assert a {platform_tag} venv")
-        _check_counted_skips(jobs, name, name, "CI workflow", failures)
+    for name, (runner, platform_tag, key) in _PLATFORM_JOBS.items():
+        _check_platform(jobs, name, runner, platform_tag, "CI workflow", failures)
+        if isinstance(jobs.get(name), dict) and "needs" in jobs[name]:
+            failures.append(f"CI workflow: the {name} job must not wait on another job")
+        _check_counted_skips(jobs, name, key, "CI workflow", failures)
     arm = jobs.get("check-linux-arm64")
     if isinstance(arm, dict):
         _check_database_suites(yaml.safe_dump(arm, width=1000), "CI arm64 job", None, failures)
@@ -402,7 +454,14 @@ def check(root: Path = ROOT) -> list[str]:
         failures.append("release workflow: the gate must fetch the image CI's runner journeys use")
 
     _check_platform_jobs(workflow, compose_image, failures)
-    _check_counted_skips(_jobs(workflow), "check", "check-linux-x86_64", "CI workflow", failures)
+    _check_platform(
+        _jobs(release_workflow),
+        "artifacts",
+        "ubuntu-latest",
+        "linux-x86_64",
+        "release workflow",
+        failures,
+    )
     _check_counted_skips(
         _jobs(release_workflow), "artifacts", "check-linux-x86_64", "release workflow", failures
     )

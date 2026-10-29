@@ -522,11 +522,13 @@ class CommunityControlPlane:
         )
         case_id = str(created.case["id"])
         service = self._design_for_case(case_id, context.tenant_id)
-        result = service.record_recreation(
-            plan.origin, step("origin", str(created.case["version"]))
-        )
-        duplicate = created.duplicate and result.duplicate
+        result: CreateCaseResult | DesignResult = created
+        duplicate = created.duplicate
         try:
+            result = service.record_recreation(
+                plan.origin, step("origin", str(created.case["version"]))
+            )
+            duplicate = duplicate and result.duplicate
             if plan.interpreted:
                 result = self.interpret(case_id, step("interpret", str(result.case["version"])))
                 duplicate = duplicate and result.duplicate
@@ -543,16 +545,19 @@ class CommunityControlPlane:
                 duplicate = duplicate and result.duplicate
         except OAKError as error:
             # The case and every step before this one stand, under the server's own records;
-            # say how far the replay got rather than only the step's own refusal.
+            # say how far the replay got rather than only the step's own refusal. A step
+            # refused because the case moved on can never pass on a retry: its expected
+            # version comes from the step before it, which a retry returns unchanged.
             status = str(service.current().case["status"])
             raise OAKError(
                 "OAK-IMPORT-REPLAY",
                 f"the case was re-created on the server up to {status}, where the server "
                 f"refused the next replayed step ({error.code}); continue it on the server",
-                retriable=error.retriable,
+                retriable=error.retriable and error.code != "OAK-EXPECTED-VERSION",
             ) from error
-        final = service.current()
-        return DesignResult(case=final.case, intent=final.intent, duplicate=duplicate)
+        # What the import's own last step recorded, not the case as it stands now: a retried
+        # import of a case the user has carried on since returns what the import did.
+        return service.recorded(result.case, duplicate=duplicate)
 
     @_case_scoped
     def research_plan(self, case_id: str, *, tenant_id: str) -> ResearchPlan:

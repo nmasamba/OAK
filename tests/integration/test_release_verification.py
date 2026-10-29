@@ -8,6 +8,7 @@ asserting that verification succeeds on a good copy, which proves almost nothing
 """
 
 import hashlib
+import os
 import re
 import subprocess
 import sys
@@ -173,9 +174,9 @@ def test_the_verifier_never_claims_unchecked_artifacts_are_signed(release: Path)
     assert "signed by" not in result.stdout
 
 
-# OAK-V1-027 (RR-005): from 1.0.0 the maintainer's SSH signature over SHA256SUMS is checked
-# against the pinned key and nothing else. No real key is created or used: every key here is
-# a throwaway generated inside the test.
+# OAK-V1-027 (RR-005): for every release after 0.9.0 the maintainer's SSH signature over
+# SHA256SUMS is checked against the pinned key and nothing else. No real key is created or
+# used: every key here is a throwaway generated inside the test.
 
 EXIT_SIGNATURE = 4
 
@@ -422,3 +423,47 @@ def test_without_ssh_keygen_a_signature_cannot_be_checked(
 
     assert result.returncode == EXIT_SIGNATURE
     assert "ssh-keygen is needed" in result.stderr
+
+
+def test_a_key_hard_linked_out_of_the_release_is_never_used(
+    release_one: Path, tmp_path: Path
+) -> None:
+    """The guard compares files, not spellings: a link out of the download is still in it
+    (and so is a differently cased path on a case-insensitive file system)."""
+
+    key = _key(tmp_path / "attacker", "attacker")
+    _sign(release_one, key)
+    carried = _pin(release_one / "allowed_signers", key)
+    linked = tmp_path / "elsewhere" / "allowed_signers"
+    linked.parent.mkdir()
+    os.link(carried, linked)
+
+    result = _verify(release_one, "--allowed-signers", str(linked))
+
+    assert result.returncode == EXIT_SIGNATURE
+    assert "cannot come from the release being verified" in result.stderr
+
+
+def test_an_ssh_keygen_that_cannot_look_up_the_signer_is_not_called_a_bad_signature(
+    release_one: Path, maintainer: tuple[Path, Path], tmp_path: Path
+) -> None:
+    """OpenSSH 8.1 verifies but has no `-Y find-principals`; that is not a forgery."""
+
+    key, allowed = maintainer
+    _sign(release_one, key)
+    old = tmp_path / "openssh-8.1" / "ssh-keygen"
+    old.parent.mkdir()
+    old.write_text("#!/bin/sh\necho 'unknown option -- Y find-principals' >&2\nexit 1\n")
+    old.chmod(0o755)
+
+    result = subprocess.run(
+        [sys.executable, str(VERIFIER), str(release_one), "--allowed-signers", str(allowed)],
+        check=False,
+        capture_output=True,
+        text=True,
+        env={"PATH": str(old.parent)},
+    )
+
+    assert result.returncode == EXIT_SIGNATURE
+    assert "OpenSSH 8.2 or later is needed" in result.stderr
+    assert "Do not install" not in result.stderr

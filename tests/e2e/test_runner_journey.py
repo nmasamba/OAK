@@ -85,6 +85,10 @@ def test_signed_read_only_dispatch_completes_without_touching_a_target(tmp_path:
     report = json.loads(status.stdout)
     assert report["journals"][0]["chain"] == "verified"
     assert report["journals"][0]["manual_recovery_required"] is False
+    # With the mailbox set, the journal was compared with the completion the runner signed
+    # (the manual's chapter 6 shows this report).
+    assert report["journals"][0]["signed_head"] == "matched"
+    assert report["missing_journals"] == []
 
     unenrolled = _run([str(OAK), "ingest"], workspace, environment)
     assert unenrolled.returncode == 2 and "OAK-INGEST-RUNNER-UNENROLLED" in unenrolled.stderr

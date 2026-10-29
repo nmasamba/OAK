@@ -1,9 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
 #
-# The public SSH key that signs OAK Community releases from 1.0.0 on (RR-005), in the
+# The public SSH key that signs every OAK Community release after 0.9.0 (RR-005), in the
 # `ssh-keygen -Y` allowed-signers format: one line, `<principal> <key type> <public key>`.
 # `scripts/verify_release.py` checks `SHA256SUMS.sig` against this file and nothing else.
+# Consumers take it from the default branch, not a release's tag, so removing a revoked
+# key here stops every release it signed from verifying; a rotated key keeps its line.
 #
 # No key is pinned yet: the maintainer generates the key, keeps the private half offline
-# and adds the public line here when cutting 1.0.0 (docs/release-process.md). Until then
-# a release from 1.0.0 on cannot verify, which is the point.
+# and adds the public line here before the first signed release is tagged
+# (docs/release-process.md). Until then no release after 0.9.0 can verify, which is the
+# point.

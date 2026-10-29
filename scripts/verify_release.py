@@ -7,8 +7,8 @@ of every file named in `SHA256SUMS` and refuses the release if anything disagree
 It is deliberately standard-library only and has no OAK import, so it runs against a
 downloaded directory on a machine where OAK is not installed — which is the situation a
 verifier is actually in. `sha256sum -c SHA256SUMS` (GNU coreutils) or
-`shasum -a 256 -c SHA256SUMS` (macOS) do the same job; this exists so the documented
-procedure works identically on both, and so the failure modes can be tested.
+`shasum -a 256 -c SHA256SUMS` (macOS) check the checksums alone; this checks the signature
+too, works identically on both, and lets the failure modes be tested.
 
 What this proves and what it does not:
 
@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import os
 import shutil
 import subprocess
 import sys
@@ -117,6 +118,23 @@ def _pinned_keys(allowed_signers: Path) -> int:
     return sum(1 for line in lines if line.strip() and not line.lstrip().startswith("#"))
 
 
+def _within(path: Path, directory: Path) -> bool:
+    """Whether `path` is inside `directory`, or is a file in it under another name.
+
+    Compared by file identity, not by spelling: on a case-insensitive file system
+    `Release/allowed_signers` is `release/allowed_signers`, and a hard link is the file it
+    links to.
+    """
+
+    root = directory.stat()
+    if any(os.path.samestat(parent.stat(), root) for parent in path.parents):
+        return True
+    key = path.stat()
+    return any(
+        os.path.samestat(entry.stat(), key) for entry in directory.iterdir() if entry.is_file()
+    )
+
+
 def _check_signature(directory: Path, allowed_signers: Path) -> int:
     """Verify `SHA256SUMS.sig` against the pinned key; only a known unsigned release may lack it."""
 
@@ -135,16 +153,15 @@ def _check_signature(directory: Path, allowed_signers: Path) -> int:
             "so checksums prove the bytes match it, not who produced them."
         )
         return EXIT_OK
-    root = directory.resolve()
     pinned = allowed_signers.resolve()
-    if pinned.is_relative_to(root):
+    if not signature.is_file() or signature.is_symlink() or not pinned.is_file():
+        print(f"{SIGNATURE} or {allowed_signers}: not a regular file", file=sys.stderr)
+        return EXIT_SIGNATURE
+    if _within(pinned, directory):
         print(
             f"{allowed_signers}: the pinned key cannot come from the release being verified",
             file=sys.stderr,
         )
-        return EXIT_SIGNATURE
-    if not signature.is_file() or signature.is_symlink() or not pinned.is_file():
-        print(f"{SIGNATURE} or {allowed_signers}: not a regular file", file=sys.stderr)
         return EXIT_SIGNATURE
     if _pinned_keys(pinned) == 0:
         print(
@@ -164,6 +181,15 @@ def _check_signature(directory: Path, allowed_signers: Path) -> int:
         capture_output=True,
         text=True,
     )
+    if found.returncode != 0 and "No principal matched" not in found.stderr:
+        # OpenSSH 8.1 has `-Y verify` but not `-Y find-principals` (8.2): that is a
+        # signature that cannot be checked here, not one that does not verify.
+        print(
+            f"ssh-keygen could not look up who signed {SIGNATURE} (OpenSSH 8.2 or later is "
+            "needed), so the signature cannot be checked",
+            file=sys.stderr,
+        )
+        return EXIT_SIGNATURE
     for principal in (line.strip() for line in found.stdout.splitlines()):
         if not principal:
             continue
@@ -279,7 +305,7 @@ def main() -> int:
         "--allowed-signers",
         type=Path,
         default=DEFAULT_ALLOWED_SIGNERS,
-        help="the pinned public key, from the repository at the release's tag",
+        help="the pinned public key, from the repository's main branch",
     )
     parser.add_argument(
         "--checksums-only",

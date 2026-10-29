@@ -6,6 +6,7 @@ from __future__ import annotations
 import io
 import json
 import logging
+import socket
 from collections.abc import Iterator
 
 import httpx
@@ -249,29 +250,59 @@ def anyio_backend() -> str:
 
 
 def test_run_server_configures_logging_and_one_uvicorn_process(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: object
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """Review L2 and L4: `oak serve` reaches run_server too, and WEB_CONCURRENCY must not
-    start workers that never configured logging."""
+    start workers that never configured logging. A bound socket says where it listens."""
 
     from oak.interfaces.api import server
 
-    calls: list[dict[str, object]] = []
-    monkeypatch.setattr(server.uvicorn, "run", lambda *args, **kwargs: calls.append(kwargs))
+    calls: list[tuple[object, socket.socket]] = []
+    monkeypatch.setattr(server, "_serve", lambda config, bound: calls.append((config, bound)))
     monkeypatch.setenv("WEB_CONCURRENCY", "4")
     monkeypatch.setenv("OAK_DATABASE_URL", "postgresql+psycopg://unused@127.0.0.1/oak")
     root = logging.getLogger()
     saved = (root.handlers[:], root.level)
     try:
-        server.run_server("127.0.0.1", 8999, model_token="t" * 32)
+        server.run_server("127.0.0.1", 0, model_token="t" * 32)
         assert any(isinstance(handler.formatter, AllowlistFormatter) for handler in root.handlers)
     finally:
         root.handlers[:], level = saved
         root.setLevel(level)
         logging.captureWarnings(False)
-    (options,) = calls
-    assert options["workers"] == 1 and options["log_config"] is None
-    assert options["access_log"] is False
+    ((config, bound),) = calls
+    bound.close()
+    assert config.workers == 1 and config.log_config is None  # type: ignore[attr-defined]
+    assert config.access_log is False  # type: ignore[attr-defined]
+    lines = [json.loads(line) for line in capsys.readouterr().err.splitlines() if line[:1] == "{"]
+    (listening,) = [line for line in lines if line["event"] == "api_listening"]
+    assert listening["host"] == "127.0.0.1" and listening["port"] == 0
+
+
+def test_a_port_in_use_is_refused_with_a_code_that_names_it(
+    monkeypatch: pytest.MonkeyPatch, captured: io.StringIO
+) -> None:
+    """uvicorn would log a failed bind as a bare library line and exit."""
+
+    from oak.interfaces.api import server
+
+    monkeypatch.setattr(server, "configure_logging", lambda component: None)
+    monkeypatch.setattr(server, "_serve", lambda config, bound: pytest.fail("served"))
+    monkeypatch.setenv("OAK_DATABASE_URL", "postgresql+psycopg://unused@127.0.0.1/oak")
+    with socket.socket() as taken:
+        taken.bind(("127.0.0.1", 0))
+        taken.listen()
+        port = taken.getsockname()[1]
+        with pytest.raises(OAKError) as refused:
+            server.run_server("127.0.0.1", port, model_token="t" * 32)
+        assert refused.value.code == "OAK-SERVE-BIND"
+        assert f"127.0.0.1:{port}" in refused.value.message
+        monkeypatch.setenv("OAK_PORT", str(port))
+        with pytest.raises(SystemExit) as stopped:
+            server.main()
+    assert stopped.value.code == 1
+    (line,) = [line for line in _lines(captured) if line["event"] == "startup_failed"]
+    assert line["code"] == "OAK-SERVE-BIND"
 
 
 def test_a_failing_one_shot_worker_logs_by_type_and_exits(

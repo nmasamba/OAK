@@ -453,19 +453,32 @@ class _SignedHeads:
     @classmethod
     def from_environment(cls, home: Path) -> _SignedHeads:
         # `status` only reads: no mailbox configured, or no key yet, means nothing to
-        # compare with, never a key created as a side effect.
+        # compare with, never a key created as a side effect. A key that cannot be read,
+        # or none beside completions a key signed, would hide a cut journal as well as a
+        # missing mailbox does, so it stops `status` instead of reading as "unchecked".
         mailbox_root = os.getenv("OAK_RUNNER_MAILBOX")
-        if not mailbox_root or not (home / "runner.key").is_file():
+        if not mailbox_root:
+            return cls(None)
+        mailbox = RunnerMailbox(Path(mailbox_root).absolute(), home)
+        completions = mailbox.completions(None)
+        if not os.path.lexists(home / "runner.key"):
+            if completions:
+                raise OAKError(
+                    "OAK-RUNNER-KEY",
+                    "the mailbox holds completions but the runner home has no key to tell "
+                    "this runner's own from them",
+                )
             return cls(None)
         try:
             runner = RunnerIdentity.load_or_create(home, os.getenv("OAK_RUNNER_ID", "runner"))
-        except (OAKError, OSError):
-            return cls(None)
-        mailbox = RunnerMailbox(Path(mailbox_root).absolute(), home)
+        except OSError as error:
+            raise OAKError(
+                "OAK-RUNNER-KEY",
+                "the runner key cannot be read, so the journals cannot be compared with "
+                "the completions this runner signed",
+            ) from error
         signed = [
-            message
-            for message in mailbox.completions(None)
-            if _signed_head_of(message, runner.public_key_base64)
+            message for message in completions if _signed_head_of(message, runner.public_key_base64)
         ]
         heads = cls(signed)
         heads._mailbox = mailbox
@@ -503,7 +516,7 @@ class _SignedHeads:
             else:
                 # A completion from before the sequence was signed names only the digest.
                 reached = any(entry.digest == digest for entry in journal.entries())
-        except OAKError:
+        except (OAKError, OSError, ValueError):
             return "unchecked"
         return "matched" if reached else "missing_from_journal"
 
@@ -524,11 +537,17 @@ def _signed_head_of(message: dict[str, Any], public_key: str) -> bool:
 
     signature = message.get("signature")
     payload = message.get("payload")
+    if not isinstance(signature, dict) or signature.get("public_key_base64") != public_key:
+        return False
+    try:
+        # The mailbox is untrusted: a document that cannot even be canonicalised (a NaN,
+        # say) is simply not this runner's.
+        if not verify_signed_document(message):
+            return False
+    except (RecursionError, TypeError, ValueError):
+        return False
     return (
-        isinstance(signature, dict)
-        and signature.get("public_key_base64") == public_key
-        and verify_signed_document(message)
-        and isinstance(payload, dict)
+        isinstance(payload, dict)
         and isinstance(payload.get("journal_digest"), str)
         and isinstance(message.get("sequence"), int)
         and isinstance(message.get("correlation_id"), str)

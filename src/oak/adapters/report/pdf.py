@@ -8,20 +8,26 @@ on the dark ground; every other page is paper and ink with one brass accent.
 
 Determinism: the canvas runs in reportlab's invariant mode, the document dates come from
 the report's own `generated_at`, page streams are compressed with zlib, and every
-reportlab setting that reaches a byte is pinned here rather than read from the process's
-environment, so the same document gives the same bytes in any process. The fonts are IBM
-Plex Sans (regular, bold, italic) and Plex Mono, vendored in `fonts/` under the SIL Open
-Font License 1.1 and pinned by SHA-256, and only the glyphs a report uses are embedded.
-Plex Sans covers Latin, Greek and Cyrillic; Plex Mono covers Latin and Cyrillic. A
-character the font drawing it has no glyph for is drawn as U+FFFD, the replacement
-character, never dropped (the JSON report keeps it). The PDF has no structure tree: the
-installed reportlab cannot write one (RR-046).
+reportlab setting and environment variable that reaches a byte is pinned here rather than
+read from the process's environment, so the same document gives the same bytes in any
+process. One rendering runs at a time: reportlab's font objects are shared by the whole
+process, and two documents saved at once read each other's glyphs. The fonts are IBM Plex
+Sans (regular, bold, italic) and Plex Mono, vendored in `fonts/` under the SIL Open Font
+License 1.1 and pinned by SHA-256, and embedded as subsets: each font's printable ASCII
+range and every other glyph the report draws. Plex Sans covers Latin, Greek and Cyrillic;
+Plex Mono covers Latin and Cyrillic. Text prints as written; a compatibility character
+the font lacks (a full-width letter, say) prints as its plain form, and any other
+character the font has no glyph for is drawn as U+FFFD, the replacement character, never
+dropped (the JSON report keeps it). The PDF has no structure tree: the installed
+reportlab cannot write one (RR-046).
 """
 
 from __future__ import annotations
 
 import hashlib
 import io
+import threading
+import time
 import unicodedata
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
@@ -33,8 +39,7 @@ from typing import Any
 import reportlab
 from reportlab import rl_config
 from reportlab.lib.colors import HexColor
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.pdfmetrics import stringWidth
+from reportlab.pdfbase import pdfdoc, pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen.canvas import Canvas
 
@@ -93,7 +98,8 @@ REPLACEMENT = "\ufffd"
 # reportlab takes its settings from `RL_<name>` environment variables, a
 # `reportlab_settings` module on the import path and `~/.reportlab_settings` when it is
 # first imported, and each of these reaches a byte of the PDF: `RL_useA85=0` alone rewrites
-# every stream. They are set here, to reportlab's own defaults, before every rendering.
+# every stream. They are set here, to reportlab's own defaults, before every rendering;
+# `ttfAsciiReadable`, which a font reads when it is built, is also passed to each font.
 RL_SETTINGS: dict[str, Any] = {
     "invariant": 1,
     "pageCompression": 1,
@@ -108,7 +114,11 @@ RL_SETTINGS: dict[str, Any] = {
     "defaultEncoding": FONT_ENCODING,
     "errorOnDuplicatePageLabelPage": 0,
     "warnOnMissingFontGlyphs": 0,
+    "ttfAsciiReadable": 1,
 }
+# The epoch reportlab's invariant mode stamps a document with.
+INVARIANT_EPOCH = 946684800.0
+_RENDERING = threading.Lock()
 
 
 @cache
@@ -129,25 +139,58 @@ def font_bytes(name: str) -> bytes:
 
 
 @cache
+def vendored_font(name: str) -> TTFont:
+    """A vendored font, built once from its pinned bytes.
+
+    It keeps each document's subset apart (reportlab's per-document state), so one font
+    object serves every rendering; measuring text uses it directly, never reportlab's
+    registry, so laying a report out needs no rendering first.
+    """
+
+    return TTFont(name, io.BytesIO(font_bytes(name)), asciiReadable=1)
+
+
+@cache
 def coverage(name: str) -> frozenset[int]:
     """The code points a vendored font has a glyph for."""
 
-    return frozenset(TTFont(name, io.BytesIO(font_bytes(name))).face.charToGlyph)
+    return frozenset(vendored_font(name).face.charToGlyph)
+
+
+class _InvariantTimeStamp:
+    """reportlab's invariant timestamp, whatever `SOURCE_DATE_EPOCH` says.
+
+    reportlab seeds every document's ID from that variable, even in invariant mode, and
+    fails on a value that is not a whole number. The report's dates come from the report
+    itself, so the variable would only ever reach the ID.
+    """
+
+    def __init__(self, invariant: Any = None) -> None:
+        self.t = INVARIANT_EPOCH
+        self.lt = time.gmtime(INVARIANT_EPOCH)
+        self.YMDhms = tuple(self.lt)[:6]
+        self.dhh = self.dmm = 0
+        self.tzname = "UTC"
 
 
 def pin_reportlab_settings() -> None:
     """Set every reportlab setting the canvas reads, whatever the environment said.
 
-    Each font is registered afresh from its pinned bytes before every rendering, so no
-    font of the same name registered elsewhere in the process, and no state a previous
-    document left in a font object, reaches this one. The encoding is still pinned for the
-    standard fonts reportlab itself may name.
+    reportlab's document timestamp is fixed at its invariant epoch, and the vendored fonts
+    are registered under their names; a different font registered
+    under one of those names elsewhere in the process is refused rather than drawn,
+    because reportlab keeps the first font registered under a name.
     """
 
     for name, value in RL_SETTINGS.items():
         setattr(rl_config, name, value)
+    pdfdoc.TimeStamp = _InvariantTimeStamp
     for name in FONT_FILES:
-        pdfmetrics.registerFont(TTFont(name, io.BytesIO(font_bytes(name))))
+        pdfmetrics.registerFont(vendored_font(name))
+        if pdfmetrics.getFont(name) is not vendored_font(name):
+            raise OAKError(
+                "OAK-REPORT-RENDER", "another font is registered under a report font's name"
+            )
 
 
 FILLED_CIRCLE = frozenset({"pass", "satisfied", "clear", "current"})
@@ -156,23 +199,35 @@ RING = frozenset({"unknown", "absent", "required"})
 
 
 def pdf_text(text: str, font: str = FONT) -> str:
-    """Text `font` can draw: every character it has no glyph for becomes U+FFFD."""
+    """Text `font` can draw, as written where it has the glyphs.
+
+    A compatibility character the font lacks becomes its plain form when the font has
+    that (a full-width letter its ASCII one); any other character it has no glyph for
+    becomes U+FFFD.
+    """
 
     covered = coverage(font)
-    normalised = unicodedata.normalize("NFKC", str(text))
     characters = []
-    for character in normalised:
+    for character in unicodedata.normalize("NFC", str(text)):
         if character in "\n\t":
             characters.append(" ")
         elif ord(character) in covered:
             characters.append(character)
         else:
-            characters.append(REPLACEMENT)
+            plain = unicodedata.normalize("NFKC", character)
+            drawable = plain != character and all(ord(part) in covered for part in plain)
+            characters.append(plain if drawable else REPLACEMENT)
     return "".join(characters)
 
 
+def measure(text: str, name: str, size: float) -> float:
+    """The width of already drawable text in a vendored font."""
+
+    return float(vendored_font(name).stringWidth(text, size))
+
+
 def text_width(text: str, font: str, size: float) -> float:
-    return float(stringWidth(pdf_text(text, font), font, size))
+    return measure(pdf_text(text, font), font, size)
 
 
 def wrap(text: str, font: str, size: float, width: float) -> list[str]:
@@ -182,12 +237,12 @@ def wrap(text: str, font: str, size: float, width: float) -> list[str]:
     time in proportion to its length.
     """
 
-    space = float(stringWidth(" ", font, size))
+    space = measure(" ", font, size)
     lines: list[str] = []
     current = ""
     current_width = 0.0
     for word in pdf_text(text, font).split(" "):
-        word_width = float(stringWidth(word, font, size))
+        word_width = measure(word, font, size)
         if current and current_width + space + word_width <= width:
             current, current_width = f"{current} {word}", current_width + space + word_width
             continue
@@ -201,7 +256,7 @@ def wrap(text: str, font: str, size: float, width: float) -> list[str]:
             continue
         current, current_width = "", 0.0
         for character in word:
-            character_width = float(stringWidth(character, font, size))
+            character_width = measure(character, font, size)
             if current and current_width + character_width > width:
                 lines.append(current)
                 current, current_width = "", 0.0
@@ -215,12 +270,12 @@ def fit(text: str, font: str, size: float, width: float) -> str:
     """One line of text, shortened with an ellipsis when it is wider than `width`."""
 
     drawable = pdf_text(text, font)
-    if stringWidth(drawable, font, size) <= width:
+    if measure(drawable, font, size) <= width:
         return drawable
-    room = width - float(stringWidth(ELLIPSIS, font, size))
+    room = width - measure(ELLIPSIS, font, size)
     kept, used = "", 0.0
     for character in drawable:
-        used += float(stringWidth(character, font, size))
+        used += measure(character, font, size)
         if used > room:
             break
         kept += character
@@ -1174,6 +1229,13 @@ def _pdf_date(timestamp: str) -> Callable[..., str]:
 
 
 def render_pdf(document: dict[str, Any]) -> bytes:
+    """The PDF of a report document; one rendering at a time (see the module docstring)."""
+
+    with _RENDERING:
+        return _render_pdf(document)
+
+
+def _render_pdf(document: dict[str, Any]) -> bytes:
     pin_reportlab_settings()
     pages = paginate(document)
     cover = document["sections"][0]
@@ -1226,7 +1288,7 @@ class PdfReportRenderer:
             raise OAKError("OAK-REPORT-RENDER", "this renderer writes PDF only")
         try:
             content = render_pdf(document)
-        except (KeyError, TypeError, ValueError) as error:
+        except (AttributeError, IndexError, KeyError, TypeError, ValueError) as error:
             raise OAKError("OAK-REPORT-RENDER", "the report document could not be drawn") from error
         if len(content) > MAXIMUM_RENDERING_BYTES:
             raise OAKError("OAK-REPORT-SIZE", "the rendered report exceeds 4 MiB")

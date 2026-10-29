@@ -38,10 +38,12 @@ ALLOWED_FIELDS = frozenset(
         "code",
         "duration_ms",
         "error_type",
+        "host",
         "method",
         "operation_id",
         "operation_kind",
         "outcome",
+        "port",
         "request_id",
         "route",
         "status",
@@ -161,12 +163,24 @@ class AccessLogMiddleware:
     Outermost, so a request the loopback guard refuses is logged too. The raw path and
     query string are never logged: a request that matched no route is `unmatched`. The
     request ID is minted here, never taken from a header, and returned as
-    `X-OAK-Request-ID` so a user can quote it.
+    `X-OAK-Request-ID` so a user can quote it. An error nothing handled is answered here
+    by `unhandled`, because the server's own error middleware sits outside every
+    middleware and would send its 500 without the ID. The `quiet` routes (the health
+    probes a container healthcheck calls every few seconds) are logged at `DEBUG`.
     """
 
-    def __init__(self, app: _ASGIApp, *, enabled: bool = True) -> None:
+    def __init__(
+        self,
+        app: _ASGIApp,
+        *,
+        enabled: bool = True,
+        unhandled: Callable[[MutableMapping[str, Any]], _ASGIApp] | None = None,
+        quiet: frozenset[str] = frozenset(),
+    ) -> None:
         self._app = app
         self._enabled = enabled
+        self._unhandled = unhandled
+        self._quiet = quiet
 
     async def __call__(
         self,
@@ -181,10 +195,12 @@ class AccessLogMiddleware:
         scope.setdefault("state", {})["request_id"] = request_id
         started = time.perf_counter()
         status = 500
+        responded = False
 
         async def send_with_id(message: Any) -> None:
-            nonlocal status
+            nonlocal status, responded
             if message.get("type") == "http.response.start":
+                responded = True
                 status = int(message.get("status", 500))
                 headers = list(message.get("headers", []))
                 headers.append((b"x-oak-request-id", request_id.encode("ascii")))
@@ -195,10 +211,11 @@ class AccessLogMiddleware:
         try:
             await self._app(scope, receive, send_with_id)
         except Exception as error:
-            # Unhandled: the server's error middleware answers 500 after this. Its type is
-            # logged; its message, which may quote the request, is not.
+            # Its type is logged; its message, which may quote the request, is not.
             error_type = type(error).__name__
-            raise
+            if responded or self._unhandled is None:
+                raise
+            await self._unhandled(scope)(scope, receive, send_with_id)
         finally:
             if self._enabled:
                 route = scope.get("route")
@@ -208,7 +225,7 @@ class AccessLogMiddleware:
                 code = state.get("error_code") if isinstance(state, dict) else None
                 log_event(
                     _ACCESS,
-                    logging.INFO,
+                    logging.DEBUG if path in self._quiet else logging.INFO,
                     "request",
                     route=path if isinstance(path, str) else "unmatched",
                     method=method if method in _METHODS else "OTHER",

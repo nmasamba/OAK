@@ -5,12 +5,15 @@ import ipaddress
 import logging
 import os
 import sys
+from typing import Any
 
 import uvicorn
 
 from oak.bootstrap import default_credentials_directory, mint_model_token
 from oak.domain import OAKError
-from oak.interfaces.logs import configure_logging, exit_on
+from oak.interfaces.logs import configure_logging, exit_on, log_event
+
+_LOG = logging.getLogger("oak.api")
 
 
 def is_loopback_host(host: str) -> bool:
@@ -60,7 +63,10 @@ def run_server(
     """Bind the API after minting the per-process model-configuration token.
 
     Logging is configured here, so `oak serve` writes the same allowlisted lines as
-    `oak-api`; an unknown `OAK_LOG_LEVEL` refuses with `OAK-LOG-CONFIG`.
+    `oak-api`; an unknown `OAK_LOG_LEVEL` refuses with `OAK-LOG-CONFIG`. The socket is bound
+    before serving, through uvicorn (this module imports no network library: it listens, it
+    never calls out), so a port in use refuses with `OAK-SERVE-BIND` rather than uvicorn's
+    own exit, and a bound one is logged as `api_listening`.
     """
 
     configure_logging("oak-api")
@@ -90,7 +96,7 @@ def run_server(
     # own access log would print the raw path and query string, and its default logging
     # configuration would replace the allowlisted handler.
     # One process: worker processes (`WEB_CONCURRENCY`) would start without this logging.
-    uvicorn.run(
+    config = uvicorn.Config(
         "oak.interfaces.api.app:app",
         host=host,
         port=port,
@@ -99,6 +105,21 @@ def run_server(
         log_config=None,
         server_header=False,
     )
+    try:
+        # uvicorn logs a failed bind (a library line, its text not written) and exits.
+        listening = config.bind_socket()
+    except SystemExit as error:
+        raise OAKError(
+            "OAK-SERVE-BIND",
+            f"cannot listen on {host}:{port}: the address is in use, is not this "
+            "machine's, or needs a privilege this process lacks",
+        ) from error
+    log_event(_LOG, logging.INFO, "api_listening", host=host, port=port)
+    _serve(config, listening)
+
+
+def _serve(config: uvicorn.Config, listening: Any) -> None:
+    uvicorn.Server(config).run(sockets=[listening])
 
 
 def _environment_flag(name: str) -> bool:
@@ -120,13 +141,14 @@ def main() -> None:
     except ValueError as error:
         raise SystemExit(f"OAK-SAFE-BIND: {error}") from error
     try:
-        run_server(host=host, port=port, allow_non_loopback=allow_non_loopback)
+        # Before anything can be logged as JSON, so a bad level is said in plain text.
+        configure_logging("oak-api")
     except OAKError as error:
-        if error.code == "OAK-LOG-CONFIG":
-            raise SystemExit(f"{error.code}: {error.message}") from error
-        exit_on(logging.getLogger("oak.api"), "startup_failed", error)
+        raise SystemExit(f"{error.code}: {error.message}") from error
+    try:
+        run_server(host=host, port=port, allow_non_loopback=allow_non_loopback)
     except Exception as error:
-        exit_on(logging.getLogger("oak.api"), "startup_failed", error)
+        exit_on(_LOG, "startup_failed", error)
 
 
 if __name__ == "__main__":  # pragma: no cover

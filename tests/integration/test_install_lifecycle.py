@@ -515,6 +515,82 @@ def test_status_without_a_mailbox_says_it_compared_nothing(
     assert report["chain"] == "verified" and report["signed_head"] == "unchecked"
 
 
+@pytest.mark.parametrize("damage", ["not utf-8", "unreadable"])
+def test_status_reports_a_damaged_journal_beside_a_signed_completion(
+    journey: Journey, tmp_path: Path, capsys: pytest.CaptureFixture[str], damage: str
+) -> None:
+    """A journal that cannot be read is reported as such, never a traceback."""
+
+    _crash_mid_install(journey)
+    path = _journal(tmp_path)
+    if damage == "not utf-8":
+        path.write_bytes(path.read_bytes() + b"\xff\xfe\n")
+    else:
+        path.chmod(0)
+    try:
+        report = _full_status(capsys)
+    finally:
+        path.chmod(0o600)
+    (journal,) = report["journals"]
+    assert journal["chain"] == "unreadable" and journal["manual_recovery_required"] is True
+    assert report["missing_journals"] == []
+
+
+@pytest.mark.parametrize("planted", ["deeply nested", "not a number"])
+def test_status_survives_a_malformed_completion_in_the_mailbox(
+    journey: Journey, tmp_path: Path, capsys: pytest.CaptureFixture[str], planted: str
+) -> None:
+    """The mailbox is untrusted: a file anyone could drop there cannot stop `status`."""
+
+    from oak.runner.identity import RunnerIdentity
+
+    _crash_mid_install(journey)
+    messages = journey.harness.mailbox_root / "messages"
+    target = messages / "runner-message.completion.planted.1.json"
+    if planted == "deeply nested":
+        target.write_text("[" * 100_000 + "]" * 100_000, encoding="utf-8")
+    else:
+        key = RunnerIdentity.load_or_create(
+            tmp_path / "runner", "runner.local-fixture-runner"
+        ).public_key_base64
+        target.write_text(
+            '{"kind": "completion", "id": "runner-message.completion.planted.1", '
+            '"correlation_id": "lease.planted", "sequence": 1, '
+            '"payload": {"journal_digest": "sha256:00", "n": NaN}, '
+            f'"signature": {{"algorithm": "ed25519", "public_key_base64": "{key}", '
+            '"signature_base64": "AA=="}}',
+            encoding="utf-8",
+        )
+
+    journal = _status(capsys)
+    assert journal["chain"] == "verified" and journal["signed_head"] == "matched"
+
+
+@pytest.mark.parametrize("key", ["open to others", "unreadable", "moved aside"])
+def test_status_refuses_to_compare_without_the_runner_key(
+    journey: Journey, tmp_path: Path, capsys: pytest.CaptureFixture[str], key: str
+) -> None:
+    """Hiding the key would otherwise turn a cut journal back into "verified"."""
+
+    from oak.runner.main import status
+
+    _crash_mid_install(journey)
+    path = _journal(tmp_path)
+    path.write_text(path.read_text(encoding="utf-8").splitlines()[0] + "\n", encoding="utf-8")
+    runner_key = tmp_path / "runner" / "runner.key"
+    if key == "open to others":
+        runner_key.chmod(0o640)
+    elif key == "unreadable":
+        runner_key.chmod(0)
+    else:
+        runner_key.rename(runner_key.with_name("runner.key.aside"))
+    capsys.readouterr()
+    with pytest.raises(OAKError) as refused:
+        status()
+    assert refused.value.code == "OAK-RUNNER-KEY"
+    assert capsys.readouterr().out == ""
+
+
 def _publish_completion(journey: Journey, tmp_path: Path, sequence: int, **payload: object):
     """A completion for the dispatched lease, signed by the enrolled runner's own key."""
 

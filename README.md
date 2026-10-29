@@ -195,8 +195,9 @@ Face token, if you store one. The four containers that keep running are capped a
 ## Install and first run
 
 Everything has been tested on **Macs with Apple silicon** (M-series). The command line
-has also been tested on **Linux**. The Docker stack should work there too, but so far
-it's only been run as Linux containers on a Mac. Intel Macs and Windows aren't supported,
+has also been tested on **Linux**. The Docker stack should work there too: CI builds it on
+Linux and starts it there for the browser tests, but nobody has yet installed and run it
+there the way you would. Intel Macs and Windows aren't supported,
 although the Windows Subsystem for Linux (WSL2) counts as Linux.
 [platforms.md](docs/platforms.md) says exactly what has been tested where.
 
@@ -408,9 +409,13 @@ printf '%s\n' \
 ```
 
 ```text
+{"component":"oak-mcp","event":"mcp_started","level":"INFO","logger":"oak.mcp","time":"..."}
 {"id": 1, "jsonrpc": "2.0", "result": {"capabilities": {"tools": {}}, "protocolVersion": "2025-06-18", "serverInfo": {"name": "oak-mcp", "version": "0.9.0"}}}
 {"id": 2, "jsonrpc": "2.0", "result": {"tools": [{"name": "oak_design_case_create", ...
 ```
+
+The first line is `oak-mcp`'s log, on stderr (`2>/dev/null` hides it); the replies are on
+stdout, which is all an assistant reads.
 
 **Connect your assistant.** Most AI assistants and code editors that support MCP accept a
 JSON entry like this one. Use the full path to your checkout:
@@ -628,38 +633,46 @@ enforces.
 The newest **published** release is `0.9.0`, on the
 [Releases page](https://github.com/nmasamba/OAK/releases), published on 2026-10-01. This
 tree still reports `0.9.0`, but it also holds the work listed under "Unreleased" in
-[CHANGELOG.md](CHANGELOG.md) (the rebuilt browser workspace, `oak report` and
-`oak research`), which the published `0.9.0` downloads do not contain. `0.8.0` was approved
+[CHANGELOG.md](CHANGELOG.md) (the rebuilt browser workspace, `oak report`,
+`oak research`, the PDF's Latin, Greek and Cyrillic, JSON logs, moving a local case onto a
+server, and the signature check in the verifier), which the published `0.9.0` downloads do
+not contain. `0.8.0` was approved
 but never published, so `0.7.1` is the published release before it.
 
 Each release comes with a `SHA256SUMS` file. It lists a fingerprint (a SHA-256 hash) for
 the wheel, the sdist, the SBOM and the licence list. A fifth file, `build-provenance.json`,
-describes the build and is deliberately left out of the list. Check your downloads
-against it from the download folder:
+describes the build and is deliberately left out of the list. Every release after `0.9.0`
+also has `SHA256SUMS.sig`, the maintainer's signature over the list. Check your downloads
+against the list from the download folder:
 
 ```bash
 sha256sum -c SHA256SUMS          # Linux
 shasum -a 256 -c SHA256SUMS      # macOS
 ```
 
-OAK also has a small verifier that behaves the same on both. It uses only Python's
-standard library and needs no OAK installation. It exits `0` if everything verifies, `2`
-on a mismatch, and `3` if the manifest or a file is missing or malformed:
+Those check the fingerprints only. OAK also has a small verifier that checks the
+signature too, and behaves the same on both. It uses only Python's standard library and
+needs no OAK installation, but checking the signature needs `ssh-keygen` (OpenSSH 8.2 or
+later). Take it and `keys/allowed_signers` from this repository's `main` branch, not from
+the release's tag (a key revoked since is still pinned at a tag, and the `0.7.1` and
+`0.9.0` tags have neither the signature check nor the file):
 
 ```bash
 python3 scripts/verify_release.py ./downloaded-release --allowed-signers keys/allowed_signers
 ```
 
-What that proves: the files you have are the files the manifest lists, and that the
-maintainer released them: it checks their SSH signature over `SHA256SUMS` against the key
-pinned in `keys/allowed_signers` (take both files from the repository at the release's
-tag) and refuses the release without it. Checking the signature needs `ssh-keygen`; the
-exit codes are `0` verified, `2` mismatch, `3` a missing or malformed file, `4` a
-signature missing, not verifying or not checkable. `0.7.1` and `0.9.0` were published
-unsigned and are recognised by their published manifests' digests, so for those get
-`SHA256SUMS` through a channel you trust independently of the downloads. [release-process.md](docs/release-process.md#verifying-a-release) has the
+It exits `0` verified, `2` on a mismatch, `3` if the manifest or a file is missing or
+malformed, and `4` if the signature is missing, does not verify, or cannot be checked.
+What `0` proves: the files you have are the files the manifest lists, and the maintainer
+released them, by their SSH signature over `SHA256SUMS` against the key pinned in
+`keys/allowed_signers`. It names `build-provenance.json` as `UNLISTED`, because the list
+leaves it out. `0.7.1` and `0.9.0` were published unsigned and are recognised by their
+published manifests' digests, so for those get `SHA256SUMS` through a channel you trust
+independently of the downloads. [release-process.md](docs/release-process.md#verifying-a-release) has the
 details.
 
 ## Licence
 
-Licensed under the Apache License, Version 2.0. See [`LICENSE`](LICENSE).
+Licensed under the Apache License, Version 2.0. See [`LICENSE`](LICENSE). The IBM Plex
+fonts the report PDF embeds are under the SIL Open Font License 1.1
+([`src/oak/adapters/report/fonts/OFL-1.1-IBM-Plex.txt`](src/oak/adapters/report/fonts/OFL-1.1-IBM-Plex.txt)).

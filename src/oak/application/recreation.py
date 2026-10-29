@@ -85,7 +85,15 @@ def replay_plan(manifest: Mapping[str, Any], objects: Mapping[str, bytes]) -> Re
         return _replay_plan(manifest, objects)
     except OAKError:
         raise
-    except (AttributeError, IndexError, KeyError, TypeError, UnicodeError, ValueError) as error:
+    except (
+        AttributeError,
+        IndexError,
+        KeyError,
+        RecursionError,
+        TypeError,
+        UnicodeError,
+        ValueError,
+    ) as error:
         raise _refused("an object in the export is not the document its index says") from error
 
 
