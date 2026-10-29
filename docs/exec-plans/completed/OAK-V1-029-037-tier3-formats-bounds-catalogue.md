@@ -18,8 +18,8 @@ writes no decision record, signs nothing and publishes nothing.
 
 - Owner/agent: owner-directed coding agent
 - Started: 2026-10-29
-- Last updated: 2026-10-29 (M2, the digest move: the bundle edge and the catalogue boundary)
-- State: in-progress
+- Last updated: 2026-10-29 (M8, the close)
+- State: complete (PR #42 open, https://github.com/nmasamba/OAK/pull/42; the merge is the owner's)
 - Claimed tasks: `OAK-V1-029`–`OAK-V1-037`
 
 One plan covers nine task IDs: one per item A1–A8 of the prompt and one for the review, the
@@ -59,18 +59,21 @@ After this plan:
    design. Items 2 and 3 land in one milestone, the one deliberate move of the four reference
    digests before 1.0 (Q1).
 4. **Workspace reads are bounded, and the curve is published** (`OAK-V1-032`, `RR-030`): the
-   manifest read cost measured at 0, 43, 200 and 500 audit events with hardware provenance in
-   `performance.md`; a per-process verification cache keyed on the manifest's digest skips
-   only the work whose inputs it is keyed on, so the API and the worker verify a workspace
-   once per process and object reads keep verifying their digests; the CLI's per-command cost
-   is measured and stated honestly.
+   manifest read cost measured at four depths (freshly initialised, after the reference
+   journey, and at 200 and 500 audit events) with hardware provenance in `performance.md`
+   and `docs/performance/workspace-growth-2026-10-29.json`; a per-process verification
+   cache keyed on the manifest's path and the digest of its bytes makes a later read of
+   the same bytes a parse, skipping the lineage walk, which every document says exactly,
+   so the API and the worker verify a workspace once per process while every write path
+   and every object read keep verifying; the CLI's per-command cost is measured and
+   stated honestly.
 5. **The runner and the worker survive a soak** (`OAK-V1-033`, `RR-031`): a consumed nonce is
    dropped only once its lease's expiry plus clock skew has passed and kept when the expiry
    cannot be read; processed dispatch directories are cleaned after a configurable retention
    that never removes the newest journal or a completion not yet ingested; the journal is
    appended from an in-memory head verified when the file is opened; the operation store has
-   a lease extension the worker calls between steps. The runner's own signed heartbeat is
-   decided with the owner (see Decisions) and, if it does not land, the register says so.
+   a lease extension the worker calls between steps. The runner's own signed heartbeat
+   lands in this batch, as the owner decided during the milestone (see Decisions).
 6. **Aggregate work is capped** (`OAK-V1-034`, `RR-024` and `RR-041`): per-address and
    per-tenant request limits answering `429` with `Retry-After` and an `OAK-*` code, a cap on
    queued and running operations per tenant, and a per-case daily count of billable model
@@ -78,7 +81,8 @@ After this plan:
    that the configuration contract test enforces. The limiter's state lives in one API
    process, which is what Community runs, and the documents claim nothing distributed.
 7. **The container images reproduce** (`OAK-V1-035`, `RR-006`): Debian packages from a dated
-   `snapshot.debian.org` archive, the Alpine side pinned, the user created from fixed files,
+   `snapshot.debian.org` archive in both images (the web image on the trixie variant of the
+   unprivileged nginx image, see Decisions), the user's shadow date fixed,
    `SOURCE_DATE_EPOCH` set and layer timestamps rewritten, so two builds of one commit give
    one image ID per platform; the `images` job builds each image twice and compares, and
    `make toolchain-check` requires that step (Q3). The register entry's bytecode claim is
@@ -569,6 +573,31 @@ that a `0.9.0` workspace needs.
   snapshot item, the local proof), `RR-006` closed and `RR-036`'s remedy, `operations.md`,
   `dependencies.md`, `threat-coverage.md` (`TM-15`), the manual, the changelog.
 
+- [x] 2026-10-29 M8 (`OAK-V1-037`). Five reviewers read the finished diff (M1/M3/M6,
+  M2, M4, M5/M7, and a documents sweep of both repositories), each asked to refute the
+  plan's claims: 47 findings (31 in code, 16 in documents), each verified here before it
+  was acted on, all fixed in `8a937cd` with a test where they were code and 14 mutation
+  checks (each new guard broken in turn, its test failed, the file restored); the table
+  below. W1's first fix, which completed an interrupted restore with the event it lacked,
+  broke the persistent journey's duplicate answer, because a server's own export imported
+  back is the same state as a restore interrupted after its workspace write; the restore
+  answers both as a duplicate and the window is documented and pinned (`40a76fd`, two
+  mutation checks: the duplicate answer and the conflict's restored-from clause). Gates on
+  the closed tree: `make check` with `OAK_TEST_DATABASE_URL` on the throwaway PostgreSQL
+  17.6 on port 15433 (1392 unit, 590 integration and 46 end-to-end tests passed, the four skips the file adapter's parity assertions that CI's database jobs expect too; zero `make: ***` lines, zero database skips); `make audit`
+  clean; `make web-e2e-isolated` on its own Compose project (33 passed, the two manual captures skipped); the reference case
+  compiled on `origin/main` and on this branch at one fixed time and compared, 43 artifacts
+  each, 22 byte-identical and 21 differing only in the catalogue snapshot's provenance and
+  patterns, the bundle's edge and the digests that carry them (M2's declared move, nothing
+  else); both images built twice for `linux/arm64` from `a1eabea` on the pinned BuildKit
+  gave one ID each (api `sha256:dd45cfaa…`, web `sha256:3b5d4753…`), and the Dockerfiles'
+  later guards (L6) are proven by the PR's arm64 job, which builds twice; the manual's PDF
+  rebuilt from its source and found identical to the committed one but for its two date
+  fields, so the committed one stands; `docs/error-codes.md` regenerated. The readiness list's "what
+  1.0 promises" item notes what the batch changed (`a1eabea`). The plan moved to
+  `completed/`; both `STATUS.md` files, both changelogs, `sprints.md` and the spec repo's
+  version (`0.4.0-draft.21`) updated; PR #42 open, its CI the proof of the final tree.
+
 ## Decisions
 
 - 2026-10-29 M0. **The owner's kickoff answers**, asked together at the start with options
@@ -783,6 +812,15 @@ that a `0.9.0` workspace needs.
   miss but not close it; the honest fix is to say what is skipped, which every document
   now does, and to keep every write path verifying in full.
 
+- 2026-10-29 M8. **A restore left without its event is a duplicate, not completed.**
+  The first fix for W1 finished an interrupted restore on the next import, recording the
+  event then. That state (the export's bytes present, no restore event) is also what a
+  server's own export imported back looks like, which the persistent journey does and
+  which must answer as a duplicate; completing it recorded a restore the server could not
+  justify. The derived key removed the trigger the reviewer found; the window between the
+  workspace write and its event stays, is documented in `compatibility.md` and
+  `operations.md`, and is pinned by a test so that a later change is a decision.
+
 ### Closing review findings (M8, 2026-10-29)
 
 Five reviewers read the finished diff, one per area, and were asked to refute the plan's
@@ -856,4 +894,29 @@ before it was acted on. Severity is the reviewer's.
 
 ## Self-review
 
-(Empty until the work happens.)
+- **What the review caught that the milestones did not.** The highest finding was the
+  restore's two writes (W1): M6 tested the happy path and the duplicate, never a crash
+  between the workspace write and its event. The first fix made it worse in a quieter way,
+  "completing" an interrupted restore with an event the server could not justify, and
+  broke the persistent journey, which imports a server's own export back and must be told
+  it is a duplicate. The honest end was to narrow the window (the derived key), document
+  what remains and pin it, not to invent a record.
+- **Three findings were the plan's own claims, overstated.** The cache "skips only the work
+  whose inputs it is keyed on" (W2), the journal is "never extended" (R1), a step "never
+  rewrites or drops" (W3): each described the intent, and each test passed because it
+  exercised the intent. A reviewer told to refute the sentence found the case between the
+  sentence and the code every time. Write a claim as narrowly as its test proves it.
+- **The digest budget held.** Two suggestions (C7's, and folding provenance into the
+  candidates' digest) would have moved the reference digests a second time; Q1 allowed
+  one move, so both are decided against, with the reasoning in Decisions.
+- **The Alpine detour.** M7 first pinned the Alpine web image and proved it reproduced;
+  the scan gate then showed what pinning costs on a base with no dated archive (60
+  fixable findings, and three on the newest upstream image). The move to the trixie
+  variant with the dated snapshot went from a proven state to a proven state, but the
+  register said closed for one commit before the trixie proof existed (L9).
+- **Honesty about the platforms.** The arm64 proof is local and CI's; the amd64 proof is
+  the release job's, which a PR does not run. The provenance says so per platform.
+- **What is not done.** `RR-030`'s growth clause (compaction or archival), `RR-004`'s
+  policy clause, the limiter's per-process state, the history objects a cached read does
+  not re-walk, and the restore's one-commit window; each register entry or document says
+  what remains.

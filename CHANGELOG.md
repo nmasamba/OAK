@@ -179,6 +179,46 @@ and launched on 2026-10-29; this is its first batch: formats, bounds and the cat
   stored in an existing workspace changes, and an old bundle, export or runner plan still
   reads and verifies.
 
+#### Security
+
+Found by the batch's closing adversarial review and fixed before it closed:
+
+- A migration step can no longer relabel, re-kind, reorder or drop one of two index entries
+  that share bytes, nor drop a history key: every original index entry must stay as it was
+  and in its place, and `audit_events` and `idempotency_records` must equal the input's
+  (`OAK-WORKSPACE-MIGRATION`); an imported older export is validated on its migrated view,
+  as `validate export` validates it; a migration's commit checks its idempotency key before
+  it writes an object.
+- The catalogue feed validates each activation record against its schema and parses its
+  time at every read, re-checks the pack's declared compatibility with this OAK through the
+  verifier's own check, keys provenance by kind and id (a contributed id held by a document
+  of either kind is `OAK-CATALOGUE-DUPLICATE`), reads only the active directory, and parses
+  only the bytes it verified. Before, a forged activation record admitted a pack the
+  verifier had refused, a contributed manifest named like a curated pattern was recorded as
+  the pattern's provenance, and a malformed entry in quarantine stopped every compile.
+- The operation cap is judged by the store under one lock with the insert (an advisory
+  transaction lock on PostgreSQL); two concurrent submissions could both find room.
+- The request limiter's eviction forgets only keys owing nothing; a flood of fresh keys
+  could reset a limit.
+- The runner checks before each append that the journal file still ends at the head it
+  verified (`OAK-JOURNAL-TAMPERED`), and `head()` answers from that head; a heartbeat that
+  fails for any reason is dropped and spends no sequence, where a journal error inside it
+  became an operation failure and a rollback; a processed dispatch whose envelope cannot be
+  read is removed only when the journal ties it to a lease whose completion was ingested;
+  the heartbeat interval is `0` or at least one second, and the in-memory store refuses to
+  renew a lease it no longer holds.
+- The image provenance claims reproducibility only from a record about these images (the
+  platform, the artifact version, the source commit, a named builder, and a scan that did
+  not rebuild); divergent snapshot dates or an unknown BuildKit make no claim; the
+  toolchain check requires each command at the start of a line, where an `echo` of it
+  passed; each image build checks that the snapshot rewrite matched and that no live
+  mirror remains.
+- A restore's event is recorded under a key of its own, derived from the import's key and
+  the export, so an import key the origin had used no longer conflicts once the workspace
+  exists; a repeat import answers the case as the restore recorded it; a restore
+  interrupted between the workspace write and its event is a duplicate on the next import,
+  recorded nowhere, and the documents say so.
+
 ### The pre-1.0 assurance batch (`OAK-V1-021`–`028`)
 
 Tier 2 of the owner's cost-benefit ranking of the backlog, launched on 2026-10-28.
