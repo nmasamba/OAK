@@ -132,7 +132,8 @@ and launched on 2026-10-29; this is its first batch: formats, bounds and the cat
   moves from the Alpine to the trixie variant of the same unprivileged nginx image
   (`nginxinc/nginx-unprivileged:1.30.6-trixie`; Alpine keeps no dated archive, and the
   newest upstream Alpine image still carried fixable findings) and takes its packages from
-  the same snapshot; both are built with `SOURCE_DATE_EPOCH` set
+  the same snapshot, and `compose.yaml`'s web health check probes with `curl`, which that
+  image ships, instead of busybox `wget`; both are built with `SOURCE_DATE_EPOCH` set
   to the source commit's time, so Python compiles hash-based bytecode and BuildKit
   rewrites every layer timestamp. The new `scripts/reproduce_images.py` builds each image
   twice, the second time with no cached layer, and fails unless the two image IDs match;
