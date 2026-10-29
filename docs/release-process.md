@@ -16,7 +16,7 @@ the artifacts they hold are the ones that were built.
 | `SHA256SUMS` | `make release` | — it is the manifest |
 | `SHA256SUMS.sig` | the maintainer, after the build (see [Signing](#signing-every-release-after-090)) | No — it signs the manifest |
 | `build-provenance.json` | `make release` | **No** — see below |
-| API and web container images | `.github/workflows/release.yml` | No — see [Images](#images) |
+| API and web container images | `.github/workflows/release.yml` | **Per platform**, proven by building twice — see [Images](#images) |
 
 `build-provenance.json` records wall-clock facts about one particular build — commit,
 builder platform, interpreter and `uv` versions. Including it in the manifest would make
@@ -106,8 +106,9 @@ git push origin v0.9.0
 
 That workflow runs `make check` before `make release`, against a migrated PostgreSQL service
 as CI does, so a release cannot be cut from a tree that fails the gate or skips the
-database suites, and separately builds the API and web images. It verifies the artifacts
-against their checksums only (`--checksums-only`), because the signature is made after it.
+database suites, and separately builds the API and web images twice each and compares
+them (see [Images](#images)). It verifies the artifacts against their checksums only
+(`--checksums-only`), because the signature is made after it.
 
 ### Signing (every release after 0.9.0)
 
@@ -218,12 +219,35 @@ open until the maintainer pins a key and signs `1.0.0`.
 
 ## Images
 
-`.github/workflows/release.yml` builds the API and web images for `linux/amd64`, runs
-`oak --version` inside the API image, records the resulting image IDs, and runs
-`scripts/scan_images.py` — the same gate as `make scan-images` — which emits one
-CycloneDX SBOM per image plus an unsigned `image-provenance.json` into the
-`image-evidence` artifact and fails the job on any *fixable* CRITICAL or HIGH finding.
+`.github/workflows/release.yml` builds the API and web images for `linux/amd64` **twice**,
+the second time with no cached layer, on a BuildKit pinned by version and digest, and
+fails unless the two builds give one image ID per image (`scripts/reproduce_images.py`,
+which writes `image-reproducibility.json`). It then runs `oak --version` inside the API
+image, records the image IDs, and runs `scripts/scan_images.py` — the same gate as
+`make scan-images` — which emits one CycloneDX SBOM per image plus an unsigned
+`image-provenance.json` into the `image-evidence` artifact, folding the reproducibility
+record into the provenance, and fails the job on any *fixable* CRITICAL or HIGH finding.
 Locally the same evidence lands under `docs/release/<version>/` and is committed there.
+CI's `check-linux-arm64` job builds both images twice natively for `linux/arm64` on the
+same pinned BuildKit, so that platform is proven on every push.
+
+What makes two builds one image (`RR-006`, closed by Tier 3's Batch A):
+
+- The API image takes Debian's packages, security updates included, from the dated
+  `snapshot.debian.org` archive its Dockerfile names (`ARG DEBIAN_SNAPSHOT`), so the
+  package set depends on that date and not on the build day. **The date moves at each
+  release** (the checklist below), which is how reproducibility and `RR-036`'s updates
+  coexist: a release takes the fixes published up to its snapshot, and `make scan-images`
+  still decides whether the image ships.
+- The web image applies no build-time upgrade, because Alpine keeps no dated archive; its
+  package set is its base image's pinned digest, and a fix reaches it by re-pinning that
+  digest to a newer upstream image.
+- The API image's user is created with a fixed shadow date and without the account
+  files' backups, and what apt, dpkg and ldconfig write with the build's clock is removed.
+- Every build passes `SOURCE_DATE_EPOCH`, the source commit's time: Python compiles
+  hash-based bytecode with it (the venv's `.pyc` files are compiled at build time by `uv`;
+  the runtime writes none), BuildKit stamps the image configuration with it, and the
+  exporter rewrites every layer's file timestamps to it (`rewrite-timestamp=true`).
 
 Two honest caveats:
 
@@ -231,23 +255,32 @@ Two honest caveats:
   digest a consumer can pull by. Building them in the workflow exists to prove they
   build — the failure mode that left the API image unbuildable for an entire sprint,
   invisible to both `make build` and CI at the time. CI now builds both images too, on
-  every push (the browser suite's Compose project on x86_64, and natively in the arm64
+  every push (the browser suite's Compose project on x86_64, and twice in the arm64
   job), but keeps no evidence of them; this workflow builds and scans the release's own.
-- **Image builds are not byte-reproducible.** `useradd` writes a date-stamped shadow
-  entry, bytecode compilation is on, and no build sets `SOURCE_DATE_EPOCH` or rewrites
-  layer timestamps. Two builds of the same commit produce different image digests.
-  Recorded as `RR-006`. Do not treat a recorded image digest as something to reproduce;
-  treat it as a record of what one build produced.
+- **The claim is per platform and per builder.** A platform CI did not build twice, a
+  build with another BuildKit, and a Compose build, which passes no source date, make no
+  claim; `snapshot.debian.org` is a build-time dependency; and the base images move only
+  when their digests are re-pinned. The provenance says `byte_reproducible: true` only
+  from the record of two matching builds, naming the platform, the BuildKit, the
+  snapshot date and both image IDs.
 
 Base images *are* pinned by tag **and** immutable `sha256` digest in both Dockerfiles and
 in `compose.yaml`, and `make toolchain-check` fails if the `uv`, Python, Node,
-unprivileged-nginx runtime or Compose PostgreSQL pins drift — and separately if the
-running Python or the pnpm-provisioned Node differs from the pins.
+unprivileged-nginx runtime or Compose PostgreSQL pins drift, if the snapshot or the source
+date leaves the API Dockerfile, if the web Dockerfile changes packages at build time, if a
+workflow builds the images without proving them twice or on an unpinned BuildKit — and
+separately if the running Python or the pnpm-provisioned Node differs from the pins.
 
-To build the images locally, matching what the workflow does:
+To prove the images locally, for the platform your machine builds natively, on a builder
+running the same pinned BuildKit as the workflows (Docker Desktop's default builder
+refuses timestamp rewriting; the record lands beside the other evidence):
 
 ```bash
-docker buildx build --platform linux/amd64 --file deploy/images/api.Dockerfile --tag oak-community/api:0.9.0 --load .
+docker buildx create --name oak-reproduce --driver docker-container --driver-opt image=moby/buildkit:v0.34.0@sha256:b059f8d7226d0b326bc871af489a5dddf65e36af4d20d14251b072974d9ee87c
+```
+
+```bash
+python3 scripts/reproduce_images.py --builder oak-reproduce --platform linux/arm64 --output docs/release/$(cat VERSION)/image-reproducibility.json deploy/images/api.Dockerfile deploy/images/web.Dockerfile
 ```
 
 ## Publication
@@ -284,6 +317,10 @@ release after `0.9.0` also carries the maintainer's signature over `SHA256SUMS`.
 - [ ] `make check` green with `OAK_TEST_DATABASE_URL` on a fresh, migrated database — verified
       by reading the output, not the exit code; it names any PostgreSQL-gated test it skipped
 - [ ] `make scan-images` green — no *fixable* CRITICAL or HIGH in either image
+- [ ] `ARG DEBIAN_SNAPSHOT` in `deploy/images/api.Dockerfile` moved to the release day and
+      the web image's base digest re-pinned to the current upstream image, so the release
+      takes the security updates published since the last one; `make scan-images` green
+      on the result, and the release's `image-reproducibility.json` says `reproduced: true`
 - [ ] Reference-case byte-stability verified directly against the previous mainline
 - [ ] `openapi/oak.compatibility-baseline.json` rewritten from the release's contract
       (`python scripts/check_openapi_compatibility.py --write-baseline`), with the

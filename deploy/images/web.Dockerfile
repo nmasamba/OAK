@@ -19,14 +19,11 @@ RUN pnpm build
 # filesystem. It listens on 8080, which needs no privilege (RR-037).
 FROM nginxinc/nginx-unprivileged:1.29.1-alpine@sha256:27985295bdb22a1ef8f712863210bd5877c0f3006494a593e86b3fe0fa55467e
 
-# Apply distro security updates. The digest pin is current for its tag; the upstream
-# image lags Alpine's patch stream, so this is the only way to pick up fixed OpenSSL,
-# libexpat, libxml2, libpng, pcre2 and zlib. It trades build-time determinism, which OAK
-# does not claim for images (docs/security/residual-risk.md, RR-006). apk needs root;
-# the runtime user is restored immediately after.
-USER root
-RUN apk upgrade --no-cache
-USER nginx
+# No build-time upgrade: Alpine keeps no dated package archive, so `apk upgrade` would
+# make the image depend on when it was built. The base digest is the whole package set,
+# and a fix Alpine publishes reaches the image by re-pinning that digest to a newer
+# upstream image, which `make scan-images` asks for when a finding is fixable (RR-006,
+# RR-036).
 
 COPY deploy/nginx/default.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/web/dist /usr/share/nginx/html

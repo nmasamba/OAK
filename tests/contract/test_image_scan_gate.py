@@ -141,24 +141,47 @@ def test_image_sboms_follow_the_distribution_naming_convention() -> None:
     assert _sbom_name("web", "0.7.1") == "oak-community-web-image-0.7.1.cdx.json"
 
 
-def test_image_provenance_is_marked_unsigned_and_unreproducible() -> None:
-    """Provenance is a record, not an assurance; it must say so itself."""
+def test_image_provenance_claims_reproducibility_only_from_a_record_that_proves_it() -> None:
+    """Provenance is a record, not an assurance; it must say so itself. Since Tier 3's
+    Batch A it claims byte-reproducibility only from the record of two matching builds,
+    for the platform and builder that record names (RR-006)."""
 
-    document = _provenance_document(
-        version="0.7.1",
-        requested_platform="linux/amd64",
-        source_commit="deadbeef",
-        source_tree_dirty=False,
-        docker_server="29.0.0",
-        images={"api": {"tag": "oak-community/api:0.7.1", "image_id": "sha256:x"}},
-    )
-
+    common = {
+        "version": "0.7.1",
+        "requested_platform": "linux/amd64",
+        "source_commit": "deadbeef",
+        "source_tree_dirty": False,
+        "docker_server": "29.0.0",
+        "images": {"api": {"tag": "oak-community/api:0.7.1", "image_id": "sha256:x"}},
+    }
+    document = _provenance_document(**common)
     assert document["signed"] is False
     assert "unsigned" in document["signing_note"]
     assert document["byte_reproducible"] is False
+    assert document["reproducibility"] is None
     assert "RR-006" in document["reproducibility_note"]
+    assert "did not build the images twice" in document["reproducibility_note"]
     assert document["artifact_version"] == "0.7.1"
     assert document["images"]["api"]["tag"] == "oak-community/api:0.7.1"
+
+    record = {
+        "platform": "linux/amd64",
+        "buildkit_version": "v0.34.0",
+        "debian_snapshot": "20261029T000000Z",
+        "source_date_epoch": 1793295847,
+        "images": {"api": {"first_build": "sha256:a", "second_build": "sha256:a"}},
+        "reproduced": True,
+    }
+    proven = _provenance_document(**common, reproducibility=record)
+    assert proven["byte_reproducible"] is True
+    assert proven["reproducibility"]["platform"] == "linux/amd64"
+    assert proven["reproducibility"]["debian_snapshot"] == "20261029T000000Z"
+    assert "linux/amd64" in proven["reproducibility_note"]
+    assert "v0.34.0" in proven["reproducibility_note"]
+
+    failed = _provenance_document(**common, reproducibility={**record, "reproduced": False})
+    assert failed["byte_reproducible"] is False
+    assert "did not reproduce" in failed["reproducibility_note"]
 
 
 def test_the_sbom_stamp_survives_a_file_the_process_cannot_write(tmp_path: Path) -> None:

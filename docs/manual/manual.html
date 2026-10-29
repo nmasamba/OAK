@@ -1257,8 +1257,10 @@ SHA256SUMS is signed by nmasamba, the key pinned in keys/allowed_signers</span><
   <pre><code><span class="out">SHA256SUMS is the unsigned manifest 0.9.0 was published with (RR-005), so checksums prove the bytes match it, not who produced them.</span></code></pre>
   <p>
     A signature says who released the artifacts, not how they were built. The container
-    images are not byte-reproducible (<code>RR-006</code>) — their SBOMs and provenance under
-    <code>docs/release/0.9.0/</code> record what one build produced.
+    images reproduce per platform since Tier 3's Batch A (<code>RR-006</code>): the
+    release builds each twice and records both IDs. The <code>0.9.0</code> images predate
+    that, so their SBOMs and provenance under <code>docs/release/0.9.0/</code> record what
+    one build produced.
   </p>
 </section>
 

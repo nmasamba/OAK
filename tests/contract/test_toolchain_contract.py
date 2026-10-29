@@ -515,8 +515,8 @@ def test_a_release_job_that_does_not_wait_for_the_browser_suite_is_rejected(
             "CI arm64 job: both images must be built and checked as arm64",
         ),
         (
-            "          docker build --file deploy/images/web.Dockerfile --tag oak-ci/web:arm64 .\n",
-            "",
+            "            deploy/images/api.Dockerfile deploy/images/web.Dockerfile\n",
+            "            deploy/images/api.Dockerfile\n",
             "CI arm64 job: both images must be built and checked as arm64",
         ),
     ],
@@ -812,6 +812,94 @@ def test_a_gate_that_could_pass_without_proving_its_claim_is_rejected(
 
     tree = _mirror(ROOT, tmp_path)
     path = tree / ".github/workflows" / workflow
+    text = path.read_text(encoding="utf-8")
+    assert text.count(original) == 1, original
+    path.write_text(text.replace(original, replacement), encoding="utf-8")
+
+    assert failure in check(tree)
+
+
+@pytest.mark.parametrize(
+    ("relative", "original", "replacement", "failure"),
+    [
+        (
+            "deploy/images/api.Dockerfile",
+            "ARG DEBIAN_SNAPSHOT=",
+            "ARG DEBIAN_SNAP=",
+            "deploy/images/api.Dockerfile: expected ARG DEBIAN_SNAPSHOT=<YYYYMMDDTHHMMSSZ>",
+        ),
+        (
+            "deploy/images/api.Dockerfile",
+            "ARG SOURCE_DATE_EPOCH\n",
+            "",
+            "deploy/images/api.Dockerfile: expected ARG SOURCE_DATE_EPOCH",
+        ),
+        (
+            "deploy/images/web.Dockerfile",
+            "COPY deploy/nginx/default.conf",
+            "RUN apk upgrade --no-cache\nCOPY deploy/nginx/default.conf",
+            "deploy/images/web.Dockerfile: no build-time package change; re-pin the base instead",
+        ),
+        (
+            ".github/workflows/release.yml",
+            "python3 scripts/reproduce_images.py",
+            "python3 scripts/build_images.py",
+            "release workflow: the images job must build both images twice for linux/amd64 "
+            "with scripts/reproduce_images.py",
+        ),
+        (
+            ".github/workflows/ci.yml",
+            "python3 scripts/reproduce_images.py",
+            "python3 scripts/build_images.py",
+            "CI workflow: the check-linux-arm64 job must build both images twice for "
+            "linux/arm64 with scripts/reproduce_images.py",
+        ),
+        (
+            ".github/workflows/release.yml",
+            "--reproducibility image-evidence/image-reproducibility.json \\\n",
+            "",
+            "release workflow: the images job must hand the scan its reproducibility record",
+        ),
+    ],
+)
+def test_an_image_build_that_cannot_prove_it_reproduces_is_rejected(
+    tmp_path: Path, relative: str, original: str, replacement: str, failure: str
+) -> None:
+    """OAK-V1-035 (RR-006): the dated snapshot, the source date, no build-time change on
+    Alpine, and each workflow building both images twice."""
+
+    tree = _mirror(ROOT, tmp_path)
+    path = tree / relative
+    text = path.read_text(encoding="utf-8")
+    assert text.count(original) >= 1, original
+    path.write_text(text.replace(original, replacement, 1), encoding="utf-8")
+
+    assert failure in check(tree)
+
+
+@pytest.mark.parametrize(
+    ("relative", "original", "replacement", "failure"),
+    [
+        (
+            ".github/workflows/release.yml",
+            "driver-opts: image=moby/buildkit:v",
+            "driver-opts: image=moby/buildkit:latest@sha256:v",
+            "release workflow: the images job must pin BuildKit by version and digest "
+            "(setup-buildx driver-opts image=moby/buildkit:vX.Y.Z@sha256:...)",
+        ),
+        (
+            ".github/workflows/ci.yml",
+            "driver-opts: image=moby/buildkit:v0.",
+            "driver-opts: image=moby/buildkit:v9.",
+            "the CI and release workflows must pin one BuildKit",
+        ),
+    ],
+)
+def test_an_unpinned_or_divergent_buildkit_is_rejected(
+    tmp_path: Path, relative: str, original: str, replacement: str, failure: str
+) -> None:
+    tree = _mirror(ROOT, tmp_path)
+    path = tree / relative
     text = path.read_text(encoding="utf-8")
     assert text.count(original) == 1, original
     path.write_text(text.replace(original, replacement), encoding="utf-8")

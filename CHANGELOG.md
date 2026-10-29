@@ -124,6 +124,23 @@ and launched on 2026-10-29; this is its first batch: formats, bounds and the cat
   comes back one patch version on. Importing the same export again, under any key, is a
   duplicate of that restore; an export of another state of the case is refused with
   `OAK-IDEMPOTENCY-CONFLICT` as before. A local `oak import` is unchanged.
+- **Reproducible container images** (`RR-006`, closed per platform; the owner's Q3
+  answer of 2026-10-29: pin). The API image takes Debian's packages, security updates
+  included, from the dated `snapshot.debian.org` archive its Dockerfile names
+  (`ARG DEBIAN_SNAPSHOT`, moved at each release), creates its user with a fixed shadow
+  date and removes what apt, dpkg and ldconfig write with the build's clock; the web image
+  no longer runs `apk upgrade` at build time (Alpine keeps no dated archive), so a fix
+  reaches it by re-pinning its base digest; both are built with `SOURCE_DATE_EPOCH` set
+  to the source commit's time, so Python compiles hash-based bytecode and BuildKit
+  rewrites every layer timestamp. The new `scripts/reproduce_images.py` builds each image
+  twice, the second time with no cached layer, and fails unless the two image IDs match;
+  the release workflow's `images` job runs it for `linux/amd64` and CI's
+  `check-linux-arm64` job for `linux/arm64`, both on BuildKit `v0.34.0` pinned by digest,
+  and `make toolchain-check` requires the snapshot, the source date, no build-time package
+  change on Alpine, the pinned BuildKit and the twice-built proof in both workflows. The
+  image provenance claims `byte_reproducible: true` only from the record of two matching
+  builds, naming the platform, the builder, the snapshot date and both image IDs; a
+  Compose build or a build on another BuildKit makes no claim.
 
 #### Changed
 

@@ -219,8 +219,12 @@ Planned at kickoff; each milestone records what shipped, as `docs/compatibility.
   `OAK-MODEL-BUDGET` and `OAK-LIMIT-CONFIG`; `OperationStore.active_count` on the port,
   the PostgreSQL store and the in-memory test store; the log allowlist keeps the client
   address out, so a refused request's line carries the limit's code only.
-- `OAK-V1-035`: build-time only; the release evidence records the snapshot date and the
-  BuildKit version.
+- `OAK-V1-035` (shipped): build-time only. `ARG DEBIAN_SNAPSHOT` and `ARG SOURCE_DATE_EPOCH`
+  in the API Dockerfile, no `apk upgrade` in the web one; `scripts/reproduce_images.py`;
+  both workflows pin BuildKit `v0.34.0` by digest and build twice; the release evidence
+  gains `image-reproducibility.json`, and `image-provenance.json` gains `reproducibility`
+  beside a `byte_reproducible` that is true only from that record; `scripts/scan_images.py`
+  takes `--reproducibility`.
 - `OAK-V1-036` (shipped): `workspace_restored` in the audit event's `event_type` enum
   (additive), written by a server restore of a server export under the importing actor
   with `interface_origin: import`, and the case and event extension
@@ -517,6 +521,38 @@ that a `0.9.0` workspace needs.
   recorded, the duplicate check ignoring the recorded origin, and the event's origin not
   `import`. `compatibility.md`, `interfaces.md`, `operations.md` (Export: what a restored
   history says), `threat-coverage.md` (`TM-12`), the changelog.
+- [x] 2026-10-29 M7 (`OAK-V1-035`). `deploy/images/api.Dockerfile`: `ARG SOURCE_DATE_EPOCH`
+  in the build stage, so `uv`'s bytecode compilation writes hash-based `.pyc` files (it
+  does: every file checked carries flag 3); the venv's `uv_cache.json` and its RECORD line
+  removed after `uv sync` (uv's record of the build, stamped with the build's clock);
+  Debian's packages from `snapshot.debian.org` at `ARG DEBIAN_SNAPSHOT=20261029T000000Z`
+  through a rewrite of the base's `debian.sources`, apt run with `Check-Valid-Until` off
+  and retries, apt's, dpkg's and ldconfig's clock-stamped files removed; the user created
+  with `--no-log-init`, `chage --lastday 2026-01-01` and the account-file backups removed.
+  `web.Dockerfile`: no `apk upgrade`. `scripts/reproduce_images.py` builds each Dockerfile
+  twice (`--build-arg SOURCE_DATE_EPOCH=<the commit's time>`,
+  `--output type=docker,rewrite-timestamp=true`, the second build `--no-cache`), compares
+  the image IDs and writes the record; the release `images` job runs it for `linux/amd64`
+  and hands the record to `scripts/scan_images.py --reproducibility`, whose provenance
+  carries `reproducibility` and claims `byte_reproducible` only from a matching record;
+  CI's `check-linux-arm64` job runs it for `linux/arm64`; both on
+  `moby/buildkit:v0.34.0@sha256:b059f8d7…` through the buildx container driver.
+  `tools/check_toolchains.py` requires the snapshot and source-date arguments, no
+  `apk upgrade`, one pinned BuildKit in both workflows, the twice-built proof in both jobs
+  and the record handed to the scan. Proof: locally, on a container-driver builder running
+  the pinned BuildKit, both images built twice for `linux/arm64` from `9b0d6d0` gave one
+  ID each (api `sha256:806692b3c17fdcdcaaefa8c2f7485ed39dbcdf3539e7c45a76e22730512f9a33`,
+  web `sha256:b6e7ddcf2683c675911005ce4edc344b9aa1f4365a3e8c314cd08da2b9132ea8`); the
+  first attempt differed on the API image by exactly `uv_cache.json` and the RECORD line
+  naming it, found by comparing the two builds' layers entry by entry, and reproduced once
+  those were removed; `linux/amd64` is the release job's and the PR's CI to prove.
+  `tests/contract/test_toolchain_contract.py` (eight new cases: the snapshot, the source
+  date, `apk upgrade`, the proof step in each workflow, the record handed to the scan, an
+  unpinned and a divergent BuildKit, and the arm64 case re-pointed) and
+  `test_image_scan_gate.py` (the provenance claims reproducibility only from a record that
+  proves it); `make toolchain-check` green. `release-process.md` (Images, the checklist's
+  snapshot item, the local proof), `RR-006` closed and `RR-036`'s remedy, `operations.md`,
+  `dependencies.md`, `threat-coverage.md` (`TM-15`), the manual, the changelog.
 
 ## Decisions
 
@@ -694,6 +730,30 @@ that a `0.9.0` workspace needs.
   a conflict on every re-import; the check now also accepts a destination whose case
   records a restore from this export's digest, so a retry under any key is a duplicate,
   while an export of another state is refused as before.
+- 2026-10-29 M7. **Pin by date, as the owner chose (Q3).** Debian's packages come from
+  `snapshot.debian.org` at the date `ARG DEBIAN_SNAPSHOT` names, so the API image's
+  security updates are the ones published up to that date and the date moves at each
+  release (a checklist item in `release-process.md`); the register's `RR-036` names that
+  move as the remedy. Alpine keeps no dated archive, so the web image drops `apk upgrade`
+  and takes fixes by re-pinning its base digest, the prompt's second option for it.
+- 2026-10-29 M7. **The claim is per platform and per builder.** A build is proven by
+  building twice with no cached layer and comparing image IDs; the release job proves
+  `linux/amd64`, CI's arm64 job proves `linux/arm64`, and the provenance says
+  `byte_reproducible: true` only from the record of such a comparison, naming what it
+  covers. A Compose build passes no source date and claims nothing.
+- 2026-10-29 M7. **One BuildKit, pinned by digest.** Timestamp rewriting needs BuildKit
+  0.13 or later, and Docker Desktop updates itself, so both workflows run the same
+  `moby/buildkit:v0.34.0` by index digest (the newest release more than two weeks old on
+  2026-10-29, as the action pins are chosen) through the buildx container driver, and
+  `make toolchain-check` refuses an unpinned or divergent pin.
+- 2026-10-29 M7. **`SOURCE_DATE_EPOCH` is the commit's time.** Passed as a build argument,
+  declared in the build stage so that `uv`'s bytecode compilation sees it and Python
+  writes hash-based `.pyc` files, used by BuildKit for the image configuration, and
+  applied to every layer by `rewrite-timestamp=true`.
+- 2026-10-29 M7. **What the register said about bytecode.** `UV_COMPILE_BYTECODE=1`
+  compiles the venv's `.pyc` files at build time and `PYTHONDONTWRITEBYTECODE=1` keeps the
+  runtime from writing any; the entry's "bytecode compilation is enabled" was true of the
+  build and unclear about the runtime, and now says both.
 
 ## Discoveries and follow-ups
 
@@ -717,6 +777,13 @@ that a `0.9.0` workspace needs.
 - 2026-10-29 M5. `scripts/generate_openapi.py` writes the web client from a fixed source,
   so documenting `429` touched `openapi/oak.openapi.json` only; the compatibility checker
   flags removed responses, not added ones.
+- 2026-10-29 M7. Docker Desktop's default builder refuses `rewrite-timestamp` with its
+  containerd image store ("conflicts with unpack"); the buildx container driver, which the
+  workflows use with the pinned BuildKit, exports a tarball the daemon loads, and works.
+  The script takes `--builder` for it.
+- 2026-10-29 M7. `uv sync` leaves `uv_cache.json` in the project's dist-info with the
+  build's clock and a directory stamp; it was the one file that differed between two
+  builds once the clock-stamped system files were gone.
 
 ## Self-review
 

@@ -317,7 +317,7 @@ def _check_platform_jobs(text: str, compose_image: str | None, failures: list[st
             not isinstance(postgres, dict) or postgres.get("image") != compose_image
         ):
             failures.append("CI arm64 job: the database service must run compose.yaml's image")
-        build = next((run for run in _runs(arm) if "docker build" in run), "")
+        build = next((run for run in _runs(arm) if _REPRODUCE in run), "")
         if not all(
             fragment in build
             for fragment in (
@@ -327,6 +327,49 @@ def _check_platform_jobs(text: str, compose_image: str | None, failures: list[st
             )
         ):
             failures.append("CI arm64 job: both images must be built and checked as arm64")
+
+
+_BUILDKIT_PIN = re.compile(r"^image=moby/buildkit:v\d+\.\d+\.\d+@sha256:[a-f0-9]{64}$")
+_REPRODUCE = "scripts/reproduce_images.py"
+
+
+def _check_image_reproduction(
+    text: str, label: str, job_name: str, platform: str, failures: list[str]
+) -> str | None:
+    """The job builds both images twice for its platform on a pinned BuildKit (RR-006).
+
+    Returns the BuildKit pin it found, so the caller can require one pin across workflows.
+    """
+
+    job = _jobs(text).get(job_name)
+    if not isinstance(job, dict):
+        failures.append(f"{label}: the {job_name} job is missing")
+        return None
+    steps = [step for step in job.get("steps", []) if isinstance(step, dict)]
+    pins = [
+        str((step.get("with") or {}).get("driver-opts", "")).strip()
+        for step in steps
+        if str(step.get("uses", "")).startswith("docker/setup-buildx-action")
+    ]
+    if len(pins) != 1 or _BUILDKIT_PIN.match(pins[0]) is None:
+        failures.append(
+            f"{label}: the {job_name} job must pin BuildKit by version and digest "
+            "(setup-buildx driver-opts image=moby/buildkit:vX.Y.Z@sha256:...)"
+        )
+    reproduce = next((run for run in _runs(job) if _REPRODUCE in run), "")
+    if not all(
+        fragment in reproduce
+        for fragment in (
+            f"--platform {platform}",
+            "deploy/images/api.Dockerfile",
+            "deploy/images/web.Dockerfile",
+        )
+    ):
+        failures.append(
+            f"{label}: the {job_name} job must build both images twice for {platform} "
+            f"with {_REPRODUCE}"
+        )
+    return pins[0] if len(pins) == 1 else None
 
 
 def _load_package(text: str, failures: list[str]) -> dict[str, Any]:
@@ -511,6 +554,41 @@ def check(root: Path = ROOT) -> list[str]:
         failures.append("release workflow: the gate must fetch the image CI's runner journeys use")
 
     _check_platform_jobs(workflow, compose_image, failures)
+
+    # Reproducible images (RR-006): a dated Debian snapshot and the source date in the
+    # API Dockerfile, no build-time package change in the Alpine one, one pinned BuildKit
+    # wherever a workflow builds the images, each build proven twice, and the release
+    # scan folding the proof into its provenance.
+    if not re.search(r"^ARG DEBIAN_SNAPSHOT=\d{8}T\d{6}Z$", api_dockerfile, flags=re.MULTILINE):
+        failures.append(
+            "deploy/images/api.Dockerfile: expected ARG DEBIAN_SNAPSHOT=<YYYYMMDDTHHMMSSZ>"
+        )
+    if not re.search(r"^ARG SOURCE_DATE_EPOCH$", api_dockerfile, flags=re.MULTILINE):
+        failures.append("deploy/images/api.Dockerfile: expected ARG SOURCE_DATE_EPOCH")
+    if re.search(r"^RUN .*apk (upgrade|add)", web_dockerfile, flags=re.MULTILINE):
+        failures.append(
+            "deploy/images/web.Dockerfile: no build-time package change; re-pin the base instead"
+        )
+    release_pin = _check_image_reproduction(
+        release_workflow, "release workflow", "images", "linux/amd64", failures
+    )
+    ci_pin = _check_image_reproduction(
+        workflow, "CI workflow", "check-linux-arm64", "linux/arm64", failures
+    )
+    if release_pin is not None and ci_pin is not None and release_pin != ci_pin:
+        failures.append("the CI and release workflows must pin one BuildKit")
+    scan = next(
+        (
+            run
+            for run in _runs(_jobs(release_workflow).get("images") or {})
+            if "scan_images.py" in run
+        ),
+        "",
+    )
+    if "--reproducibility image-evidence/image-reproducibility.json" not in scan:
+        failures.append(
+            "release workflow: the images job must hand the scan its reproducibility record"
+        )
     _check_platform(
         _jobs(release_workflow),
         "artifacts",

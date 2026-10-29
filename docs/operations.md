@@ -38,11 +38,14 @@ The worker is not optional if you intend to use the API: candidate generation,
 evaluation, compilation and a consented research run are durable operations, and without
 a worker they stay queued forever with no error.
 
-The images apply their distribution's security updates at build time, so **rebuilding
-picks up patches**. `make scan-images` reports what a build currently carries. As of
-`0.9.0` the web image reports no findings at any severity and the API image has no
-CRITICAL findings and 44 HIGH with no vendor fix available — eight distinct advisories, most
-of them counted once per package Debian builds from one source
+The API image takes Debian's security updates from a dated snapshot named in its
+Dockerfile, and the web image's packages are its pinned base image's, so **rebuilding
+reproduces the same image** (`RR-006`, closed by Tier 3's Batch A); a release moves the
+snapshot date and re-pins the web base to take the patches published since, and
+`make scan-images` reports what the Dockerfiles as they stand carry. As of `0.9.0` the web
+image reports no findings at any severity and the API image has no CRITICAL findings and
+44 HIGH with no vendor fix available — eight distinct advisories, most of them counted
+once per package Debian builds from one source
 ([container-scan.md](release/0.9.0/container-scan.md)).
 
 Verify the release artifacts you downloaded before installing them — see
