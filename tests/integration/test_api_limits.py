@@ -15,7 +15,7 @@ import pytest
 from oak.application import SystemInformationService
 from oak.domain import OAKError, SystemInformation
 from oak.interfaces.api.app import OPERATION_QUOTA_RETRY_SECONDS, PROBLEM_MEDIA_TYPE, create_app
-from oak.interfaces.api.limits import RequestLimits
+from oak.interfaces.api.limits import EXEMPT_PATHS, RequestLimits
 from oak.interfaces.logs import configure_logging
 
 pytestmark = pytest.mark.anyio
@@ -155,10 +155,14 @@ async def test_the_application_s_own_429s_carry_retry_after() -> None:
         assert other.status_code == 409 and "retry-after" not in other.headers
 
 
-def test_the_contract_documents_429_with_retry_after_on_every_operation() -> None:
+def test_the_contract_documents_429_with_retry_after_on_every_limited_operation() -> None:
     document = create_app(_service()).openapi()
     for path, path_item in document["paths"].items():
         for method, operation in path_item.items():
+            if path in EXEMPT_PATHS:
+                # The probes are exempt, and the contract says so by not listing 429.
+                assert "429" not in operation["responses"], (method, path)
+                continue
             response = operation["responses"]["429"]
             assert response["headers"]["Retry-After"]["schema"]["type"] == "integer", (method, path)
             assert PROBLEM_MEDIA_TYPE in response["content"], (method, path)

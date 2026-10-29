@@ -848,6 +848,19 @@ def test_a_gate_that_could_pass_without_proving_its_claim_is_rejected(
             "with scripts/reproduce_images.py",
         ),
         (
+            ".github/workflows/release.yml",
+            "python3 scripts/reproduce_images.py",
+            "echo scripts/reproduce_images.py",
+            "release workflow: the images job must build both images twice for linux/amd64 "
+            "with scripts/reproduce_images.py",
+        ),
+        (
+            ".github/workflows/release.yml",
+            "python3 scripts/scan_images.py",
+            "echo scripts/scan_images.py",
+            "release workflow: the images job must hand the scan its reproducibility record",
+        ),
+        (
             ".github/workflows/ci.yml",
             "python3 scripts/reproduce_images.py",
             "python3 scripts/build_images.py",

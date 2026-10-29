@@ -191,7 +191,27 @@ def _provenance_document(
     byte-reproducibility, and only for the platform and builder the record names.
     """
 
-    reproduced = bool(reproducibility and reproducibility.get("reproduced"))
+    # A record proves these images only when it is about them: the same platform, the
+    # same artifact version and source commit, a builder it names, and images this scan
+    # did not rebuild (a rebuild is another build, which the record says nothing about).
+    problems: list[str] = []
+    if reproducibility is not None:
+        if not reproducibility.get("reproduced"):
+            problems.append("the two builds of at least one image differ")
+        if reproducibility.get("platform") != requested_platform:
+            problems.append(
+                f"the record is for {reproducibility.get('platform')}, this scan for "
+                f"{requested_platform}"
+            )
+        if str(reproducibility.get("artifact_version")) != version:
+            problems.append("the record names another artifact version")
+        if reproducibility.get("source_commit") != source_commit:
+            problems.append("the record names another source commit")
+        if images_rebuilt:
+            problems.append("this scan rebuilt the images, which the record is not about")
+        if reproducibility.get("buildkit_version") in (None, "", "unknown"):
+            problems.append("the record names no BuildKit version")
+    reproduced = reproducibility is not None and not problems
     if reproduced and reproducibility is not None:
         reproducibility_note = (
             f"Each image was built twice for {reproducibility.get('platform')} on BuildKit "
@@ -202,8 +222,9 @@ def _provenance_document(
         )
     elif reproducibility is not None:
         reproducibility_note = (
-            "The images did not reproduce in this run: the two builds of at least one image "
-            "differ. The record names both IDs (RR-006)."
+            "The record handed in does not prove these images: "
+            + "; ".join(problems)
+            + ". No reproducibility is claimed (RR-006)."
         )
     else:
         reproducibility_note = (
@@ -239,6 +260,7 @@ def _provenance_document(
                 "debian_snapshot": reproducibility.get("debian_snapshot"),
                 "source_date_epoch": reproducibility.get("source_date_epoch"),
                 "images": reproducibility.get("images"),
+                "problems": problems,
             }
             if reproducibility is not None
             else None

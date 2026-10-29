@@ -134,7 +134,8 @@ replaceable and owned by its own project. OAK compiles *to* them; it doesn't abs
 **Bigger directions (discuss first)**
 
 - Let policy decisions gate state transitions, not just record them (`RR-004`).
-- A signature and provenance gate for catalogue component manifests (`RR-025`), and real
+- Signing the curated catalogue inside the wheel on its own (declined for now under the
+  owner's Q1 answer of 2026-10-29; the extension boundary is gated, `RR-025`), and real
   manifests backed by evidence.
 - A per-job cost or token budget, and a tenant-wide model budget (`RR-024`, `RR-041`:
   the request, operation and per-case model limits exist; the limiter's state is one

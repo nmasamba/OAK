@@ -19,6 +19,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
+from oak.domain import OAKError
 from oak.runner.journal import RunnerJournal
 
 HEARTBEAT_INTERVAL_SECONDS = 30.0
@@ -51,16 +52,23 @@ class LeaseHeartbeat:
         now = self._clock()
         if not force and self._last is not None and now - self._last < self._interval:
             return
-        sequence, digest = self._journal.head()
-        payload = {
-            "stage": stage,
-            "operation_kind": operation_kind,
-            "journal_sequence": sequence,
-            "journal_digest": digest,
-        }
         try:
-            self._publish(self._sequence + 1, payload)
-        except (OSError, ValueError):
+            sequence, digest = self._journal.head()
+            self._publish(
+                self._sequence + 1,
+                {
+                    "stage": stage,
+                    "operation_kind": operation_kind,
+                    "journal_sequence": sequence,
+                    "journal_digest": digest,
+                },
+            )
+        except (OSError, ValueError, OAKError):
+            # A report that cannot be made is dropped, whatever stopped it: the mailbox,
+            # or a journal file this run can no longer read. The install goes on, the next
+            # beat waits a whole interval, and the sequence is not spent, so the next
+            # heartbeat that is written leaves no gap.
+            self._last = now
             return
         self._sequence += 1
         self._last = now

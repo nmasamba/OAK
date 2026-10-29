@@ -345,8 +345,12 @@ By milestone, to be filled as each lands:
 - **M2, the catalogue boundary.** Trust anchors come from the operator's trust directory,
   never from inside the extension; the verifier never takes its policy from the document it
   checks; a review bundle is still not a security artifact and the register keeps saying so.
-- **M3, the cache.** Keyed on the bytes it skips work for; never consulted when a mutation
-  is validated; object reads keep verifying.
+- **M3, the cache.** Keyed on the manifest bytes; never consulted when a mutation, an
+  export or a migration is validated; every object a command opens keeps verifying. What
+  a cached read skips is the walk over the history's objects, so a history object changed
+  on disk after a process's first read is noticed when opened, by the next full
+  verification, or by the next process, not by a cached read in that process (the closing
+  review's W2; the documents say so).
 - **M4, the runner.** The nonce ledger stays fail-closed; cleanup never hides a cut; the
   journal's head stays hash-chained.
 - **M5, the limiter.** State in one process, claimed as such; the client address reaches a
@@ -769,6 +773,56 @@ that a `0.9.0` workspace needs.
   compiles the venv's `.pyc` files at build time and `PYTHONDONTWRITEBYTECODE=1` keeps the
   runtime from writing any; the entry's "bytecode compilation is enabled" was true of the
   build and unclear about the runtime, and now says both.
+- 2026-10-29 M8. **No second digest move.** The review suggested folding provenance into
+  the candidates' idempotency digest; that changes the `candidates_generated` event and so
+  every digest downstream of it, a second move of the reference digests, which Q1 allowed
+  once. The digest stays as it was; a re-activation under another signer with the same
+  manifests is a retry of the same compile, which is what the digest says it is.
+- 2026-10-29 M8. **The cache's limit is documented, not removed.** A cheaper freshness
+  check over the history's objects (a stat per object) would narrow what a cached read can
+  miss but not close it; the honest fix is to say what is skipped, which every document
+  now does, and to keep every write path verifying in full.
+
+### Closing review findings (M8, 2026-10-29)
+
+Five reviewers read the finished diff, one per area, and were asked to refute the plan's
+claims; the documents sweep covered both repositories. Every finding was verified here
+before it was acted on. Severity is the reviewer's.
+
+| ID | Area | Severity | Finding | Resolution |
+|---|---|---|---|---|
+| W1 | M6 restore | high | A restore is two writes (import, then the event); a failure between them left a restored workspace without its event, and every retry was a duplicate; a natural trigger: the export carries the origin's idempotency records, so an import key the origin had used conflicted after the workspace existed | The event's key is the restore's own, derived from the import's key and the export; an import that finds the export restored without its event records it; tests for both |
+| W2 | M3 cache | medium | The cache skips the lineage walk, which reads the history's objects; the comment said the skipped checks were functions of the manifest bytes alone | The code comment, the docstring, `performance.md`, `RR-030`, the changelog and this plan say exactly what a cached read skips and when a changed history object is noticed; the mechanism is unchanged by decision |
+| W3 | M1 rules | medium | The "never rewrites or drops" rule compared digest to size only: a step could relabel, re-kind, reorder or drop one of two entries sharing bytes | Every original index entry must stay as it was and in its place, as a prefix; six unit cases |
+| W4 | M1 rules | medium | The history rule was a length check, skipped when a step dropped the key; a dropped key crashed `migrate()` | `audit_events` and `idempotency_records` must equal the input's; four unit cases |
+| W5 | M1 import | medium/low | An imported older export was not schema-validated on its migrated view, so `validate export` could accept what `migrate` then refused | The import validates the migrated manifest as `export_to` does |
+| W6 | M6 restore | low | Once the case moved on, a repeat import answered the moved case as the duplicate | The repeat answers the case as the restore recorded it; test |
+| W7 | M1 commit | low | The chain runs outside the lock; the commit skipped the idempotency check, refusing a reused key only after writing objects | The commit checks the key before writing; the plan's wording corrected |
+| W8 | M1, M3 | low | Two docstrings overstated | Corrected |
+| C1 | M2 catalogue | medium | Provenance was keyed by bare id across kinds: a contributed manifest named like a curated pattern labelled the pattern as contributed | Provenance keyed by kind and id; a contributed id held by a document of either kind is refused as a duplicate; test |
+| C2 | M2 catalogue | medium | The activation record was read, never validated; a bad time entered the snapshot and a missing key crashed | The record is validated against its schema and its time parsed at every read; test |
+| C3 | M2 docs | medium | `compatibility.md` claimed a `0.9.0` reader validates the new documents; its schemas close additional properties | Corrected to the truth in both directions |
+| C4 | M2 catalogue | low/medium | A forged activation record admitted a pack the verifier refused; compatibility was not re-checked at read | One domain check (`compatibility_problem`) serves the verifier and the feed, run at every read; test with a hand-written record |
+| C5 | M2 catalogue | low | A malformed entry in quarantine stopped every compile | Only the active directory is read; test |
+| C6 | M2 catalogue | low | The payload was read twice; the second read was parsed unverified | The verified bytes are what is parsed |
+| C7 | M2 research | low | The CLI's research service read a bare curated catalogue; the candidates' idempotency digest ignored provenance | Research reads the fed catalogue (test); the digest is left as it was, because changing it moves the reference digests a second time, outside the owner's Q1 budget (decision below) |
+| R1 | M4 journal | medium | "Never extended" was overstated: the chain is verified once per object, and `head()` re-read the file unverified, so a run and its file could diverge | Before each append the run checks the file still ends at its head; `head()` answers from the verified head; docs and test names say "once per run"; tests |
+| R2 | M4 heartbeat | medium | A journal error inside a beat became an operation failure and a rollback; a refused beat retried at every boundary | A beat drops on any error, waits an interval, spends no sequence; test |
+| R3 | M4 cleanup | low | A processed dispatch with an unreadable envelope was removed while its completion was unread | The journal's `lease_accepted` names the lease; a directory tied to neither is kept; test |
+| R4 | M4 ledger | low | The prune trusts the runner's clock at write time; a clock stepped forward and back drops a nonce early | Said so in the register and the code |
+| R5 | M4 ingest | low | The same-batch ordering was not tested as a security property | Test: a short completion and its heartbeats in one batch |
+| R6 | M4 worker | low | The in-memory store's `heartbeat` checked nothing, so no test exercised a lost lease through renewal | The store refuses a renewal of a lease it no longer holds; test |
+| R7 | M4 heartbeat | low | Any positive interval, so a readiness poll could flood the mailbox and the case's history | The interval is `0` or at least one second; the register names the version churn and the per-completion read cost |
+| L1 | M5 cap | medium | The count and the insert were two store calls: concurrent submissions both found room | The store judges the cap with the insert under one lock (an advisory transaction lock on PostgreSQL, the store's lock in memory); race test |
+| L2 | M7 provenance | medium | The provenance claimed reproducibility from any record saying so | The record must be about these images: platform, artifact version, source commit, a named builder, and a scan that did not rebuild; tests |
+| L3 | M5 limiter | low/medium | Eviction past capacity forgot the oldest key even in debt, so a flood of fresh keys reset a limit | Eviction forgets only keys owing nothing; test |
+| L4 | M7 toolchain | low | The command checks were substring checks; an `echo` satisfied them | The command must start a line; test |
+| L5 | M7 record | low | The record took the first Dockerfile's snapshot date; an unknown BuildKit was recorded as such | Divergent dates and an unknown BuildKit refuse to make a claim |
+| L6 | M7 Dockerfiles | low | An unmatched `sed` left the live mirror in place silently | Each build checks the rewrite matched and no live mirror remains |
+| L7 | M5 contract | low | `429` was documented on the exempt probes | Removed there; tests |
+| L8 | M5 budget | low | The budget reads every audit artifact of the case on each model request | Noted in the register (linear in the history, bounded by `RR-030`'s curve) |
+| L9 | M7 | info | The trixie web image's proof was pending when the register said closed | Proven before this table was written |
+| D1–D16 | docs | — | Sixteen stale or unbacked statements across both repositories (README, CONTRIBUTING, `compatibility.md`, `operations.md`, `performance.md`, the register, threat coverage, a runner comment, the error reference's quick table, the spec repo's record of the heartbeat decision) | Corrected, the spec repo's at close |
 
 ## Discoveries and follow-ups
 

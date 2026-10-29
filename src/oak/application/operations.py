@@ -116,20 +116,12 @@ class OperationService:
         existing = self._store.idempotent(spec)
         if existing is not None:
             return OperationSubmission(existing, duplicate=True)
-        # A duplicate is answered above whatever the queue holds; a new operation joins it
-        # only while the tenant is under its cap (RR-024).
-        if self._maximum_active:
-            active = self._store.active_count()
-            if active >= self._maximum_active:
-                raise OAKError(
-                    "OAK-OPERATION-QUOTA",
-                    f"the tenant already has {active} operation(s) queued or running, the "
-                    "configured maximum; wait for one to finish or cancel one",
-                    retriable=True,
-                )
         if precondition is not None:
             precondition()
-        enqueued: EnqueuedOperation = self._store.enqueue(spec)
+        # A duplicate is answered above whatever the queue holds; a new operation joins it
+        # only while the tenant is under its cap, which the store judges under one lock
+        # with the insert, so two submissions cannot both find room for one (RR-024).
+        enqueued: EnqueuedOperation = self._store.enqueue(spec, maximum_active=self._maximum_active)
         return OperationSubmission(enqueued.operation, enqueued.duplicate)
 
     def get(self, operation_id: str) -> OperationRecord:

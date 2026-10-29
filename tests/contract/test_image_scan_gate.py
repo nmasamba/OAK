@@ -166,22 +166,43 @@ def test_image_provenance_claims_reproducibility_only_from_a_record_that_proves_
 
     record = {
         "platform": "linux/amd64",
+        "artifact_version": "0.7.1",
+        "source_commit": "deadbeef",
         "buildkit_version": "v0.34.0",
         "debian_snapshot": "20261029T000000Z",
         "source_date_epoch": 1793295847,
         "images": {"api": {"first_build": "sha256:a", "second_build": "sha256:a"}},
         "reproduced": True,
     }
-    proven = _provenance_document(**common, reproducibility=record)
+    proven = _provenance_document(**common, reproducibility=record, images_rebuilt=False)
     assert proven["byte_reproducible"] is True
     assert proven["reproducibility"]["platform"] == "linux/amd64"
     assert proven["reproducibility"]["debian_snapshot"] == "20261029T000000Z"
     assert "linux/amd64" in proven["reproducibility_note"]
     assert "v0.34.0" in proven["reproducibility_note"]
 
-    failed = _provenance_document(**common, reproducibility={**record, "reproduced": False})
+    failed = _provenance_document(
+        **common, reproducibility={**record, "reproduced": False}, images_rebuilt=False
+    )
     assert failed["byte_reproducible"] is False
-    assert "did not reproduce" in failed["reproducibility_note"]
+    assert "builds of at least one image differ" in failed["reproducibility_note"]
+
+    # A record proves only the images it is about (review L2).
+    for change, problem in (
+        ({"platform": "linux/arm64"}, "the record is for linux/arm64"),
+        ({"artifact_version": "0.0.1"}, "another artifact version"),
+        ({"source_commit": "0000"}, "another source commit"),
+        ({"buildkit_version": "unknown"}, "names no BuildKit version"),
+    ):
+        unrelated = _provenance_document(
+            **common, reproducibility={**record, **change}, images_rebuilt=False
+        )
+        assert unrelated["byte_reproducible"] is False, change
+        assert problem in unrelated["reproducibility_note"], change
+        assert unrelated["reproducibility"]["problems"], change
+    rebuilt = _provenance_document(**common, reproducibility=record, images_rebuilt=True)
+    assert rebuilt["byte_reproducible"] is False
+    assert "rebuilt the images" in rebuilt["reproducibility_note"]
 
 
 def test_the_sbom_stamp_survives_a_file_the_process_cannot_write(tmp_path: Path) -> None:

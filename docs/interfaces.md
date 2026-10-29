@@ -239,7 +239,8 @@ Notes:
   export's history as written, so the actors and origins of the restored events are the
   export's claims, and then records a `workspace_restored` event under the importing
   command's actor (`oak.community/restored_from` names the export): the first event the
-  server itself attests.
+  server itself attests. A repeat of the import answers with the case as that event
+  recorded it.
 - `oak validate` is a server-free read-only checker (export, bundle, webhook)
   intended for CI and portals. It checks schema validity, digest integrity, and
   the execution-field ban across all three kinds. For a compiled bundle it

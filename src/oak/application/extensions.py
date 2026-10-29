@@ -7,7 +7,6 @@ all pass and an explicit local actor activates it. Extension payloads are
 governed data; nothing here imports, executes, or downloads code.
 """
 
-import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -25,6 +24,8 @@ from oak.domain.extension_sdk import (
     RENDERER_IDENTITY_BY_ID,
     STEWARD_ROLE,
     capability_document,
+    compatibility_problem,
+    version_tuple,
 )
 from oak.domain.policy_rules import pack_effective_window
 from oak.domain.runner_adapters import ADAPTER_IDENTITY_BY_ID
@@ -240,38 +241,11 @@ class ExtensionService:
     def _check_compatibility(
         self, manifest: dict[str, Any], record: Callable[[str, bool, str], bool]
     ) -> None:
-        extension_class = str(manifest["extension_class"])
-        interface = INTERFACE_BY_CLASS.get(extension_class)
-        if interface is None:
-            record("compatibility", False, "Extension class has no registered SDK interface.")
+        problem = compatibility_problem(manifest, self._oak_version)
+        if problem is not None:
+            record("compatibility", False, problem)
             return
-        if str(manifest["sdk_interface_version"]) != interface.interface_version:
-            record(
-                "compatibility",
-                False,
-                f"SDK interface {manifest['sdk_interface_version']} is not the supported "
-                f"{interface.interface_version} for {extension_class}.",
-            )
-            return
-        compatibility = manifest["compatibility"]
-        current = _version_tuple(self._oak_version)
-        minimum = _version_tuple(str(compatibility["minimum_oak_version"]))
-        maximum_value = compatibility["maximum_oak_version"]
-        if current < minimum:
-            record(
-                "compatibility",
-                False,
-                f"OAK {self._oak_version} is older than the declared minimum "
-                f"{compatibility['minimum_oak_version']}.",
-            )
-            return
-        if maximum_value is not None and current > _version_tuple(str(maximum_value)):
-            record(
-                "compatibility",
-                False,
-                f"OAK {self._oak_version} is newer than the declared maximum {maximum_value}.",
-            )
-            return
+        interface = INTERFACE_BY_CLASS[str(manifest["extension_class"])]
         record(
             "compatibility",
             True,
@@ -442,7 +416,4 @@ class ExtensionService:
 
 
 def _version_tuple(value: str) -> tuple[int, ...]:
-    numbers = re.findall(r"\d+", value)
-    if not numbers:
-        raise OAKError("OAK-EXTENSION-VERSION", "version has no comparable numbers")
-    return tuple(int(number) for number in numbers)
+    return version_tuple(value)

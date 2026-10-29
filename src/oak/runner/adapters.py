@@ -763,8 +763,8 @@ class ContainerFixtureAdapter:
             )
 
     def _before_side_effect(self, deadline: datetime | None) -> None:
-        # The runner does not heartbeat (RR-031): refusing to start another side effect
-        # once the lease has lapsed keeps a long install from running on past it.
+        # A heartbeat reports and extends nothing (RR-031): refusing to start another side
+        # effect once the lease has lapsed keeps a long install from running on past it.
         if deadline is not None and self._wall_clock() >= deadline:
             raise OAKError("OAK-RUNNER-LEASE", "the lease expired before the next side effect")
 

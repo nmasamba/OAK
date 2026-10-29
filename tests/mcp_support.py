@@ -32,6 +32,7 @@ from oak.contracts import SchemaRegistry
 from oak.domain import OAKError
 from oak.interfaces.mcp.server import MCPServer, create_server
 from oak.ports import EnqueuedOperation, OperationLease, OperationRecord, OperationSpec
+from oak.ports.operations import operation_quota_error
 
 ROOT = Path(__file__).resolve().parents[1]
 # The e2e set resolves its dates as offsets from each run, so any clock keeps the
@@ -39,6 +40,9 @@ ROOT = Path(__file__).resolve().parents[1]
 RESEARCH_FIXTURES = ROOT / "tests/fixtures/research/e2e"
 NOW = "2026-08-21T12:00:00Z"
 LATER = "2026-08-21T12:01:00Z"
+
+
+ACTIVE = frozenset({"queued", "running"})
 
 
 class MemoryOperationStore:
@@ -58,18 +62,20 @@ class MemoryOperationStore:
 
     def active_count(self) -> int:
         with self._lock:
-            return sum(
-                1 for record in self.records.values() if record.state in {"queued", "running"}
-            )
+            return sum(1 for record in self.records.values() if record.state in ACTIVE)
 
-    def enqueue(self, spec: OperationSpec) -> EnqueuedOperation:
+    def enqueue(self, spec: OperationSpec, *, maximum_active: int = 0) -> EnqueuedOperation:
         with self._lock:
-            return self._enqueue(spec)
+            return self._enqueue(spec, maximum_active=maximum_active)
 
-    def _enqueue(self, spec: OperationSpec) -> EnqueuedOperation:
+    def _enqueue(self, spec: OperationSpec, *, maximum_active: int = 0) -> EnqueuedOperation:
         existing = self.records.get(spec.operation_id)
         if existing is not None:
             return EnqueuedOperation(existing, duplicate=True)
+        if maximum_active > 0:
+            active = sum(1 for record in self.records.values() if record.state in ACTIVE)
+            if active >= maximum_active:
+                raise operation_quota_error(active)
         record = OperationRecord(
             operation_id=spec.operation_id,
             workspace_id=spec.workspace_id,
@@ -176,7 +182,16 @@ class MemoryOperationStore:
     def _heartbeat(
         self, lease: OperationLease, *, now: str, lease_expires_at: str
     ) -> OperationLease:
-        record = replace(self.get(lease.operation.operation_id), lease_expires_at=lease_expires_at)
+        current = self.get(lease.operation.operation_id)
+        # As the PostgreSQL store: a lease another worker holds, or one that has lapsed,
+        # is reported lost rather than extended.
+        if (
+            current.state != "running"
+            or current.leased_by != lease.worker_id
+            or (current.lease_expires_at is not None and now > current.lease_expires_at)
+        ):
+            raise OAKError("OAK-OPERATION-LEASE-LOST", "operation lease is no longer current")
+        record = replace(current, lease_expires_at=lease_expires_at)
         self.records[record.operation_id] = record
         return OperationLease(record, lease.worker_id, lease_expires_at)
 

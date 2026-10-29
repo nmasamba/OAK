@@ -102,3 +102,17 @@ def test_the_limits_come_from_the_environment_and_a_bad_value_is_refused(
     assert read_limit("OAK_LIMIT_TEST", 7) == MAXIMUM_LIMIT
     monkeypatch.setenv("OAK_LIMIT_TEST", "")
     assert read_limit("OAK_LIMIT_TEST", 7) == 7
+
+
+def test_a_limited_key_survives_a_flood_of_fresh_keys() -> None:
+    """Review L3: eviction forgets keys that owe nothing, never a key in debt, so a
+    stream of invented keys cannot reset a limit."""
+
+    clock = _Clock()
+    limiter = TokenBucketLimiter(2, clock=clock, capacity=8)
+    assert limiter.admit("debtor") is None and limiter.admit("debtor") is None
+    assert limiter.admit("debtor") == 30
+    for index in range(50):
+        assert limiter.admit(f"fresh-{index}") is None
+    assert len(limiter) <= 8
+    assert limiter.admit("debtor") == 30, "the flood evicted the key in debt"

@@ -35,11 +35,13 @@ from oak.ports.workspace import WorkspaceCommit, WorkspaceMutation
 OBJECT_DIGEST = re.compile(r"^sha256:([a-f0-9]{64})$")
 MAXIMUM_ARTIFACT_BYTES = 8_388_608
 # The per-process verification cache (RR-030): the digests of manifest bytes this process
-# has verified in full, by workspace. A later read of the same bytes skips only the work
-# those bytes are the input to, the manifest's own checks and the audit-lineage walk;
-# every object read still verifies its digest, a mutation, an export and a migration
-# always verify in full, and nothing is persisted. Bounded, so a long-lived process that
-# visits many workspaces holds a fixed number of entries.
+# has verified in full, by workspace. A later read of the same bytes skips the manifest's
+# own checks and the audit-lineage walk. The walk reads the history's objects, so what the
+# cache gives up is noticing, on a read, a history object changed or removed on disk after
+# this process first verified it: every object a command opens still verifies its digest,
+# a mutation, an export and a migration always verify in full, the next process verifies
+# again, and nothing is persisted. Bounded, so a long-lived process that visits many
+# workspaces holds a fixed number of entries.
 VERIFICATION_CACHE_SIZE = 64
 _verified_manifests: OrderedDict[tuple[str, str], None] = OrderedDict()
 _verification_lock = threading.Lock()
@@ -221,9 +223,11 @@ class FileWorkspaceRepository:
         """The manifest, verified in full the first time this process reads these bytes.
 
         A later read of byte-identical content skips the manifest's own checks and the
-        audit-lineage walk, which are functions of those bytes alone; a changed byte, a
-        changed workspace or a fresh process verifies in full again. Object reads are
-        not cached, and a mutation or an export never consults this (`_verified_manifest`).
+        audit-lineage walk. The walk reads the history's objects, so a cached read does not
+        notice one of them changed or removed on disk since this process verified it;
+        every object a command opens still checks its digest, a changed manifest byte, a
+        changed workspace or a fresh process verifies in full again, and a mutation, an
+        export or a migration never consults this (`_verified_manifest`).
         """
 
         raw = self.raw_manifest()
@@ -343,6 +347,9 @@ class FileWorkspaceRepository:
             with self._overlaid(outcome.new_artifacts):
                 self._validate_outcome(outcome)
                 if mutation is not None:
+                    # A key reused for other input is refused here, before any object is
+                    # written, as the ordinary commit refuses it.
+                    self._idempotent_result(manifest, mutation)
                     self._check_expected_version(manifest, mutation.expected_case_version)
                     self._validate_mutation(manifest, mutation)
             for artifact in outcome.new_artifacts:
@@ -581,6 +588,16 @@ class FileWorkspaceRepository:
                         source_digest=content_digest(canonical_json_bytes(manifest)),
                     )
                     with self._overlaid(outcome.new_artifacts):
+                        # The migrated view must be a valid current-format manifest, as an
+                        # export of the same tree proves before it writes; the tree check
+                        # below covers the objects and the lineage.
+                        try:
+                            self._validate_manifest(outcome.manifest)
+                        except Exception as error:
+                            raise OAKError(
+                                "OAK-IMPORT-INVALID",
+                                "import manifest failed validation at the current format",
+                            ) from error
                         self._validate_export_tree(temporary, outcome.manifest)
             except OAKError as error:
                 if error.code in {

@@ -16,6 +16,7 @@ from oak.ports.operations import (
     OperationLease,
     OperationRecord,
     OperationSpec,
+    operation_quota_error,
 )
 
 MAXIMUM_OPERATION_DOCUMENT_BYTES = 262_144
@@ -39,10 +40,21 @@ class PostgreSQLOperationStore:
         self.tenant_id = tenant_id
         self.environment_id = environment_id
 
-    def enqueue(self, spec: OperationSpec) -> EnqueuedOperation:
+    def enqueue(self, spec: OperationSpec, *, maximum_active: int = 0) -> EnqueuedOperation:
         self._validate_spec(spec)
         try:
             with self._engine.begin() as connection:
+                if maximum_active > 0:
+                    # One submission at a time per tenant and environment while the cap is
+                    # judged: the count and the insert are one transaction under an
+                    # advisory lock, so two submissions cannot both see room for one.
+                    connection.execute(
+                        select(
+                            func.pg_advisory_xact_lock(
+                                func.hashtext(self.tenant_id), func.hashtext(self.environment_id)
+                            )
+                        )
+                    )
                 existing = (
                     connection.execute(
                         select(operations).where(
@@ -61,6 +73,16 @@ class PostgreSQLOperationStore:
                             "idempotency key was already used for different operation input",
                         )
                     return EnqueuedOperation(self._record(existing), duplicate=True)
+                if maximum_active > 0:
+                    active = int(
+                        connection.execute(
+                            select(func.count())
+                            .select_from(operations)
+                            .where(self._scope(), operations.c.state.in_(ACTIVE_STATES))
+                        ).scalar_one()
+                    )
+                    if active >= maximum_active:
+                        raise operation_quota_error(active)
                 row = (
                     connection.execute(
                         insert(operations)

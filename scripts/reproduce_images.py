@@ -75,11 +75,16 @@ def buildkit_version(builder: str | None) -> str:
 
 
 def debian_snapshot(dockerfiles: list[Path]) -> str | None:
-    for dockerfile in dockerfiles:
-        match = SNAPSHOT.search(dockerfile.read_text(encoding="utf-8"))
-        if match:
-            return match.group("date")
-    return None
+    """The one snapshot date the Dockerfiles name; two dates are no claim at all."""
+
+    dates = {
+        match.group("date")
+        for dockerfile in dockerfiles
+        if (match := SNAPSHOT.search(dockerfile.read_text(encoding="utf-8")))
+    }
+    if len(dates) > 1:
+        raise SystemExit(f"the Dockerfiles name different DEBIAN_SNAPSHOT dates: {sorted(dates)}")
+    return next(iter(dates), None)
 
 
 def _image_id(tag: str) -> str:
@@ -172,6 +177,13 @@ def main() -> int:
         dockerfiles = [
             path if path.is_absolute() else ROOT / path for path in arguments.dockerfiles
         ]
+        snapshot = debian_snapshot(dockerfiles)
+        buildkit = buildkit_version(arguments.builder)
+        if buildkit == "unknown":
+            raise SystemExit(
+                "the builder's BuildKit version could not be read, so no claim can name it; "
+                "pass --builder for a buildx builder"
+            )
         images = reproduce(
             dockerfiles,
             platform=arguments.platform,
@@ -188,8 +200,8 @@ def main() -> int:
         "platform": arguments.platform,
         "source_commit": _git_output(["rev-parse", "HEAD"]) or "unknown",
         "source_date_epoch": epoch,
-        "buildkit_version": buildkit_version(arguments.builder),
-        "debian_snapshot": debian_snapshot(dockerfiles),
+        "buildkit_version": buildkit,
+        "debian_snapshot": snapshot,
         "images": images,
         "reproduced": all(image["reproduced"] for image in images.values()),
     }

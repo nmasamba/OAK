@@ -38,12 +38,11 @@ The worker is not optional if you intend to use the API: candidate generation,
 evaluation, compilation and a consented research run are durable operations, and without
 a worker they stay queued forever with no error.
 
-The API image takes Debian's security updates from a dated snapshot named in its
-Dockerfile, and the web image's packages are its pinned base image's, so **rebuilding
-reproduces the same image** (`RR-006`, closed by Tier 3's Batch A); a release moves the
-snapshot date and re-pins the web base to take the patches published since, and
-`make scan-images` reports what the Dockerfiles as they stand carry. As of `0.9.0` the web
-image reports no findings at any severity and the API image has no CRITICAL findings and
+Both images take Debian's security updates from the dated snapshot their Dockerfiles
+name, so **rebuilding reproduces the same image** (`RR-006`, closed by Tier 3's Batch A);
+a release moves that date to take the patches published since, and `make scan-images`
+reports what the Dockerfiles as they stand carry. As of `0.9.0` the web image (then on
+Alpine) reported no findings at any severity and the API image no CRITICAL findings and
 44 HIGH with no vendor fix available — eight distinct advisories, most of them counted
 once per package Debian builds from one source
 ([container-scan.md](release/0.9.0/container-scan.md)).
@@ -467,7 +466,9 @@ export's claims, as good as the export's custody. The restore then records one
 manifest, its digest and the number of events restored (`oak.community/restored_from`
 on the case): read the history from that event backwards as the export's word, and from
 it forwards as the server's own. Importing the same export again is answered as a
-duplicate of that restore; an export of another state of the case is refused. A local
+duplicate of that restore, with the case as the restore recorded it; an import that finds
+the export restored without its event, after an interrupted attempt, records the event;
+an export of another state of the case is refused. A local
 workspace's export is not restored on a server at all; it is re-created from its brief
 and confirmed answers under the importing actor (`workspace_imported`).
 

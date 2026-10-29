@@ -119,12 +119,14 @@ mechanical migration; **breaking** otherwise.
   by the `workspace_imported` audit event, which a server now writes for the first time,
   with `interface_origin: import`. Both are optional, through the schemas' open
   `extensions`, so no schema changes.
-- Tier 3's Batch A adds `workspace_migrated`, `runner_heartbeat` and `workspace_restored` to the audit event's `event_type` enum
-  (additive; written only by `oak workspace migrate`, when a step reshaped the design case
-  or added objects) and the case and event extension `oak.community/migration`, which
-  names the formats, the steps, the digest of the manifest migrated from and the objects
-  the migration added. A `0.9.0` reader cannot validate a workspace holding such an event;
-  none can exist until a migration step ships.
+- Tier 3's Batch A adds three values to the audit event's `event_type` enum (additive):
+  `workspace_migrated`, written only by `oak workspace migrate` when a step reshaped the
+  design case or added objects, with the case and event extension `oak.community/migration`
+  (the formats, the steps, the digest of the manifest migrated from and the objects the
+  migration added), of which none can exist until a migration step ships;
+  `runner_heartbeat`, which `oak ingest` writes for each heartbeat a runner published; and
+  `workspace_restored`, which a server restore writes. A `0.9.0` reader cannot validate a
+  workspace holding any of them.
 - Tier 3's Batch A adds the optional `assurance_plan_ref` to
   `deployment-bundle.schema.json` (still `0.3.0`) and the optional per-entry `provenance`
   and top-level `patterns` to `catalogue-snapshot.schema.json` (still `0.4.0`), both
@@ -134,7 +136,10 @@ mechanical migration; **breaking** otherwise.
   the owner's choice (Q1, 2026-10-29) so that 1.0 is cut after it, and recorded in
   `CHANGELOG.md` with every reference value before and after (rule 4). No stored document
   changes, and a bundle, export or runner plan written before the move still reads and
-  verifies; a `0.9.0` reader validates the new documents too.
+  verifies. A `0.9.0` reader, whose schemas close additional properties, refuses a bundle
+  or snapshot this build writes (`assurance_plan_ref`, `patterns`), as it refuses any
+  document carrying a field it does not know; the move is forward-only in that sense, as
+  every additive field has been.
 - Sprint 14 (unreleased, ADR-0018) made an objective's `value` in `common.schema.json`
   nullable, with `unknown_reason` required exactly when it is null. Every stored document
   still validates, because the compiler writes a null only for a candidate that holds a
@@ -399,8 +404,9 @@ mechanical migration; **breaking** otherwise.
     mode; the CLI and MCP answer the same two application codes. The contract documents
     the `429` response and its header on every operation, an additive change under the
     baseline check. `OAK-MODEL-RATE-LIMITED` keeps its `429`, without the header.
-  - `oak-api`, `oak serve` and `oak-mcp` refuse to start, and `oak interpret`,
-    `oak design` and `oak report --record` in a model mode refuse, with the new
+  - `oak-api`, `oak serve` and `oak-mcp` refuse to start, and every local workspace
+    command refuses (the design and report services read the model budget when they are
+    built, not only when a model mode runs), with the new
     `OAK-LIMIT-CONFIG` when one of `OAK_REQUESTS_PER_MINUTE_PER_ADDRESS`,
     `OAK_REQUESTS_PER_MINUTE_PER_TENANT`, `OAK_OPERATIONS_PER_TENANT` or
     `OAK_MODEL_REQUESTS_PER_CASE_PER_DAY` is not a whole number from 0 to a million.
@@ -412,9 +418,13 @@ mechanical migration; **breaking** otherwise.
     and the number of events restored), so the restored case comes back one patch version
     on from the export, its status unchanged. The actors and origins of the restored
     events are the export's claims; the restore event is the first the server itself
-    attests. Importing the same export again, under any key, is answered as a duplicate
-    of that restore; an export of another state of the case is refused with
-    `OAK-IDEMPOTENCY-CONFLICT` as before.
+    attests; its idempotency key is the restore's own, derived from the import's key and
+    the export, because the export carries the origin's own records. Importing the same
+    export again, under any key, is answered as a duplicate of that restore with the case
+    as the restore recorded it, not where it went since; an import that finds the export
+    restored without its event (an earlier attempt interrupted after the workspace was
+    written) records the event then; an export of another state of the case is refused
+    with `OAK-IDEMPOTENCY-CONFLICT` as before.
 
 ## MCP
 

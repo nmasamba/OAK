@@ -8,10 +8,12 @@ digests are pinned constants, mirroring `oak.domain.runner_adapters`: the
 allowlist is code, never extension data.
 """
 
+import re
 from dataclasses import dataclass
 from typing import Any
 
 from oak.domain.artifacts import canonical_json_bytes, content_digest
+from oak.domain.errors import OAKError
 from oak.domain.runner_adapters import ADAPTER_IDENTITY_BY_ID, ALLOWED_KINDS_BY_ADAPTER
 
 SDK_VERSION = "1.0.0"
@@ -132,6 +134,44 @@ RENDERER_IDENTITY_BY_ID: dict[str, dict[str, str]] = {
 BUILTIN_POLICY_ENGINE_ID = "policy-engine.builtin"
 OPA_POLICY_ENGINE_ID = "policy-engine.opa"
 POLICY_ENGINE_IDS = (BUILTIN_POLICY_ENGINE_ID, OPA_POLICY_ENGINE_ID)
+
+
+def version_tuple(value: str) -> tuple[int, ...]:
+    numbers = re.findall(r"\d+", value)
+    if not numbers:
+        raise OAKError("OAK-EXTENSION-VERSION", "version has no comparable numbers")
+    return tuple(int(number) for number in numbers)
+
+
+def compatibility_problem(manifest: dict[str, Any], oak_version: str) -> str | None:
+    """Why an extension manifest is not compatible with this OAK, or None when it is.
+
+    One check for the verifier at activation and for the catalogue feed at every read, so
+    a pack activated under an older OAK stops feeding once an upgrade passes its declared
+    maximum, and a forged activation record cannot stand in for the check (RR-025).
+    """
+
+    extension_class = str(manifest.get("extension_class"))
+    interface = INTERFACE_BY_CLASS.get(extension_class)
+    if interface is None:
+        return "Extension class has no registered SDK interface."
+    declared = str(manifest.get("sdk_interface_version"))
+    if declared != interface.interface_version:
+        return (
+            f"SDK interface {declared} is not the supported {interface.interface_version} "
+            f"for {extension_class}."
+        )
+    compatibility = manifest.get("compatibility")
+    if not isinstance(compatibility, dict):
+        return "The manifest declares no compatibility range."
+    current = version_tuple(oak_version)
+    minimum_value = compatibility.get("minimum_oak_version")
+    maximum_value = compatibility.get("maximum_oak_version")
+    if current < version_tuple(str(minimum_value)):
+        return f"OAK {oak_version} is older than the declared minimum {minimum_value}."
+    if maximum_value is not None and current > version_tuple(str(maximum_value)):
+        return f"OAK {oak_version} is newer than the declared maximum {maximum_value}."
+    return None
 
 
 def capability_document() -> dict[str, Any]:

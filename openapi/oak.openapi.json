@@ -1319,25 +1319,6 @@
             },
             "description": "Successful Response"
           },
-          "429": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              }
-            },
-            "description": "Too many requests: a problem document, with Retry-After",
-            "headers": {
-              "Retry-After": {
-                "description": "Whole seconds to wait before retrying",
-                "schema": {
-                  "minimum": 1,
-                  "type": "integer"
-                }
-              }
-            }
-          },
           "default": {
             "content": {
               "application/problem+json": {
@@ -1368,25 +1349,6 @@
               }
             },
             "description": "Successful Response"
-          },
-          "429": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              }
-            },
-            "description": "Too many requests: a problem document, with Retry-After",
-            "headers": {
-              "Retry-After": {
-                "description": "Whole seconds to wait before retrying",
-                "schema": {
-                  "minimum": 1,
-                  "type": "integer"
-                }
-              }
-            }
           },
           "default": {
             "content": {

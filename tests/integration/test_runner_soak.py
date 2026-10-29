@@ -336,3 +336,81 @@ def test_a_run_records_each_consumed_nonce_with_its_lease_expiry(soak: Soak) -> 
     assert len(ledger) == 1
     (expiry,) = ledger.values()
     assert isinstance(expiry, str) and expiry.endswith("Z")
+
+
+def test_a_short_completion_in_one_batch_with_its_heartbeats_is_refused(soak: Soak) -> None:
+    """Review R5: the heartbeats and the forged completion arrive in one ingest; the sort
+    records the heartbeats first, so the completion falls short of their heads."""
+
+    soak.approve("architecture")
+    soak.approve("apply")
+    lease_id = str(soak.dispatch("apply")["lease"]["lease_id"])
+    assert soak.run(interval=0.0) == 0
+    (genuine_path,) = (soak.harness.mailbox_root / "messages").glob(
+        "runner-message.completion.*.json"
+    )
+    genuine = json.loads(genuine_path.read_text(encoding="utf-8"))
+    genuine_path.unlink()
+    floor = max(message["payload"]["journal_sequence"] for message in soak.messages("heartbeat"))
+    runner = RunnerIdentity.load_or_create(soak.home, "runner.local-fixture-runner")
+    forged = RunnerMailbox(soak.harness.mailbox_root, soak.home).publish_message(
+        runner,
+        kind="completion",
+        tenant_id=str(genuine["tenant_id"]),
+        environment=str(genuine["environment"]),
+        correlation_id=str(genuine["correlation_id"]),
+        sequence=3,
+        lease_id=lease_id,
+        operation_id=None,
+        occurred_at=_now(),
+        payload={
+            **genuine["payload"],
+            "journal_sequence": floor - 1,
+            "journal_digest": "sha256:" + "0" * 64,
+        },
+    )
+
+    result = soak.ingest()
+
+    assert dict(result.refused).get(forged["id"]) == "OAK-INGEST-JOURNAL"
+    assert len(result.heartbeats) >= 4
+    assert soak.case["status"] == "deployment_approved"
+
+
+def test_a_processed_dispatch_whose_lease_cannot_be_told_is_kept(
+    soak: Soak, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Review R3: without the envelope, the journal names the lease; without either, the
+    directory stays, because whether its completion was ingested cannot be known."""
+
+    soak.approve("dry_run")
+    first = soak.directory(soak.dispatch("inventory"))
+    second = soak.directory(soak.dispatch("inventory"))
+    assert soak.run() == 0
+    old = time.time() - 40 * 86_400
+    for directory in (first, second):
+        (directory / "envelope.json").unlink()
+        os.utime(directory / ".processed", (old, old))
+    monkeypatch.setenv("OAK_RUNNER_DISPATCH_RETENTION_DAYS", "30")
+    # Both completions are still unread: the journal ties each directory to its lease.
+    assert soak.run() == 0
+    assert soak.dispatch_directories() == {first, second}
+    soak.ingest()
+    (soak.home / "journals" / f"{first.name}.jsonl").unlink()
+    soak.dispatch("inventory")
+    assert soak.run() == 0
+    # `first` has neither envelope nor journal: kept; `second` is tied by its journal and
+    # its completion is ingested: removed.
+    assert first in soak.dispatch_directories()
+    assert second not in soak.dispatch_directories()
+
+
+def test_a_heartbeat_interval_under_a_second_is_refused(
+    soak: Soak, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    soak.approve("dry_run")
+    soak.dispatch("inventory")
+    monkeypatch.setenv("OAK_RUNNER_HEARTBEAT_SECONDS", "0.5")
+    with pytest.raises(OAKError) as refusal:
+        soak.run(interval=None)
+    assert refusal.value.code == "OAK-RUNNER-CONFIG"

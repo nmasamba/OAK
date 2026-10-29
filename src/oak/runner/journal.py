@@ -61,6 +61,12 @@ class RunnerJournal:
         if entry_type not in ENTRY_TYPES:
             raise OAKError("OAK-JOURNAL-ENTRY", "journal entry type is not recognized")
         count, previous = self._verified_head()
+        # The file must still end at the entry this object last saw: a journal cut or
+        # edited under a run is never extended by it (one small read, not a full walk).
+        if self._tail() != (count, previous):
+            raise OAKError(
+                "OAK-JOURNAL-TAMPERED", "journal file no longer ends at the entry this run wrote"
+            )
         entry = JournalEntry(
             sequence=count + 1,
             previous_digest=previous,
@@ -96,6 +102,31 @@ class RunnerJournal:
                 count = index
             self._head = (count, previous)
         return self._head
+
+    def _tail(self) -> tuple[int, str | None]:
+        """The file's last entry as (sequence, digest), read from its end alone."""
+
+        if not self._path.is_file():
+            return 0, None
+        try:
+            with self._path.open("rb") as stream:
+                stream.seek(0, os.SEEK_END)
+                size = stream.tell()
+                stream.seek(max(0, size - 65_536))
+                lines = [line for line in stream.read().splitlines() if line.strip()]
+            if not lines:
+                return 0, None
+            document = json.loads(lines[-1])
+            entry = JournalEntry(
+                sequence=int(document["sequence"]),
+                previous_digest=document["previous_digest"],
+                entry_type=str(document["entry_type"]),
+                occurred_at=str(document["occurred_at"]),
+                details=dict(document["details"]),
+            )
+        except (OSError, ValueError, TypeError, KeyError) as error:
+            raise OAKError("OAK-JOURNAL-TAMPERED", "journal tail is not readable") from error
+        return entry.sequence, entry.digest
 
     def entries(self) -> tuple[JournalEntry, ...]:
         if not self._path.is_file():
@@ -135,16 +166,16 @@ class RunnerJournal:
         return self.head()[1]
 
     def head(self) -> tuple[int, str]:
-        """The last entry's sequence and digest: what a completion signs.
+        """The last entry's sequence and digest: what a completion or a heartbeat signs.
 
         A digest alone cannot show that one journal extends another, because any prefix of
         a valid journal verifies; the sequence lets a reader see that entries were removed.
+        An object that has verified the file, or appended to it, answers from the head it
+        holds, so what it signs is what it wrote; a fresh object reads and verifies first.
         """
 
-        entries = self.entries()
-        if not entries:
-            return 0, content_digest(b"")
-        return entries[-1].sequence, entries[-1].digest
+        count, previous = self._verified_head()
+        return count, previous if previous is not None else content_digest(b"")
 
     def contains_head(self, sequence: int, digest: str) -> bool:
         """Whether entry `sequence` exists and is the entry whose digest is `digest`."""

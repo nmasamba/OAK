@@ -77,16 +77,18 @@ class LocalExtensionStore:
             manifest=manifest,
         )
 
-    def list_entries(self) -> tuple[ExtensionEntry, ...]:
+    def list_entries(self, state: str | None = None) -> tuple[ExtensionEntry, ...]:
         entries: list[ExtensionEntry] = []
-        for state in (QUARANTINED, ACTIVE):
-            state_root = self._root / state
+        for listed in (QUARANTINED, ACTIVE):
+            if state is not None and listed != state:
+                continue
+            state_root = self._root / listed
             if not state_root.is_dir():
                 continue
             for directory in sorted(state_root.iterdir()):
                 if not directory.is_dir() or directory.name.startswith("."):
                     continue
-                entries.append(self._entry_from_directory(directory, state))
+                entries.append(self._entry_from_directory(directory, listed))
         return tuple(entries)
 
     def entry(self, extension_id: str, version: str | None) -> ExtensionEntry:

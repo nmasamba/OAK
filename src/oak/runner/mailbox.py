@@ -23,7 +23,9 @@ ACKNOWLEDGED_DIRECTORY = "acknowledged"
 SAFE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$")
 PROCESSED_MARKER = ".processed"
 # A consumed nonce is replayable only while its lease is valid; it is kept this much
-# longer than the lease's expiry, against clocks that disagree (RR-031).
+# longer than the lease's expiry, judged by the runner's own clock at the moment it accepts
+# a lease: an allowance for small disagreements between that clock and the control
+# plane's, not for a clock stepped forward past a lease's expiry and back (RR-031).
 NONCE_RETENTION_SKEW_SECONDS = 300
 
 
@@ -321,9 +323,14 @@ class RunnerMailbox:
             if now - processed_at < retention_seconds:
                 continue
             correlations = {dispatch_dir.name}
-            lease_id = self.dispatch_lease_id(dispatch_dir.name)
-            if lease_id is not None:
-                correlations.add(lease_id)
+            lease_id = self.dispatch_lease_id(dispatch_dir.name) or self._journal_lease_id(
+                dispatch_dir.name
+            )
+            if lease_id is None:
+                # Neither the envelope nor the journal names the lease, so whether its
+                # completion was ingested cannot be told: kept, never guessed.
+                continue
+            correlations.add(lease_id)
             if self._has_unacknowledged_message(correlations):
                 continue
             try:
@@ -332,6 +339,25 @@ class RunnerMailbox:
                 continue
             removed.append(dispatch_dir.name)
         return tuple(removed)
+
+    def _journal_lease_id(self, dispatch_id: str) -> str | None:
+        """The lease the dispatch's journal names in its `lease_accepted` entry, as
+        `oak-runner status` ties a journal to its completions."""
+
+        from oak.runner.journal import RunnerJournal
+
+        path = self._home / "journals" / f"{dispatch_id}.jsonl"
+        if not path.is_file():
+            return None
+        try:
+            entries = RunnerJournal(path).entries()
+        except OAKError:
+            return None
+        for entry in entries:
+            if entry.entry_type == "lease_accepted":
+                lease = entry.details.get("lease_id")
+                return str(lease) if is_safe_name(lease) else None
+        return None
 
     def _has_unacknowledged_message(self, correlations: set[str]) -> bool:
         folder = self._root / MESSAGE_DIRECTORY

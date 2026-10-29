@@ -115,7 +115,8 @@ every audit artifact. Treat these as a floor.
 directory and is unavailable in file mode.
 
 Since Tier 3's Batch A the API admits 1,200 requests a minute from one address by default,
-which takes the benchmark's 200 reads in one burst; a larger `--requests` needs
+which takes the benchmark's reads (`--requests`, 200 per endpoint, so 600 and one create)
+in one burst; a larger `--requests` needs
 `OAK_REQUESTS_PER_MINUTE_PER_ADDRESS` raised, or `0`.
 
 ## Workspace growth — read this one
@@ -161,10 +162,14 @@ What the curve says:
   long-lived workspace's commands get slower, now at a known, linear rate, and do not get
   faster again. Recorded as `RR-030` in [security/residual-risk.md](security/residual-risk.md),
   measured and bounded, still open on that clause.
-- **What the cache never does:** a mutation's validation and an export verify the manifest
-  in full whatever the cache holds, object reads keep checking their digests, and a changed
-  byte is a different key, so a manifest edited on disk is verified again
-  (`tests/integration/test_workspace_verification_cache.py`).
+- **What the cache never does, and what it skips:** a mutation's validation, an export and
+  a migration verify the manifest in full whatever the cache holds, every object a command
+  opens still checks its digest, and a changed manifest byte is a different key, so a
+  manifest edited on disk is verified again (`tests/integration/test_workspace_verification_cache.py`).
+  What a cached read skips is the walk over the history's objects: an audit artifact
+  changed or removed on disk after a process's first read is noticed when a command opens
+  it, by the next mutation, export or migration, or by the next process, not by a cached
+  manifest read in the same process.
 
 The practical mitigation for a workspace that has grown is still that a workspace is per
 design case, and `oak export` produces a portable tree you can archive.

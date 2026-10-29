@@ -317,7 +317,7 @@ def _check_platform_jobs(text: str, compose_image: str | None, failures: list[st
             not isinstance(postgres, dict) or postgres.get("image") != compose_image
         ):
             failures.append("CI arm64 job: the database service must run compose.yaml's image")
-        build = next((run for run in _runs(arm) if _REPRODUCE in run), "")
+        build = next((run for run in _runs(arm) if _COMMAND.search(run)), "")
         if not all(
             fragment in build
             for fragment in (
@@ -331,6 +331,8 @@ def _check_platform_jobs(text: str, compose_image: str | None, failures: list[st
 
 _BUILDKIT_PIN = re.compile(r"^image=moby/buildkit:v\d+\.\d+\.\d+@sha256:[a-f0-9]{64}$")
 _REPRODUCE = "scripts/reproduce_images.py"
+_COMMAND = re.compile(r"^\s*python3 scripts/reproduce_images\.py\b", re.MULTILINE)
+_SCAN = re.compile(r"^\s*python3 scripts/scan_images\.py\b", re.MULTILINE)
 
 
 def _check_image_reproduction(
@@ -356,7 +358,9 @@ def _check_image_reproduction(
             f"{label}: the {job_name} job must pin BuildKit by version and digest "
             "(setup-buildx driver-opts image=moby/buildkit:vX.Y.Z@sha256:...)"
         )
-    reproduce = next((run for run in _runs(job) if _REPRODUCE in run), "")
+    # The command itself, at the start of a line: a run that merely mentions the script
+    # (an echo, a comment) proves nothing.
+    reproduce = next((run for run in _runs(job) if _COMMAND.search(run)), "")
     if not all(
         fragment in reproduce
         for fragment in (
@@ -581,11 +585,7 @@ def check(root: Path = ROOT) -> list[str]:
     if release_pin is not None and ci_pin is not None and release_pin != ci_pin:
         failures.append("the CI and release workflows must pin one BuildKit")
     scan = next(
-        (
-            run
-            for run in _runs(_jobs(release_workflow).get("images") or {})
-            if "scan_images.py" in run
-        ),
+        (run for run in _runs(_jobs(release_workflow).get("images") or {}) if _SCAN.search(run)),
         "",
     )
     if "--reproducibility image-evidence/image-reproducibility.json" not in scan:

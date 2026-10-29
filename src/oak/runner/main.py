@@ -336,7 +336,8 @@ def _dispatch_retention_seconds() -> int:
 
 def _heartbeat_interval_seconds() -> float | None:
     """`OAK_RUNNER_HEARTBEAT_SECONDS`: how often a running dispatch publishes a signed
-    heartbeat; `0` publishes none (returned as None)."""
+    heartbeat, at least every second so that a readiness poll cannot flood the mailbox and
+    the case's history; `0` publishes none (returned as None)."""
 
     value = os.getenv("OAK_RUNNER_HEARTBEAT_SECONDS", str(int(HEARTBEAT_INTERVAL_SECONDS))).strip()
     try:
@@ -345,8 +346,8 @@ def _heartbeat_interval_seconds() -> float | None:
         raise OAKError(
             "OAK-RUNNER-CONFIG", "OAK_RUNNER_HEARTBEAT_SECONDS must be a number of seconds"
         ) from error
-    if seconds < 0 or seconds > 3600 or seconds != seconds:
-        raise OAKError("OAK-RUNNER-CONFIG", "OAK_RUNNER_HEARTBEAT_SECONDS must be 0 to 3600")
+    if seconds < 0 or seconds > 3600 or seconds != seconds or 0 < seconds < 1:
+        raise OAKError("OAK-RUNNER-CONFIG", "OAK_RUNNER_HEARTBEAT_SECONDS must be 0, or 1 to 3600")
     return seconds or None
 
 

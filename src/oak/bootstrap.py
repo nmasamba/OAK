@@ -574,7 +574,7 @@ def create_research_service(workspace: Path) -> ResearchService:
     return ResearchService(
         FileWorkspaceRepository(workspace, registry),
         registry,
-        LocalCatalogue(catalogue_directory, registry),
+        compiler_catalogue(registry),
         ResearchVocabularyLoader(catalogue_directory),
         source_factory=lambda occurred_at: create_research_source(occurred_at=occurred_at),
         source_mode=research_source_mode,
@@ -694,6 +694,7 @@ def compiler_catalogue(registry: SchemaRegistry) -> ExtensionFedCatalogue:
         LocalExtensionStore(default_extensions_directory(), registry),
         load_steward_anchors,
         registry,
+        oak_version=__version__,
     )
 
 

@@ -33,6 +33,11 @@ RUN sed -i \
         -e "s|http://deb.debian.org/debian-security|http://snapshot.debian.org/archive/debian-security/${DEBIAN_SNAPSHOT}|" \
         -e "s|http://deb.debian.org/debian|http://snapshot.debian.org/archive/debian/${DEBIAN_SNAPSHOT}|" \
         /etc/apt/sources.list.d/debian.sources \
+    # The rewrite must have matched, and no live mirror may remain, or the build would
+    # quietly take today's packages and reproduce nothing.
+    && grep -q "snapshot.debian.org/archive/debian/${DEBIAN_SNAPSHOT}" /etc/apt/sources.list.d/debian.sources \
+    && grep -q "snapshot.debian.org/archive/debian-security/${DEBIAN_SNAPSHOT}" /etc/apt/sources.list.d/debian.sources \
+    && ! grep -rqs "deb.debian.org\|nginx.org" /etc/apt/sources.list.d /etc/apt/sources.list \
     && apt-get -o Acquire::Check-Valid-Until=false -o Acquire::Retries=5 update \
     && apt-get -o Acquire::Check-Valid-Until=false -o Acquire::Retries=5 \
         upgrade --yes --no-install-recommends \

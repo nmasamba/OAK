@@ -9,12 +9,17 @@ the wheel alters the verifier and any pinned key with it (`RR-025`). The boundar
 authenticity matters is here, where a manifest enters from outside the wheel. An active
 extension feeds the catalogue only when, at the moment the catalogue is read:
 
-- its activation record exists and names this manifest by digest;
+- its activation record exists, validates against its schema, and names this manifest by
+  digest; the record is a claim the operator's own `oak extensions activate` wrote, not a
+  proof, so nothing below rests on it alone;
 - its manifest's steward signature verifies against a key pinned in the operator's trust
   directory now, never a key the extension carries (`RR-012`);
+- its declared compatibility range still holds for this OAK, so a pack activated under an
+  older OAK stops feeding once an upgrade passes its maximum;
 - every payload file matches the digest the signed manifest declares, and the aggregate
-  payload digest matches;
-- every payload document validates against its class's schema.
+  payload digest matches; what was verified is what is parsed;
+- every payload document validates against its class's schema, and its id is held by no
+  other catalogue document of either kind.
 
 Anything else refuses the read, never silently omits the extension: an operator who
 activated one must not get a design that quietly left it out. The provenance of every
@@ -23,6 +28,7 @@ the catalogue snapshot, which every compiled artifact is bound to.
 """
 
 from collections.abc import Callable
+from datetime import datetime
 from typing import Any, NoReturn
 
 from oak.contracts import ContractValidationError, SchemaRegistry, load_alias_free_yaml_document
@@ -32,6 +38,7 @@ from oak.domain.extension_sdk import (
     ARCHITECTURE_PATTERN_CLASS,
     COMPONENT_MANIFEST_CLASS,
     STEWARD_ROLE,
+    compatibility_problem,
 )
 from oak.ports.catalogue import CatalogueDocuments, CataloguePort
 from oak.ports.extensions import ACTIVE, ExtensionEntry, ExtensionStorePort
@@ -40,6 +47,17 @@ FED_CLASSES = {
     COMPONENT_MANIFEST_CLASS: "component-manifest.schema.json",
     ARCHITECTURE_PATTERN_CLASS: "architecture-pattern.schema.json",
 }
+KIND_OF = {COMPONENT_MANIFEST_CLASS: "manifest", ARCHITECTURE_PATTERN_CLASS: "pattern"}
+ACTIVATION_SCHEMA = "extension-activation.schema.json"
+
+
+def provenance_key(kind: str, identifier: str) -> str:
+    """Provenance is kept by kind and id: a manifest and a pattern may not share an id,
+    and a lookup by id alone once let a contributed manifest label a curated pattern."""
+
+    return f"{kind}:{identifier}"
+
+
 SIGNATURE_REASONS = {
     "unsigned": "its manifest is unsigned",
     "wrong-role": "its signature does not use the steward role",
@@ -60,43 +78,65 @@ class ExtensionFedCatalogue:
         store: ExtensionStorePort,
         anchors: Callable[[], dict[str, str]],
         registry: SchemaRegistry,
+        *,
+        oak_version: str,
     ) -> None:
         self._curated = curated
         self._store = store
         self._anchors = anchors
         self._registry = registry
+        self._oak_version = oak_version
 
     def load(self) -> CatalogueDocuments:
         documents = self._curated.load()
         manifests = list(documents.manifests)
         patterns = list(documents.patterns)
         provenance = dict(documents.provenance)
-        for entry in self._store.list_entries():
-            if entry.state != ACTIVE:
-                continue
-            schema = FED_CLASSES.get(str(entry.manifest.get("extension_class")))
+        # Every id the catalogue already holds, of either kind: a contributed document may
+        # add to the catalogue, never take an id another document has.
+        held = {str(document["id"]) for document in (*manifests, *patterns)}
+        # Only the active directory is read: a quarantined entry, well-formed or not, is
+        # the `oak extensions` commands' business and never feeds a compile.
+        for entry in self._store.list_entries(ACTIVE):
+            extension_class = str(entry.manifest.get("extension_class"))
+            schema = FED_CLASSES.get(extension_class)
             if schema is None:
                 continue
-            origin = self._vouched(entry)
-            for name in self._store.payload_names(entry):
-                document = self._document(entry, self._store.payload_bytes(entry, name), schema)
+            origin, verified = self._vouched(entry)
+            for content in verified.values():
+                document = self._document(entry, content, schema)
                 identifier = str(document["id"])
-                if schema == FED_CLASSES[COMPONENT_MANIFEST_CLASS]:
+                if identifier in held:
+                    raise OAKError(
+                        "OAK-CATALOGUE-DUPLICATE",
+                        f"activated extension {entry.extension_id}@{entry.version} contributes "
+                        f"{identifier}, an id another catalogue document already holds",
+                    )
+                held.add(identifier)
+                if extension_class == COMPONENT_MANIFEST_CLASS:
                     manifests.append(document)
                 else:
                     patterns.append(document)
-                provenance[identifier] = dict(origin)
+                provenance[provenance_key(KIND_OF[extension_class], identifier)] = dict(origin)
         return CatalogueDocuments(
             manifests=tuple(manifests), patterns=tuple(patterns), provenance=provenance
         )
 
-    def _vouched(self, entry: ExtensionEntry) -> dict[str, Any]:
-        """Every check an activated extension must pass now, or the read is refused."""
+    def _vouched(self, entry: ExtensionEntry) -> tuple[dict[str, Any], dict[str, bytes]]:
+        """Every check an activated extension must pass now, or the read is refused.
+
+        Returns the provenance to record and the payload bytes as verified, so that what
+        the catalogue parses is what the digests covered.
+        """
 
         manifest = entry.manifest
         activation = self._store.activation_record(entry)
         if activation is None:
             self._refuse(entry, "it has no activation record")
+        try:
+            self._registry.validate(ACTIVATION_SCHEMA, activation)
+        except ContractValidationError:
+            self._refuse(entry, "its activation record does not validate")
         manifest_digest = content_digest(canonical_json_bytes(manifest))
         if (
             activation.get("extension_id") != entry.extension_id
@@ -104,17 +144,30 @@ class ExtensionFedCatalogue:
             or activation.get("manifest_digest") != manifest_digest
         ):
             self._refuse(entry, "its activation record does not name this manifest")
+        activated_at = activation.get("activated_at")
+        try:
+            stamped = datetime.fromisoformat(str(activated_at).replace("Z", "+00:00"))
+        except ValueError:
+            stamped = None
+        if stamped is None or stamped.tzinfo is None:
+            self._refuse(entry, "its activation record carries no readable activation time")
         reason = verify_pinned_signature(manifest, self._anchors(), role=STEWARD_ROLE)
         if reason is not None:
             self._refuse(entry, SIGNATURE_REASONS.get(reason, "its signature was refused"))
+        problem = compatibility_problem(manifest, self._oak_version)
+        if problem is not None:
+            self._refuse(entry, f"it is not compatible with this OAK ({problem.rstrip('.')})")
         declared = manifest["payload"]["files"]
         digests = {str(item["path"]): str(item["digest"]) for item in declared}
         names = self._store.payload_names(entry)
         if sorted(digests) != list(names):
             self._refuse(entry, "its payload files do not match the signed manifest")
+        verified: dict[str, bytes] = {}
         for name in names:
-            if content_digest(self._store.payload_bytes(entry, name)) != digests[name]:
+            content = self._store.payload_bytes(entry, name)
+            if content_digest(content) != digests[name]:
                 self._refuse(entry, "a payload file does not match its signed digest")
+            verified[name] = content
         expected = content_digest(
             canonical_json_bytes({"files": sorted(declared, key=lambda item: str(item["path"]))})
         )
@@ -126,8 +179,8 @@ class ExtensionFedCatalogue:
             "extension_version": entry.version,
             "manifest_digest": manifest_digest,
             "signer_key_id": str(manifest["signature"]["key_id"]),
-            "activated_at": str(activation["activated_at"]),
-        }
+            "activated_at": str(activated_at),
+        }, verified
 
     def _document(self, entry: ExtensionEntry, content: bytes, schema: str) -> dict[str, Any]:
         try:
@@ -148,4 +201,4 @@ class ExtensionFedCatalogue:
         )
 
 
-__all__ = ["ExtensionFedCatalogue"]
+__all__ = ["ExtensionFedCatalogue", "provenance_key"]

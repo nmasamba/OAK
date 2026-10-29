@@ -86,6 +86,15 @@ def _refused(chain: FormatChain, manifest: dict[str, Any] | None = None) -> str:
     return refusal.value.code
 
 
+def _refusal(chain: FormatChain, manifest: dict[str, Any] | None = None) -> str:
+    """The refusal's message, for tests that pin which rule fired."""
+
+    with pytest.raises(OAKError) as refusal:
+        _migrate(chain, manifest)
+    assert refusal.value.code == "OAK-WORKSPACE-MIGRATION"
+    return refusal.value.message
+
+
 def test_the_shipped_chain_holds_no_step_and_reads_only_the_current_format() -> None:
     assert PRODUCTION_CHAIN.known_formats == (CURRENT_MANIFEST_FORMAT,)
     assert PRODUCTION_CHAIN.path(CURRENT_MANIFEST_FORMAT) == ()
@@ -298,3 +307,57 @@ def test_a_step_that_returns_no_manifest_is_refused() -> None:
         return StepResult(manifest=None)  # type: ignore[arg-type]
 
     assert _refused(_chain(nothing)) == "OAK-WORKSPACE-MIGRATION"
+
+
+@pytest.mark.parametrize("field", ["id", "version", "kind", "media_type"])
+def test_a_step_that_relabels_an_indexed_object_is_refused(field: str) -> None:
+    """The index entry is the object's identity: its bytes alone are not (review W3)."""
+
+    def relabel(result: StepResult, read: Any) -> StepResult:
+        entry = dict(result.manifest["artifact_index"][0])
+        entry[field] = "other" if field != "version" else "9.9.9"
+        result.manifest["artifact_index"][0] = entry
+        return result
+
+    assert "dropped, rewrote or reordered" in _refusal(_chain(relabel))
+
+
+def test_a_step_that_reorders_the_index_or_drops_a_twin_entry_is_refused() -> None:
+    def reorder(result: StepResult, read: Any) -> StepResult:
+        result.manifest["artifact_index"].reverse()
+        return result
+
+    def drop_twin(result: StepResult, read: Any) -> StepResult:
+        # Two entries sharing bytes: dropping one leaves the digest indexed, so a
+        # digest-only rule would not notice.
+        del result.manifest["artifact_index"][1]
+        return result
+
+    manifest = _manifest()
+    twin = dict(manifest["artifact_index"][0])
+    twin["id"] = "twin.object"
+    manifest["artifact_index"].append(twin)
+    assert "dropped, rewrote or reordered" in _refusal(_chain(reorder), manifest)
+    assert "dropped, rewrote or reordered" in _refusal(_chain(drop_twin), manifest)
+
+
+@pytest.mark.parametrize("edit", ["reverse", "drop"])
+def test_a_step_that_reorders_or_drops_the_history_is_refused(edit: str) -> None:
+    """A length check let a reversed or dropped history through (review W4)."""
+
+    def reverse(result: StepResult, read: Any) -> StepResult:
+        result.manifest["audit_events"].reverse()
+        return result
+
+    def drop(result: StepResult, read: Any) -> StepResult:
+        del result.manifest["audit_events"]
+        return result
+
+    manifest = _manifest()
+    manifest["audit_events"] = [
+        {"id": "audit.1", "digest": "sha256:" + "1" * 64},
+        {"id": "audit.2", "digest": "sha256:" + "2" * 64},
+    ]
+    assert "edited the workspace history" in _refusal(
+        _chain(reverse if edit == "reverse" else drop), manifest
+    )

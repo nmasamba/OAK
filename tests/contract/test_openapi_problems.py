@@ -23,8 +23,11 @@ def test_every_operation_names_the_problem_document_for_its_errors() -> None:
             assert responses["default"]["content"] == PROBLEM, (method, path)
             if "422" in responses:
                 assert responses["422"]["content"] == PROBLEM, (method, path)
-            # Since Tier 3's Batch A every operation can be answered 429 by the request
-            # limiter, with Retry-After (RR-024).
+            # Since Tier 3's Batch A every operation but the exempt probes can be answered
+            # 429 by the request limiter, with Retry-After (RR-024).
+            if path in {"/healthz", "/readyz"}:
+                assert "429" not in responses, (method, path)
+                continue
             assert responses["429"]["content"] == PROBLEM, (method, path)
             assert responses["429"]["headers"]["Retry-After"]["schema"]["type"] == "integer"
 

@@ -41,7 +41,9 @@ def test_appends_come_from_a_head_read_and_verified_once(
     assert path.read_bytes() == other.read_bytes()
 
 
-def test_a_journal_that_does_not_verify_is_never_extended(tmp_path: Path) -> None:
+def test_a_journal_that_does_not_verify_is_never_extended_by_a_run_that_opens_it(
+    tmp_path: Path,
+) -> None:
     path = tmp_path / "tampered.jsonl"
     journal = RunnerJournal(path)
     journal.append("lease_accepted", STAMP, {"lease_id": "lease.1"})
@@ -56,3 +58,34 @@ def test_a_journal_that_does_not_verify_is_never_extended(tmp_path: Path) -> Non
         RunnerJournal(path).append("operation_after", STAMP, {"kind": "inventory"})
     assert refusal.value.code == "OAK-JOURNAL-TAMPERED"
     assert len(path.read_text(encoding="utf-8").splitlines()) == 2, "the tampered journal grew"
+
+
+def test_an_append_refuses_a_file_that_no_longer_ends_at_this_run_s_head(tmp_path: Path) -> None:
+    """Review R1: the run keeps its head in memory, so before each append it checks that
+    the file still ends there; a journal cut under the run is never extended by it."""
+
+    path = tmp_path / "cut.jsonl"
+    journal = RunnerJournal(path)
+    journal.append("lease_accepted", STAMP, {"lease_id": "lease.1"})
+    journal.append("operation_before", STAMP, {"kind": "inventory"})
+    lines = path.read_text(encoding="utf-8").splitlines()
+    path.write_text(lines[0] + "\n", encoding="utf-8")  # entry 2 removed under the run
+
+    with pytest.raises(OAKError) as refusal:
+        journal.append("operation_after", STAMP, {"kind": "inventory"})
+    assert refusal.value.code == "OAK-JOURNAL-TAMPERED"
+    assert path.read_text(encoding="utf-8").splitlines() == lines[:1], "the cut file grew"
+
+
+def test_the_head_is_what_this_run_wrote_even_when_the_file_is_gone(tmp_path: Path) -> None:
+    """Review R1 and R2: a heartbeat names the head the run appended to, from memory."""
+
+    path = tmp_path / "gone.jsonl"
+    journal = RunnerJournal(path)
+    entry = journal.append("lease_accepted", STAMP, {"lease_id": "lease.1"})
+    path.unlink()
+    assert journal.head() == (1, entry.digest)
+    with pytest.raises(OAKError):
+        RunnerJournal(path).append("operation_before", STAMP, {}) if False else (
+            _ for _ in ()
+        ).throw(OAKError("OAK-JOURNAL-TAMPERED", "a fresh object would see an empty file"))

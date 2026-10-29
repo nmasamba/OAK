@@ -63,12 +63,14 @@ def compile_catalogue(
     researched_ids = research.researched_manifest_ids if research is not None else frozenset()
     origins = provenance or {}
 
-    def origin_of(identifier: str) -> dict[str, Any]:
+    def origin_of(kind: str, identifier: str) -> dict[str, Any]:
         # Recorded on every entry: curated (inside the wheel), an activated extension the
-        # operator's trust anchors vouched for, or a researched manifest (ADR-0018).
-        if identifier in researched_ids:
+        # operator's trust anchors vouched for, or a researched manifest (ADR-0018). Keyed
+        # by kind and id, as the extension feed records it, so a manifest can never label
+        # a pattern of the same id.
+        if kind == "manifest" and identifier in researched_ids:
             return dict(RESEARCH_PROVENANCE)
-        return dict(origins.get(identifier, CURATED_PROVENANCE))
+        return dict(origins.get(f"{kind}:{identifier}", CURATED_PROVENANCE))
 
     manifests: list[Artifact] = []
     entries: list[dict[str, Any]] = []
@@ -107,7 +109,7 @@ def compile_catalogue(
                 "reasons": list(reasons),
                 "evidence_checked_at": evidence_checked_at,
                 "next_review_at": document["next_review_at"],
-                "provenance": origin_of(manifest_id),
+                "provenance": origin_of("manifest", manifest_id),
             }
         )
         manifests.append(artifact)
@@ -156,7 +158,7 @@ def compile_catalogue(
         "patterns": [
             {
                 "pattern_ref": artifact.reference.to_document(),
-                "provenance": origin_of(artifact.id),
+                "provenance": origin_of("pattern", artifact.id),
             }
             for artifact in patterns
         ],

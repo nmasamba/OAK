@@ -83,11 +83,25 @@ class TokenBucketLimiter:
                 self._buckets[key] = (tokens - 1.0, now)
                 self._buckets.move_to_end(key)
                 while len(self._buckets) > self._capacity:
-                    self._buckets.popitem(last=False)
+                    self._evict(now)
                 return None
             self._buckets[key] = (tokens, now)
             self._buckets.move_to_end(key)
             return max(1, math.ceil((1.0 - tokens) / self._rate))
+
+    def _evict(self, now: float) -> None:
+        """Forget the least recently seen key that is not being limited.
+
+        A flood of fresh keys must not evict a key in debt, or the limit it owes would
+        restart with a full burst; a key that would be admitted now loses nothing by being
+        forgotten. Only when every remembered key is in debt does the oldest go.
+        """
+
+        for key, (tokens, updated) in self._buckets.items():
+            if min(self._burst, tokens + max(0.0, now - updated) * self._rate) >= 1.0:
+                del self._buckets[key]
+                return
+        self._buckets.popitem(last=False)
 
     def __len__(self) -> int:
         return len(self._buckets)

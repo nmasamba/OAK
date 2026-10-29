@@ -10,12 +10,15 @@ Nothing migrates on an ordinary read: a workspace at an older format is refused 
 other command, naming the command that would carry it forward, and a format no step
 accepts is refused on every command, export included, naming the build that can read it.
 
-Four rules bound what a step may do, and ``migrate_manifest`` enforces them:
+Four rules bound what a step may do; ``migrate_manifest`` enforces the last three on every
+step's result, and the first is the step author's, proven for the shipped chain by running
+the migration in two interpreters with different hash seeds:
 
 - a step is pure: the same manifest and the same objects give the same result, so two
   interpreters with different hash seeds write the same bytes;
-- a step never rewrites or drops a stored object: every digest the input index names is in
-  the output index with its size, because the audit chain binds those bytes;
+- a step never rewrites, relabels, reorders or drops a stored object: every entry the
+  input index holds is in the output index as it was and in its place, because the audit
+  chain binds those bytes and the entry is the object's identity;
 - a step may add objects, and only objects it returned, so an index entry never names
   bytes nothing produced; a document that must change shape is therefore a new object with
   a new digest, and the application records it as a successor of the current design case,
@@ -295,9 +298,12 @@ def _check_step(
     kept = index_digests(before, code="OAK-WORKSPACE-CORRUPT")
     produced = {artifact.digest: len(artifact.content) for artifact in result.new_artifacts}
     named = index_digests(after, code=code)
-    for digest, size in kept.items():
-        if named.get(digest) != size:
-            raise OAKError(code, f"step {step.name} dropped or rewrote a stored object")
+    # Every entry the workspace indexed stays as it was, in its place: a step may add
+    # entries after them and nothing else. Comparing digests alone would let a step rename,
+    # re-kind or re-type an object, or drop one of two entries sharing bytes.
+    kept_entries = list(before["artifact_index"])
+    if after["artifact_index"][: len(kept_entries)] != kept_entries:
+        raise OAKError(code, f"step {step.name} dropped, rewrote or reordered a stored object")
     for digest, size in named.items():
         if digest not in kept and produced.get(digest) != size:
             raise OAKError(code, f"step {step.name} named an object it did not produce")
@@ -307,7 +313,9 @@ def _check_step(
         if digest not in named:
             raise OAKError(code, f"step {step.name} produced an object its index does not name")
     for key in ("audit_events", "idempotency_records"):
-        if key in before and key in after and len(after[key]) != len(before[key]):
+        # The history is the workspace's, entry for entry and in order; a migration records
+        # itself through the ordinary commit, never by editing what is already there.
+        if key in before and after.get(key) != before[key]:
             raise OAKError(code, f"step {step.name} edited the workspace history")
     if before.get("current_case_ref") != after.get("current_case_ref"):
         raise OAKError(code, f"step {step.name} moved the current design case")

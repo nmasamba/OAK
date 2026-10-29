@@ -49,12 +49,13 @@ and launched on 2026-10-29; this is its first batch: formats, bounds and the cat
   now a component-manifest or architecture-pattern extension could be activated and fed
   nothing. `oak candidates`, and the server's candidate generation, now read every active
   extension of those classes and, before a document enters the catalogue, check again
-  that its activation record names its manifest by digest, that its steward signature
-  verifies against a key pinned in the trust directory now (never a key the pack
-  carries), and that every payload file matches the digest the signed manifest declares;
-  a failure refuses the compile with the new code `OAK-CATALOGUE-EXTENSION` rather than
-  leaving the extension out, and a pack that reuses a curated id is refused as a
-  duplicate. The extension verifier and the catalogue feed share one signature check
+  that its activation record validates and names its manifest by digest, that its steward
+  signature verifies against a key pinned in the trust directory now (never a key the
+  pack carries), that its declared compatibility range still holds for this OAK, and that
+  every payload file matches the digest the signed manifest declares, parsing what was
+  verified; a failure refuses the compile with the new code `OAK-CATALOGUE-EXTENSION`
+  rather than leaving the extension out, and a pack that reuses an id the catalogue holds,
+  of either kind, is refused as a duplicate; a research run reads the same catalogue. The extension verifier and the catalogue feed share one signature check
   (`oak.contracts.signatures.verify_pinned_signature`). The catalogue snapshot records
   the provenance of every entry (curated, an extension with its id, version, manifest
   digest, signer key id and activation time, or research) and lists its patterns with
@@ -70,8 +71,11 @@ and launched on 2026-10-29; this is its first batch: formats, bounds and the cat
   the manifests it has verified, keyed on the manifest's path and the digest of its bytes
   and holding 64 entries, so a later read of the same bytes in the same process (the API
   and the worker are long-lived) parses without verifying again, under 6 ms at 500 events.
-  A mutation's validation and an export verify in full whatever the cache holds, object
-  reads keep checking their digests, and a changed byte is a different key. A CLI command
+  A mutation's validation, an export and a migration verify in full whatever the cache
+  holds, every object a command opens still checks its digest, and a changed manifest byte
+  is a different key; what a cached read skips is the walk over the history's objects, so
+  an audit artifact changed on disk after a process's first read is noticed when opened,
+  by the next mutation, export or migration, or by the next process. A CLI command
   is one process and pays the first read once: `oak questions` costs about one second of
   interpreter start-up plus that read. Nothing compacts or archives history.
   `scripts/benchmark.py --only workspace_growth` measures the curve into a dated file
@@ -103,9 +107,9 @@ and launched on 2026-10-29; this is its first batch: formats, bounds and the cat
   (`OAK-RATE-LIMIT-ADDRESS` or `OAK-RATE-LIMIT-TENANT`, `retriable`) and `Retry-After` in
   whole seconds; `/healthz` and `/readyz` are exempt; the state is the `oak-api` process's
   own, nothing distributed. A tenant may have `OAK_OPERATIONS_PER_TENANT` (new; 100)
-  operations queued or running; the next submission is refused with the new code
-  `OAK-OPERATION-QUOTA` (`429`, `Retry-After: 5`) while a repeated submission is still
-  answered with its operation. A case may record `OAK_MODEL_REQUESTS_PER_CASE_PER_DAY`
+  operations queued or running, judged by the store under one lock with the insert; the
+  next submission is refused with the new code `OAK-OPERATION-QUOTA` (`429`,
+  `Retry-After: 5`) while a repeated submission is still answered with its operation. A case may record `OAK_MODEL_REQUESTS_PER_CASE_PER_DAY`
   (new; 100) billable model requests a UTC day, each model-backed interpretation or
   narration counting one, read from the case's own history; the next is refused with the
   new code `OAK-MODEL-BUDGET` (`429`, `Retry-After` to the next UTC day) before anything
@@ -122,7 +126,9 @@ and launched on 2026-10-29; this is its first batch: formats, bounds and the cat
   `oak.community/restored_from` naming the export's manifest, its digest, the case
   version and the number of events restored; the status does not change and the case
   comes back one patch version on. Importing the same export again, under any key, is a
-  duplicate of that restore; an export of another state of the case is refused with
+  duplicate of that restore, answered with the case as the restore recorded it; an import
+  that finds the export restored without its event (an interrupted attempt) records the
+  event; an export of another state of the case is refused with
   `OAK-IDEMPOTENCY-CONFLICT` as before. A local `oak import` is unchanged.
 - **Reproducible container images** (`RR-006`, closed per platform; the owner's Q3
   answer of 2026-10-29: pin). The API image takes Debian's packages, security updates

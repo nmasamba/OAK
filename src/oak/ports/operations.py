@@ -4,6 +4,8 @@
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+from oak.domain import OAKError
+
 
 @dataclass(frozen=True, slots=True)
 class OperationSpec:
@@ -61,6 +63,17 @@ class OperationLease:
     lease_expires_at: str
 
 
+def operation_quota_error(active: int) -> OAKError:
+    """The refusal a store raises when the tenant's cap is reached (RR-024)."""
+
+    return OAKError(
+        "OAK-OPERATION-QUOTA",
+        f"the tenant already has {active} operation(s) queued or running, the configured "
+        "maximum; wait for one to finish or cancel one",
+        retriable=True,
+    )
+
+
 class OperationStore(Protocol):
     def idempotent(self, spec: OperationSpec) -> OperationRecord | None: ...
 
@@ -68,7 +81,11 @@ class OperationStore(Protocol):
         """How many of the tenant's operations are queued or running (RR-024)."""
         ...
 
-    def enqueue(self, spec: OperationSpec) -> EnqueuedOperation: ...
+    def enqueue(self, spec: OperationSpec, *, maximum_active: int = 0) -> EnqueuedOperation:
+        """Queue the operation, or answer the duplicate. With `maximum_active` above zero,
+        the tenant's queued and running operations are counted and the new one inserted
+        under one lock, and `OAK-OPERATION-QUOTA` is raised at the cap (RR-024)."""
+        ...
 
     def get(self, operation_id: str) -> OperationRecord: ...
 

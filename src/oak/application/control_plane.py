@@ -43,6 +43,7 @@ from oak.application.research import (
 from oak.compiler import DeterministicBriefInterpreter
 from oak.contracts import SchemaRegistry
 from oak.domain import ArtifactReference, OAKError, canonical_json_bytes, content_digest
+from oak.domain.design_case import next_patch_version
 from oak.ports import (
     BriefIntakePort,
     CaseDirectoryPort,
@@ -497,17 +498,24 @@ class CommunityControlPlane:
             except OAKError as error:
                 if error.code != "OAK-WORKSPACE-EXISTS":
                     raise
-                if repository.manifest() != manifest and not self._restored_from(
-                    repository, export_digest
-                ):
+                if self._restored_from(repository, export_digest):
+                    duplicate = True
+                elif repository.manifest() != manifest:
                     raise OAKError(
                         "OAK-IDEMPOTENCY-CONFLICT",
                         "import destination contains different canonical state",
                     ) from error
-                duplicate = True
+                # Otherwise the destination holds exactly the export and no restore
+                # event: a restore an earlier attempt (or an earlier build) left without
+                # its record, completed below rather than answered as a duplicate.
         case = self._require_case(repository)
         self._verify_case(case_id, case)
-        if not duplicate:
+        if duplicate:
+            case = self._restored_case(repository, origin, case)
+        else:
+            # The event's key is the restore's own, derived from the import's key and the
+            # export: the export carries the origin's idempotency records, and a key the
+            # origin had used would otherwise collide with them after the workspace exists.
             case = (
                 self._design_service(workspace_id, context.tenant_id)
                 .record_restore(
@@ -516,6 +524,7 @@ class CommunityControlPlane:
                         context,
                         interface_origin="import",
                         expected_version=str(case["version"]),
+                        idempotency_key=self._restore_key(context.idempotency_key, export_digest),
                     ),
                 )
                 .case
@@ -536,6 +545,36 @@ class CommunityControlPlane:
         case = repository.current_case()
         restored = ((case or {}).get("extensions") or {}).get("oak.community/restored_from")
         return isinstance(restored, dict) and restored.get("manifest_digest") == export_digest
+
+    @staticmethod
+    def _restore_key(import_key: str, export_digest: str) -> str:
+        digest = export_digest.removeprefix("sha256:")[:24]
+        key = content_digest(import_key.encode("utf-8")).removeprefix("sha256:")[:24]
+        return f"restore:{digest}:{key}"
+
+    @staticmethod
+    def _restored_case(
+        repository: WorkspaceRepository, origin: dict[str, Any], current: dict[str, Any]
+    ) -> dict[str, Any]:
+        """The case as the restore recorded it: the version after the export's, not where
+        the case has gone since, as a re-created import's retry answers too."""
+
+        recorded = next_patch_version(str(origin["case_version"]))
+        for entry in repository.manifest().get("artifact_index", []):
+            if (
+                entry.get("kind") == "design_case"
+                and entry.get("id") == origin["case_id"]
+                and str(entry.get("version")) == recorded
+            ):
+                return repository.read_json_artifact(
+                    ArtifactReference(
+                        id=str(entry["id"]),
+                        version=str(entry["version"]),
+                        digest=str(entry["digest"]),
+                        media_type=str(entry["media_type"]),
+                    )
+                )
+        return current
 
     def _recreate(self, plan: ReplayPlan, context: CommandContext) -> DesignResult:
         """Re-create a local export's case through this server's own steps.

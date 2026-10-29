@@ -716,7 +716,7 @@ def create_app(
             schemas.setdefault(name, definition)
         schemas["Problem"] = problem
         problem_content = {PROBLEM_MEDIA_TYPE: {"schema": {"$ref": "#/components/schemas/Problem"}}}
-        for path_item in document.get("paths", {}).values():
+        for route_path, path_item in document.get("paths", {}).items():
             for operation in path_item.values():
                 responses = operation.setdefault("responses", {})
                 if "422" in responses:
@@ -724,9 +724,17 @@ def create_app(
                         "description": "The request was refused: a problem document",
                         "content": problem_content,
                     }
-                # Every operation can be answered `429` by the request limiter, and the
-                # operation and model routes by the operation cap and the model budget;
-                # `Retry-After` says how long to wait (RR-024).
+                responses["default"] = {
+                    "description": "Any other refusal or failure: a problem document",
+                    "content": problem_content,
+                }
+                if route_path in EXEMPT_PATHS:
+                    # The probes are exempt from the limiter, and no application `429`
+                    # reaches them.
+                    continue
+                # Every other operation can be answered `429` by the request limiter, and
+                # the operation and model routes by the operation cap and the model
+                # budget; `Retry-After` says how long to wait (RR-024).
                 responses["429"] = {
                     "description": "Too many requests: a problem document, with Retry-After",
                     "headers": {
@@ -735,10 +743,6 @@ def create_app(
                             "schema": {"type": "integer", "minimum": 1},
                         }
                     },
-                    "content": problem_content,
-                }
-                responses["default"] = {
-                    "description": "Any other refusal or failure: a problem document",
                     "content": problem_content,
                 }
         for route, operations in document.get("paths", {}).items():

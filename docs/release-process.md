@@ -263,7 +263,9 @@ Two honest caveats:
   claim; `snapshot.debian.org` is a build-time dependency; and the base images move only
   when their digests are re-pinned. The provenance says `byte_reproducible: true` only
   from the record of two matching builds, naming the platform, the BuildKit, the
-  snapshot date and both image IDs.
+  snapshot date and both image IDs, and only when the record is about these images: the
+  same platform, artifact version and source commit, a builder it names, and images the
+  scan did not rebuild.
 
 Base images *are* pinned by tag **and** immutable `sha256` digest in both Dockerfiles and
 in `compose.yaml`, and `make toolchain-check` fails if the `uv`, Python, Node,

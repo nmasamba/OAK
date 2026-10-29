@@ -301,9 +301,12 @@ none.
 
 ## What the runner keeps, and for how long
 
-- **Journals** (`$OAK_RUNNER_HOME/journals/<dispatch>.jsonl`) are never removed. Each is
-  read and verified once per run and appended from the head kept in memory; a journal that
-  does not verify is never extended (`OAK-JOURNAL-TAMPERED`).
+- **Journals** (`$OAK_RUNNER_HOME/journals/<dispatch>.jsonl`) are never removed. A run
+  reads and verifies a journal once, when it opens it, and appends from the head it keeps
+  in memory; before each append it checks that the file still ends at the entry it last
+  wrote. So a journal that does not verify when a run opens it, or that is cut or edited
+  under the run, is never extended (`OAK-JOURNAL-TAMPERED`); a heartbeat names the head
+  the run holds.
 - **The consumed-nonce ledger** (`$OAK_RUNNER_HOME/consumed-nonces.json`) maps each lease
   nonce the runner accepted to that lease's expiry and keeps it while the lease could still
   be replayed: until its expiry plus a five-minute clock-skew allowance. A nonce whose

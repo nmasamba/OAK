@@ -18,7 +18,7 @@ import yaml
 from typer.testing import CliRunner
 
 from oak.adapters.persistence import FileWorkspaceRepository
-from oak.contracts import SchemaRegistry
+from oak.contracts import SchemaRegistry, load_alias_free_yaml_document
 from oak.domain import ArtifactReference, canonical_json_bytes, content_digest
 from oak.interfaces.cli.main import app as cli_app
 
@@ -235,3 +235,84 @@ def test_a_pattern_extension_cannot_add_a_variant(home: Path) -> None:
     shutil.copytree(TEMPLATES / "architecture-pattern", source)
     _activate(home, source, "extension.template-architecture-pattern")
     _refused(home, "pattern", "OAK-CATALOGUE-DUPLICATE")
+
+
+def test_a_contributed_id_held_by_a_document_of_another_kind_is_refused(home: Path) -> None:
+    """Review C1: a manifest may not take a curated pattern's id, and provenance is kept
+    by kind, so a contributed manifest can no longer label a curated pattern."""
+
+    _activate(home, _component_source(home, component_id="pattern.simpler-baseline"), EXTENSION_ID)
+    _refused(home, "cross-kind", "OAK-CATALOGUE-DUPLICATE")
+
+
+def test_an_activation_record_that_does_not_validate_is_refused_not_crashed(home: Path) -> None:
+    """Review C2: the record is validated at every read; a bad or missing activation time
+    is a refusal with the catalogue's code, never a traceback."""
+
+    _activate(home, _component_source(home), EXTENSION_ID)
+    record_path = _active_directory(home) / "activation.json"
+    record = json.loads(record_path.read_text(encoding="utf-8"))
+    record["activated_at"] = "not-a-time"
+    record_path.write_text(json.dumps(record), encoding="utf-8")
+    _refused(home, "bad-time", "OAK-CATALOGUE-EXTENSION")
+    del record["activated_at"]
+    record_path.write_text(json.dumps(record), encoding="utf-8")
+    _refused(home, "no-time", "OAK-CATALOGUE-EXTENSION")
+
+
+def test_a_pack_this_oak_cannot_run_is_refused_even_with_a_forged_record(home: Path) -> None:
+    """Review C4: the compatibility range is checked again at every read, so a record
+    written by hand around a refused activation, or an upgrade past a pack's maximum,
+    stops the compile rather than feeding it."""
+
+    _activate(home, _component_source(home), EXTENSION_ID)
+    template = json.loads((_active_directory(home) / "activation.json").read_text(encoding="utf-8"))
+    source = _component_source(
+        home, component_id="component.too-old", extension_id="extension.too-old"
+    )
+    manifest = yaml.safe_load((source / "extension.yaml").read_text(encoding="utf-8"))
+    manifest["compatibility"]["maximum_oak_version"] = "0.1.0"
+    (source / "extension.yaml").write_text(
+        "# SPDX-License-Identifier: Apache-2.0\n" + yaml.safe_dump(manifest, sort_keys=True),
+        encoding="utf-8",
+    )
+    for step in (["extensions", "sign", str(source)], ["extensions", "install", str(source)]):
+        result = _oak(*step, cwd=home)
+        assert result.exit_code == 0, f"{step}: {_output(result)}"
+    refused = _oak("extensions", "activate", "extension.too-old", cwd=home)
+    assert refused.exit_code != 0 and "OAK-EXTENSION-QUARANTINED" in _output(refused)
+    quarantined = home / "extensions" / "quarantined" / "extension.too-old@0.1.0"
+    active = _active_directory(home, "extension.too-old")
+    shutil.move(quarantined, active)
+    stored = load_alias_free_yaml_document((active / "extension.yaml").read_text(encoding="utf-8"))
+    template.update(
+        extension_id="extension.too-old",
+        extension_version="0.1.0",
+        manifest_digest=content_digest(canonical_json_bytes(stored)),
+    )
+    (active / "activation.json").write_text(json.dumps(template), encoding="utf-8")
+
+    result, _workspace = _candidates(home, "too-old")
+    assert result.exit_code == 2, _output(result)
+    assert "OAK-CATALOGUE-EXTENSION" in _output(result)
+    assert "not compatible" in _output(result)
+
+
+def test_a_malformed_entry_in_quarantine_does_not_stop_a_compile(home: Path) -> None:
+    """Review C5: only the active directory feeds the catalogue; quarantine is the
+    extension commands' business."""
+
+    (home / "extensions" / "quarantined" / "junk").mkdir(parents=True, exist_ok=True)
+    result, _workspace = _candidates(home, "junk-ignored")
+    assert result.exit_code == 0, _output(result)
+
+
+def test_research_reads_the_same_catalogue_as_the_compiler(home: Path) -> None:
+    """Review C7: a research run merges the activated extensions too, not a bare
+    curated catalogue."""
+
+    from oak.adapters.catalogue.extension_catalogue import ExtensionFedCatalogue
+    from oak.bootstrap import create_research_service
+
+    service = create_research_service(home / "research-workspace")
+    assert isinstance(service._catalogue, ExtensionFedCatalogue)

@@ -77,3 +77,29 @@ def test_a_heartbeat_that_cannot_be_written_is_dropped_without_a_gap(tmp_path: P
     heartbeat.beat("operation_done")
     assert [sequence for sequence, _ in published] == [1, 2], "a failed beat left a hole"
     assert heartbeat.published == 2
+
+
+def test_a_journal_the_run_cannot_read_drops_the_beat_and_waits_an_interval(tmp_path: Path) -> None:
+    """Review R2: a heartbeat that cannot name its head is dropped like one the mailbox
+    refused; the install is not stopped and the next beat waits a whole interval."""
+
+    clock = _Clock()
+    published: list[tuple[int, dict[str, Any]]] = []
+    path = tmp_path / "journal.jsonl"
+    path.write_text("not a journal line\n", encoding="utf-8")
+    heartbeat = LeaseHeartbeat(
+        lambda sequence, payload: published.append((sequence, payload)),
+        RunnerJournal(path),
+        clock=clock,
+        interval_seconds=30.0,
+    )
+    heartbeat.beat("lease_accepted", force=True)  # the journal does not verify: dropped
+    assert published == [] and heartbeat.published == 0
+    path.write_text("", encoding="utf-8")
+    heartbeat.beat("operation")  # inside the interval after the failed beat: skipped
+    assert published == []
+    clock.now += 30.0
+    heartbeat.beat("operation")
+    assert [sequence for sequence, _ in published] == [1], (
+        "the sequence was spent on a dropped beat"
+    )

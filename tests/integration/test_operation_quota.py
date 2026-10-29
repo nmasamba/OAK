@@ -4,6 +4,8 @@ or running; a duplicate submission is still answered, and a finished one makes r
 
 from __future__ import annotations
 
+import threading
+
 import pytest
 
 from oak.application import (
@@ -95,3 +97,29 @@ def test_zero_means_no_cap_and_the_default_is_generous() -> None:
     with pytest.raises(OAKError) as refusal:
         _submit(capped, "quota-default-past")
     assert refusal.value.code == "OAK-OPERATION-QUOTA"
+
+
+def test_the_cap_holds_when_submissions_race() -> None:
+    """Review L1: the count and the insert are one locked step in the store, so two
+    submissions arriving together cannot both find room for one."""
+
+    store = MemoryOperationStore()
+    service = OperationService(store, environment_id="quota-test", maximum_active=1)
+    outcomes: list[str] = []
+    gate = threading.Barrier(2)
+
+    def submit(key: str) -> None:
+        gate.wait()
+        try:
+            _submit(service, key)
+            outcomes.append("queued")
+        except OAKError as error:
+            outcomes.append(error.code)
+
+    threads = [threading.Thread(target=submit, args=(f"quota-race-{n:08d}",)) for n in range(2)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert sorted(outcomes) == ["OAK-OPERATION-QUOTA", "queued"]
+    assert store.active_count() == 1
