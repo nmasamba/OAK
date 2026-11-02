@@ -115,6 +115,7 @@ UNKNOWN_CASE = "design-case.nobody-holds-this"
 CASE_SCOPED_METHODS = (
     "architecture",
     "confirm",
+    "confirm_hardware",
     "create_assurance_plan",
     "export_design_case",
     "get_design_case",
@@ -122,6 +123,7 @@ CASE_SCOPED_METHODS = (
     "list_artifacts",
     "list_audit_events",
     "list_candidates",
+    "propose_hardware",
     "read_artifact",
     "record_report",
     "research_plan",
@@ -161,6 +163,9 @@ def _unknown_case_calls(plane):  # type: ignore[no-untyped-def]
             case, tenant_id="local", candidate_id=None, now="2026-10-26T12:00:00Z"
         ),
         "confirm": lambda: plane.confirm(case, {}, context("confirm")),
+        "confirm_hardware": lambda: plane.confirm_hardware(
+            case, "hardware-proposal.unknown", context("confirm-hardware")
+        ),
         "create_assurance_plan": lambda: plane.create_assurance_plan(
             case, "candidate-03", context("assure")
         ),
@@ -170,6 +175,7 @@ def _unknown_case_calls(plane):  # type: ignore[no-untyped-def]
         "list_artifacts": lambda: plane.list_artifacts(case, tenant_id="local"),
         "list_audit_events": lambda: plane.list_audit_events(case, tenant_id="local"),
         "list_candidates": lambda: plane.list_candidates(case, tenant_id="local"),
+        "propose_hardware": lambda: plane.propose_hardware(case, {}, context("propose-hardware")),
         "read_artifact": lambda: plane.read_artifact(
             case, tenant_id="local", artifact_id="design-case", version="0.1.0", digest=digest
         ),
