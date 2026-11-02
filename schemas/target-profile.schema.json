@@ -157,10 +157,11 @@
       ],
       "properties": {
         "mutation_acknowledgement": {
-          "description": "The operator's acknowledgement of what a mutation may do on this target. `isolated-non-production-fixture-only` creates network-isolated containers and never starts them; `isolated-non-production-hardened-start` also starts them under the runner's fixed hardening flags (ADR-0017).",
+          "description": "The operator's acknowledgement of what a mutation may do on this target. `isolated-non-production-fixture-only` creates network-isolated containers and never starts them; `isolated-non-production-hardened-start` also starts them under the runner's fixed hardening flags (ADR-0017). `native-non-production-user-consented` installs each component natively, as the user, from the harness kind its `native_components` entry names, after a signed consent, and stops it once its smoke test passes (ADR-0019).",
           "enum": [
             "isolated-non-production-fixture-only",
-            "isolated-non-production-hardened-start"
+            "isolated-non-production-hardened-start",
+            "native-non-production-user-consented"
           ]
         },
         "container_image_reference": {
@@ -217,8 +218,132 @@
             "maxLength": 255,
             "pattern": "^[a-z0-9][a-zA-Z0-9.:-]*$"
           }
+        },
+        "native_components": {
+          "description": "The harness kind and the verified artifacts the operator acknowledges for each catalogue component this target may install natively. Typed values only: the argument template is the adapter's, per harness kind (ADR-0019).",
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "manifest_id",
+              "harness_kind",
+              "artifacts",
+              "listen_port",
+              "health_probe"
+            ],
+            "properties": {
+              "manifest_id": {
+                "$ref": "common.schema.json#/$defs/identifier"
+              },
+              "harness_kind": {
+                "enum": [
+                  "oak_stand_in",
+                  "llama_cpp_server"
+                ]
+              },
+              "artifacts": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 4,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "role",
+                    "source",
+                    "sha256",
+                    "size_bytes",
+                    "format"
+                  ],
+                  "properties": {
+                    "role": {
+                      "enum": [
+                        "harness",
+                        "model"
+                      ]
+                    },
+                    "source": {
+                      "description": "An https URL on a host in allowed_download_hosts, or oak-stand-in:<name> for a file inside OAK itself.",
+                      "type": "string",
+                      "minLength": 9,
+                      "maxLength": 2000,
+                      "pattern": "^(https://[a-z0-9][a-z0-9.-]{0,252}(:[0-9]{1,5})?/[A-Za-z0-9._~/%+=&?-]{0,1900}|oak-stand-in:[a-z0-9-]{1,40})$"
+                    },
+                    "sha256": {
+                      "type": "string",
+                      "pattern": "^sha256:[a-f0-9]{64}$"
+                    },
+                    "size_bytes": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 68719476736
+                    },
+                    "format": {
+                      "enum": [
+                        "file",
+                        "zip",
+                        "tar.gz"
+                      ]
+                    }
+                  }
+                }
+              },
+              "listen_port": {
+                "type": "integer",
+                "minimum": 1024,
+                "maximum": 65535
+              },
+              "health_probe": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "path"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "pattern": "^/[A-Za-z0-9._~/-]{0,99}$"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "allowed_download_hosts": {
+          "description": "The hosts a native install may fetch an artifact from, and the only hosts a redirect may lead to. Without it, only oak-stand-in sources install.",
+          "type": "array",
+          "uniqueItems": true,
+          "maxItems": 16,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 253,
+            "pattern": "^[a-z0-9][a-z0-9.-]*$"
+          }
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "mutation_acknowledgement"
+            ],
+            "properties": {
+              "mutation_acknowledgement": {
+                "const": "native-non-production-user-consented"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "native_components"
+            ]
+          }
+        }
+      ]
     },
     "secrets": {
       "type": "object",

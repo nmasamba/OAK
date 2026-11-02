@@ -14,7 +14,7 @@ and publishes nothing.
 
 - Owner/agent: owner-directed coding agent
 - Started: 2026-11-02
-- Last updated: 2026-11-02 (M2, the proposal enters the case)
+- Last updated: 2026-11-02 (M3, the native records)
 - State: in-progress
 - Claimed tasks: `OAK-V1-039`–`OAK-V1-043`
 
@@ -357,7 +357,26 @@ kinds, and an existing case or profile reads as before.
   mutation checks, each killed. Documents: `compatibility.md` (schema, REST, CLI, MCP,
   runner evidence), `interfaces.md` (two rows), `operations.md` (the machine a design is
   for), the changelog, and the original spec repo's `docs/build/interface-contract.md`.
-  `make validate`, `format-check`, `lint`, `typecheck` and `test` green.
+  `make validate`, `format-check`, `lint`, `typecheck` and `test` green. Gates on the M2
+  tree in a detached worktree: the browser suite 34 passed (the hardware spec among them),
+  the two manual captures skipped; `make check` with the throwaway PostgreSQL first failed
+  on `openapi/oak.openapi.json` left out of the commit, then passed once it was committed
+  (`0be56fe`).
+- [x] 2026-11-02 M3 (`OAK-V1-040`). ADR-0019 in the original spec repo
+  (`docs/adr/0019-native-installation-with-recorded-consent.md`, indexed) and its mirror
+  here (indexed in `docs/adr/README.md`). `target-profile.schema.json` (still `0.2.0`): the
+  acknowledgement `native-non-production-user-consented`, the typed `native_components`
+  (harness kind `oak_stand_in` or `llama_cpp_server`; artifacts with role, source, SHA-256,
+  size and format; a listen port from 1024; a health-probe path), required with that
+  acknowledgement, and `allowed_download_hosts`. `schemas/native-consent.schema.json`
+  (`0.1.0`), its example and registration, and the consent text
+  `catalogue/consent/native-installation.yaml` (six relaxed controls, five retained), in
+  `draft` for the owner's sign-off. The original spec repo's
+  `docs/build/security-invariants.md` permits downloaded executable selection to this
+  adapter alone, under named controls; its threat model's `TM-09` and `TM-16` gain the
+  native path. `RR-056` and `RR-057` join the register, `RR-043` names its scope, and the
+  register's count (57) follows in both repositories' `STATUS.md`. `compatibility.md`, the
+  changelog. `make validate` and `make test` green; the existing profiles still validate.
 
 ## Decisions
 
@@ -396,6 +415,23 @@ kinds, and an existing case or profile reads as before.
   still needs the user's word.
 - 2026-11-02 M2. **`recorded_at`, not `scanned_at`.** The server knows when a proposal
   entered the case, not when the client's scan ran, so the document says only that.
+- 2026-11-02 M3. **The consent is a signed approval for its own action, `native_consent`.**
+  ADR-0017's `architecture` approval is the precedent: an extension binding what it
+  approves, checked by the runner on its own. The consent binds the consent document's
+  digest, the relaxed controls by id and the installation digest; the runner compares the
+  ids with the controls its native adapter relaxes, so a consent text that names fewer
+  controls than the code relaxes cannot authorize an install. The approval's action enum
+  gains the value with the code that verifies it, in M4.
+- 2026-11-02 M3. **The relaxed controls are ADR-0017's isolation set, one id each**:
+  `network_isolation`, `read_only_root`, `no_capabilities`, `unprivileged_user`,
+  `resource_ceilings` and `loopback_port` (a container published no port; a native process
+  listens on 127.0.0.1 while it runs). The text in `catalogue/consent/native-installation.yaml`
+  is a draft: the owner signs it off (Q4e) and its `status` becomes `approved`.
+- 2026-11-02 M3. **The stand-in installs from inside OAK.** Its artifact source is
+  `oak-stand-in:<name>`, a file shipped in OAK's own package and verified by digest like any
+  download, run by the runner's own interpreter: so `make check` stays offline, CI's three
+  jobs prove the native path without Docker, and macOS's signing rules for downloaded
+  binaries do not decide whether CI passes.
 - 2026-11-02 M2. **The manual's scan section lands in M5**, with the native path, so the
   manual's PDF is rebuilt once.
 - 2026-11-02 Kickoff. **The branch starts from the image fix, not from `main`.** `main`'s

@@ -151,6 +151,15 @@ mechanical migration; **breaking** otherwise.
   extensions are optional, so no stored document changes, and no reference digest moves:
   the reference case holds no scan. A `0.9.0` reader cannot validate a workspace holding a
   proposal or either event.
+- Tier 3's Batch B adds to `target-profile.schema.json` (still `0.2.0`, additive) the
+  acknowledgement `native-non-production-user-consented`, the typed `native_components`
+  (each catalogue component's harness kind, artifacts with their source, SHA-256, size and
+  format, loopback listen port and health-probe path), required with that
+  acknowledgement, and `allowed_download_hosts` (ADR-0019). Every stored profile still
+  validates; a `0.9.0` reader refuses a profile carrying the new acknowledgement or fields.
+  It adds `native-consent.schema.json` (`0.1.0`), the consent a native installation's
+  `native_consent` approval names by digest; the text OAK shows is
+  `catalogue/consent/native-installation.yaml`.
 - Sprint 14 (unreleased, ADR-0018) made an objective's `value` in `common.schema.json`
   nullable, with `unknown_reason` required exactly when it is null. Every stored document
   still validates, because the compiler writes a null only for a candidate that holds a

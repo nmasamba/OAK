@@ -27,6 +27,20 @@ installation. In progress; entries land with each milestone.
   missing, with each tool's official page; it never installs anything. `oak scan` records
   nothing; the inventory evidence gains a `hardware` object beside its existing fields.
   The runner's executable allowlist gains the five tools (`RR-055`).
+- **The records for a native installation** (`OAK-V1-040`). ADR-0019, beside ADR-0017:
+  a target profile may acknowledge `native-non-production-user-consented` and map each
+  component to a harness kind OAK knows (`oak_stand_in`, a server inside OAK; and
+  `llama_cpp_server`), with typed artifacts (source, SHA-256, size, format), a loopback
+  port and a health probe, and the hosts it may download from; a native install needs a
+  third signed approval, `native_consent`, naming the consent document by digest, each
+  relaxed control and the installation; the process is smoke-tested and stopped, never
+  left running. `schemas/native-consent.schema.json` and the consent text,
+  `catalogue/consent/native-installation.yaml`, which stays `draft` until the owner signs
+  it off. The original spec repo's security invariants permit downloaded executable
+  selection to this adapter alone, under named controls, and its threat model's `TM-09`
+  and `TM-16` gain the native path. `RR-056` (a native process runs as the user) and
+  `RR-057` (a harness is trusted as far as its acknowledged digest) join the register;
+  `RR-043` says it covers containers only.
 - **A scan's result enters a case only when the user confirms it** (`OAK-V1-039`, part 2).
   `oak scan --propose` records the result as the case's hardware proposal (a new
   `hardware_proposal` artifact, a `hardware_proposed` event; no intent value changes), and

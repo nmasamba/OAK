@@ -1,0 +1,39 @@
+# SPDX-License-Identifier: Apache-2.0
+# An example consent document; the one OAK shows is catalogue/consent/native-installation.yaml.
+schema_version: 0.1.0
+id: consent.native-installation-example
+version: 0.1.0
+status: draft
+title: Install this architecture on your computer, outside Docker
+statement: >-
+  OAK will download the programs and models this design needs, check each one against the
+  size and digest your target profile names, install them in a folder of their own, start
+  each once to prove it answers, and then stop it. After that they run only when you start
+  them. Without Docker, nothing separates them from the rest of your computer but your user
+  account, so these protections, which the container installation keeps, do not apply.
+relaxed_controls:
+  - id: network_isolation
+    relaxes: The installed programs can use your network and the internet.
+    risk: A program that misbehaves, or was built to, can send what it reads elsewhere or download more.
+  - id: read_only_root
+    relaxes: The installed programs can write anywhere your user account can.
+    risk: They can change or delete your files.
+  - id: no_capabilities
+    relaxes: The installed programs keep the privileges your user account has.
+    risk: They can do anything you can do on this computer without being asked for a password.
+  - id: unprivileged_user
+    relaxes: The installed programs run as you, not as a separate account with no rights.
+    risk: They can read what you can read, including your documents and the settings of other programs.
+  - id: resource_ceilings
+    relaxes: Limits on memory, processor time and the number of processes apply only as far as your system offers them.
+    risk: A program can slow your computer down or use up its memory while it runs.
+  - id: loopback_port
+    relaxes: Each program listens on a port on this computer (127.0.0.1) while it runs.
+    risk: Other programs on this computer, and other people signed in to it, can talk to it while it runs.
+retained_controls:
+  - Nothing is installed without your signed approval of the architecture, of the installation and of this consent.
+  - Every download comes only from a host your target profile names, and its size and SHA-256 are checked before anything runs.
+  - Programs start with fixed arguments OAK knows for each kind of program, never with a command taken from a document, and listen only on this computer.
+  - After its check, every program is stopped. Nothing keeps running, and nothing starts with your computer.
+  - Uninstalling removes exactly the folder the installation created, and nothing else.
+extensions: {}
