@@ -2,7 +2,10 @@
 """Persistence adapter implementations."""
 
 from oak.adapters.persistence.directory import PostgreSQLCaseDirectory
-from oak.adapters.persistence.file_workspace import FileWorkspaceRepository
+from oak.adapters.persistence.file_workspace import (
+    FileWorkspaceRepository,
+    clear_verification_cache,
+)
 from oak.adapters.persistence.operations import PostgreSQLOperationStore
 from oak.adapters.persistence.outbox import PostgreSQLOutboxStore
 from oak.adapters.persistence.postgresql import (
@@ -18,5 +21,6 @@ __all__ = [
     "PostgreSQLOutboxStore",
     "PostgreSQLReadinessProbe",
     "PostgreSQLWorkspaceRepository",
+    "clear_verification_cache",
     "create_postgresql_engine",
 ]

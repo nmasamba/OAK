@@ -138,7 +138,8 @@ services:
       api:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--spider", "http://127.0.0.1:8080/"]
+      # curl, not wget: the trixie nginx image ships curl and no busybox wget (RR-006).
+      test: ["CMD", "curl", "--fail", "--silent", "--output", "/dev/null", "http://127.0.0.1:8080/"]
       interval: 2s
       timeout: 3s
       retries: 20

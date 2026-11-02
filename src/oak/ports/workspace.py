@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from oak.domain.artifacts import Artifact, ArtifactReference
+from oak.domain.workspace_format import MigrationOutcome, WorkspaceFormatReport
 
 
 @dataclass(frozen=True, slots=True)
@@ -82,3 +83,21 @@ class WorkspaceRepository(Protocol):
     def export_to(self, destination: Path) -> None: ...
 
     def import_from(self, source: Path) -> None: ...
+
+
+class WorkspaceFormatPort(Protocol):
+    """What the explicit format commands need from a store that keeps a manifest format.
+
+    The file adapter implements it. The PostgreSQL store does not: its format is the
+    alembic revision `oak-db-migrate` carries forward and `/readyz` checks.
+    """
+
+    def format_report(self) -> WorkspaceFormatReport: ...
+
+    def migration_outcome(self) -> MigrationOutcome: ...
+
+    def read_json_artifact(self, reference: ArtifactReference) -> dict[str, Any]: ...
+
+    def commit_migration(
+        self, outcome: MigrationOutcome, mutation: WorkspaceMutation | None
+    ) -> None: ...

@@ -9,6 +9,10 @@ from pathlib import Path
 from typing import Any
 
 from oak.application.context import CommandContext
+from oak.application.model_budget import (
+    DEFAULT_MODEL_REQUESTS_PER_CASE_PER_DAY,
+    check_model_budget,
+)
 from oak.application.persistence import build_workspace_mutation
 from oak.compiler import (
     DeterministicBriefInterpreter,
@@ -107,6 +111,7 @@ class DesignCaseService:
         *,
         model_interpreter_factory: ModelInterpreterFactory | None = None,
         proposal_limits: ProposalLimits | None = None,
+        model_requests_per_day: int = DEFAULT_MODEL_REQUESTS_PER_CASE_PER_DAY,
     ) -> None:
         self._repository = repository
         self._intake = intake
@@ -114,6 +119,7 @@ class DesignCaseService:
         self._registry = registry
         self._model_interpreter_factory = model_interpreter_factory
         self._proposal_limits = proposal_limits or ProposalLimits()
+        self._model_requests_per_day = model_requests_per_day
 
     def initialize(self, *, workspace_id: str, tenant_id: str, created_at: str) -> None:
         self._repository.initialize(
@@ -335,6 +341,12 @@ class DesignCaseService:
         proposal: dict[str, Any] | None = None
         proposal_artifact: Artifact | None = None
         if adapter is not None:
+            # The case's daily count of billable requests, before the brief is sent (RR-041).
+            check_model_budget(
+                self._repository,
+                occurred_at=context.occurred_at,
+                maximum=self._model_requests_per_day,
+            )
             proposal = self._bind_proposal(adapter, source_document, source_ref, source_content)
             proposal_artifact = json_artifact(
                 artifact_id=str(proposal["id"]),
@@ -589,8 +601,43 @@ class DesignCaseService:
         export named. It grants nothing, and the case's status does not change.
         """
 
-        input_digest = self._request_digest(context, {"recreated_from": origin})
-        context = self._normalized_context(context, "recreate", input_digest)
+        return self._record_origin(
+            event_type="workspace_imported",
+            extension="oak.community/recreated_from",
+            action="recreate",
+            origin=origin,
+            context=context,
+        )
+
+    def record_restore(self, origin: dict[str, Any], context: CommandContext) -> DesignResult:
+        """Record that a server restored this case from a server export, and from which.
+
+        The restored events keep the actors and origins the export stated; they are the
+        export's claims. This event, under the importing command's actor, is the first the
+        server itself attests, so a reader can tell where the restored history ends. The
+        origin names the export's manifest, its digest, the case version and the number of
+        events restored; it grants nothing, and the case's status does not change.
+        """
+
+        return self._record_origin(
+            event_type="workspace_restored",
+            extension="oak.community/restored_from",
+            action="restore",
+            origin=origin,
+            context=context,
+        )
+
+    def _record_origin(
+        self,
+        *,
+        event_type: str,
+        extension: str,
+        action: str,
+        origin: dict[str, Any],
+        context: CommandContext,
+    ) -> DesignResult:
+        input_digest = self._request_digest(context, {action: origin})
+        context = self._normalized_context(context, action, input_digest)
         self._check_context(context)
         manifest = self._repository.manifest()
         if manifest["tenant_id"] != context.tenant_id:
@@ -601,9 +648,18 @@ class DesignCaseService:
         current_document = self._require_case()
         current = DesignCase.from_document(current_document)
         extensions = copy.deepcopy(current.extensions or {})
-        extensions["oak.community/recreated_from"] = copy.deepcopy(origin)
+        extensions[extension] = copy.deepcopy(origin)
         successor = current.revise(
             status=current.status, updated_at=context.occurred_at, extensions=extensions
+        )
+        # An event names the case's intent and the source record it was read from, as every
+        # event after interpretation does; the re-creation path records its origin on a
+        # draft case, where both are None, so its bytes are unchanged.
+        source_reference = extensions.get("oak.community/source_record_ref")
+        source_record_ref = (
+            ArtifactReference.from_document(source_reference)
+            if successor.intent_ref is not None and isinstance(source_reference, dict)
+            else None
         )
         sequence = len(manifest["audit_events"]) + 1
         event_document = audit_event_document(
@@ -611,7 +667,7 @@ class DesignCaseService:
             previous_event_digest=manifest["audit_events"][-1]["digest"],
             case_id=successor.id,
             case_version=successor.version,
-            event_type="workspace_imported",
+            event_type=event_type,
             actor=context.actor,
             tenant_id=context.tenant_id,
             interface_origin=context.interface_origin,
@@ -619,9 +675,9 @@ class DesignCaseService:
             idempotency_key=context.idempotency_key,
             input_digest=input_digest,
             occurred_at=context.occurred_at,
-            intent_ref=None,
-            source_record_ref=None,
-            extensions={"oak.community/recreated_from": copy.deepcopy(origin)},
+            intent_ref=successor.intent_ref,
+            source_record_ref=source_record_ref,
+            extensions={extension: copy.deepcopy(origin)},
         )
         event_artifact = self._audit_artifact(event_document, sequence)
         successor = successor.with_audit_head(event_artifact.digest)

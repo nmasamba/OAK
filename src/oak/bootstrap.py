@@ -8,7 +8,11 @@ from pathlib import Path
 from typing import Any
 
 from oak import __version__
-from oak.adapters.catalogue import LocalCatalogue, ResearchVocabularyLoader
+from oak.adapters.catalogue import (
+    ExtensionFedCatalogue,
+    LocalCatalogue,
+    ResearchVocabularyLoader,
+)
 from oak.adapters.credentials import (
     EnvironmentCredentialReference,
     FileCredentialStore,
@@ -40,6 +44,8 @@ from oak.adapters.signing import (
 )
 from oak.adapters.targets import LocalTargetProfile
 from oak.application import (
+    DEFAULT_MODEL_REQUESTS_PER_CASE_PER_DAY,
+    DEFAULT_OPERATIONS_PER_TENANT,
     CandidatePlanningService,
     CommunityControlPlane,
     CommunityWorker,
@@ -58,6 +64,7 @@ from oak.application import (
 from oak.application.design_case import ModelInterpreterFactory
 from oak.application.gitops import GitOpsRenderer
 from oak.application.rendering import DeploymentRenderService
+from oak.application.workspace_format import WorkspaceFormatService
 from oak.compiler import DeterministicBriefInterpreter
 from oak.contracts import SchemaRegistry
 from oak.domain import RESEARCH_HOSTS, OAKError, SystemInformation
@@ -148,7 +155,15 @@ def create_design_case_service(
         registry,
         model_interpreter_factory=model_interpreter_factory,
         proposal_limits=model_proposal_limits(),
+        model_requests_per_day=model_requests_per_case_per_day(),
     )
+
+
+def create_workspace_format_service(workspace: Path) -> WorkspaceFormatService:
+    """The explicit format commands over a file workspace: status and migrate."""
+
+    registry = SchemaRegistry.from_directory(canonical_schema_directory())
+    return WorkspaceFormatService(FileWorkspaceRepository(workspace, registry), registry)
 
 
 def model_timeout_seconds() -> float:
@@ -186,6 +201,39 @@ def model_discovery_cache_seconds() -> int:
     except ValueError:
         value = 21_600
     return max(0, value)
+
+
+MAXIMUM_LIMIT = 1_000_000
+
+
+def read_limit(name: str, default: int) -> int:
+    """An `OAK_*` limit: a whole number from 0 to a million, `0` switching the limit off;
+    unset or blank is the default, and anything else is refused (`OAK-LIMIT-CONFIG`), so a
+    typo never runs the process with a limit it did not ask for."""
+
+    raw = os.getenv(name, "").strip()
+    if not raw:
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        value = -1
+    if value < 0 or value > MAXIMUM_LIMIT:
+        raise OAKError(
+            "OAK-LIMIT-CONFIG",
+            f"{name} must be a whole number from 0 to {MAXIMUM_LIMIT}; 0 switches the limit off",
+        )
+    return value
+
+
+def model_requests_per_case_per_day() -> int:
+    return read_limit(
+        "OAK_MODEL_REQUESTS_PER_CASE_PER_DAY", DEFAULT_MODEL_REQUESTS_PER_CASE_PER_DAY
+    )
+
+
+def operations_per_tenant() -> int:
+    return read_limit("OAK_OPERATIONS_PER_TENANT", DEFAULT_OPERATIONS_PER_TENANT)
 
 
 # A provider's chat answer is bounded by the proposal limits; its *catalogue* is a different
@@ -526,7 +574,7 @@ def create_research_service(workspace: Path) -> ResearchService:
     return ResearchService(
         FileWorkspaceRepository(workspace, registry),
         registry,
-        LocalCatalogue(catalogue_directory, registry),
+        compiler_catalogue(registry),
         ResearchVocabularyLoader(catalogue_directory),
         source_factory=lambda occurred_at: create_research_source(occurred_at=occurred_at),
         source_mode=research_source_mode,
@@ -577,6 +625,7 @@ def create_report_service(workspace: Path) -> ReportService:
         oak_version=__version__,
         narrator_factory=create_report_narrator,
         proposal_limits=model_proposal_limits(),
+        model_requests_per_day=model_requests_per_case_per_day(),
     )
 
 
@@ -613,7 +662,7 @@ def create_candidate_planning_service(workspace: Path) -> CandidatePlanningServi
     repository = FileWorkspaceRepository(workspace, registry)
     return CandidatePlanningService(
         repository,
-        LocalCatalogue(canonical_catalogue_directory(), registry),
+        compiler_catalogue(registry),
         LocalTargetProfile(registry),
         registry,
         research_vocabulary=ResearchVocabularyLoader(canonical_catalogue_directory()),
@@ -633,6 +682,20 @@ def canonical_policy_pack_directory() -> Path:
         if candidate is not None and candidate.is_dir():
             return candidate
     raise RuntimeError("OAK Community policy packs are not installed")
+
+
+def compiler_catalogue(registry: SchemaRegistry) -> ExtensionFedCatalogue:
+    """The catalogue every compile reads: the curated documents in the wheel, plus the
+    activated component-manifest and architecture-pattern extensions whose packs the
+    operator's trust directory vouches for when they are read."""
+
+    return ExtensionFedCatalogue(
+        LocalCatalogue(canonical_catalogue_directory(), registry),
+        LocalExtensionStore(default_extensions_directory(), registry),
+        load_steward_anchors,
+        registry,
+        oak_version=__version__,
+    )
 
 
 def default_extensions_directory() -> Path:
@@ -871,6 +934,9 @@ def create_persistent_control_plane() -> CommunityControlPlane:
             environment_id=environment_id,
         )
 
+    maximum_active = operations_per_tenant()
+    model_requests_per_day = model_requests_per_case_per_day()
+
     def operation_service_factory(tenant_id: str) -> OperationService:
         return OperationService(
             PostgreSQLOperationStore(
@@ -879,6 +945,7 @@ def create_persistent_control_plane() -> CommunityControlPlane:
                 environment_id=environment_id,
             ),
             environment_id=environment_id,
+            maximum_active=maximum_active,
         )
 
     def outbox_store_factory(tenant_id: str) -> PostgreSQLOutboxStore:
@@ -900,7 +967,7 @@ def create_persistent_control_plane() -> CommunityControlPlane:
         operation_service_factory,
         LocalBriefIntake(),
         DeterministicBriefInterpreter(),
-        LocalCatalogue(canonical_catalogue_directory(), registry),
+        compiler_catalogue(registry),
         LocalTargetProfile(registry),
         registry,
         outbox_store_factory,
@@ -910,6 +977,7 @@ def create_persistent_control_plane() -> CommunityControlPlane:
         report_renderer=create_report_renderer(),
         report_narrator_factory=create_report_narrator,
         oak_version=__version__,
+        model_requests_per_day=model_requests_per_day,
         research_vocabulary=ResearchVocabularyLoader(canonical_catalogue_directory()),
         research_source_factory=lambda occurred_at: create_research_source(occurred_at=occurred_at),
         research_source_mode=research_source_mode,

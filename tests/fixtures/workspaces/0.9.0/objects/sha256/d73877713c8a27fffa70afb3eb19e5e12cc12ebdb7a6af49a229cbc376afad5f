@@ -1,0 +1,1 @@
+{"artifact_type":"signature_marker","content":{"authorizes_execution":false,"reason":"Compilation emits an inert, unsigned draft; execution authority is a separately signed plan signature plus per-action approvals, verified independently by the runner."},"extensions":{},"id":"signature.pending.candidate-03","schema_version":"0.4.0","status":"not_signed","version":"0.1.0"}

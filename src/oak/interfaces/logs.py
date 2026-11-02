@@ -32,6 +32,8 @@ LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR")
 # The fields an OAK record may add. Tenant, actor, case and brief identifiers are not here:
 # a tenant or actor name can be a person's or an organisation's, a case id is named from
 # the brief, and the request ID joins a line to the audit trail where they are recorded.
+# The client address is not here either: the request limiter keys on it (RR-024), and a
+# refused request's line names the limit by its code, never the address.
 ALLOWED_FIELDS = frozenset(
     {
         "attempt",

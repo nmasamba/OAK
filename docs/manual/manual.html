@@ -1257,8 +1257,10 @@ SHA256SUMS is signed by nmasamba, the key pinned in keys/allowed_signers</span><
   <pre><code><span class="out">SHA256SUMS is the unsigned manifest 0.9.0 was published with (RR-005), so checksums prove the bytes match it, not who produced them.</span></code></pre>
   <p>
     A signature says who released the artifacts, not how they were built. The container
-    images are not byte-reproducible (<code>RR-006</code>) — their SBOMs and provenance under
-    <code>docs/release/0.9.0/</code> record what one build produced.
+    images reproduce per platform since Tier 3's Batch A (<code>RR-006</code>): the
+    release builds each twice and records both IDs. The <code>0.9.0</code> images predate
+    that, so their SBOMs and provenance under <code>docs/release/0.9.0/</code> record what
+    one build produced.
   </p>
 </section>
 
@@ -1276,7 +1278,9 @@ SHA256SUMS is signed by nmasamba, the key pinned in keys/allowed_signers</span><
     <tr><td>An MCP client reports that it cannot start <code>docker</code></td><td>Assistants often launch their helpers with a minimal <code>PATH</code></td><td>Put the full path that <code>which docker</code> prints into the client's configuration</td></tr>
     <tr><td><code>OAK-RUNNER-REVOCATION</code> on every dispatch</td><td>The revocation manifest is missing or the notice set does not match it</td><td>Re-publish from the control plane (<code>oak revoke-approval</code>, or a fresh dispatch establishes an empty manifest). Do not hand-delete notices — the mismatch is the protection working</td></tr>
     <tr><td><code>OAK-RUNNER-REPLAY</code> on every dispatch</td><td>The consumed-nonce ledger in <code>$OAK_RUNNER_HOME</code> is corrupt; it deliberately refuses rather than reading as empty</td><td>Inspect <code>consumed-nonces.json</code>; remove it only if you accept that previously burned nonces become replayable</td></tr>
-    <tr><td><code>OAK-WORKSPACE-CORRUPT</code> on every command</td><td>Manifest unreadable, or written by a format this build does not know</td><td>Restore from your last <code>oak export</code> — this is why the manual says export before upgrading</td></tr>
+    <tr><td><code>OAK-WORKSPACE-CORRUPT</code> on every command</td><td>The manifest or an indexed object is unreadable or invalid</td><td>Restore from your last <code>oak export</code> — this is why the manual says export before upgrading</td></tr>
+    <tr><td><code>OAK-WORKSPACE-MIGRATE</code> on every command but <code>workspace status</code> and <code>export</code></td><td>The workspace is at an older format this build knows</td><td>Run <code>oak workspace migrate</code> once, or <code>oak export</code> to copy it as it is</td></tr>
+    <tr><td><code>OAK-WORKSPACE-FORMAT</code> on every command, <code>export</code> included</td><td>The manifest names a format this build does not read: a newer build wrote it</td><td>Use the build that wrote it and export from there; downgrade is not supported</td></tr>
     <tr><td><code>run-once</code> exited 0 but printed <code>denied &lt;dispatch&gt;: &lt;reason&gt;</code></td><td>Denying a dispatch is the runner working correctly; exit status reports whether the runner ran, not whether anything succeeded</td><td>Read the signed messages (<code>oak ingest</code>) or the journal, and look the denial code up in the chapter 6 table or <code>docs/error-codes.md</code></td></tr>
     <tr><td>Runner exits 64 or 70 with a code on stderr</td><td>The runner itself could not run: 64 is a missing required environment variable, 70 a configuration or verification refusal that stopped it before processing (e.g. <code>OAK-RUNNER-CONFIG</code>)</td><td>Fix the environment or target profile it names — every <code>OAK-*</code> code is documented with its raise site in <code>docs/error-codes.md</code></td></tr>
     <tr><td><code>oak approve apply</code> refuses with <code>OAK-APPROVAL-ARCHITECTURE</code></td><td>An install needs a current approval of the architecture first, and there is none, or it is not current for this plan</td><td>Run <code>oak approve architecture</code>, then <code>oak approve apply</code> again</td></tr>
@@ -1326,7 +1330,7 @@ cd .. &amp;&amp; rm -rf OAK</code></pre>
     the third-party images OAK pulled (<code>postgres:17.6-alpine</code>,
     <code>python:3.13.12-slim</code>, <code>ghcr.io/astral-sh/uv:0.10.8</code> (a build stage
     of the API image), <code>node:24.18.0-alpine</code>,
-    <code>nginxinc/nginx-unprivileged:1.29.1-alpine</code>, and
+    <code>nginxinc/nginx-unprivileged:1.30.6-trixie</code>, and
     <code>rancher/mirrored-pause</code>, which chapter 6's install pulled by digest) are
     shared Docker and toolchain state, yours to keep or remove with <code>docker image rm</code>. The full
     runbook version, including the named-volume and release-image variants, is

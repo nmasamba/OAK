@@ -252,8 +252,8 @@ adapter's identity digest. No create carries a volume, an environment variable o
 - **Compensation.** A failed `apply` removes exactly the containers it created. One it
   adopted is left for an operator. If that removal fails too, the dispatch ends in
   `manual_recovery_required`.
-- **Lease deadline.** The runner does not heartbeat, so once the lease has lapsed `apply`
-  refuses to start another side effect (`OAK-RUNNER-LEASE`).
+- **Lease deadline.** A heartbeat (below) reports; it extends nothing. Once the lease has
+  lapsed, `apply` refuses to start another side effect (`OAK-RUNNER-LEASE`).
 - **Removal.** `rollback` and `destroy` remove only containers carrying this case's
   labels, with `docker rm --force --volumes`, and then inspect each name to prove it is
   gone (`OAK-RUNNER-ROLLBACK` otherwise). A foreign container with the name is denied
@@ -276,6 +276,48 @@ adapter's identity digest. No create carries a volume, an environment variable o
 - **Bundled schemas.** The runner verifies every document against the schemas installed
   with it and ignores `OAK_SCHEMA_DIRECTORY`, which configures the control plane only
   (`RR-033`).
+
+## Heartbeats
+
+While a dispatch runs, the runner publishes a signed `heartbeat` message to the mailbox, a
+message kind the runner-message schema has listed since the protocol's first version and
+unused until Tier 3's Batch A. One goes out at the next step boundary once
+`OAK_RUNNER_HEARTBEAT_SECONDS` (default 30) have passed since the last: when the lease is
+accepted (always, the first), before and after each operation, between the containers an
+`apply` creates and starts, and at each readiness poll. Each names the lease, a sequence
+of its own within it, and the journal's head at that moment (`journal_sequence`,
+`journal_digest`), and is signed with the runner's key like every message.
+
+A heartbeat is a report, never an authority: it moves no state, extends no lease, and is
+bound to its lease like a completion, so `oak ingest` believes one only from an enrolled
+runner, for a lease this control plane dispatched. Ingest records each as a
+`runner_heartbeat` audit event beside the case (`oak.community/runner_heartbeat_refs`),
+a lease's heartbeats before its completion whatever order the mailbox lists them in, and
+refuses a completion for the lease whose journal no longer reaches the head the last
+heartbeat named (`OAK-INGEST-JOURNAL`), as it refuses one that falls short of an accepted
+completion. A heartbeat the mailbox cannot take is dropped and the next one carries on the
+sequence; the install is not stopped for it. `OAK_RUNNER_HEARTBEAT_SECONDS=0` publishes
+none.
+
+## What the runner keeps, and for how long
+
+- **Journals** (`$OAK_RUNNER_HOME/journals/<dispatch>.jsonl`) are never removed. A run
+  reads and verifies a journal once, when it opens it, and appends from the head it keeps
+  in memory; before each append it checks that the file still ends at the entry it last
+  wrote. So a journal that does not verify when a run opens it, or that is cut or edited
+  under the run, is never extended (`OAK-JOURNAL-TAMPERED`); a heartbeat names the head
+  the run holds.
+- **The consumed-nonce ledger** (`$OAK_RUNNER_HOME/consumed-nonces.json`) maps each lease
+  nonce the runner accepted to that lease's expiry and keeps it while the lease could still
+  be replayed: until its expiry plus a five-minute clock-skew allowance. A nonce whose
+  expiry it does not know (a ledger written before this batch is a list) or cannot read is
+  kept for ever. The file is still rewritten whole on each accepted dispatch, but it holds
+  only the leases still in play.
+- **Processed dispatch directories** in the mailbox are removed at the end of a run once
+  older than `OAK_RUNNER_DISPATCH_RETENTION_DAYS` (default 30; `0` keeps every one),
+  except the newest processed one and any whose completion `oak ingest` has not taken yet.
+  `oak-runner status` ties a journal to its completions by the lease its own
+  `lease_accepted` entry names, so the comparison stays `matched` without the directory.
 
 ## Reading `oak-runner status`
 

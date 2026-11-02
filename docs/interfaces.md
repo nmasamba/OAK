@@ -157,6 +157,7 @@ prohibition).
 | Read operation progress | — | — | ○ | ○ | ○ |
 | Cancel operation | — | — | ● | — | ● |
 | Export / import case | ● | ● | ● | — | ○ |
+| Inspect or migrate the workspace format (`oak workspace status`, `oak workspace migrate`) | ● | ✕ | — | ✕ | — |
 | Read audit / artifacts | — | — | ○ | — | ○ |
 | List design cases | — | — | ○ | — | ○ |
 | Render deployment artifacts | ● | ✕ | — | ✕ | — |
@@ -175,7 +176,7 @@ prohibition).
 
 Notes:
 
-- The **local-only** commands are `init`, `serve`, `mcp serve`, `keys`, `models`, `sign`, `approve` (every action, including `approve architecture`), `revoke-approval`, `dispatch`, `ingest`, `observe`, `gitops`, `policy`, `render`, `extensions` and `validate`.
+- The **local-only** commands are `init`, `serve`, `mcp serve`, `keys`, `models`, `sign`, `approve` (every action, including `approve architecture`), `revoke-approval`, `dispatch`, `ingest`, `observe`, `gitops`, `policy`, `render`, `extensions`, `validate` and `workspace`.
   With `--server` set they fail closed with `OAK-REMOTE-UNSUPPORTED` rather than
   acting on local state. None of them is reachable over MCP, and none but `models` over
   REST: the model configuration also has loopback `/v1/models` routes guarded by the
@@ -234,15 +235,23 @@ Notes:
   from a server still imports as itself, on a server or into a local workspace; one whose
   manifest names a server workspace but that holds an approval, a plan signature, a
   dispatch, a runner message, an observation or a revocation, which only a local workspace
-  writes, is refused on a server with `OAK-IMPORT-AUTHORITY`.
+  writes, is refused on a server with `OAK-IMPORT-AUTHORITY`. A server restore keeps the
+  export's history as written, so the actors and origins of the restored events are the
+  export's claims, and then records a `workspace_restored` event under the importing
+  command's actor (`oak.community/restored_from` names the export): the first event the
+  server itself attests. A repeat of the import answers with the case as that event
+  recorded it.
 - `oak validate` is a server-free read-only checker (export, bundle, webhook)
   intended for CI and portals. It checks schema validity, digest integrity, and
   the execution-field ban across all three kinds. For a compiled bundle it
-  verifies the digest edges that exist in a detached directory
-  (runner-plan → deployment-bundle → architecture-decision) and that the runner
-  plan is an inert draft; it does not bind `assurance-plan.json` or
-  `semantic-manifest.json`, which carry no digest edge into the bundle spine, and
-  it does not re-run compilation. The authoritative integrity binding for a plan
+  verifies the digest edges of a detached directory (runner-plan → deployment-bundle
+  → architecture-decision, deployment-bundle → assurance-plan since Tier 3's Batch A,
+  and the semantic manifest the bundle and every plan operation pin) and that the
+  runner plan is an inert draft; a bundle written before the assurance-plan edge is
+  reported valid with its assurance plan `unbound`, never verified; it does not re-run
+  compilation. An export at an older workspace format this build
+  knows imports as it is and is reported valid with `migration_needed`; its case is read
+  once `oak workspace migrate` has run. The authoritative integrity binding for a plan
   is the separately signed runner envelope and approval, not a review bundle.
   `oak validate webhook` verifies the signature against the pinned publisher key
   only, never the key embedded in the envelope.

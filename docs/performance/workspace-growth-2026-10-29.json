@@ -1,0 +1,147 @@
+{
+  "measurements": {
+    "not_measured": {
+      "bounded_runner_operation": "The read-only five-operation runner plan is exercised end to end by tests/e2e/test_runner_journey.py. Its wall-clock cost is dominated by Docker availability on the host, so a figure here would measure the daemon.",
+      "concurrent_api_load": "No load driver exists. The p95 above is sequential and single-client.",
+      "outbox_drain_rate": "Requires a Compose stack with the worker stopped and restarted mid-burst. Not automated; /v1/system/outbox-lag exposes the point-in-time snapshot an operator samples manually."
+    },
+    "workspace_growth": {
+      "description": "Manifest read latency at four workspace depths: freshly initialised, after the reference journey, and after synthetic revisions to 200 and 500 audit events. The first read in a process verifies the lineage in full; a cached read is a later read of the same bytes in the same process; the command figure is `oak questions --output json` as a subprocess, interpreter start-up included. Nothing in OAK deletes history, so this only grows.",
+      "points": [
+        {
+          "audit_events": 0,
+          "indexed_artifacts": 0,
+          "manifest_read_cached": {
+            "max_ms": 0.37,
+            "median_ms": 0.17,
+            "min_ms": 0.13,
+            "p95_ms": 0.37,
+            "p99_ms": 0.37,
+            "samples": 10
+          },
+          "manifest_read_first": {
+            "max_ms": 0.51,
+            "median_ms": 0.31,
+            "min_ms": 0.24,
+            "p95_ms": 0.51,
+            "p99_ms": 0.51,
+            "samples": 10
+          },
+          "oak_questions_command": null
+        },
+        {
+          "audit_events": 8,
+          "indexed_artifacts": 43,
+          "manifest_read_cached": {
+            "max_ms": 0.44,
+            "median_ms": 0.35,
+            "min_ms": 0.33,
+            "p95_ms": 0.44,
+            "p99_ms": 0.44,
+            "samples": 10
+          },
+          "manifest_read_first": {
+            "max_ms": 34.35,
+            "median_ms": 33.81,
+            "min_ms": 32.1,
+            "p95_ms": 34.35,
+            "p99_ms": 34.35,
+            "samples": 10
+          },
+          "oak_questions_command": {
+            "max_ms": 1079.93,
+            "median_ms": 1064.85,
+            "min_ms": 1051.61,
+            "p95_ms": 1079.93,
+            "p99_ms": 1079.93,
+            "samples": 5
+          }
+        },
+        {
+          "audit_events": 200,
+          "indexed_artifacts": 427,
+          "manifest_read_cached": {
+            "max_ms": 5.74,
+            "median_ms": 2.38,
+            "min_ms": 2.25,
+            "p95_ms": 5.74,
+            "p99_ms": 5.74,
+            "samples": 10
+          },
+          "manifest_read_first": {
+            "max_ms": 901.84,
+            "median_ms": 875.04,
+            "min_ms": 869.61,
+            "p95_ms": 901.84,
+            "p99_ms": 901.84,
+            "samples": 10
+          },
+          "oak_questions_command": {
+            "max_ms": 2006.14,
+            "median_ms": 1938.43,
+            "min_ms": 1914.72,
+            "p95_ms": 2006.14,
+            "p99_ms": 2006.14,
+            "samples": 5
+          }
+        },
+        {
+          "audit_events": 500,
+          "indexed_artifacts": 1027,
+          "manifest_read_cached": {
+            "max_ms": 5.83,
+            "median_ms": 5.76,
+            "min_ms": 5.52,
+            "p95_ms": 5.83,
+            "p99_ms": 5.83,
+            "samples": 10
+          },
+          "manifest_read_first": {
+            "max_ms": 2254.64,
+            "median_ms": 2194.42,
+            "min_ms": 2177.33,
+            "p95_ms": 2254.64,
+            "p99_ms": 2254.64,
+            "samples": 10
+          },
+          "oak_questions_command": {
+            "max_ms": 3430.7,
+            "median_ms": 3314.23,
+            "min_ms": 3271.27,
+            "p95_ms": 3430.7,
+            "p99_ms": 3430.7,
+            "samples": 5
+          }
+        }
+      ]
+    }
+  },
+  "provenance": {
+    "artifact_version": "0.9.0",
+    "caveats": [
+      "Measured on one developer machine, not a controlled environment.",
+      "No warm-up isolation from operating-system caching or CPU scaling.",
+      "These are observations, not a service level objective."
+    ],
+    "hardware": {
+      "architecture": "arm64",
+      "cpu_count": 10,
+      "operating_system": "darwin",
+      "ram_gib": 64.0,
+      "storage_gib": 1858.2
+    },
+    "source_commit": "6261c356b0494de2d5d9731fea017dd1d0247ffe",
+    "source_tree_dirty": true,
+    "toolchain": {
+      "implementation": "CPython",
+      "platform": "macOS-26.3.1-arm64-arm-64bit-Mach-O",
+      "python": "3.13.12"
+    },
+    "workload": {
+      "catalogue_architecture_patterns": 4,
+      "catalogue_component_manifests": 3,
+      "persistence": "file workspace",
+      "reference_brief": "examples/briefs/public-manual-qa.yaml"
+    }
+  }
+}

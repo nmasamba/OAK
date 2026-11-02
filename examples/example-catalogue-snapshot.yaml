@@ -18,6 +18,17 @@ entries:
     reasons: []
     evidence_checked_at: 2026-08-16T12:00:00Z
     next_review_at: 2027-08-16T12:00:00Z
+    provenance:
+      origin: curated
+patterns:
+  - pattern_ref:
+      id: pattern.fixture-baseline
+      version: 0.1.0
+      digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+      uri: null
+      media_type: application/vnd.oak.architecture-pattern+json
+    provenance:
+      origin: curated
 eligible_manifest_ids: [component.fixture-lexical-search]
 rejected_manifest_ids: []
 extensions: {}

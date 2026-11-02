@@ -170,6 +170,11 @@ documented flow uses it.
 | `OAK-WORKSPACE-NOT-FOUND` | There is no OAK workspace at this location | Check the working directory, or run `oak init` |
 | `OAK-ARTIFACT-NOT-FOUND` | The workspace is present; this artifact reference did not match | Check the id, version and digest triple. The workspace is fine |
 | `OAK-WORKSPACE-CORRUPT` | The manifest or an indexed object failed verification | Run `python scripts/verify_deployment.py --workspace <dir>`. See [operations.md](operations.md#restore) |
+| `OAK-WORKSPACE-MIGRATE` | The workspace is at an older format this build knows | Run `oak workspace migrate` once, or `oak export` to copy it as it is |
+| `OAK-WORKSPACE-FORMAT` | The manifest names a format this build does not read: a newer build wrote it | Use the build that wrote it; downgrade is not supported |
+| `OAK-RATE-LIMIT-ADDRESS`, `OAK-RATE-LIMIT-TENANT` | More requests in a minute than the API admits from one address or one tenant (`429`) | Wait the `Retry-After` seconds; the limits are `OAK_REQUESTS_PER_MINUTE_PER_ADDRESS` and `OAK_REQUESTS_PER_MINUTE_PER_TENANT` |
+| `OAK-OPERATION-QUOTA` | The tenant has `OAK_OPERATIONS_PER_TENANT` operations queued or running (`429`) | Wait for the worker, cancel one, or raise the value |
+| `OAK-MODEL-BUDGET` | The case has recorded its daily number of billable model requests (`429` on the API) | Use the deterministic mode, wait for 00:00 UTC, or raise `OAK_MODEL_REQUESTS_PER_CASE_PER_DAY` |
 | `OAK-REMOTE-UNSUPPORTED` | A local-only command was run with `--server` | Signing, approval, dispatch, keys, model-provider configuration, extensions and policy are local-only by design |
 | `OAK-REMOTE-UNAVAILABLE` | The control plane could not be reached | Check the URL and that `oak-api` is running |
 | `OAK-TENANT-MISMATCH` | A different tenant was requested | Reported as not-found on purpose, so it leaks no existence information |

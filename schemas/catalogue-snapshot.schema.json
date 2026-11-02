@@ -26,12 +26,40 @@
           "eligible": {"type": "boolean"},
           "reasons": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
           "evidence_checked_at": {"type": "string", "format": "date-time"},
-          "next_review_at": {"type": "string", "format": "date-time"}
+          "next_review_at": {"type": "string", "format": "date-time"},
+          "provenance": {"$ref": "#/$defs/provenance"}
+        }
+      }
+    },
+    "patterns": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["pattern_ref", "provenance"],
+        "properties": {
+          "pattern_ref": {"$ref": "common.schema.json#/$defs/artifactRef"},
+          "provenance": {"$ref": "#/$defs/provenance"}
         }
       }
     },
     "eligible_manifest_ids": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/identifier"}, "uniqueItems": true},
     "rejected_manifest_ids": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/identifier"}, "uniqueItems": true},
     "extensions": {"$ref": "common.schema.json#/$defs/extensions"}
+  },
+  "$defs": {
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["origin"],
+      "properties": {
+        "origin": {"enum": ["curated", "extension", "research"]},
+        "extension_id": {"$ref": "common.schema.json#/$defs/identifier"},
+        "extension_version": {"type": "string", "minLength": 1, "maxLength": 64},
+        "manifest_digest": {"$ref": "common.schema.json#/$defs/digest"},
+        "signer_key_id": {"$ref": "common.schema.json#/$defs/digest"},
+        "activated_at": {"type": "string", "format": "date-time"}
+      }
+    }
   }
 }

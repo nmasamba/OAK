@@ -14,7 +14,11 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from oak.bootstrap import canonical_schema_directory, create_design_case_service
+from oak.bootstrap import (
+    canonical_schema_directory,
+    create_design_case_service,
+    create_workspace_format_service,
+)
 from oak.contracts import (
     SchemaRegistry,
     load_alias_free_yaml_document,
@@ -82,13 +86,29 @@ def validate_export(source: Path) -> dict[str, Any]:
 
     _scan_export_objects_for_execution_fields(source.absolute())
     with tempfile.TemporaryDirectory(prefix="oak-validate-export-") as temporary:
-        service = create_design_case_service(Path(temporary) / "workspace")
+        workspace = Path(temporary) / "workspace"
+        service = create_design_case_service(workspace)
         service.import_from(source.absolute())
+        report = create_workspace_format_service(workspace).status()
+        if not report.current:
+            # An export at an older format imports and reads through the chain's view,
+            # which is what was just proven; its case is read only once it is migrated.
+            return {
+                "kind": "export",
+                "valid": True,
+                "workspace_id": report.workspace_id,
+                "format": report.format,
+                "current_format": report.current_format,
+                "migration_needed": True,
+            }
         result = service.current()
     case = result.case
     return {
         "kind": "export",
         "valid": True,
+        "format": report.format,
+        "current_format": report.current_format,
+        "migration_needed": False,
         "case_id": str(case["id"]),
         "case_version": str(case["version"]),
         "status": str(case["status"]),
@@ -202,11 +222,28 @@ def validate_bundle(source: Path) -> dict[str, Any]:
         )
     if str(runner_plan["status"]) != "draft":
         raise OAKError("OAK-VALIDATE-PLAN-STATUS", "runner plan is not an inert draft")
+    assurance_reference = bundle.get("assurance_plan_ref")
+    if isinstance(assurance_reference, dict):
+        assurance = documents["assurance-plan.json"]
+        if (
+            assurance_reference.get("digest") != digests["assurance-plan.json"]
+            or assurance_reference.get("id") != assurance["id"]
+            or str(assurance_reference.get("version")) != str(assurance["version"])
+        ):
+            raise OAKError(
+                "OAK-VALIDATE-DIGEST", "deployment bundle does not reference this assurance plan"
+            )
+        assurance_binding = "bound"
+    else:
+        # A bundle written before the assurance-plan edge carries none, so its assurance
+        # plan is not verified against it: said so, never reported as verified (RR-008).
+        assurance_binding = "unbound"
     return {
         "kind": "bundle",
         "valid": True,
         "bundle_id": str(bundle["id"]),
         "runner_plan_id": str(runner_plan["id"]),
+        "assurance_plan": assurance_binding,
         "digests": digests,
     }
 

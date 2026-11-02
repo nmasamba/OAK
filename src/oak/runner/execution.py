@@ -18,6 +18,7 @@ from oak.runner.adapters import (
     collect_inventory,
     default_executor,
 )
+from oak.runner.heartbeat import LeaseHeartbeat
 from oak.runner.journal import RunnerJournal
 from oak.runner.verification import MUTATING_KINDS, VerifiedDispatch
 
@@ -58,6 +59,7 @@ def execute_dispatch(
     executor: CommandExecutor = default_executor,
     cancellation_requested: bool = False,
     adapter: ContainerFixtureAdapter | None = None,
+    heartbeat: LeaseHeartbeat | None = None,
 ) -> ExecutionOutcome:
     """Run the requested kinds in plan order; journal around every side effect."""
 
@@ -95,6 +97,8 @@ def execute_dispatch(
             "requested_kinds": list(verified.requested_kinds),
         },
     )
+    if heartbeat is not None:
+        heartbeat.beat("lease_accepted", force=True)
     container = adapter or ContainerFixtureAdapter(executor)
     evidence: list[dict[str, Any]] = []
     applied: list[str] = []
@@ -120,6 +124,8 @@ def execute_dispatch(
             # mid-operation leaves the exact list an operator has to inspect.
             before["resources"] = _container_names(operation)
         journal.append(entry_type, now, before)
+        if heartbeat is not None:
+            heartbeat.beat("operation", operation_kind=kind)
         try:
             items = _run_operation(
                 kind,
@@ -129,6 +135,7 @@ def execute_dispatch(
                 registry,
                 container,
                 lease_deadline,
+                heartbeat,
             )
         except (OAKError, ContractValidationError) as error:
             journal.append(
@@ -197,6 +204,8 @@ def execute_dispatch(
         )
         evidence.extend(items)
         applied.append(kind)
+        if heartbeat is not None:
+            heartbeat.beat("operation_done", operation_kind=kind)
     journal.append("completion_recorded", now, {"applied_kinds": applied})
     return ExecutionOutcome(
         outcome="succeeded",
@@ -216,13 +225,23 @@ def _run_operation(
     registry: Any,
     container: ContainerFixtureAdapter,
     lease_deadline: datetime,
+    heartbeat: LeaseHeartbeat | None = None,
 ) -> tuple[dict[str, Any], ...]:
     """Run one verified operation and return its typed evidence items."""
 
     parameters = dict(operation["parameters"])
     timeout = int(operation["timeout_seconds"])
     if kind == "apply":
-        return container.apply(parameters, timeout, deadline=lease_deadline)
+        return container.apply(
+            parameters,
+            timeout,
+            deadline=lease_deadline,
+            heartbeat=(
+                (lambda: heartbeat.beat("apply", operation_kind="apply"))
+                if heartbeat is not None
+                else None
+            ),
+        )
     if kind == "rollback":
         return (container.rollback(parameters, timeout),)
     if kind == "destroy":

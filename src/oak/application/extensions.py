@@ -7,8 +7,6 @@ all pass and an explicit local actor activates it. Extension payloads are
 governed data; nothing here imports, executes, or downloads code.
 """
 
-import base64
-import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -19,12 +17,15 @@ from oak.contracts import (
     SchemaRegistry,
     load_alias_free_yaml_document,
 )
-from oak.contracts.signatures import signed_payload_bytes, verify_signature
+from oak.contracts.signatures import signed_payload_bytes, verify_pinned_signature
 from oak.domain import OAKError, canonical_json_bytes, content_digest
 from oak.domain.extension_sdk import (
     INTERFACE_BY_CLASS,
     RENDERER_IDENTITY_BY_ID,
+    STEWARD_ROLE,
     capability_document,
+    compatibility_problem,
+    version_tuple,
 )
 from oak.domain.policy_rules import pack_effective_window
 from oak.domain.runner_adapters import ADAPTER_IDENTITY_BY_ID
@@ -32,7 +33,15 @@ from oak.ports.extensions import ACTIVE, ExtensionEntry, ExtensionStorePort
 from oak.ports.policy import PolicyEnginePort
 from oak.ports.signing import SigningPort
 
-STEWARD_ROLE = "extension-steward"
+SIGNATURE_DETAILS = {
+    "unsigned": "Extension manifest is unsigned.",
+    "wrong-role": "Extension signature does not use the steward role.",
+    "unpinned-key": "Extension signature key is not a pinned trust anchor.",
+    "key-mismatch": "Embedded public key does not match the pinned trust anchor.",
+    "key-id-mismatch": "Signature key identifier does not derive from its key.",
+    "unreadable-anchor": "Pinned trust anchor key is unreadable.",
+    "invalid-signature": "Steward signature failed verification against the pinned anchor.",
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -232,38 +241,11 @@ class ExtensionService:
     def _check_compatibility(
         self, manifest: dict[str, Any], record: Callable[[str, bool, str], bool]
     ) -> None:
-        extension_class = str(manifest["extension_class"])
-        interface = INTERFACE_BY_CLASS.get(extension_class)
-        if interface is None:
-            record("compatibility", False, "Extension class has no registered SDK interface.")
+        problem = compatibility_problem(manifest, self._oak_version)
+        if problem is not None:
+            record("compatibility", False, problem)
             return
-        if str(manifest["sdk_interface_version"]) != interface.interface_version:
-            record(
-                "compatibility",
-                False,
-                f"SDK interface {manifest['sdk_interface_version']} is not the supported "
-                f"{interface.interface_version} for {extension_class}.",
-            )
-            return
-        compatibility = manifest["compatibility"]
-        current = _version_tuple(self._oak_version)
-        minimum = _version_tuple(str(compatibility["minimum_oak_version"]))
-        maximum_value = compatibility["maximum_oak_version"]
-        if current < minimum:
-            record(
-                "compatibility",
-                False,
-                f"OAK {self._oak_version} is older than the declared minimum "
-                f"{compatibility['minimum_oak_version']}.",
-            )
-            return
-        if maximum_value is not None and current > _version_tuple(str(maximum_value)):
-            record(
-                "compatibility",
-                False,
-                f"OAK {self._oak_version} is newer than the declared maximum {maximum_value}.",
-            )
-            return
+        interface = INTERFACE_BY_CLASS[str(manifest["extension_class"])]
         record(
             "compatibility",
             True,
@@ -274,55 +256,18 @@ class ExtensionService:
     def _check_signature(
         self, manifest: dict[str, Any], record: Callable[[str, bool, str], bool]
     ) -> None:
-        signature = manifest.get("signature")
-        if not isinstance(signature, dict):
-            record("signature", False, "Extension manifest is unsigned.")
-            return
-        if str(signature.get("role")) != STEWARD_ROLE:
-            record("signature", False, "Extension signature does not use the steward role.")
-            return
-        anchors = self._anchor_loader()
-        key_id = str(signature.get("key_id"))
-        pinned_key = anchors.get(key_id)
-        if pinned_key is None:
-            record("signature", False, "Extension signature key is not a pinned trust anchor.")
-            return
-        if str(signature.get("public_key_base64")) != pinned_key:
+        # One scheme for every signed pack: the catalogue feed runs the same check again
+        # whenever an activated pack is read (`oak.adapters.catalogue.extension_catalogue`).
+        reason = verify_pinned_signature(manifest, self._anchor_loader(), role=STEWARD_ROLE)
+        if reason is None:
             record(
                 "signature",
-                False,
-                "Embedded public key does not match the pinned trust anchor.",
+                True,
+                "Steward signature verified against the pinned local trust anchor.",
             )
             return
-        derived = content_digest(
-            canonical_json_bytes(
-                {
-                    "algorithm": "ed25519",
-                    "public_key_base64": pinned_key,
-                    "role": STEWARD_ROLE,
-                }
-            )
-        )
-        if derived != key_id:
-            record("signature", False, "Signature key identifier does not derive from its key.")
-            return
-        try:
-            base64.b64decode(pinned_key, validate=True)
-        except ValueError:
-            record("signature", False, "Pinned trust anchor key is unreadable.")
-            return
-        verified = verify_signature(
-            algorithm=str(signature.get("algorithm")),
-            public_key_base64=pinned_key,
-            message=signed_payload_bytes(manifest),
-            signature_base64=str(signature.get("signature_base64")),
-        )
         record(
-            "signature",
-            verified,
-            "Steward signature verified against the pinned local trust anchor."
-            if verified
-            else "Steward signature failed verification against the pinned anchor.",
+            "signature", False, SIGNATURE_DETAILS.get(reason, "Extension signature was refused.")
         )
 
     def _check_payload_content(
@@ -471,7 +416,4 @@ class ExtensionService:
 
 
 def _version_tuple(value: str) -> tuple[int, ...]:
-    numbers = re.findall(r"\d+", value)
-    if not numbers:
-        raise OAKError("OAK-EXTENSION-VERSION", "version has no comparable numbers")
-    return tuple(int(number) for number in numbers)
+    return version_tuple(value)

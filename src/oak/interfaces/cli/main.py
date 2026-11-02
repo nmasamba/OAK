@@ -30,12 +30,14 @@ from oak.application import (
     ModelInterpreterFactory,
     ReleaseService,
     ReportService,
+    WorkspaceFormatService,
 )
 from oak.bootstrap import (
     create_candidate_planning_service,
     create_design_case_service,
     create_model_interpreter,
     create_system_information_service,
+    create_workspace_format_service,
 )
 from oak.contracts import ContractValidationError, load_json_document, load_yaml_document
 from oak.domain import OAKError, SecretValue
@@ -907,6 +909,18 @@ def export_workspace(
             )
             return
         service = _workspace_service()
+        report = _workspace_format_service().status()
+        if not report.current:
+            # Export is how a workspace at an older format is rescued, so it reads the
+            # format first and never the case, and copies the workspace as it is.
+            if design_case is not None and design_case != report.case_id:
+                raise OAKError("OAK-CASE-NOT-FOUND", "requested design case is not current")
+            service.export_to(output)
+            typer.echo(
+                f"Exported {report.workspace_id} at format {report.format} to {output}, "
+                "copied as it is; this build reads it after oak workspace migrate"
+            )
+            return
         current = service.current().case
         if design_case is not None and design_case != current["id"]:
             raise OAKError("OAK-CASE-NOT-FOUND", "requested design case is not current")
@@ -977,6 +991,24 @@ def import_workspace(
         root_path = directory.absolute()
         service = create_design_case_service(root_path)
         service.import_from(source.absolute())
+        report = create_workspace_format_service(root_path).status()
+        if not report.current:
+            # Imported as it is: the case is read only once the format is migrated.
+            _emit(
+                {
+                    "workspace_id": report.workspace_id,
+                    "format": report.format,
+                    "current_format": report.current_format,
+                    "migration_needed": True,
+                },
+                output,
+                human=(
+                    f"Imported {report.workspace_id} at format {report.format} into "
+                    f"{os.path.normpath(root_path)}; run oak workspace migrate there "
+                    "before using it"
+                ),
+            )
+            return
         current = service.current()
         _emit(
             {"case": current.case, "intent": current.intent},
@@ -1060,12 +1092,26 @@ def validate(
             human = (
                 f"Export is valid: {document['case_id']}@{document['case_version']} "
                 f"({document['status']})"
+                if not document["migration_needed"]
+                else (
+                    f"Export is valid at format {document['format']}, older than this "
+                    f"build's {document['current_format']}: import it and run "
+                    "oak workspace migrate before using it"
+                )
             )
         elif kind == "bundle":
             document = validation.validate_bundle(source)
             human = (
                 f"Bundle is valid: {document['bundle_id']} with inert draft plan "
-                f"{document['runner_plan_id']}"
+                f"{document['runner_plan_id']}; assurance plan "
+                + (
+                    "bound"
+                    if document["assurance_plan"] == "bound"
+                    else (
+                        "unbound: this bundle was written before the assurance-plan edge, so "
+                        "assurance-plan.json is not verified against it"
+                    )
+                )
             )
         elif kind == "webhook":
             if not public_key:
@@ -1339,13 +1385,16 @@ def ingest(
             {
                 "case": result.case,
                 "accepted": list(result.accepted),
+                "heartbeats": list(result.heartbeats),
                 "rejected": list(result.rejected),
                 "refused": dict(result.refused),
             },
             output,
             human="\n".join(
                 (
-                    f"Ingested {len(result.accepted)} message(s); rejected {len(result.rejected)}",
+                    f"Ingested {len(result.accepted)} message(s)"
+                    + (f" and {len(result.heartbeats)} heartbeat(s)" if result.heartbeats else "")
+                    + f"; rejected {len(result.rejected)}",
                     *(f"refused {message_id}: {code}" for message_id, code in result.refused),
                 )
             ),
@@ -1541,6 +1590,94 @@ research_app = typer.Typer(
     no_args_is_help=False,
 )
 app.add_typer(research_app, name="research")
+
+
+workspace_app = typer.Typer(
+    name="workspace",
+    help="Inspect the local workspace's stored format, or migrate it.",
+    no_args_is_help=True,
+    add_completion=False,
+)
+app.add_typer(workspace_app, name="workspace")
+
+
+@workspace_app.command("status")
+def workspace_status(
+    output: Annotated[
+        OutputFormat, typer.Option("--output", help="Output format.")
+    ] = OutputFormat.HUMAN,
+) -> None:
+    """Report the workspace's stored format and whether a migration is needed."""
+
+    try:
+        _require_local("workspace status")
+        report = _workspace_format_service().status()
+        if report.current:
+            human = (
+                f"Workspace {report.workspace_id} is at format {report.format}, the current "
+                "one; nothing to migrate"
+            )
+        elif report.known:
+            human = (
+                f"Workspace {report.workspace_id} is at format {report.format}; this build "
+                f"reads {report.current_format}. Run oak workspace migrate "
+                f"({len(report.steps)} step(s): {', '.join(report.steps)}) before using it, "
+                "or oak export to copy it as it is"
+            )
+        else:
+            known = ", ".join(report.known_formats)
+            human = (
+                f"Workspace {report.workspace_id} is at format {report.format}, which this "
+                f"build does not read (it reads {known}); use the build that wrote it"
+            )
+        _emit(report.to_document(), output, human=human)
+    except (OAKError, ContractValidationError, OSError, RuntimeError, ValueError) as error:
+        _abort(error)
+
+
+@workspace_app.command("migrate")
+def workspace_migrate(
+    output: Annotated[
+        OutputFormat, typer.Option("--output", help="Output format.")
+    ] = OutputFormat.HUMAN,
+    idempotency_key: Annotated[
+        str | None, typer.Option("--idempotency-key", help="Explicit idempotency key.")
+    ] = None,
+) -> None:
+    """Carry the workspace's stored format forward to the one this build reads.
+
+    The only command that migrates. It runs the format chain under the workspace
+    lock, writes any object a step produced as a new object, and records a reshaped
+    design case as a successor with a workspace_migrated audit event. Stored objects
+    and history are never rewritten. Running it again is a no-op.
+    """
+
+    try:
+        _require_local("workspace migrate")
+        result = _workspace_format_service().migrate(
+            _context(idempotency_key=idempotency_key, expected_version=None)
+        )
+        if not result.changed:
+            human = (
+                f"Workspace {result.workspace_id} is at format {result.to_format}, the "
+                "current one; nothing to migrate"
+            )
+        else:
+            recorded = (
+                f"recorded as {result.event_ref['id']} on "
+                f"{result.case_ref['id']}@{result.case_ref['version']}"
+                if result.event_ref is not None and result.case_ref is not None
+                else "nothing the audit chain binds changed, so nothing was recorded"
+            )
+            human = (
+                f"Migrated workspace {result.workspace_id} from format "
+                f"{result.from_format} to {result.to_format} in {len(result.steps)} "
+                f"step(s) ({', '.join(result.steps)}); {len(result.new_artifact_refs)} "
+                f"object(s) added; {recorded}"
+            )
+        _emit(result.to_document(), output, human=human)
+    except (OAKError, ContractValidationError, OSError, RuntimeError, ValueError) as error:
+        _abort(error)
 
 
 @research_app.callback()
@@ -2465,6 +2602,10 @@ def _workspace_service(
     return create_design_case_service(
         root_path, model_interpreter_factory=model_interpreter_factory
     )
+
+
+def _workspace_format_service() -> WorkspaceFormatService:
+    return create_workspace_format_service(FileWorkspaceRoot.discover(Path.cwd()))
 
 
 def _planning_service() -> CandidatePlanningService:

@@ -4,7 +4,7 @@
 # YAML. It is generated from tests/fixtures/report/public-manual-qa.report.json, and
 # a test keeps the two equal. Non-production example.
 case_ref:
-  digest: sha256:61cee33984c8140f428ef3710056d9a5f546f302346392133173c2848fb41990
+  digest: sha256:10813ad6fa7962fddb06d87edcd7ac5a5317e7d30fc949fedb448063419291ea
   id: design-case.public-manual-qa
   media_type: application/vnd.oak.design-case+json
   uri: null
@@ -16,7 +16,7 @@ generated_at: '2026-08-18T12:00:00Z'
 generated_by: local-user
 id: report.public-manual-qa.from-0.1.7
 inputs:
-- digest: sha256:61cee33984c8140f428ef3710056d9a5f546f302346392133173c2848fb41990
+- digest: sha256:10813ad6fa7962fddb06d87edcd7ac5a5317e7d30fc949fedb448063419291ea
   id: design-case.public-manual-qa
   kind: design_case
   media_type: application/vnd.oak.design-case+json
@@ -26,22 +26,22 @@ inputs:
   kind: system_intent
   media_type: application/vnd.oak.system-intent+json
   version: 0.1.1
-- digest: sha256:5dba090e185ee02c840df84449b32769fb78f8eae754f8e1f400e794969cf554
+- digest: sha256:6df9e13280ad6a0c8fe04ec708e405576033ae0b39d62bfe165da2347988e661
   id: candidate-00
   kind: architecture_candidate
   media_type: application/vnd.oak.architecture-candidate+json
   version: 0.1.0
-- digest: sha256:33d513bacd5d78c2ace0647dd008a1071a8c3ae4656f63a7cd897cee08d8f46d
+- digest: sha256:c7bfa7c7aade7413dbe1355716c56a79404a816e09969a827fe8861e3226232b
   id: candidate-01
   kind: architecture_candidate
   media_type: application/vnd.oak.architecture-candidate+json
   version: 0.1.0
-- digest: sha256:576b0ca62835a521439e44b280ffdfca79438323d45ae79e70521a27d14118b3
+- digest: sha256:04c9b66176adf7ae264fbaaf42979cdac8670002756a089f8a6b9b9bf5f9a959
   id: candidate-03
   kind: architecture_candidate
   media_type: application/vnd.oak.architecture-candidate+json
   version: 0.1.0
-- digest: sha256:801875cc73ac5f0bffdf743e0c49e0e55d9084c92e39c905b0a136aded1440ab
+- digest: sha256:9c2f7d0fb215d298264cd6ad06e00fb0c663371d46462646fb747dffaa26c176
   id: candidate-04
   kind: architecture_candidate
   media_type: application/vnd.oak.architecture-candidate+json
@@ -81,27 +81,27 @@ inputs:
   kind: evaluation_contract
   media_type: application/vnd.oak.evaluation-contract+json
   version: 0.1.0
-- digest: sha256:c01f5f83e595961f7de459eadd66a622f98edbf73f474948d43941414abee2da
+- digest: sha256:79d2eb0bdbb28f3d0b67cb9962c121324a644a0c935a0e525de49fd4c67cbb77
   id: assurance.candidate-03
   kind: assurance_plan
   media_type: application/vnd.oak.assurance-plan+json
   version: 0.1.0
-- digest: sha256:9da17d021cf9f1e61bb73b568927870272d466ec8d869f2ce3201ebaa505b539
+- digest: sha256:3c8343512a5a8512ff7715b2317e8855327007a7c60b46520aa8d980c0f68796
   id: bundle.candidate-03.target.local-fixture
   kind: deployment_bundle
   media_type: application/vnd.oak.deployment-bundle+json
   version: 0.1.0
-- digest: sha256:b454d3a88603560b5e5f7009b86d801b8c44c4a7b6e429b2a8e6a5275d596d00
+- digest: sha256:a833094277a8b934d6e82afec5265e872ccf473cee0d898f2b86b3ce2e6149df
   id: decision.candidate-03
   kind: architecture_decision
   media_type: application/vnd.oak.architecture-decision+json
   version: 0.1.0
-- digest: sha256:9fbc7019d8c4fc300a25aeb22db7822c07fa7f5b985855786518aefbe0e2d8c5
+- digest: sha256:ccd952258f399a6bb2460a7743408a70e5eddfc49e31e2e04cfad188cb99a402
   id: evaluation-result.candidate-03
   kind: evaluation_result
   media_type: application/vnd.oak.evaluation-result+json
   version: 0.1.0
-- digest: sha256:5cd534484f9777bccd95f544bfdad3d5a96a47fb0baf891c6df3a36caf75d434
+- digest: sha256:403a75d212827d3d2d566ae8275c1cf4d4b0a836c87ecbf1c5c01a960482665c
   id: catalogue.community-fixture
   kind: catalogue_snapshot
   media_type: application/vnd.oak.catalogue-snapshot+json
@@ -3103,10 +3103,10 @@ sections:
       source: decision.candidate-03@0.1.0#/dependency_digests
       value:
         items:
-        - sha256:576b0ca62835a521439e44b280ffdfca79438323d45ae79e70521a27d14118b3
-        - sha256:5cd534484f9777bccd95f544bfdad3d5a96a47fb0baf891c6df3a36caf75d434
+        - sha256:04c9b66176adf7ae264fbaaf42979cdac8670002756a089f8a6b9b9bf5f9a959
+        - sha256:403a75d212827d3d2d566ae8275c1cf4d4b0a836c87ecbf1c5c01a960482665c
         - sha256:8e3ae58092a9f1ce476391555f6023ca37cfd64c5769d33910cc374ac317fc97
-        - sha256:9fbc7019d8c4fc300a25aeb22db7822c07fa7f5b985855786518aefbe0e2d8c5
+        - sha256:ccd952258f399a6bb2460a7743408a70e5eddfc49e31e2e04cfad188cb99a402
         mark: null
         type: list
     kind: facts
@@ -3783,7 +3783,7 @@ sections:
         text: 0.1.7
         type: text
       - mark: null
-        text: sha256:61cee33984c8140f428ef3710056d9a5f546f302346392133173c2848fb41990
+        text: sha256:10813ad6fa7962fddb06d87edcd7ac5a5317e7d30fc949fedb448063419291ea
         type: text
       source: design-case.public-manual-qa@0.1.7#
     - cells:
@@ -3811,7 +3811,7 @@ sections:
         text: 0.1.0
         type: text
       - mark: null
-        text: sha256:5dba090e185ee02c840df84449b32769fb78f8eae754f8e1f400e794969cf554
+        text: sha256:6df9e13280ad6a0c8fe04ec708e405576033ae0b39d62bfe165da2347988e661
         type: text
       source: candidate-00@0.1.0#
     - cells:
@@ -3825,7 +3825,7 @@ sections:
         text: 0.1.0
         type: text
       - mark: null
-        text: sha256:33d513bacd5d78c2ace0647dd008a1071a8c3ae4656f63a7cd897cee08d8f46d
+        text: sha256:c7bfa7c7aade7413dbe1355716c56a79404a816e09969a827fe8861e3226232b
         type: text
       source: candidate-01@0.1.0#
     - cells:
@@ -3839,7 +3839,7 @@ sections:
         text: 0.1.0
         type: text
       - mark: null
-        text: sha256:576b0ca62835a521439e44b280ffdfca79438323d45ae79e70521a27d14118b3
+        text: sha256:04c9b66176adf7ae264fbaaf42979cdac8670002756a089f8a6b9b9bf5f9a959
         type: text
       source: candidate-03@0.1.0#
     - cells:
@@ -3853,7 +3853,7 @@ sections:
         text: 0.1.0
         type: text
       - mark: null
-        text: sha256:801875cc73ac5f0bffdf743e0c49e0e55d9084c92e39c905b0a136aded1440ab
+        text: sha256:9c2f7d0fb215d298264cd6ad06e00fb0c663371d46462646fb747dffaa26c176
         type: text
       source: candidate-04@0.1.0#
     - cells:
@@ -3965,7 +3965,7 @@ sections:
         text: 0.1.0
         type: text
       - mark: null
-        text: sha256:c01f5f83e595961f7de459eadd66a622f98edbf73f474948d43941414abee2da
+        text: sha256:79d2eb0bdbb28f3d0b67cb9962c121324a644a0c935a0e525de49fd4c67cbb77
         type: text
       source: assurance.candidate-03@0.1.0#
     - cells:
@@ -3979,7 +3979,7 @@ sections:
         text: 0.1.0
         type: text
       - mark: null
-        text: sha256:9da17d021cf9f1e61bb73b568927870272d466ec8d869f2ce3201ebaa505b539
+        text: sha256:3c8343512a5a8512ff7715b2317e8855327007a7c60b46520aa8d980c0f68796
         type: text
       source: bundle.candidate-03.target.local-fixture@0.1.0#
     - cells:
@@ -3993,7 +3993,7 @@ sections:
         text: 0.1.0
         type: text
       - mark: null
-        text: sha256:b454d3a88603560b5e5f7009b86d801b8c44c4a7b6e429b2a8e6a5275d596d00
+        text: sha256:a833094277a8b934d6e82afec5265e872ccf473cee0d898f2b86b3ce2e6149df
         type: text
       source: decision.candidate-03@0.1.0#
     - cells:
@@ -4007,7 +4007,7 @@ sections:
         text: 0.1.0
         type: text
       - mark: null
-        text: sha256:9fbc7019d8c4fc300a25aeb22db7822c07fa7f5b985855786518aefbe0e2d8c5
+        text: sha256:ccd952258f399a6bb2460a7743408a70e5eddfc49e31e2e04cfad188cb99a402
         type: text
       source: evaluation-result.candidate-03@0.1.0#
     - cells:
@@ -4021,7 +4021,7 @@ sections:
         text: 0.1.0
         type: text
       - mark: null
-        text: sha256:5cd534484f9777bccd95f544bfdad3d5a96a47fb0baf891c6df3a36caf75d434
+        text: sha256:403a75d212827d3d2d566ae8275c1cf4d4b0a836c87ecbf1c5c01a960482665c
         type: text
       source: catalogue.community-fixture@0.1.0#
   - heading: null

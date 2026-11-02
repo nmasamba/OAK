@@ -38,9 +38,19 @@ an image registry.
   There is no single current number — schemas sit at `0.1.0`, `0.3.0` or `0.4.0`
   depending on when each was introduced and last changed; see
   [schemas/README.md](../schemas/README.md). `SUPPORTED_SCHEMA_VERSIONS` in
-  `src/oak/bootstrap.py` is what `/version` reports as `schema_versions`; the workspace
-  manifest itself is pinned to `0.4.0` (a `const` in `workspace-manifest.schema.json`),
-  and a manifest at any other version is refused with `OAK-WORKSPACE-CORRUPT`.
+  `src/oak/bootstrap.py` is what `/version` reports as `schema_versions`. The workspace
+  manifest's own format is `0.4.0` (a `const` in `workspace-manifest.schema.json`, and the
+  format every published release wrote). Since Tier 3's Batch A a build reads the current
+  format and carries any older format its migration chain knows forward with
+  `oak workspace migrate`, the only command that migrates
+  (`src/oak/domain/workspace_format.py`, `RR-017`): a workspace at an older format is refused
+  on every other command (`OAK-WORKSPACE-MIGRATE`) but exported and imported as it is, and
+  one at a format no step accepts, which a newer build wrote, is refused on every command,
+  `export` included (`OAK-WORKSPACE-FORMAT`; `OAK-IMPORT-FORMAT` for such an export). The
+  shipped chain holds no step. A future format bump is therefore a step in that chain and,
+  for the PostgreSQL store, an alembic revision, in the same release (deprecation rule 3);
+  every format keeps `schema_version`, `id`, `tenant_id` and the index's `digest` and
+  `size_bytes` where they are, which is what an export reads. Downgrade is not supported.
 - **Interface protocol versions**: the MCP server pins its supported protocol revisions
   in `SUPPORTED_PROTOCOL_VERSIONS`; the runner protocol carries `protocol_version` in
   every message; the canonical export carries `export_version`.
@@ -109,6 +119,27 @@ mechanical migration; **breaking** otherwise.
   by the `workspace_imported` audit event, which a server now writes for the first time,
   with `interface_origin: import`. Both are optional, through the schemas' open
   `extensions`, so no schema changes.
+- Tier 3's Batch A adds three values to the audit event's `event_type` enum (additive):
+  `workspace_migrated`, written only by `oak workspace migrate` when a step reshaped the
+  design case or added objects, with the case and event extension `oak.community/migration`
+  (the formats, the steps, the digest of the manifest migrated from and the objects the
+  migration added), of which none can exist until a migration step ships;
+  `runner_heartbeat`, which `oak ingest` writes for each heartbeat a runner published; and
+  `workspace_restored`, which a server restore writes. A `0.9.0` reader cannot validate a
+  workspace holding any of them.
+- Tier 3's Batch A adds the optional `assurance_plan_ref` to
+  `deployment-bundle.schema.json` (still `0.3.0`) and the optional per-entry `provenance`
+  and top-level `patterns` to `catalogue-snapshot.schema.json` (still `0.4.0`), both
+  additive, so every stored document validates. The compiler writes all three, which
+  moves the bytes of every newly compiled snapshot, candidate, decision, assurance plan,
+  bundle, runner plan and case: **the one deliberate digest move** of the batch, taken at
+  the owner's choice (Q1, 2026-10-29) so that 1.0 is cut after it, and recorded in
+  `CHANGELOG.md` with every reference value before and after (rule 4). No stored document
+  changes, and a bundle, export or runner plan written before the move still reads and
+  verifies. A `0.9.0` reader, whose schemas close additional properties, refuses a bundle
+  or snapshot this build writes (`assurance_plan_ref`, `patterns`), as it refuses any
+  document carrying a field it does not know; the move is forward-only in that sense, as
+  every additive field has been.
 - Sprint 14 (unreleased, ADR-0018) made an objective's `value` in `common.schema.json`
   nullable, with `unknown_reason` required exactly when it is null. Every stored document
   still validates, because the compiler writes a null only for a candidate that holds a
@@ -308,7 +339,8 @@ mechanical migration; **breaking** otherwise.
     new code `OAK-IMPORT-REPLAY`; an export claiming another tenant still exits `2` with
     `OAK-IMPORT-SCOPE`, a case the server holds with `OAK-CASE-EXISTS`, and a server-named
     export holding approvals or runner records with `OAK-IMPORT-AUTHORITY`. A server export
-    of a case once re-created elsewhere is restored as itself ("Imported …"). A local
+    of a case once re-created elsewhere is restored as itself ("Imported …"; since Tier
+    3's Batch A with a `workspace_restored` event under the importer, below). A local
     `oak import` is unchanged.
   - `oak ingest` refuses a runner completion whose journal no longer reaches the entry an
     accepted completion for the same lease named (`OAK-INGEST-JOURNAL`); the message stays
@@ -332,6 +364,69 @@ mechanical migration; **breaking** otherwise.
   - The release verifier (`scripts/verify_release.py`, `make verify-release`) requires
     `SHA256SUMS.sig` for every release but `0.7.1` and `0.9.0` (exit `4`), so it refuses a
     release you built yourself unless you pass `--checksums-only`.
+- Tier 3's Batch A changes these, each recorded in the changelog:
+  - `oak workspace status` and `oak workspace migrate` are added (local-only; `--output`,
+    and `--idempotency-key` on `migrate`), with the codes `OAK-WORKSPACE-MIGRATE`,
+    `OAK-WORKSPACE-FORMAT`, `OAK-WORKSPACE-MIGRATION` and `OAK-IMPORT-FORMAT`.
+  - `oak export`, `oak import` and `oak validate export` work on a workspace or export at
+    an older format the chain knows, and say it needs migrating (`migration_needed`, with
+    `format` and `current_format`, in `oak validate export`'s and `oak import`'s JSON),
+    where they refused with `OAK-WORKSPACE-CORRUPT` or `OAK-IMPORT-INVALID`.
+  - **Breaking for a script that matched the code:** a workspace whose manifest names a
+    format this build does not read is refused with `OAK-WORKSPACE-FORMAT` (exit `2`),
+    where it was `OAK-WORKSPACE-CORRUPT`; an unreadable or invalid manifest keeps
+    `OAK-WORKSPACE-CORRUPT`.
+  - `oak validate bundle` checks the bundle's digest edge to `assurance-plan.json` and
+    its JSON gains `assurance_plan` (`bound` or `unbound`); a bundle written before the
+    edge is still valid and reports `unbound`, and a substituted plan is
+    `OAK-VALIDATE-DIGEST`.
+  - `oak candidates` (and the server's candidate generation) reads the activated
+    component-manifest and architecture-pattern extensions into the catalogue, and
+    refuses with the new code `OAK-CATALOGUE-EXTENSION` when one no longer verifies
+    against the trust directory; a contributed id that a curated entry holds is
+    `OAK-CATALOGUE-DUPLICATE`, as before.
+  - `oak ingest` records the runner's `heartbeat` messages (a `runner_heartbeat` audit
+    event each, `oak.community/runner_heartbeat_refs` on the case), a lease's heartbeats
+    before its completion, lists them under `heartbeats` in its JSON output (`accepted`
+    still holds the completions), and its human line says `… and N heartbeat(s)`; a
+    completion whose journal falls short of a head a heartbeat named is refused
+    (`OAK-INGEST-JOURNAL`), as one short of an accepted completion was.
+  - `oak-runner run-once` reads `OAK_RUNNER_HEARTBEAT_SECONDS` and
+    `OAK_RUNNER_DISPATCH_RETENTION_DAYS`, refusing a value out of range with
+    `OAK-RUNNER-CONFIG` (exit `70`), publishes heartbeats while a dispatch runs, and
+    removes processed dispatch directories older than the retention at the end of each
+    run, reporting `cleaned N processed dispatch(es) …` on stderr.
+  - Every REST operation may answer `429` with a problem document and `Retry-After` in
+    whole seconds: `OAK-RATE-LIMIT-ADDRESS` and `OAK-RATE-LIMIT-TENANT` from the request
+    limiter (the health probes exempt), the new `OAK-OPERATION-QUOTA` from the cap on
+    operations queued or running per tenant, on submission, and the new `OAK-MODEL-BUDGET`
+    from the per-case daily model budget on `:interpret` and `:record-report` in a model
+    mode; the CLI and MCP answer the same two application codes. The contract documents
+    the `429` response and its header on every operation, an additive change under the
+    baseline check. `OAK-MODEL-RATE-LIMITED` keeps its `429`, without the header.
+  - `oak-api`, `oak serve` and `oak-mcp` refuse to start, and every local workspace
+    command refuses (the design and report services read the model budget when they are
+    built, not only when a model mode runs), with the new
+    `OAK-LIMIT-CONFIG` when one of `OAK_REQUESTS_PER_MINUTE_PER_ADDRESS`,
+    `OAK_REQUESTS_PER_MINUTE_PER_TENANT`, `OAK_OPERATIONS_PER_TENANT` or
+    `OAK_MODEL_REQUESTS_PER_CASE_PER_DAY` is not a whole number from 0 to a million.
+  - A server restore of a server export (`oak --server import`,
+    `POST /v1/design-cases:import`) keeps the export's history as written and then
+    records one `workspace_restored` audit event under the importing command's actor,
+    with `interface_origin: import` and the case and event extension
+    `oak.community/restored_from` (the export's manifest id and digest, the case version
+    and the number of events restored), so the restored case comes back one patch version
+    on from the export, its status unchanged. The actors and origins of the restored
+    events are the export's claims; the restore event is the first the server itself
+    attests; its idempotency key is the restore's own, derived from the import's key and
+    the export, because the export carries the origin's own records. Importing the same
+    export again, under any key, is answered as a duplicate of that restore with the case
+    as the restore recorded it, not where it went since; an import that finds the export's
+    state already there without a restore event (this server's own export imported back,
+    or a restore interrupted after the workspace was written and before its event) is a
+    duplicate too and records nothing, so a restore interrupted in that one-commit window
+    shows as a restored history with no `workspace_restored` event; an export of another
+    state of the case is refused with `OAK-IDEMPOTENCY-CONFLICT` as before.
 
 ## MCP
 
@@ -378,6 +473,17 @@ mechanical migration; **breaking** otherwise.
   ingests, unless an earlier completion for the same lease named a sequence: a journal
   that can no longer show how far it reached is then refused like a shorter one
   (`OAK-INGEST-JOURNAL`). A `0.9` control plane ignores the field.
+- Tier 3's Batch A makes the runner publish the `heartbeat` message kind, which the
+  runner-message schema has listed since the protocol's first version: at most one per
+  `OAK_RUNNER_HEARTBEAT_SECONDS`, each naming its lease, a sequence of its own within the
+  lease, and the journal's head (`journal_sequence`, `journal_digest`) in its payload. A
+  `0.9` control plane believes a heartbeat, a signed runner message for a lease it
+  dispatched, and acknowledges it without recording it; a `0.9` runner publishes none, and
+  the control plane requires none. The `runner_heartbeat` audit event and the case
+  extension `oak.community/runner_heartbeat_refs` are additive. The runner's
+  consumed-nonce ledger, a file in the runner home and not a canonical document, changes
+  from a list of nonces to a map of nonce to lease expiry; a list written by `0.9` is read,
+  and its nonces are kept for ever.
 - Any change to signed-payload canonicalization is breaking for every existing
   signature and requires an explicit migration (re-signing) note; trust-anchor file
   formats follow the schema rules above.

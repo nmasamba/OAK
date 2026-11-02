@@ -242,6 +242,12 @@ class ContainerFixtureAdapter:
         self._sleeper = sleeper
         self._wall_clock = wall_clock or (lambda: datetime.now(UTC))
 
+    @property
+    def clock(self) -> Callable[[], float]:
+        """The monotonic clock this adapter waits by; the lease heartbeat shares it."""
+
+        return self._clock
+
     # -- apply -----------------------------------------------------------------------
 
     def apply(
@@ -250,6 +256,7 @@ class ContainerFixtureAdapter:
         timeout_seconds: int,
         *,
         deadline: datetime | None = None,
+        heartbeat: Callable[[], None] | None = None,
     ) -> tuple[dict[str, Any], ...]:
         """Create (or adopt) every node, then smoke-test the installation.
 
@@ -297,8 +304,10 @@ class ContainerFixtureAdapter:
                 )
             return tuple(items)
 
+        beat = heartbeat or (lambda: None)
         try:
             for container in installation.containers:
+                beat()
                 self._before_side_effect(deadline)
                 labels = self._labels(container.name, timeout_seconds)
                 if labels is None:
@@ -331,8 +340,9 @@ class ContainerFixtureAdapter:
                 )
             for container in installation.containers:
                 if installation.started:
+                    beat()
                     self._before_side_effect(deadline)
-                    row, memory = self._start_and_test(container, timeout_seconds)
+                    row, memory = self._start_and_test(container, timeout_seconds, beat)
                     tested.append(row)
                     measured.append(memory)
                 else:
@@ -480,7 +490,10 @@ class ContainerFixtureAdapter:
         }
 
     def _start_and_test(
-        self, container: _Container, timeout_seconds: int
+        self,
+        container: _Container,
+        timeout_seconds: int,
+        heartbeat: Callable[[], None] = lambda: None,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
         # A re-apply over a running installation starts nothing: its "startup" would be a
         # no-op, so it is reported as already running with no startup time at all.
@@ -514,6 +527,7 @@ class ContainerFixtureAdapter:
                 if self._clock() - started_at >= READINESS_BUDGET_SECONDS:
                     reason = "readiness_timeout"
                     break
+                heartbeat()
                 self._sleeper(READINESS_POLL_SECONDS)
         ready = ready_at is not None
         memory = self._memory_bytes(container.name, timeout_seconds) if ready else None
@@ -749,8 +763,8 @@ class ContainerFixtureAdapter:
             )
 
     def _before_side_effect(self, deadline: datetime | None) -> None:
-        # The runner does not heartbeat (RR-031): refusing to start another side effect
-        # once the lease has lapsed keeps a long install from running on past it.
+        # A heartbeat reports and extends nothing (RR-031): refusing to start another side
+        # effect once the lease has lapsed keeps a long install from running on past it.
         if deadline is not None and self._wall_clock() >= deadline:
             raise OAKError("OAK-RUNNER-LEASE", "the lease expired before the next side effect")
 
