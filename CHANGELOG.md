@@ -10,15 +10,24 @@ All notable changes to OAK Community are recorded here.
 
 #### Fixed
 
+- **Two builds of one commit give one API image again.** The venv's bytecode was compiled
+  by uv's parallel workers, which take files as they come, and CPython's bytecode for a
+  module can depend on what the same process compiled before it: a CI build of the fix
+  itself differed from its rebuild in `pycparser`'s `c_parser.cpython-313.pyc` alone, as
+  the new mismatch report named, and compiling that module after a different set of files
+  reproduces the difference locally. The venv is now compiled by one `compileall` process
+  in sorted order (`UV_COMPILE_BYTECODE=0`, then `python -m compileall -q -j 1
+  --invalidation-mode checked-hash`), and `make toolchain-check` requires it.
 - **An image build fails rather than skip a package index.** `apt-get update` warns and
   carries on when it cannot fetch an index, so a build made while `snapshot.debian.org`
-  was refusing requests installed fewer updates than the next one: an image short of
-  security fixes, and two builds of one commit that differ. One CI run of Batch A's last
-  commit built two different API images on arm64, and this is the mechanism that fits.
-  Both Dockerfiles now run `apt-get update --error-on=any` with ten retries per file, and
-  `make toolchain-check` requires the flag; `scripts/reproduce_images.py` and the browser
-  suite retry a failed build twice, after one and then three minutes; and a mismatch is
-  reported with each layer that differs, the Dockerfile step that made it and its files.
+  was refusing requests could install fewer updates than the next one: an image short of
+  security fixes, and two builds of one commit that differ. Both Dockerfiles now run
+  `apt-get update --error-on=any` with ten retries per file, and `make toolchain-check`
+  requires the flag. The archive refused requests for about twenty minutes on 2026-11-02,
+  which failed `main`'s run outright, so `scripts/reproduce_images.py` and the browser
+  suite retry a failed build twice, after one and then three minutes.
+- **A mismatch names its cause.** `scripts/reproduce_images.py` reports each layer that
+  differs, the Dockerfile step that made it and the files in it.
 
 ### Tier 3, Batch A (`OAK-V1-029`–`037`)
 

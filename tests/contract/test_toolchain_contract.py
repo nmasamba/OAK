@@ -847,6 +847,22 @@ def test_a_gate_that_could_pass_without_proving_its_claim_is_rejected(
             "deploy/images/web.Dockerfile: apt-get update must run with --error-on=any",
         ),
         (
+            "deploy/images/api.Dockerfile",
+            "UV_COMPILE_BYTECODE=0",
+            "UV_COMPILE_BYTECODE=1",
+            "deploy/images/api.Dockerfile: the venv's bytecode must be compiled by one process "
+            "(UV_COMPILE_BYTECODE=0, then python -m compileall -q -j 1 "
+            "--invalidation-mode checked-hash)",
+        ),
+        (
+            "deploy/images/api.Dockerfile",
+            "compileall -q -j 1",
+            "compileall -q -j 0",
+            "deploy/images/api.Dockerfile: the venv's bytecode must be compiled by one process "
+            "(UV_COMPILE_BYTECODE=0, then python -m compileall -q -j 1 "
+            "--invalidation-mode checked-hash)",
+        ),
+        (
             "deploy/images/web.Dockerfile",
             "ARG DEBIAN_SNAPSHOT=20261029T000000Z",
             "ARG DEBIAN_SNAPSHOT=20261001T000000Z",
