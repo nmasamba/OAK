@@ -6,6 +6,20 @@ All notable changes to OAK Community are recorded here.
 
 ## Unreleased
 
+### After Batch A (`OAK-V1-038`)
+
+#### Fixed
+
+- **An image build fails rather than skip a package index.** `apt-get update` warns and
+  carries on when it cannot fetch an index, so a build made while `snapshot.debian.org`
+  was refusing requests installed fewer updates than the next one: an image short of
+  security fixes, and two builds of one commit that differ. One CI run of Batch A's last
+  commit built two different API images on arm64, and this is the mechanism that fits.
+  Both Dockerfiles now run `apt-get update --error-on=any` with ten retries per file, and
+  `make toolchain-check` requires the flag; `scripts/reproduce_images.py` and the browser
+  suite retry a failed build twice, after one and then three minutes; and a mismatch is
+  reported with each layer that differs, the Dockerfile step that made it and its files.
+
 ### Tier 3, Batch A (`OAK-V1-029`–`037`)
 
 Tier 3 of the owner's cost-benefit ranking of the backlog, moved ahead of 1.0 by the owner

@@ -60,8 +60,12 @@ RUN sed -i \
     && grep -q "snapshot.debian.org/archive/debian/${DEBIAN_SNAPSHOT}" /etc/apt/sources.list.d/debian.sources \
     && grep -q "snapshot.debian.org/archive/debian-security/${DEBIAN_SNAPSHOT}" /etc/apt/sources.list.d/debian.sources \
     && ! grep -rqs "deb.debian.org\|nginx.org" /etc/apt/sources.list.d /etc/apt/sources.list \
-    && apt-get -o Acquire::Check-Valid-Until=false -o Acquire::Retries=5 update \
-    && apt-get -o Acquire::Check-Valid-Until=false -o Acquire::Retries=5 \
+    # An index that cannot be fetched fails the build (`--error-on=any`). Without the flag
+    # apt warns and carries on without that index, the upgrade installs fewer updates, and
+    # the image both misses security fixes and differs from the next build's (RR-006). The
+    # archive refuses requests when busy, so each file is retried with a growing delay.
+    && apt-get -o Acquire::Check-Valid-Until=false -o Acquire::Retries=10 update --error-on=any \
+    && apt-get -o Acquire::Check-Valid-Until=false -o Acquire::Retries=10 \
         upgrade --yes --no-install-recommends \
     && apt-get clean \
     # What apt and dpkg log, and what ldconfig caches, carry the build's own clock.

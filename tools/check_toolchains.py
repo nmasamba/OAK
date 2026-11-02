@@ -572,6 +572,17 @@ def check(root: Path = ROOT) -> list[str]:
             )
         else:
             snapshots[label] = match.group(1)
+        # An index apt cannot fetch must fail the build: `apt-get update` otherwise warns and
+        # carries on, and the upgrade installs fewer updates than the next build does.
+        updates = [
+            line.split(" #", 1)[0]
+            for line in text.splitlines()
+            if not line.lstrip().startswith("#") and re.search(r"\bapt-get\b.*\bupdate\b", line)
+        ]
+        if not updates or any("--error-on=any" not in line for line in updates):
+            failures.append(
+                f"deploy/images/{label}.Dockerfile: apt-get update must run with --error-on=any"
+            )
     if len(set(snapshots.values())) > 1:
         failures.append("deploy/images: both Dockerfiles must name one DEBIAN_SNAPSHOT date")
     if not re.search(r"^ARG SOURCE_DATE_EPOCH$", api_dockerfile, flags=re.MULTILINE):

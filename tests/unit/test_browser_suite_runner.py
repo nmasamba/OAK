@@ -223,3 +223,27 @@ def test_a_passing_run_tears_its_project_down_unless_kept(monkeypatch: pytest.Mo
     _install(monkeypatch, kept)
     assert runner.run("oak-e2e-test", 28080, 25173, COMMIT, keep=True) == 0
     assert not _tore_down(kept)
+
+
+def test_a_failed_image_build_is_retried_before_the_stack_starts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """OAK-V1-038: the archive the images take their packages from refuses requests when it
+    is busy, and an index apt cannot fetch now fails the build rather than being skipped."""
+
+    outcomes = iter([1, 1, 0])
+    commands: list[list[str]] = []
+
+    def run(argv: list[str], *, env: Any = None) -> int:
+        commands.append(argv)
+        return next(outcomes)
+
+    pauses: list[float] = []
+    monkeypatch.setattr(runner, "_run", run)
+    runner.build_images(["docker", "compose", "-p", "oak-e2e-test"], sleep=pauses.append)
+    assert [command[-1] for command in commands] == ["build", "build", "build"]
+    assert pauses == [60, 180]
+
+    monkeypatch.setattr(runner, "_run", lambda argv, *, env=None: 1)
+    with pytest.raises(SuiteError, match="did not build in 3 attempts"):
+        runner.build_images(["docker", "compose"], sleep=pauses.append)
