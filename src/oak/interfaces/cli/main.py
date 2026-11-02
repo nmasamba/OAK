@@ -41,6 +41,7 @@ from oak.bootstrap import (
 )
 from oak.contracts import ContractValidationError, load_json_document, load_yaml_document
 from oak.domain import OAKError, SecretValue
+from oak.domain.hardware import recommendations
 from oak.domain.intake import holds_control_character
 
 
@@ -1209,6 +1210,75 @@ def keys(
         )
     except (OAKError, ContractValidationError, OSError, RuntimeError, ValueError) as error:
         _abort(error)
+
+
+@app.command()
+def scan(
+    output: Annotated[
+        OutputFormat, typer.Option("--output", help="Output format.")
+    ] = OutputFormat.HUMAN,
+) -> None:
+    """Scan this machine's CPU, memory and GPUs, and say what is missing; record nothing."""
+
+    try:
+        from oak.bootstrap import scan_hardware
+
+        proposal = scan_hardware()
+        advice = recommendations(proposal)
+        _emit(
+            {"proposal": proposal, "recommendations": advice},
+            output,
+            human=_scan_summary(proposal, advice),
+        )
+    except (OAKError, OSError, RuntimeError, ValueError) as error:
+        _abort(error)
+
+
+def _scan_summary(proposal: dict[str, Any], advice: list[str]) -> str:
+    platform_section = proposal["platform"]
+    cpu = proposal["cpu"]
+    memory = proposal["memory"]
+    lines = ["Proposed hardware for this machine (nothing is recorded until you confirm it):"]
+    lines.append(
+        f"  Platform: {platform_section['operating_system'] or 'unknown'}, "
+        f"{platform_section['architecture'] or 'unknown architecture'}"
+    )
+    cores = cpu["physical_cores"]
+    lines.append(
+        f"  CPU: {cpu['model'] or 'unknown model'}"
+        + (f", {cores} cores" if cores else "")
+        + (f" ({cpu['logical_cores']} threads)" if cpu["logical_cores"] else "")
+    )
+    if memory["ram_gib"] is None:
+        lines.append("  Memory: unknown")
+    else:
+        shared = ", shared with the GPU" if memory["unified"] else ""
+        lines.append(f"  Memory: {memory['ram_gib']:g} GiB{shared}")
+    accelerators = proposal["accelerators"]
+    if accelerators is None:
+        lines.append("  GPU: unknown")
+    elif not accelerators:
+        lines.append("  GPU: none found")
+    for gpu in accelerators or []:
+        size = (
+            "unified memory"
+            if gpu["unified_memory"]
+            else (f"{gpu['memory_gib']:g} GiB" if gpu["memory_gib"] else "memory unknown")
+        )
+        runtime = gpu["runtime"] or "no runtime found"
+        lines.append(
+            f"  GPU: {gpu['model'] or 'unknown model'} ({gpu['vendor']}, {runtime}), {size}"
+        )
+    storage = proposal["storage_gib"]
+    lines.append(f"  Storage: {storage:g} GiB" if storage is not None else "  Storage: unknown")
+    for entry in proposal["unknown"]:
+        lines.append(f"  Unknown {entry['field']}: {entry['reason']}")
+    states = ", ".join(
+        f"{entry['name']} {entry['state'].replace('_', ' ')}" for entry in proposal["prerequisites"]
+    )
+    lines.append(f"Prerequisites: {states}")
+    lines.extend(f"  {line}" for line in advice)
+    return "\n".join(lines)
 
 
 @app.command()

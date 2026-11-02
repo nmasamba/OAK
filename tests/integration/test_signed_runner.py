@@ -87,6 +87,34 @@ def test_read_only_dispatch_verifies_and_executes(readonly_dispatch, tmp_path: P
     assert outcome.outcome == "succeeded"
     assert set(outcome.applied_kinds) == {"inventory", "validate", "render", "plan", "verify"}
     journal.verify_chain()
+    # OAK-V1-039: the inventory carries the scan's proposal beside the runtime's basics.
+    inventory = next(item for item in outcome.evidence if item["operation"] == "inventory")
+    assert set(inventory["content"]["hardware"]) == {
+        "platform",
+        "cpu",
+        "memory",
+        "storage_gib",
+        "accelerators",
+        "prerequisites",
+        "unknown",
+        "tools",
+    }
+
+
+def test_inventory_evidence_carries_what_the_scanner_proposed(
+    readonly_dispatch, tmp_path: Path
+) -> None:
+    proposal = {"platform": {"operating_system": "linux", "architecture": "x86_64"}}
+    outcome = execute_dispatch(
+        _verify(readonly_dispatch),
+        journal=RunnerJournal(tmp_path / "journal.jsonl"),
+        target_document=_target("local-fixture.yaml"),
+        registry=readonly_dispatch["registry"],
+        now=with_time(readonly_dispatch["now"], 61),
+        scanner=lambda: proposal,
+    )
+    inventory = next(item for item in outcome.evidence if item["operation"] == "inventory")
+    assert inventory["content"]["hardware"] == proposal
 
 
 def test_tampered_plan_is_denied_before_execution(readonly_dispatch) -> None:

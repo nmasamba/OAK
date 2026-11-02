@@ -163,6 +163,18 @@ One clarification, because the naming invites the opposite conclusion: the
 target workload** — the system OAK designed for you. It is read-only, it executes nothing, and
 it has no relationship to deploying OAK itself.
 
+### Hardware scan (`oak scan` and the runner's `inventory`)
+
+| Path | How it is proven |
+|---|---|
+| macOS (`sysctl`, `system_profiler`) | Verified in CI: `check-macos-arm64` runs the real scan (`tests/integration/test_hardware_scan_host.py`) |
+| Linux without a GPU (`lscpu`) | Verified in CI on `check` (x86_64) and `check-linux-arm64` |
+| NVIDIA GPUs (`nvidia-smi`) | Verified by fixture only (`tests/fixtures/hardware/`): no CI runner has one |
+| AMD GPUs (`rocm-smi`) | Verified by fixture only, likewise |
+
+A GPU is seen only through its vendor's tool, so on Linux without `nvidia-smi` and
+`rocm-smi` the GPUs are reported as unknown, and an Intel GPU on Linux is never seen.
+
 ## What is not tested where
 
 `make toolchain-check` fails if the running Python or the pnpm-provisioned Node differs

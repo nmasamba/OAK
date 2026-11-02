@@ -142,6 +142,7 @@ prohibition).
 | Interpret brief with Online AI or Local AI | ● | ● | ● | ● (explicit `interpreter`; default deterministic) | ● |
 | List questions | ○ | ○ | ○ | ○ | ○ |
 | Confirm claims | ● | ● | ● | ● | ● |
+| Scan this machine's hardware (`oak scan`; records nothing) | ● | ● | — | — | — |
 | Generate candidates | ● | ● | ● | ● | ● |
 | List candidates | ● | ● | ○ | ○ | ○ |
 | Evaluate candidate | ● | ● | ● | ● | ● |

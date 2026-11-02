@@ -797,6 +797,18 @@ def create_render_service(workspace: Path) -> DeploymentRenderService:
     )
 
 
+def scan_hardware() -> dict[str, Any]:
+    """Scan this machine with the runner's scanner and return the proposal, recorded nowhere.
+
+    The CLI reaches the runner's module only here, at call time, so a command that does not
+    scan never loads it.
+    """
+
+    from oak.runner.hardware import scan
+
+    return scan()
+
+
 def default_trust_directory() -> Path:
     configured = os.getenv("OAK_TRUST_DIRECTORY")
     if configured:

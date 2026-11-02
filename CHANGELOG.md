@@ -11,6 +11,23 @@ All notable changes to OAK Community are recorded here.
 The second batch of Tier 3, launched by the owner on 2026-11-02: hardware scanning, then native
 installation. In progress; entries land with each milestone.
 
+#### Added
+
+- **OAK can describe the machine it runs on** (`OAK-V1-039`, part 1). The new local
+  command `oak scan` and the runner's `inventory` operation share one scanner. It reads the
+  CPU's model and cores, the memory, and each GPU's vendor, model, memory and runtime
+  (Metal, CUDA or ROCm) through five tools, each with one fixed argument vector:
+  `sysctl` and `system_profiler` on macOS, `lscpu`, `nvidia-smi` and `rocm-smi` on Linux.
+  It parses machine-readable output only and keeps only those fields, so no serial number,
+  GPU UUID, host name or user name a tool prints survives. A tool that is absent, fails,
+  times out or prints too much leaves an `unknown` with its reason, never a guess; on
+  Linux, "no GPU" is claimed only when both NVIDIA's and AMD's tools answered. Apple
+  silicon's memory is reported as unified rather than as GPU memory. The scan also says
+  whether Docker (and its daemon) and uv are present, and recommends installing what is
+  missing, with each tool's official page; it never installs anything. `oak scan` records
+  nothing; the inventory evidence gains a `hardware` object beside its existing fields.
+  The runner's executable allowlist gains the five tools (`RR-055`).
+
 ### After Batch A (`OAK-V1-038`)
 
 #### Fixed

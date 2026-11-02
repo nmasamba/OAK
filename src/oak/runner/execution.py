@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
@@ -18,6 +19,7 @@ from oak.runner.adapters import (
     collect_inventory,
     default_executor,
 )
+from oak.runner.hardware import scan as scan_hardware
 from oak.runner.heartbeat import LeaseHeartbeat
 from oak.runner.journal import RunnerJournal
 from oak.runner.verification import MUTATING_KINDS, VerifiedDispatch
@@ -60,6 +62,7 @@ def execute_dispatch(
     cancellation_requested: bool = False,
     adapter: ContainerFixtureAdapter | None = None,
     heartbeat: LeaseHeartbeat | None = None,
+    scanner: Callable[[], dict[str, Any]] | None = None,
 ) -> ExecutionOutcome:
     """Run the requested kinds in plan order; journal around every side effect."""
 
@@ -100,6 +103,7 @@ def execute_dispatch(
     if heartbeat is not None:
         heartbeat.beat("lease_accepted", force=True)
     container = adapter or ContainerFixtureAdapter(executor)
+    hardware = scanner or (lambda: scan_hardware(executor=executor))
     evidence: list[dict[str, Any]] = []
     applied: list[str] = []
     policy = verified.plan["evidence_policy"]
@@ -136,6 +140,7 @@ def execute_dispatch(
                 container,
                 lease_deadline,
                 heartbeat,
+                hardware,
             )
         except (OAKError, ContractValidationError) as error:
             journal.append(
@@ -226,6 +231,7 @@ def _run_operation(
     container: ContainerFixtureAdapter,
     lease_deadline: datetime,
     heartbeat: LeaseHeartbeat | None = None,
+    scanner: Callable[[], dict[str, Any]] = scan_hardware,
 ) -> tuple[dict[str, Any], ...]:
     """Run one verified operation and return its typed evidence items."""
 
@@ -246,7 +252,9 @@ def _run_operation(
         return (container.rollback(parameters, timeout),)
     if kind == "destroy":
         return (container.destroy(parameters, timeout),)
-    result = _read_only_result(kind, operation, verified, target_document, registry, container)
+    result = _read_only_result(
+        kind, operation, verified, target_document, registry, container, scanner
+    )
     return ({"category": _category(kind), "operation": kind, "content": result},)
 
 
@@ -257,6 +265,7 @@ def _read_only_result(
     target_document: dict[str, Any],
     registry: Any,
     container: ContainerFixtureAdapter,
+    scanner: Callable[[], dict[str, Any]],
 ) -> dict[str, Any]:
     parameters = dict(operation["parameters"])
     timeout = int(operation["timeout_seconds"])
@@ -265,6 +274,8 @@ def _read_only_result(
         capacity = target_document["capacity"]
         return {
             "capabilities": inventory,
+            # The scan's proposal (Tier 3 Batch B): what the user may confirm into a case.
+            "hardware": scanner(),
             "declared_capacity_plausible": inventory["storage_gib"] >= 0
             and float(capacity["ram_gib"]) >= 0,
         }

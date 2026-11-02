@@ -44,7 +44,11 @@ from oak.domain.runner_adapters import (
 )
 
 MAXIMUM_OUTPUT_BYTES = 65_536
-ALLOWLISTED_EXECUTABLES = frozenset({"docker"})
+# `docker` for the container install; the five scan tools for `oak.runner.hardware`, each
+# run with the fixed argument vector that module names (ADR-0015's terms; Tier 3 Batch B).
+ALLOWLISTED_EXECUTABLES = frozenset(
+    {"docker", "sysctl", "system_profiler", "lscpu", "nvidia-smi", "rocm-smi"}
+)
 # The readiness wait per node, well inside the per-call timeout and the lease: a node
 # that is not running (or, with a HEALTHCHECK, healthy) by then fails the smoke test.
 READINESS_BUDGET_SECONDS = 15.0

@@ -1,0 +1,20 @@
+{
+    "card0": {
+        "GUID": "GUIDFIXTURE0001",
+        "Unique ID": "0xUNIQUEFIXTURE",
+        "Serial Number": "SERIALFIXTURE02",
+        "Card Series": "Navi 31 [Radeon RX 7900 XT/7900 XTX/7900 GRE/7900M]",
+        "Card Model": "0x744c",
+        "Card Vendor": "Advanced Micro Devices, Inc. [AMD/ATI]",
+        "Card SKU": "D7070100",
+        "Subsystem ID": "0x5304",
+        "Device Rev": "0xc8",
+        "Node ID": "1",
+        "GFX Version": "gfx1100",
+        "VRAM Total Memory (B)": "25753026560",
+        "VRAM Total Used Memory (B)": "1218342912"
+    },
+    "system": {
+        "Driver version": "6.8.5"
+    }
+}

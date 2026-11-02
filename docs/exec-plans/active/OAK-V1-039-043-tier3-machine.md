@@ -14,7 +14,7 @@ and publishes nothing.
 
 - Owner/agent: owner-directed coding agent
 - Started: 2026-11-02
-- Last updated: 2026-11-02 (M0, kickoff)
+- Last updated: 2026-11-02 (M1, the scanner)
 - State: in-progress
 - Claimed tasks: `OAK-V1-039`–`OAK-V1-043`
 
@@ -268,7 +268,12 @@ By milestone, to be filled as each lands:
 
 - **M1, the scanner.** Each new executable is named in the allowlist with a fixed argument
   vector; nothing a document or a plan says reaches an argument; a tool's output is parsed
-  as data, bounded in size, and only allowlisted fields survive it.
+  as data, bounded in size, and only allowlisted fields survive it. Two findings while
+  building it: `system_profiler`'s "mini" level, documented as having no personal
+  information, still lists each display's serial number, so the parser reads the GPU's own
+  fields and nothing nested; and a GPU is visible only through its vendor's tool, so on
+  Linux "no GPU" would be a guess unless both vendors' tools answered, and the scan says
+  unknown instead. uv is never run; the scan only looks it up.
 - **M2, the proposal.** Only the confirmed profile enters the case, and its schema cannot
   carry an identifier of the machine or its user.
 - **M3–M5, native installation.** What relaxes is ADR-0017's container isolation set and
@@ -292,6 +297,33 @@ kinds, and an existing case or profile reads as before.
   `sprints.md` (the kickoff answers, and the real catalogue component in the post-1.0
   backlog) and `CHANGELOG.md` updated, its version moved to `0.4.0-draft.22`, its
   validator passing. `make validate` green here.
+- [x] 2026-11-02 M1 (`OAK-V1-039`, part 1). `src/oak/domain/hardware.py`: pure parsers for
+  `sysctl -n` (four named values), `system_profiler -json -detailLevel mini
+  SPDisplaysDataType` (the GPU entries only, never the displays listed under them),
+  `lscpu -J` (flat and nested layouts; cores per socket or per cluster), `nvidia-smi`'s CSV
+  and `rocm-smi`'s JSON (keys compared without case), a bounded model-name rule, the
+  proposal builder with an `unknown` entry per field and reason, the mapping into
+  `spec.hardware` (`intent_hardware`: no `vram_gib` for unified memory) and the
+  recommendations for a missing Docker or uv. `src/oak/runner/hardware.py`: one fixed
+  argument vector per tool, 30 s for `system_profiler` and 10 s otherwise, output at the
+  executor's 64 KiB bound, Docker's daemon asked for its version, uv looked up and never
+  run. `ALLOWLISTED_EXECUTABLES` gains the five tools. The runner's `inventory` evidence
+  gains `hardware` (a `scanner` callable threads from `execute_dispatch`, so a test can
+  inject one); `bootstrap.scan_hardware()` and the local `oak scan` (human or JSON, records
+  nothing). Fixtures under `tests/fixtures/hardware/` with a README naming each one's
+  provenance: this Mac's `sysctl` and `system_profiler` (macOS 26.3.1, the display serial
+  replaced), a container's `lscpu` (util-linux 2.41), and constructed nested `lscpu`,
+  NVIDIA and AMD files. Tests: 27 unit cases (`tests/unit/test_hardware_scan.py`), the CLI
+  (`tests/unit/test_scan_command.py`), the real scan on the host
+  (`tests/integration/test_hardware_scan_host.py`, which CI runs on all three jobs), the
+  inventory evidence in `tests/integration/test_signed_runner.py`; nine mutation checks,
+  each killed (a parser keeping the displays, `rocm-smi` read for its serial, "no GPU" on
+  one vendor's answer, NVIDIA's no-device exit read as a failure, the model bound loosened,
+  over-long output parsed, an absent tool executed, uv run, unified memory turned into
+  `vram_gib`). Documents: `RR-055`, the capability matrix, `platforms.md` (the scan's paths,
+  NVIDIA and AMD by fixture only), the changelog, and the original spec repo's
+  `docs/build/security-invariants.md` § Runner execution. Every runner suite, `make
+  validate`, `format-check`, `lint` and `typecheck` green.
 
 ## Decisions
 
@@ -322,7 +354,15 @@ kinds, and an existing case or profile reads as before.
 
 ## Discoveries and follow-ups
 
-(Empty until the work happens.)
+- 2026-11-02 M1. `system_profiler -detailLevel mini` lists each display's serial number
+  under the GPU that drives it (`_spdisplays_display-serial-number`); the fixture carries a
+  synthetic one and a test proves it never reaches a proposal.
+- 2026-11-02 M1. `lscpu -J` from util-linux 2.41 in a Debian container is flat, prints `-`
+  for an unknown model name and for sockets on Arm, and counts cores per cluster; the
+  nested layout of other releases is read by walking every child.
+- 2026-11-02 M1. Adding `RR-055` moves the register past the 54 entries both repositories
+  cite (`STATUS.md` here, the original spec repo's `STATUS.md`, the readiness list); the
+  closing sweep in M6 updates every citation to the final count, since M3 adds more.
 
 ## Self-review
 
