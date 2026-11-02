@@ -37,7 +37,18 @@ from oak.domain import (
 )
 from oak.domain.audit import audit_event_document
 from oak.domain.design_case import DesignCase, DesignCaseStatus
-from oak.domain.runner_adapters import architecture_binding_matches, plan_installation_digest
+from oak.domain.runner_adapters import (
+    NATIVE_ADAPTER_ID,
+    NATIVE_CONSENT_BINDING_KEY,
+    architecture_binding_matches,
+    native_consent_binding,
+    native_consent_binding_matches,
+    native_consent_problem,
+    native_consent_reference,
+    plan_apply_adapter,
+    plan_installation_digest,
+    plan_native_consent_ref,
+)
 from oak.ports import DispatchTransport, WorkspaceRepository
 from oak.ports.signing import SigningPort
 
@@ -48,8 +59,9 @@ APPROVAL_MEDIA_TYPE = "application/vnd.oak.approval+json"
 ENVELOPE_MEDIA_TYPE = "application/vnd.oak.runner-envelope+json"
 RUNNER_MESSAGE_MEDIA_TYPE = "application/vnd.oak.runner-message+json"
 REVOCATION_MEDIA_TYPE = "application/vnd.oak.revocation+json"
+NATIVE_CONSENT_MEDIA_TYPE = "application/vnd.oak.native-consent+json"
 
-APPROVAL_ACTIONS = ("dry_run", "architecture", "apply", "rollback", "destroy")
+APPROVAL_ACTIONS = ("dry_run", "architecture", "native_consent", "apply", "rollback", "destroy")
 # Once something is installed, only its removal may still be approved: approving another
 # install, a dry run or a different architecture against a deployed case is refused.
 REMOVAL_ACTIONS = frozenset({"rollback", "destroy"})
@@ -57,6 +69,8 @@ READ_ONLY_KINDS = frozenset({"inventory", "validate", "render", "plan", "verify"
 MUTATING_ACTION_BY_KIND = {"apply": "apply", "rollback": "rollback", "destroy": "destroy"}
 # The install itself needs a second, separate consent: the architecture being installed.
 ADDITIONAL_ACTIONS_BY_KIND = {"apply": ("architecture",)}
+# A native install needs a third (ADR-0019): the user's consent to what it relaxes.
+NATIVE_CONSENT_ACTION = "native_consent"
 ARCHITECTURE_EXTENSION = "oak.community/architecture"
 DEFAULT_APPROVAL_SECONDS = 86_400
 LEASE_SECONDS = 300
@@ -91,11 +105,14 @@ class ReleaseService:
         transport: DispatchTransport,
         *,
         runner_identities: Callable[[], tuple[dict[str, str], ...]],
+        native_consent: Callable[[], dict[str, Any]] | None = None,
     ) -> None:
         self._repository = repository
         self._registry = registry
         self._signer_loader = signer_loader
         self._transport = transport
+        # The consent text as installed now (ADR-0019), read when a consent is recorded.
+        self._native_consent = native_consent
         # The enrolled runners' public identities (`oak keys enroll-runner`): the only keys
         # whose signed messages ingest believes (F4-1).
         self._runner_identities = runner_identities
@@ -172,15 +189,25 @@ class ReleaseService:
         context: CommandContext,
         *,
         expires_at: str | None = None,
+        consent_digest: str | None = None,
     ) -> ReleaseResult:
+        """Record a signed approval of ``action`` for the compiled plan.
+
+        ``consent_digest`` is for ``native_consent`` only: the digest of the consent text
+        the user read, which must be the text installed now and the one the plan names.
+        """
+
         if action not in APPROVAL_ACTIONS:
             raise OAKError("OAK-APPROVAL-ACTION", "approval action is not recognized")
         # The case version is part of the request: re-approving an action later (a
         # rollback approval renewed a day after install, say) is a new request, while a
         # retry at the same version stays idempotent.
+        request: dict[str, Any] = {"action": "approve", "kind": action}
+        if action == NATIVE_CONSENT_ACTION:
+            request["consent_digest"] = consent_digest
         input_digest = self._request_digest(
             context,
-            {"action": "approve", "kind": action, **_derived_key_scope(context)},
+            {**request, **_derived_key_scope(context)},
         )
         context = self._normalized_context(context, f"approve-{action}", input_digest)
         self._check_context(context)
@@ -210,17 +237,32 @@ class ReleaseService:
         if _parse_time(expiry) <= _parse_time(context.occurred_at):
             raise OAKError("OAK-APPROVAL-EXPIRY", "approval expiry must be in the future")
         existing_approvals = dict((current.extensions or {}).get("oak.community/approval_refs", {}))
-        if action == "apply":
+        native = plan_apply_adapter(plan) == NATIVE_ADAPTER_ID
+        if action == NATIVE_CONSENT_ACTION and not native:
+            raise OAKError(
+                "OAK-NATIVE-CONSENT",
+                "this plan installs nothing natively, so it takes no native_consent approval",
+            )
+        if action in {"apply", NATIVE_CONSENT_ACTION}:
             # Installing needs two consents, recorded separately and in order: the
-            # architecture first, then the installation step.
+            # architecture first, then the installation step. A native installation needs
+            # the consent to what it relaxes between the two (ADR-0019).
             self._require_architecture_approval(
                 existing_approvals, plan_ref, bundle_ref, context.occurred_at
             )
+        if action == "apply" and native:
+            self._require_native_consent_approval(
+                existing_approvals, plan_ref, bundle_ref, plan, context.occurred_at
+            )
         approval_extensions: dict[str, Any] = {}
+        recorded: tuple[Artifact, ...] = ()
         if action == "architecture":
             approval_extensions[ARCHITECTURE_EXTENSION] = self._architecture_binding(
                 current_document, plan
             )
+        if action == NATIVE_CONSENT_ACTION:
+            recorded = (self._consent_text_artifact(plan, consent_digest),)
+            approval_extensions[NATIVE_CONSENT_BINDING_KEY] = native_consent_binding(plan)
         # Each issuance is a new approval with its own identity. Reusing the previous id
         # would inherit its revocation (the runner revokes by id) and make revoking the
         # renewal collide with the earlier notice in the signed revocation set.
@@ -275,7 +317,9 @@ class ReleaseService:
             event_type="approval_recorded",
             context=context,
             input_digest=input_digest,
-            artifacts=(artifact,),
+            # A consent is recorded with the text it consents to, so the case holds
+            # exactly what the user read.
+            artifacts=(*recorded, artifact),
         )
         return ReleaseResult(
             case=published,
@@ -449,6 +493,8 @@ class ReleaseService:
         required_actions = {MUTATING_ACTION_BY_KIND.get(kind, "dry_run") for kind in kinds}
         for kind in kinds:
             required_actions.update(ADDITIONAL_ACTIONS_BY_KIND.get(kind, ()))
+        if "apply" in kinds and plan_apply_adapter(plan) == NATIVE_ADAPTER_ID:
+            required_actions.add(NATIVE_CONSENT_ACTION)
         bundle_document = self._repository.read_json_artifact(bundle_ref)
         approval_documents: dict[str, dict[str, Any]] = {}
         approval_references: list[ArtifactReference] = []
@@ -467,6 +513,13 @@ class ReleaseService:
                 raise OAKError(
                     "OAK-DISPATCH-APPROVAL",
                     "architecture approval binds a different decision or installation",
+                )
+            if required == NATIVE_CONSENT_ACTION and not native_consent_binding_matches(
+                approval, plan
+            ):
+                raise OAKError(
+                    "OAK-DISPATCH-APPROVAL",
+                    "native consent binds a different consent text, control list or installation",
                 )
             approval_documents[f"approval-{required.replace('_', '-')}"] = approval
             approval_references.append(reference)
@@ -994,6 +1047,77 @@ class ReleaseService:
                 "OAK-APPROVAL-ARCHITECTURE",
                 "the architecture approval is not current for this plan",
             ) from error
+
+    def _require_native_consent_approval(
+        self,
+        approvals: dict[str, Any],
+        plan_ref: ArtifactReference,
+        bundle_ref: ArtifactReference,
+        plan: dict[str, Any],
+        now: str,
+    ) -> None:
+        reference_document = approvals.get(NATIVE_CONSENT_ACTION)
+        if not isinstance(reference_document, dict):
+            raise OAKError(
+                "OAK-NATIVE-CONSENT",
+                "record the native_consent approval before approving a native installation",
+            )
+        approval = self._repository.read_json_artifact(
+            ArtifactReference.from_document(reference_document)
+        )
+        try:
+            self._check_approval(approval, plan_ref, bundle_ref, now, NATIVE_CONSENT_ACTION)
+        except OAKError as error:
+            raise OAKError(
+                "OAK-NATIVE-CONSENT", "the native_consent approval is not current for this plan"
+            ) from error
+        if not native_consent_binding_matches(approval, plan):
+            raise OAKError(
+                "OAK-NATIVE-CONSENT",
+                "the native_consent approval consents to a different installation",
+            )
+
+    def _consent_text_artifact(self, plan: dict[str, Any], consent_digest: str | None) -> Artifact:
+        """The consent text a `native_consent` approval consents to, as a stored artifact.
+
+        Refused unless the plan installs natively, the text installed now is the one the
+        plan was compiled against, it names exactly the controls the adapter relaxes, and
+        the user gave its digest: what they read is what they consent to.
+        """
+
+        reference = plan_native_consent_ref(plan)
+        if reference is None:
+            raise OAKError(
+                "OAK-NATIVE-CONSENT",
+                "this plan installs nothing natively, so it takes no native_consent approval",
+            )
+        if self._native_consent is None:
+            raise OAKError(
+                "OAK-NATIVE-CONSENT", "no consent text is installed for a native installation"
+            )
+        document = self._native_consent()
+        problem = native_consent_problem(document)
+        if problem is not None:
+            raise OAKError("OAK-NATIVE-CONSENT", problem)
+        installed = native_consent_reference(document)
+        if installed != reference:
+            raise OAKError(
+                "OAK-NATIVE-CONSENT",
+                "the consent text changed after this plan was compiled; compile the plan again",
+            )
+        if consent_digest != installed["digest"]:
+            raise OAKError(
+                "OAK-NATIVE-CONSENT",
+                "give the digest of the consent text you read; "
+                "`oak approve native_consent` shows the text and its digest",
+            )
+        return json_artifact(
+            artifact_id=installed["id"],
+            version=installed["version"],
+            kind="native_consent",
+            media_type=NATIVE_CONSENT_MEDIA_TYPE,
+            document=document,
+        )
 
     def _architecture_binding(
         self, case_document: dict[str, Any], plan: dict[str, Any]

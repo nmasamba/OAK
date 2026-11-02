@@ -14,20 +14,25 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 from oak.contracts import ContractValidationError, SchemaRegistry
 from oak.contracts.signatures import signed_payload_bytes, verify_signature
 from oak.domain import OAKError, canonical_json_bytes, content_digest
 from oak.domain.runner_adapters import (
+    ACKNOWLEDGEMENT_NATIVE,
     ADAPTER_IDENTITY_BY_ID,
     ALLOWED_KINDS_BY_ADAPTER,
     CONTAINER_ADAPTER_ID,
     INSTALLATION_SCOPE_EXTENSION,
     ISOLATION_BY_ACKNOWLEDGEMENT,
+    NATIVE_ADAPTER_ID,
     PARAMETER_SCHEMA_BY_ADAPTER,
     architecture_binding_matches,
     container_name_for,
+    harness_shape_problem,
     installation_id_for,
+    native_consent_binding_matches,
     registry_host,
 )
 
@@ -460,10 +465,13 @@ def verify_dispatch(
             "OAK-RUNNER-PARAMETERS",
             "operation parameters do not satisfy the schema",
         )
+        native = str(adapter["id"]) == NATIVE_ADAPTER_ID
         if str(adapter["id"]) == CONTAINER_ADAPTER_ID:
             _check_installation(
                 operation["parameters"], envelope, plan, target_document, allowed_registries
             )
+        if native:
+            _check_native_installation(operation["parameters"], envelope, plan, target_document)
         _check(
             operation["secret_references"] == [],
             "OAK-RUNNER-SECRETS",
@@ -475,11 +483,21 @@ def verify_dispatch(
             "OAK-RUNNER-SECRETS",
             "operation secret references exceed the target allowance",
         )
-        _check(
-            operation["permissions"]["network_destinations"] == [],
-            "OAK-RUNNER-NETWORK",
-            "fixture operations may not name network destinations",
-        )
+        if native and kind == "apply":
+            # A native install downloads (ADR-0019): only from the hosts this runner's
+            # own profile acknowledges, and each artifact's host was checked above.
+            _check(
+                list(operation["permissions"]["network_destinations"])
+                == _native_download_hosts(target_document),
+                "OAK-RUNNER-NETWORK",
+                "a native install may reach only the download hosts this target acknowledges",
+            )
+        else:
+            _check(
+                operation["permissions"]["network_destinations"] == [],
+                "OAK-RUNNER-NETWORK",
+                "fixture operations may not name network destinations",
+            )
         # 10. Mutating kinds require a current, matching, unrevoked approval.
         if kind in MUTATING_KINDS:
             _check(
@@ -519,6 +537,29 @@ def verify_dispatch(
                     architecture_binding_matches(architecture_approval, bundle, plan),
                     "OAK-RUNNER-APPROVAL",
                     "architecture approval binds a different decision or installation",
+                )
+            if kind == "apply" and native:
+                # A native install relaxes the container isolation set, so it needs the
+                # user's signed consent to exactly that, for exactly this installation.
+                consent_approval = approvals_by_action.get("native_consent")
+                _check(
+                    consent_approval is not None,
+                    "OAK-RUNNER-APPROVAL",
+                    "no native_consent approval accompanies the native install",
+                )
+                assert consent_approval is not None
+                _check_approval(
+                    consent_approval,
+                    envelope,
+                    local_fingerprint,
+                    revoked_approval_ids,
+                    now_time,
+                )
+                _check(
+                    native_consent_binding_matches(consent_approval, plan),
+                    "OAK-RUNNER-APPROVAL",
+                    "native_consent approval names another consent text, control list or "
+                    "installation",
                 )
         else:
             required_approval = approvals_by_action.get("dry_run")
@@ -619,6 +660,107 @@ def _check_installation(
                 "OAK-RUNNER-REGISTRY",
                 "operation image registry is not in the target allowlist",
             )
+
+
+def _native_download_hosts(target_document: dict[str, Any]) -> list[str]:
+    execution = target_document.get("execution")
+    hosts = execution.get("allowed_download_hosts") if isinstance(execution, dict) else None
+    return sorted({str(host) for host in hosts}) if isinstance(hosts, list) else []
+
+
+def _check_native_installation(
+    parameters: dict[str, Any],
+    envelope: dict[str, Any],
+    plan: dict[str, Any],
+    target_document: dict[str, Any],
+) -> None:
+    """What a native install may fetch and run, re-derived from this runner's own profile.
+
+    The parameters are already schema-valid; this binds them to the dispatch and to the
+    operator's acknowledgements (ADR-0019): the case and target, the installation identity
+    derived for them, a profile that acknowledges a native installation, its download hosts,
+    and for every component exactly the harness, artifacts, port and probe the profile
+    lists for it, each port and node once.
+    """
+
+    _check(
+        parameters["case_id"] == envelope["case_id"],
+        "OAK-RUNNER-PARAMETERS",
+        "installation names a different case than the dispatch",
+    )
+    target_id = str(parameters["target_id"])
+    _check(
+        target_id == target_document["id"],
+        "OAK-RUNNER-PARAMETERS",
+        "installation names a different target",
+    )
+    _check(
+        parameters["installation_id"]
+        == installation_id_for(
+            plan["design_case_ref"],
+            target_id,
+            str(plan.get("extensions", {}).get(INSTALLATION_SCOPE_EXTENSION, "")),
+        ),
+        "OAK-RUNNER-PARAMETERS",
+        "installation identity is not the one derived from this plan's case and target",
+    )
+    execution = target_document.get("execution")
+    execution = execution if isinstance(execution, dict) else {}
+    _check(
+        execution.get("mutation_acknowledgement") == ACKNOWLEDGEMENT_NATIVE,
+        "OAK-RUNNER-TARGET-CAPABILITY",
+        "target profile does not acknowledge a native installation",
+    )
+    hosts = _native_download_hosts(target_document)
+    _check(
+        list(parameters["allowed_download_hosts"]) == hosts,
+        "OAK-RUNNER-PARAMETERS",
+        "installation download hosts are not the ones this target acknowledges",
+    )
+    acknowledged = {
+        str(entry.get("manifest_id")): entry
+        for entry in execution.get("native_components", [])
+        if isinstance(entry, dict)
+    }
+    nodes: set[str] = set()
+    ports: set[int] = set()
+    for component in parameters["components"]:
+        entry = acknowledged.get(str(component["manifest_id"]))
+        _check(
+            entry is not None
+            and all(
+                component[field] == entry.get(field)
+                for field in ("harness_kind", "artifacts", "listen_port", "health_probe")
+            ),
+            "OAK-RUNNER-PARAMETERS",
+            "installation component is not the one this target acknowledges",
+        )
+        _check(
+            harness_shape_problem(str(component["harness_kind"]), list(component["artifacts"]))
+            is None,
+            "OAK-RUNNER-PARAMETERS",
+            "installation component's artifacts do not fit its harness kind",
+        )
+        for artifact in component["artifacts"]:
+            source = str(artifact["source"])
+            if source.startswith("https://"):
+                _check(
+                    urlsplit(source).hostname in hosts,
+                    "OAK-RUNNER-NETWORK",
+                    "an artifact's host is not one this target acknowledges",
+                )
+        _check(
+            str(component["node_id"]) not in nodes,
+            "OAK-RUNNER-PARAMETERS",
+            "installation nodes must be unique",
+        )
+        nodes.add(str(component["node_id"]))
+        _check(
+            int(component["listen_port"]) not in ports,
+            "OAK-RUNNER-PARAMETERS",
+            "installation ports must be unique",
+        )
+        ports.add(int(component["listen_port"]))
 
 
 def _check_approval(

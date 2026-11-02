@@ -160,6 +160,16 @@ mechanical migration; **breaking** otherwise.
   It adds `native-consent.schema.json` (`0.1.0`), the consent a native installation's
   `native_consent` approval names by digest; the text OAK shows is
   `catalogue/consent/native-installation.yaml`.
+- Tier 3's Batch B adds the action `native_consent` to the `action` enums of
+  `approval.schema.json` and `revocation.schema.json` (additive), the approval extension
+  `oak.community/native_consent` (the consent text's id, version and digest, the relaxed
+  controls, and the installation digest), and the artifact kind `native_consent`, which holds
+  the consent text a case consented to, to `workspace-manifest.schema.json`. A native plan's
+  `apply` names its consent text in `consent_ref`, so a change to the text is a change to the
+  installation digest: the text's version moves with any edit, and
+  `tests/unit/test_native_consent_text.py` pins its digest per version. No stored document
+  changes and no reference digest moves, because the reference case compiles for a container
+  target; a `0.9.0` reader refuses a workspace holding a consent.
 - Sprint 14 (unreleased, ADR-0018) made an objective's `value` in `common.schema.json`
   nullable, with `unknown_reason` required exactly when it is null. Every stored document
   still validates, because the compiler writes a null only for a candidate that holds a
@@ -460,6 +470,13 @@ mechanical migration; **breaking** otherwise.
   then named, `OAK-REMOTE-CASE-REQUIRED` otherwise). The scan always runs on the machine the
   command runs on. `--output json` gives `proposal` and `recommendations`, and, when
   recording, `case`, `intent`, `proposal_id` and `confirmed`.
+- Tier 3's Batch B adds the action `native_consent` to `oak approve` and
+  `oak revoke-approval`, and the option `--consent` to `oak approve`, valid for that action
+  only. Without `--consent`, `oak approve native_consent` prints the consent text and its
+  digest (`--output json`: `consent` and `consent_ref`), records nothing and exits `2` with
+  `OAK-NATIVE-CONSENT`. `oak approve apply` on a native plan, which a `0.9` build cannot
+  compile, needs a current `native_consent` first. `oak architecture` describes a native
+  plan's installation with `mode: native`, its components and the three approvals.
 
 ## MCP
 
@@ -530,6 +547,14 @@ mechanical migration; **breaking** otherwise.
   fields it already carried: the scan's proposal, as `hardware-proposal.schema.json`
   describes its fields. A `0.9` control plane stores evidence it does not read, and a
   `0.9` runner reports none.
+- Tier 3's Batch B adds the native adapter `adapter.local-native` (`0.1.0`) to the runner's
+  allowlist, with its own parameter schema, for `apply`, `rollback` and `destroy`
+  (ADR-0019). Step 8 of the verification order gains the native installation checks, and a
+  native `apply` may name network destinations: exactly its profile's download hosts.
+  Step 9 requires a `native_consent` approval beside the `architecture` and `apply`
+  approvals for a native `apply`; the dispatch attaches it as `approval-native-consent`. A
+  `0.9` runner denies a native plan (`OAK-RUNNER-ADAPTER`), and container plans verify
+  exactly as before.
 
 ## Deprecation process
 

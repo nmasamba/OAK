@@ -1412,10 +1412,19 @@ def sign(
 @app.command()
 def approve(
     action: Annotated[
-        str, typer.Argument(help="dry_run, architecture, apply, rollback, or destroy.")
+        str,
+        typer.Argument(help="dry_run, architecture, native_consent, apply, rollback, or destroy."),
     ],
     expires_at: Annotated[
         str | None, typer.Option("--expires-at", help="RFC 3339 expiry; default 24 hours.")
+    ] = None,
+    consent: Annotated[
+        str | None,
+        typer.Option(
+            "--consent",
+            help="native_consent only: the digest of the consent text you read. Without it, "
+            "the text and its digest are shown and nothing is recorded.",
+        ),
     ] = None,
     output: Annotated[
         OutputFormat, typer.Option("--output", help="Output format.")
@@ -1429,6 +1438,17 @@ def approve(
 
     try:
         _require_local("approve")
+        if consent is not None and action != "native_consent":
+            raise OAKError(
+                "OAK-NATIVE-CONSENT", "--consent belongs to `oak approve native_consent` only"
+            )
+        if action == "native_consent" and consent is None:
+            # A consent is given to a text the user has read: show it, record nothing.
+            _show_consent_text(output)
+            raise OAKError(
+                "OAK-NATIVE-CONSENT",
+                "read the consent text, then approve with --consent and the digest it shows",
+            )
         current = _workspace_service().current().case
         result = _release_service().approve(
             action,
@@ -1437,6 +1457,7 @@ def approve(
                 expected_version=str(current["version"]),
             ),
             expires_at=expires_at,
+            consent_digest=consent,
         )
         _emit(
             {"case": result.case, "approval": result.document},
@@ -1456,15 +1477,46 @@ def _approval_human(action: str, result: Any) -> str:
             line + ". This approves the selected architecture only; nothing is installed until "
             "an apply approval is also recorded and a runner executes a dispatch."
         )
+    if action == "native_consent" and not result.duplicate:
+        return (
+            line + ". This consents to what a native installation relaxes; it still needs "
+            "`oak approve apply`, then `oak dispatch apply` and a runner."
+        )
     if action == "apply" and not result.duplicate:
         return line + ". Installation still needs `oak dispatch apply` and a runner."
     return line
 
 
+def _show_consent_text(output: OutputFormat) -> None:
+    """The consent text a native installation is approved against, with its digest."""
+
+    from oak.bootstrap import load_native_consent
+    from oak.domain.runner_adapters import native_consent_reference
+
+    document = load_native_consent()
+    reference = native_consent_reference(document)
+    lines = [str(document["title"]), "", str(document["statement"]), "", "What this relaxes:"]
+    lines += [
+        f"- {entry['relaxes']} Risk: {entry['risk']}" for entry in document["relaxed_controls"]
+    ]
+    lines += ["", "What stays:"]
+    lines += [f"- {item}" for item in document["retained_controls"]]
+    lines += ["", f"Consent text {reference['id']} {reference['version']}: {reference['digest']}"]
+    if document["status"] == "draft":
+        lines.append("This text is a draft: it has not been signed off for release.")
+    lines.append(f"To consent: oak approve native_consent --consent {reference['digest']}")
+    _emit(
+        {"consent": document, "consent_ref": reference},
+        output,
+        human="\n".join(lines),
+    )
+
+
 @app.command("revoke-approval")
 def revoke_approval(
     action: Annotated[
-        str, typer.Argument(help="dry_run, architecture, apply, rollback, or destroy.")
+        str,
+        typer.Argument(help="dry_run, architecture, native_consent, apply, rollback, or destroy."),
     ],
     reason: Annotated[str, typer.Option("--reason", help="Recorded revocation reason.")],
     output: Annotated[

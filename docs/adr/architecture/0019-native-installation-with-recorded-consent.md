@@ -52,7 +52,10 @@ rather than letting the mode contradict it silently.
 - **What relaxes: ADR-0017's container isolation set, and nothing else.** A native process runs
   as the user, outside any container: it has the user's network (it is bound to loopback, but
   it can open connections), it can write wherever the user can, it has the user's privileges,
-  and only the resource limits the platform offers apply (the runner records which did).
+  and only three ceilings apply while the runner checks it: no core files, a bounded
+  number of open files and a bounded size for any file it writes. Memory, CPU time and the
+  number of processes are not limited, because a limit on them would break a model server
+  or count the user's other processes; the runner records both lists.
 - **What stays**, because it protects the user from a poisoned bundle and from OAK itself rather
   than from their own choice:
   - the signed plan bound to the bundle digest and the target;

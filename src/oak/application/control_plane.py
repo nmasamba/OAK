@@ -132,6 +132,7 @@ class CommunityControlPlane:
         oak_version: str = "unknown",
         model_requests_per_day: int = DEFAULT_MODEL_REQUESTS_PER_CASE_PER_DAY,
         research_vocabulary: ResearchVocabularyPort | None = None,
+        native_consent: Callable[[], dict[str, Any]] | None = None,
         research_source_factory: SourceFactory | None = None,
         research_source_mode: SourceMode | None = None,
         research_runner: ResearchRunner | None = None,
@@ -153,6 +154,7 @@ class CommunityControlPlane:
         self._report_narrator_factory = report_narrator_factory
         self._oak_version = oak_version
         self._research_vocabulary = research_vocabulary
+        self._native_consent = native_consent
         self._research_source_factory = research_source_factory
         self._research_source_mode = research_source_mode
         self._research_runner = research_runner
@@ -881,6 +883,7 @@ class CommunityControlPlane:
             self._target_profiles,
             self._registry,
             research_vocabulary=self._research_vocabulary,
+            native_consent=self._native_consent,
         )
 
     def _research_service(self, workspace_id: str, tenant_id: str) -> ResearchService:

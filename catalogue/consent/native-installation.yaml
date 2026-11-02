@@ -28,7 +28,7 @@ relaxed_controls:
     relaxes: The installed programs run as you, not as a separate account with no rights.
     risk: They can read what you can read, including your documents and the settings of other programs.
   - id: resource_ceilings
-    relaxes: Limits on memory, processor time and the number of processes apply only as far as your system offers them.
+    relaxes: Memory, processor time and the number of processes are not limited. While OAK checks a program, it may not write core files, open more than 4,096 files or write a file larger than 2 GiB.
     risk: A program can slow your computer down or use up its memory while it runs.
   - id: loopback_port
     relaxes: Each program listens on a port on this computer (127.0.0.1) while it runs.

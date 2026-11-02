@@ -11,6 +11,7 @@ from oak import __version__
 from oak.adapters.catalogue import (
     ExtensionFedCatalogue,
     LocalCatalogue,
+    LocalConsentText,
     ResearchVocabularyLoader,
 )
 from oak.adapters.credentials import (
@@ -666,7 +667,23 @@ def create_candidate_planning_service(workspace: Path) -> CandidatePlanningServi
         LocalTargetProfile(registry),
         registry,
         research_vocabulary=ResearchVocabularyLoader(canonical_catalogue_directory()),
+        native_consent=native_consent_text(registry),
     )
+
+
+def native_consent_text(registry: SchemaRegistry | None = None) -> LocalConsentText:
+    """The reader of the consent text a native installation is approved against (ADR-0019)."""
+
+    return LocalConsentText(
+        canonical_catalogue_directory(),
+        registry or SchemaRegistry.from_directory(canonical_schema_directory()),
+    )
+
+
+def load_native_consent() -> dict[str, Any]:
+    """The consent text as installed now, validated: what `oak approve native_consent` shows."""
+
+    return native_consent_text()()
 
 
 def canonical_policy_pack_directory() -> Path:
@@ -917,6 +934,7 @@ def create_release_service(workspace: Path) -> ReleaseService:
         lambda role: LocalEd25519Signer.load(trust_directory, role),
         FilesystemMailbox(default_mailbox_directory()),
         runner_identities=lambda: load_runner_identities(trust_directory),
+        native_consent=native_consent_text(registry),
     )
 
 
@@ -991,6 +1009,7 @@ def create_persistent_control_plane() -> CommunityControlPlane:
         oak_version=__version__,
         model_requests_per_day=model_requests_per_day,
         research_vocabulary=ResearchVocabularyLoader(canonical_catalogue_directory()),
+        native_consent=native_consent_text(registry),
         research_source_factory=lambda occurred_at: create_research_source(occurred_at=occurred_at),
         research_source_mode=research_source_mode,
         research_runner=research_runner,

@@ -57,6 +57,28 @@ installation. In progress; entries land with each milestone.
   `oak_hardware_propose`, because the scan runs where the hardware is and the API host is
   never the target; confirming is not an MCP tool. The proposal's schema is closed: no
   field can carry a serial number, a GPU id, a host name or a user name.
+- **A native installation: installed, checked and stopped** (`OAK-V1-041`). The runner's
+  native adapter, `adapter.local-native`, installs each component of the selected
+  architecture outside Docker, as the user, for a target profile that acknowledges
+  `native-non-production-user-consented`, on macOS on Apple silicon and on Linux x86_64 and
+  aarch64. It fetches each artifact over HTTPS from an acknowledged host only, with TLS
+  verified, no proxy taken from the environment and every redirect checked; refuses a file
+  whose size or SHA-256 differs from the profile's before anything runs; unpacks an archive
+  without following a link, an absolute path or a `..`; starts each component from its
+  harness kind's fixed argument template on 127.0.0.1, with no core files, at most 4,096
+  open files and no written file over 2 GiB; probes its health path; and stops it. Nothing
+  keeps running and nothing starts with the computer. An ownership marker keeps it from
+  adopting, stopping or removing what it did not install, and `rollback` and `destroy`
+  remove exactly the installation's directory. `oak approve native_consent` shows the
+  consent text and its digest and records the consent only when given that digest with
+  `--consent`, after the architecture approval and before `oak approve apply`; dispatch
+  attaches all three approvals, and the runner checks on its own that the consent names this
+  installation, the text and every relaxed control, and that the plan's parameters are
+  exactly what its own profile acknowledges. `examples/targets/local-native-stand-in.yaml`
+  installs OAK's own stand-in server for each node, so the whole path runs offline; `oak
+  architecture` shows a native installation with its three approvals. New codes
+  `OAK-NATIVE-CONSENT`, `-DIGEST`, `-HOST`, `-SIZE`, `-DOWNLOAD`, `-ARCHIVE`, `-HARNESS`,
+  `-PLATFORM`, `-START`, `-SMOKE`, `-OWNERSHIP` and `-UNINSTALL`.
 
 ### After Batch A (`OAK-V1-038`)
 

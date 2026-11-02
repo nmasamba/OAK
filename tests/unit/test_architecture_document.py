@@ -126,3 +126,66 @@ def test_asking_before_any_selection_names_a_candidate_to_ask_about() -> None:
     with pytest.raises(OAKError) as unknown:
         select_candidate_reference(_case(), "candidate-99")
     assert unknown.value.code == "OAK-CANDIDATE-NOT-FOUND"
+
+
+def test_a_native_plan_shows_what_it_fetches_and_the_three_approvals_it_needs() -> None:
+    """OAK-V1-041: a native install names its consent and is stopped after its check."""
+
+    native = {
+        "case_id": "design-case.public-manual-qa",
+        "target_id": "target.local-native-stand-in",
+        "installation_id": "installation." + "a" * 24,
+        "consent_ref": {
+            "id": "consent.native-installation",
+            "version": "0.1.0",
+            "digest": "sha256:" + "c" * 64,
+        },
+        "allowed_download_hosts": [],
+        "components": [
+            {
+                "node_id": "node.retrieval",
+                "manifest_id": "component.fixture-lexical-search",
+                "harness_kind": "oak_stand_in",
+                "artifacts": [
+                    {
+                        "role": "harness",
+                        "source": "oak-stand-in:http-server",
+                        "sha256": "sha256:" + "d" * 64,
+                        "size_bytes": 1756,
+                        "format": "file",
+                    }
+                ],
+                "listen_port": 18431,
+                "health_probe": {"path": "/health"},
+            }
+        ],
+    }
+    plan = {
+        "target": {"id": "target.local-native-stand-in"},
+        "operations": [
+            {"kind": "apply", "adapter": {"id": "adapter.local-native"}, "parameters": native}
+        ],
+    }
+
+    document = architecture_document(
+        case=_case(),
+        candidate=CANDIDATE,
+        decision={"owner": "local-user"},
+        plan=plan,
+        approvals={"architecture": _approval(), "native_consent": _approval(revoked=True)},
+        now=NOW,
+    )
+
+    installation = document["architecture"]["installation"]
+    assert installation["mode"] == "native"
+    assert installation["starts_after_install"] is False
+    assert installation["consent_ref"] == native["consent_ref"]
+    assert installation["components"][0]["listen"] == "127.0.0.1:18431"
+    assert {action: entry["state"] for action, entry in installation["approvals"].items()} == {
+        "architecture": "current",
+        "native_consent": "revoked",
+        "apply": "absent",
+    }
+    text = architecture_human(document)
+    assert "outside Docker" in text and "oak_stand_in on 127.0.0.1:18431" in text
+    assert "native_consent revoked" in text

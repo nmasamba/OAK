@@ -14,7 +14,7 @@ and publishes nothing.
 
 - Owner/agent: owner-directed coding agent
 - Started: 2026-11-02
-- Last updated: 2026-11-02 (M3, the native records)
+- Last updated: 2026-11-02 (M4, the native adapter)
 - State: in-progress
 - Claimed tasks: `OAK-V1-039`–`OAK-V1-043`
 
@@ -377,6 +377,41 @@ kinds, and an existing case or profile reads as before.
   native path. `RR-056` and `RR-057` join the register, `RR-043` names its scope, and the
   register's count (57) follows in both repositories' `STATUS.md`. `compatibility.md`, the
   changelog. `make validate` and `make test` green; the existing profiles still validate.
+- [x] 2026-11-02 M4 (`OAK-V1-041`). The domain contract in
+  `src/oak/domain/runner_adapters.py`: `adapter.local-native` `0.1.0`, its closed parameter
+  schema and digests in the three registries, the harness-shape rule shared by the compiler
+  and the runner, the consent's reference, problems and binding. `src/oak/runner/native_network.py`
+  (HTTPS to acknowledged hosts, redirects checked, no proxy, size bounded as it arrives; the
+  loopback probe) and `src/oak/runner/stand_in/http_server.py` join the offline boundary's
+  allowed importers. `src/oak/runner/native.py`: the installation directory and its marker,
+  fetch or copy, digest check, safe unpacking, the start from each harness kind's template
+  under three ceilings, the probe, the stop, removal by marker. The compiler emits one
+  native `apply`, `rollback` and `destroy` naming the consent text, with the profile's hosts
+  as `apply`'s network destinations, and `preflight.installation` and `preflight.network`
+  judge a native profile. The consent text is read by `LocalConsentText`
+  (`src/oak/adapters/catalogue/consent.py`) through `bootstrap`. The release service
+  records `native_consent` after `architecture` and before `apply`, only for a native plan,
+  only with the digest of the text installed now and named by the plan, and stores that
+  text as a `native_consent` artifact with the approval; `apply` needs it, and dispatch
+  attaches and checks it. The runner checks the native installation against its own profile
+  and the consent's binding; the executor picks the adapter by id and refuses a native
+  operation on a runner without the native adapter before touching anything; the runner
+  main builds it under `native/` in its home. `oak approve native_consent` shows the text
+  and its digest without `--consent`. `oak architecture`, `oak gitops` and the report's
+  approvals table know the third approval. `examples/targets/local-native-stand-in.yaml`.
+  Tests: 31 adapter and network unit cases (among them a real child measuring its own
+  limits), the consent text's pin, the native architecture view,
+  `tests/integration/test_native_consent.py` (13: order, digest, a changed text, other
+  controls, revocation, three attachments, the runner's refusals of a missing consent, a
+  consent to something else, parameters its profile does not acknowledge, a host it does not
+  list), `tests/integration/test_native_install.py` (4, through the real runner: installed,
+  checked and stopped with nothing listening; destroy with canaries beside it; a failed check
+  rolled back; a foreign directory kept), and the e2e journey through the installed `oak`
+  and `oak-runner` with no Docker, which `make check` runs on all three CI jobs; thirteen
+  mutation checks, each killed. Documents: `signed-runner.md` (the verification order, the
+  journey, what the native adapter does), `compatibility.md`, the error reference and its
+  quick table, the changelog. Unit, contract and integration suites green (1,468 and 623
+  passed), lint, format, types and boundaries green.
 
 ## Decisions
 
@@ -432,6 +467,20 @@ kinds, and an existing case or profile reads as before.
   download, run by the runner's own interpreter: so `make check` stays offline, CI's three
   jobs prove the native path without Docker, and macOS's signing rules for downloaded
   binaries do not decide whether CI passes.
+- 2026-11-02 M4. **Three ceilings, and the rest unlimited by design.** ADR-0019 said the
+  platform's limits apply "as far as it offers them". The adapter sets, in the child before
+  it executes, no core files, at most 4,096 open files and no written file over 2 GiB, each
+  only ever lower than the runner's own; it does not limit memory (macOS does not enforce an
+  address-space limit, and a model server maps its model), CPU time (a server loading on
+  many threads would be killed) or the process count (it counts every process the user
+  runs). The evidence records both lists, and the ADR (both copies), the consent text and
+  `signed-runner.md` say exactly this; the draft consent text had implied more.
+- 2026-11-02 M4. **The consent is local, like every approval.** Approvals are recorded only
+  by the local CLI, so `native_consent` adds no REST route or MCP tool; `oak architecture`,
+  which REST also serves, shows the consent's state beside the other two.
+- 2026-11-02 M4. **The consent text's pin moves with the draft.** Its digest is in every
+  native plan and consent, so `tests/unit/test_native_consent_text.py` pins it per version:
+  after the owner's sign-off, an edit means a new version and a new pin.
 - 2026-11-02 M2. **The manual's scan section lands in M5**, with the native path, so the
   manual's PDF is rebuilt once.
 - 2026-11-02 Kickoff. **The branch starts from the image fix, not from `main`.** `main`'s
@@ -454,6 +503,14 @@ kinds, and an existing case or profile reads as before.
   before the record existed, which `tests/contract/test_adr_references.py` refuses; the
   row now says "a new decision record" until M3 writes it. Both were caught by CI, not
   locally: run `make test` before every push, not only the milestone's own tests.
+- 2026-11-02 M4. `oak architecture` read every `apply` as a container install, so a native
+  plan would have been described as "compiled before the topology installer"; it now has a
+  native branch, keyed on the plan's adapter. The CLI's JSON output sorts keys, so a test of
+  the approvals' order reads a set. The integration suite's fixture plan carries no adapter
+  block, so the view uses `plan_apply_adapter`, which tolerates one missing.
+- 2026-11-02 M4, for M5. The web's bundle page shows the architecture and apply approvals;
+  for a native plan it should show the consent's state and the consent text beside them, as
+  ADR-0019 says. `oak observe` on a native installation is M5's.
 
 ## Self-review
 

@@ -11,7 +11,7 @@ from typing import Any
 
 from oak.contracts import ContractValidationError
 from oak.domain import OAKError, canonical_json_bytes, content_digest
-from oak.domain.runner_adapters import CONTAINER_ADAPTER_ID
+from oak.domain.runner_adapters import CONTAINER_ADAPTER_ID, NATIVE_ADAPTER_ID
 from oak.runner.adapters import (
     AdapterFailureError,
     CommandExecutor,
@@ -22,7 +22,10 @@ from oak.runner.adapters import (
 from oak.runner.hardware import scan as scan_hardware
 from oak.runner.heartbeat import LeaseHeartbeat
 from oak.runner.journal import RunnerJournal
+from oak.runner.native import NativeProcessAdapter
 from oak.runner.verification import MUTATING_KINDS, VerifiedDispatch
+
+MutationAdapter = ContainerFixtureAdapter | NativeProcessAdapter
 
 REDACTION_PATTERN = re.compile(
     r"(?i)(password|passwd|secret|token|api[_-]?key|credential|authorization)"
@@ -63,8 +66,13 @@ def execute_dispatch(
     adapter: ContainerFixtureAdapter | None = None,
     heartbeat: LeaseHeartbeat | None = None,
     scanner: Callable[[], dict[str, Any]] | None = None,
+    native: NativeProcessAdapter | None = None,
 ) -> ExecutionOutcome:
-    """Run the requested kinds in plan order; journal around every side effect."""
+    """Run the requested kinds in plan order; journal around every side effect.
+
+    Each mutating operation runs on the adapter its verified plan names: the container
+    adapter, or the native adapter (ADR-0019), which a runner without one refuses.
+    """
 
     if journal.requires_manual_recovery():
         return ExecutionOutcome(
@@ -121,12 +129,35 @@ def execute_dispatch(
                 journal_sequence=journal.head()[0],
                 detail="cancellation observed before " + kind,
             )
+        if _is_native(operation) and native is None:
+            # Refused before its first journal entry: nothing was touched.
+            journal.append(
+                "operation_failed",
+                now,
+                {
+                    "operation_id": operation["id"],
+                    "kind": kind,
+                    "error": "OAK-RUNNER-ADAPTER: this runner has no native adapter",
+                },
+            )
+            return ExecutionOutcome(
+                outcome="failed",
+                applied_kinds=tuple(applied),
+                evidence=_bounded(evidence, policy),
+                journal_digest=journal.digest(),
+                journal_sequence=journal.head()[0],
+                detail=f"{kind} needs the native adapter, which this runner does not have",
+                failed_kind=kind,
+            )
+        mutator = _mutation_adapter(operation, container, native)
         entry_type = "rollback_before" if kind == "rollback" else "operation_before"
         before: dict[str, Any] = {"operation_id": operation["id"], "kind": kind}
         if _is_container(operation):
             # Name every resource the side effect may touch before it happens, so a crash
             # mid-operation leaves the exact list an operator has to inspect.
             before["resources"] = _container_names(operation)
+        if _is_native(operation):
+            before["resources"] = [str(operation["parameters"]["installation_id"])]
         journal.append(entry_type, now, before)
         if heartbeat is not None:
             heartbeat.beat("operation", operation_kind=kind)
@@ -137,7 +168,7 @@ def execute_dispatch(
                 verified,
                 target_document,
                 registry,
-                container,
+                mutator,
                 lease_deadline,
                 heartbeat,
                 hardware,
@@ -161,9 +192,7 @@ def execute_dispatch(
                     {"operation_id": operation["id"], "resources": list(created)},
                 )
                 try:
-                    evidence.append(
-                        container.compensate(dict(operation["parameters"]), created, 120)
-                    )
+                    evidence.append(mutator.compensate(dict(operation["parameters"]), created, 120))
                     journal.append("rollback_after", now, {"operation_id": operation["id"]})
                     outcome = "failed"
                     detail = f"{kind} failed and was rolled back"
@@ -228,7 +257,7 @@ def _run_operation(
     verified: VerifiedDispatch,
     target_document: dict[str, Any],
     registry: Any,
-    container: ContainerFixtureAdapter,
+    container: MutationAdapter,
     lease_deadline: datetime,
     heartbeat: LeaseHeartbeat | None = None,
     scanner: Callable[[], dict[str, Any]] = scan_hardware,
@@ -264,7 +293,7 @@ def _read_only_result(
     verified: VerifiedDispatch,
     target_document: dict[str, Any],
     registry: Any,
-    container: ContainerFixtureAdapter,
+    container: MutationAdapter,
     scanner: Callable[[], dict[str, Any]],
 ) -> dict[str, Any]:
     parameters = dict(operation["parameters"])
@@ -311,6 +340,23 @@ def _read_only_result(
 
 def _is_container(operation: dict[str, Any]) -> bool:
     return bool(operation["adapter"]["id"] == CONTAINER_ADAPTER_ID)
+
+
+def _is_native(operation: dict[str, Any]) -> bool:
+    return bool(operation["adapter"]["id"] == NATIVE_ADAPTER_ID)
+
+
+def _mutation_adapter(
+    operation: dict[str, Any],
+    container: ContainerFixtureAdapter,
+    native: NativeProcessAdapter | None,
+) -> MutationAdapter:
+    """The adapter the verified operation names. The caller refuses a native operation on
+    a runner without the native adapter before it gets here."""
+
+    if _is_native(operation) and native is not None:
+        return native
+    return container
 
 
 def _container_names(operation: dict[str, Any]) -> list[str]:

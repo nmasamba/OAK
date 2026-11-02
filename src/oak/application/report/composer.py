@@ -1857,7 +1857,14 @@ def _governance(ctx: _Context) -> dict[str, Any]:
     approvals = ctx.records.approvals
     if ctx.case.get("runner_plan_ref") is not None:
         rows = []
-        for action in ("architecture", "apply"):
+        # A native install's consent (ADR-0019) is listed once one is recorded; the report
+        # does not read the plan, so a native plan awaiting it shows the other two.
+        actions = (
+            ("architecture", "native_consent", "apply")
+            if "native_consent" in approvals
+            else ("architecture", "apply")
+        )
+        for action in actions:
             approval = approvals.get(action)
             state, word = _approval_state(approval, ctx.generated_at)
             rows.append(
@@ -1875,7 +1882,9 @@ def _governance(ctx: _Context) -> dict[str, Any]:
         blocks.append(
             _table(
                 "approvals",
-                "The two approvals an install needs",
+                "The three approvals a native install needs"
+                if len(actions) == 3
+                else "The two approvals an install needs",
                 ["Approval", "State", "Expires"],
                 rows,
             )

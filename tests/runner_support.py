@@ -20,6 +20,8 @@ from oak.application import CommandContext, ReleaseService
 from oak.bootstrap import (
     create_candidate_planning_service,
     create_design_case_service,
+    load_native_consent,
+    native_consent_text,
 )
 from oak.contracts import SchemaRegistry, load_yaml_document
 
@@ -107,6 +109,7 @@ def build_compiled_case(
         lambda role: LocalEd25519Signer.load(trust_directory, role),
         FilesystemMailbox(mailbox_root),
         runner_identities=lambda: load_runner_identities(trust_directory),
+        native_consent=native_consent_text(registry),
     )
     return ReleaseHarness(
         workspace=workspace,
@@ -201,7 +204,8 @@ def approve_actions(
 
     Returns the case version after the last one, so a test can go on to dispatch
     without counting successors by hand. An install needs both the ``architecture``
-    and the ``apply`` approval, in that order.
+    and the ``apply`` approval, in that order; a native one needs ``native_consent``
+    between them, given here with the digest of the installed consent text.
     """
 
     patch = first_version
@@ -209,9 +213,18 @@ def approve_actions(
         harness.release.approve(
             action,
             harness.context(f"approve-{action.replace('_', '-')}-000001", f"0.1.{patch}"),
+            consent_digest=consent_digest() if action == "native_consent" else None,
         )
         patch += 1
     return f"0.1.{patch}"
+
+
+def consent_digest() -> str:
+    """The digest of the consent text installed now: what a user approves with."""
+
+    from oak.domain.runner_adapters import native_consent_reference
+
+    return native_consent_reference(load_native_consent())["digest"]
 
 
 def resign(document: dict[str, Any], trust_directory: Path, role: str) -> dict[str, Any]:

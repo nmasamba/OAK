@@ -5,6 +5,7 @@ import copy
 from dataclasses import dataclass
 from datetime import timedelta
 from typing import Any
+from urllib.parse import urlsplit
 
 from oak.contracts import SchemaRegistry
 from oak.domain import (
@@ -16,17 +17,20 @@ from oak.domain import (
     json_artifact,
 )
 from oak.domain.runner_adapters import (
+    ACKNOWLEDGEMENT_NATIVE,
     ADAPTER_IDENTITY_BY_ID,
     CONTAINER_ADAPTER_ID,
     INSTALLATION_SCOPE_EXTENSION,
     ISOLATION_BY_ACKNOWLEDGEMENT,
     ISOLATION_STARTED_HARDENED,
     MAXIMUM_CONTAINERS,
+    NATIVE_ADAPTER_ID,
     REVIEW_ADAPTER_DIGEST,
     REVIEW_ADAPTER_ID,
     REVIEW_ADAPTER_VERSION,
     REVIEW_PARAMETER_SCHEMA_DIGEST,
     container_name_for,
+    harness_shape_problem,
     installation_id_for,
 )
 
@@ -77,7 +81,11 @@ def compile_review_plan(
     registry: SchemaRegistry,
     created_at: str,
     installation_scope: str,
+    native_consent: dict[str, Any] | None = None,
 ) -> CompiledReviewPlan:
+    """Compile the review plan; ``native_consent`` names the consent document by id,
+    version and digest, needed only when the target acknowledges a native install."""
+
     candidate_document = _document(candidate)
     _reject_superseded_execution(target)
     preflight_results = _target_preflight(candidate_document, target)
@@ -210,6 +218,7 @@ def compile_review_plan(
         signature=signature,
         verification_policy=verification_policy,
         created_at=created_at,
+        native_consent=native_consent,
     )
     registry.validate("runner-plan.schema.json", runner_document)
     _reject_execution_fields(runner_document)
@@ -408,6 +417,7 @@ def _runner_plan_document(
     signature: Artifact,
     verification_policy: Artifact,
     created_at: str,
+    native_consent: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     operation_kinds = ("inventory", "validate", "render", "plan", "verify")
     operations = []
@@ -460,6 +470,7 @@ def _runner_plan_document(
                 target=target,
                 target_fingerprint=target_fingerprint,
                 depends_on=previous[-1:],
+                native_consent=native_consent,
             )
         )
     # A read-only plan's evidence policy is pinned byte for byte; only a plan that can
@@ -523,6 +534,7 @@ def _mutation_operations(
     target: dict[str, Any],
     target_fingerprint: str,
     depends_on: list[str],
+    native_consent: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     execution = target.get("execution")
     if not isinstance(execution, dict):
@@ -531,6 +543,16 @@ def _mutation_operations(
             "mutation-capable target profile is missing its execution block",
         )
     allowed = set(target["permissions"]["allowed_operations"])
+    if str(execution["mutation_acknowledgement"]) == ACKNOWLEDGEMENT_NATIVE:
+        return _native_operations(
+            case_ref=case_ref,
+            installation_scope=installation_scope,
+            candidate_document=candidate_document,
+            target=target,
+            target_fingerprint=target_fingerprint,
+            depends_on=depends_on,
+            native_consent=native_consent,
+        )
     isolation = ISOLATION_BY_ACKNOWLEDGEMENT[str(execution["mutation_acknowledgement"])]
     # One operation carries the whole topology: the runner refuses two operations of the
     # same kind, which keeps what it verified and what it executes the same list.
@@ -588,6 +610,184 @@ def _mutation_operations(
         )
         previous.append(operation_id)
     return operations
+
+
+def _native_operations(
+    *,
+    case_ref: ArtifactReference,
+    installation_scope: str,
+    candidate_document: dict[str, Any],
+    target: dict[str, Any],
+    target_fingerprint: str,
+    depends_on: list[str],
+    native_consent: dict[str, Any] | None,
+) -> list[dict[str, Any]]:
+    """The native install (ADR-0019): one operation per kind carrying every component.
+
+    The consent document is named by id, version and digest, so the installation digest a
+    `native_consent` approval binds covers the text the user read. The download hosts are
+    the operation's declared network destinations, which the runner compares with its own
+    profile's.
+    """
+
+    if native_consent is None:
+        raise OAKError(
+            "OAK-NATIVE-CONSENT", "a native target compiles only with its consent document"
+        )
+    execution = target["execution"]
+    allowed = set(target["permissions"]["allowed_operations"])
+    installation_id = installation_id_for(
+        case_ref.to_document(), str(target["id"]), installation_scope
+    )
+    hosts = sorted({str(host) for host in execution.get("allowed_download_hosts", [])})
+    parameters = {
+        "case_id": case_ref.id,
+        "target_id": str(target["id"]),
+        "installation_id": installation_id,
+        "consent_ref": dict(native_consent),
+        "allowed_download_hosts": hosts,
+        "components": _native_installation(candidate_document, target),
+    }
+    identity = ADAPTER_IDENTITY_BY_ID[NATIVE_ADAPTER_ID]
+    failure_by_kind = {
+        "apply": "rollback",
+        "rollback": "manual_recovery",
+        "destroy": "manual_recovery",
+    }
+    operations: list[dict[str, Any]] = []
+    previous = list(depends_on)
+    for index, kind in enumerate(("apply", "rollback", "destroy"), start=1):
+        if kind not in allowed:
+            continue
+        operation_id = f"operation.{kind}"
+        operations.append(
+            {
+                "id": operation_id,
+                "kind": kind,
+                "adapter": dict(identity),
+                "artifact_refs": [],
+                "parameters": dict(parameters),
+                "secret_references": [],
+                "permissions": {
+                    "resource_types": ["local-native-process"],
+                    "verbs": ["get", "list", "create", "delete", "execute"],
+                    "namespaces": ["native"],
+                    "network_destinations": hosts if kind == "apply" else [],
+                },
+                "timeout_seconds": 600 if kind == "apply" else 120,
+                "retry_policy": {
+                    "max_attempts": 1,
+                    "backoff_seconds": 0,
+                    "retryable_errors": [],
+                },
+                "idempotency_key": f"native-{kind}-operation-{index:02d}",
+                "expected_state_digest": target_fingerprint,
+                "failure_action": failure_by_kind[kind],
+                "depends_on": previous[-1:],
+            }
+        )
+        previous.append(operation_id)
+    return operations
+
+
+def _native_components(target: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    execution = target.get("execution")
+    entries = execution.get("native_components") if isinstance(execution, dict) else None
+    components: dict[str, dict[str, Any]] = {}
+    for entry in entries if isinstance(entries, list) else []:
+        manifest_id = str(entry["manifest_id"])
+        if manifest_id in components:
+            raise OAKError(
+                "OAK-TARGET-EXECUTION",
+                f"execution.native_components lists {manifest_id} more than once",
+            )
+        components[manifest_id] = entry
+    return components
+
+
+def _native_installation(
+    candidate_document: dict[str, Any], target: dict[str, Any]
+) -> list[dict[str, Any]]:
+    components = _native_components(target)
+    installed: list[dict[str, Any]] = []
+    for node_id, manifest_id in installable_nodes(candidate_document):
+        entry = components.get(manifest_id)
+        if entry is None:  # pragma: no cover - preflight.installation refuses first
+            raise OAKError(
+                "OAK-TARGET-INCOMPATIBLE",
+                f"target acknowledges no native harness for component {manifest_id}",
+            )
+        installed.append(
+            {
+                "node_id": node_id,
+                "manifest_id": manifest_id,
+                "harness_kind": str(entry["harness_kind"]),
+                "artifacts": [dict(artifact) for artifact in entry["artifacts"]],
+                "listen_port": int(entry["listen_port"]),
+                "health_probe": dict(entry["health_probe"]),
+            }
+        )
+    return installed
+
+
+def _native_preflight(candidate: dict[str, Any], target: dict[str, Any]) -> dict[str, Any]:
+    """Whether this target can install this candidate natively, before anything is signed."""
+
+    nodes = installable_nodes(candidate)
+    components = _native_components(target)
+    hosts = set(target["execution"].get("allowed_download_hosts", []))
+    missing = sorted({manifest_id for _, manifest_id in nodes if manifest_id not in components})
+    problems: list[str] = []
+    ports: dict[int, str] = {}
+    for node_id, manifest_id in nodes:
+        entry = components.get(manifest_id)
+        if entry is None:
+            continue
+        shape = harness_shape_problem(str(entry["harness_kind"]), list(entry["artifacts"]))
+        if shape is not None:
+            problems.append(f"{manifest_id}: {shape}")
+        for artifact in entry["artifacts"]:
+            source = str(artifact["source"])
+            if source.startswith("https://") and urlsplit(source).hostname not in hosts:
+                problems.append(f"{manifest_id}: {urlsplit(source).hostname} is not acknowledged")
+        port = int(entry["listen_port"])
+        if port in ports:
+            problems.append(f"{node_id} and {ports[port]} would both listen on {port}")
+        ports[port] = node_id
+    if not nodes:
+        result, reason = "fail", "The selected candidate has no node with a component to install."
+    elif len(nodes) > MAXIMUM_CONTAINERS:
+        result, reason = "fail", "The candidate has more nodes than one install may create."
+    elif missing:
+        result = "fail"
+        reason = (
+            "The target acknowledges no native harness for "
+            + ", ".join(missing)
+            + "; declare each in execution.native_components."
+        )
+    elif problems:
+        result, reason = "fail", "; ".join(problems)
+    else:
+        result = "pass"
+        reason = (
+            "Every installable node's component has an acknowledged harness, artifacts "
+            "pinned by SHA-256 and size from acknowledged hosts, and a port of its own."
+        )
+    return {
+        "id": "preflight.installation",
+        "category": "compatibility",
+        "result": result,
+        "reason": reason,
+        "evidence": {
+            "mode": "native",
+            "nodes": [
+                {"node_id": node_id, "manifest_id": manifest_id} for node_id, manifest_id in nodes
+            ],
+            "acknowledged_components": sorted(components),
+            "missing_components": missing,
+            "allowed_download_hosts": sorted(hosts),
+        },
+    }
 
 
 def installable_nodes(candidate_document: dict[str, Any]) -> list[tuple[str, str]]:
@@ -732,16 +932,7 @@ def _target_preflight(candidate: dict[str, Any], target: dict[str, Any]) -> list
                 },
             },
         },
-        {
-            "id": "preflight.network",
-            "category": "network",
-            "result": "pass",
-            "reason": "The plan requests no network destinations or target ports.",
-            "evidence": {
-                "declared_mode": target["network"]["mode"],
-                "network_destinations": [],
-            },
-        },
+        _network_preflight(target),
         {
             "id": "preflight.certificate",
             "category": "certificate",
@@ -789,7 +980,50 @@ def _target_preflight(candidate: dict[str, Any], target: dict[str, Any]) -> list
     return results
 
 
+def _network_preflight(target: dict[str, Any]) -> dict[str, Any]:
+    """What the plan asks of the network; a native install downloads, and listens locally."""
+
+    execution = target.get("execution")
+    if isinstance(execution, dict) and (
+        execution.get("mutation_acknowledgement") == ACKNOWLEDGEMENT_NATIVE
+    ):
+        return {
+            "id": "preflight.network",
+            "category": "network",
+            "result": "pass",
+            "reason": (
+                "The install downloads only from the hosts the profile acknowledges, and each "
+                "component listens on 127.0.0.1 at its acknowledged port."
+            ),
+            "evidence": {
+                "declared_mode": target["network"]["mode"],
+                "network_destinations": sorted(
+                    {str(host) for host in execution.get("allowed_download_hosts", [])}
+                ),
+                "loopback_ports": sorted(
+                    int(entry["listen_port"]) for entry in execution.get("native_components", [])
+                ),
+            },
+        }
+    return {
+        "id": "preflight.network",
+        "category": "network",
+        "result": "pass",
+        "reason": "The plan requests no network destinations or target ports.",
+        "evidence": {
+            "declared_mode": target["network"]["mode"],
+            "network_destinations": [],
+        },
+    }
+
+
 def _installation_preflight(candidate: dict[str, Any], target: dict[str, Any]) -> dict[str, Any]:
+    execution = target.get("execution")
+    if (
+        isinstance(execution, dict)
+        and execution.get("mutation_acknowledgement") == ACKNOWLEDGEMENT_NATIVE
+    ):
+        return _native_preflight(candidate, target)
     nodes = installable_nodes(candidate)
     images = _acknowledged_images(target)
     missing = sorted({manifest_id for _, manifest_id in nodes if manifest_id not in images})
