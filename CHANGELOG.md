@@ -6,6 +6,11 @@ All notable changes to OAK Community are recorded here.
 
 ## Unreleased
 
+### Tier 3, Batch B (`OAK-V1-039`–`043`)
+
+The second batch of Tier 3, launched by the owner on 2026-11-02: hardware scanning, then native
+installation. In progress; entries land with each milestone.
+
 ### After Batch A (`OAK-V1-038`)
 
 #### Fixed
