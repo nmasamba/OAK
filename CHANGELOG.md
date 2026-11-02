@@ -64,7 +64,8 @@ installation. In progress; entries land with each milestone.
   aarch64. It fetches each artifact over HTTPS from an acknowledged host only, with TLS
   verified, no proxy taken from the environment and every redirect checked; refuses a file
   whose size or SHA-256 differs from the profile's before anything runs; unpacks an archive
-  without following a link, an absolute path or a `..`; starts each component from its
+  without following a link, an absolute path or a `..`, writing a link to a file inside it
+  as a copy of that file; starts each component from its
   harness kind's fixed argument template on 127.0.0.1, with no core files, at most 4,096
   open files and no written file over 2 GiB; probes its health path; and stops it. Nothing
   keeps running and nothing starts with the computer. An ownership marker keeps it from
@@ -79,6 +80,23 @@ installation. In progress; entries land with each milestone.
   architecture` shows a native installation with its three approvals. New codes
   `OAK-NATIVE-CONSENT`, `-DIGEST`, `-HOST`, `-SIZE`, `-DOWNLOAD`, `-ARCHIVE`, `-HARNESS`,
   `-PLATFORM`, `-START`, `-SMOKE`, `-OWNERSHIP` and `-UNINSTALL`.
+- **The native path on three platforms, observed, and shown in the browser**
+  (`OAK-V1-042`). `make check` runs the native journey through the installed `oak` and
+  `oak-runner`, with no Docker, so CI proves it on macOS on Apple silicon and on Linux
+  x86_64 and aarch64. After an install the runner prints the installation's folder and
+  that nothing is running, and the folder's `START.txt` gives each component's start
+  command. `oak observe` reads a native installation: install and check success, each
+  node's seconds to its first healthy answer, and the installation's state
+  (`observation-record.schema.json` gains `native-user-consented` and rows named by
+  installation). A native plan's bundle page shows the consent's state beside the other
+  two approvals, the consent text, and the install steps with the plan's consent digest,
+  read through the new `GET /v1/native-consent`; the web records no consent. A link inside a
+  release archive, such as a library's versioned name, is unpacked as a copy of the file it
+  names; a refused redirect names the host, because a CDN's host can differ by region.
+  `examples/targets/local-native-llama-cpp.yaml` pins llama.cpp's server (build `b11721`)
+  and Qwen2.5-0.5B-Instruct by the digests their publishers list; it is not yet rehearsed.
+  Documents: `operations.md`, `platforms.md`, the README, `interfaces.md` and the manual,
+  with its PDF.
 
 ### After Batch A (`OAK-V1-038`)
 

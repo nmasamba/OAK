@@ -50,6 +50,17 @@ class ConfirmClaimsRequest(StrictResponse):
     answers: dict[str, Any]
 
 
+class NativeConsentReference(StrictResponse):
+    id: str
+    version: str
+    digest: str
+
+
+class NativeConsentResponse(StrictResponse):
+    consent: dict[str, Any]
+    consent_ref: NativeConsentReference
+
+
 class ProposeHardwareRequest(StrictResponse):
     scan: dict[str, Any]
     scanned_by: Literal["oak_scan", "runner_inventory"] = "oak_scan"

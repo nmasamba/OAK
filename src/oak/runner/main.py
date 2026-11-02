@@ -26,13 +26,14 @@ import yaml
 from oak.contracts import load_yaml_document
 from oak.contracts.signatures import verify_signed_document
 from oak.domain import OAKError
+from oak.domain.runner_adapters import NATIVE_ADAPTER_ID
 from oak.runner.adapters import ContainerFixtureAdapter, isolated_executor
 from oak.runner.execution import execute_dispatch
 from oak.runner.heartbeat import HEARTBEAT_INTERVAL_SECONDS, LeaseHeartbeat
 from oak.runner.identity import RunnerIdentity
 from oak.runner.journal import RunnerJournal
 from oak.runner.mailbox import RunnerMailbox, is_safe_name
-from oak.runner.native import NativeProcessAdapter
+from oak.runner.native import START_FILE, NativeProcessAdapter
 from oak.runner.schemas import load_registry
 from oak.runner.verification import (
     RunnerDenialError,
@@ -94,6 +95,22 @@ def run_once(
             )
     finally:
         os.close(lock)
+
+
+def _print_native_start(
+    operations: tuple[dict[str, Any], ...], applied: tuple[str, ...], home: Path
+) -> None:
+    """After a native install, say that nothing runs and where the start commands are."""
+
+    if "apply" not in applied:
+        return
+    for operation in operations:
+        if operation["kind"] == "apply" and operation["adapter"]["id"] == NATIVE_ADAPTER_ID:
+            folder = home / "native" / str(operation["parameters"]["installation_id"])
+            print(
+                f"installed natively in {folder}; nothing is running. "
+                f"To start a component yourself, see {folder / START_FILE}"
+            )
 
 
 @contextlib.contextmanager
@@ -281,6 +298,7 @@ def _run_once_locked(
             ) from error
         processed_any = True
         print(f"completed {dispatch_id}: {outcome.outcome}")
+        _print_native_start(verified.operations, outcome.applied_kinds, home)
     if not processed_any:
         print("no pending dispatches")
     removed = mailbox.clean_processed_dispatches(

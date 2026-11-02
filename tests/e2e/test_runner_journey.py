@@ -414,9 +414,11 @@ def test_a_native_install_needs_the_consent_and_leaves_nothing_running(tmp_path:
     oak("approve", "apply")
 
     oak("dispatch", "apply")
-    assert "succeeded" in runner()
+    installed = runner()
+    assert "succeeded" in installed and "nothing is running" in installed
     assert json.loads(oak("ingest", "--output", "json").stdout)["case"]["status"] == "deployed"
     installations = list((tmp_path / "runner" / "native").glob("installation.*"))
+    assert (installations[0] / "START.txt").is_file()
     assert len(installations) == 1
     assert (installations[0] / ".oak-installation.json").is_file()
     assert not any(_listening(port) for port in ports)

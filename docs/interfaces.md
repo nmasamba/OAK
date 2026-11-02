@@ -167,7 +167,8 @@ prohibition).
 | Render GitOps files | ● | ✕ | — | ✕ | — |
 | Validate export/bundle/webhook | ● | ✕ | — | — | — |
 | Sign plan | ● | ✕ | — | ✕ | — |
-| Approve (`dry_run`, `architecture`, `apply`, `rollback`, `destroy`) / revoke approval | ● | ✕ | — | ✕ | — |
+| Approve (`dry_run`, `architecture`, `native_consent`, `apply`, `rollback`, `destroy`) / revoke approval | ● | ✕ | — | ✕ | — |
+| Read the consent text a native installation is approved against (`oak approve native_consent` without `--consent`; `GET /v1/native-consent`) | ○ | — | ○ | — | ○ |
 | Dispatch runner / ingest / record an observation (`oak observe`) | ● | ✕ | — | ✕ | — |
 | Manage keys / extensions / policy | ● | ✕ | — | ✕ | — |
 | Store, verify or remove the Hugging Face token | ● | ✕ | ● | ✕ | ● |

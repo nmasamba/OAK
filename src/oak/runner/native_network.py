@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import hashlib
 import http.client
+import re
 import ssl
 import urllib.error
 import urllib.parse
@@ -24,8 +25,17 @@ from oak.domain import OAKError
 
 MAXIMUM_REDIRECTS = 5
 CHUNK_BYTES = 1 << 20
+_HOST = re.compile(r"[a-z0-9][a-z0-9.-]{0,252}")
 
 Opener = Callable[[str, float], Any]
+
+
+def _printable(host: str | None) -> str:
+    """A host as it may appear in a message: a plain DNS name, or a placeholder."""
+
+    if host is not None and _HOST.fullmatch(host):
+        return host
+    return "a host that is not https or not a plain name"
 
 
 def https_host(url: str) -> str | None:
@@ -57,10 +67,14 @@ class _AllowedRedirects(urllib.request.HTTPRedirectHandler):
         headers: http.client.HTTPMessage,
         newurl: str,
     ) -> urllib.request.Request | None:
-        if https_host(newurl) not in self._allowed:
+        host = https_host(newurl)
+        if host not in self._allowed:
+            # Named, so the user can decide whether to acknowledge it: a CDN's host can
+            # differ by region.
             raise OAKError(
                 "OAK-NATIVE-HOST",
-                "a download redirected to a host the target profile does not acknowledge",
+                f"a download redirected to {_printable(host)}, which the target profile "
+                "does not acknowledge",
             )
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 

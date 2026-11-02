@@ -68,7 +68,9 @@ rather than letting the mode contradict it silently.
   - every artifact fetched only over HTTPS from a host the profile acknowledges
     (`execution.allowed_download_hosts`), each redirect checked against the same list, its size
     and SHA-256 verified before anything executes, written into a runner-owned directory with
-    modes the runner sets, and unpacked without following a link, an absolute path or `..`;
+    modes the runner sets, and unpacked without following a link, an absolute path or `..`
+    (a link to a file inside the archive is written as a copy of that file, and no other
+    link is accepted);
   - an ownership marker in each installation, and a refusal to stop or remove anything the
     runner did not install;
   - the journal before and after each side effect;
@@ -116,7 +118,7 @@ rather than letting the mode contradict it silently.
 ## Evidence and validation
 
 Unit and integration tests for every refusal (a digest or size mismatch, an archive member
-that escapes or links, a host or redirect the profile does not name, a foreign process, a
+that escapes, or a link that leaves the archive or names nothing in it, a host or redirect the profile does not name, a foreign process, a
 consent for another installation or with another list of controls); the native journey in
 `make check` on all three CI jobs; an uninstall proven with a canary file beside the
 installation; the rehearsal of the example profile, recorded with its digests.

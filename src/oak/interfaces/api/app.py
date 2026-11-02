@@ -62,6 +62,8 @@ from oak.interfaces.api.models import (
     ModelFamily,
     ModelSelectionRequest,
     ModelStatusResponse,
+    NativeConsentReference,
+    NativeConsentResponse,
     OperationResponse,
     OutboxLagResponse,
     Problem,
@@ -589,7 +591,9 @@ def _error_status(error: OAKError) -> int:
         return 400
     if error.code in {"OAK-MODEL-RATE-LIMITED", "OAK-OPERATION-QUOTA", "OAK-MODEL-BUDGET"}:
         return 429
-    if error.code == "OAK-DATABASE-UNCONFIGURED":
+    # A consent text the server cannot read is the server's own configuration, never the
+    # request's (ADR-0019): a consent is given only on the local command line.
+    if error.code in {"OAK-DATABASE-UNCONFIGURED", "OAK-NATIVE-CONSENT"}:
         return 503
     if error.code in {
         "OAK-CASE-NOT-FOUND",
@@ -1435,6 +1439,22 @@ def create_app(
             ),
             discovery=discovery,
             stores=status["stores"],
+        )
+
+    @api.get("/v1/native-consent", response_model=NativeConsentResponse, tags=["system"])
+    def get_native_consent(auth: AuthorityDependency) -> NativeConsentResponse:
+        """The consent text a native installation is approved against, and its digest.
+
+        What `oak approve native_consent` shows, served so the web can show it beside a native
+        plan (ADR-0019). Reading it records nothing: a consent is given only on the local
+        command line, with this digest.
+        """
+
+        del auth
+        document = plane().native_consent_text()
+        return NativeConsentResponse(
+            consent=document["consent"],
+            consent_ref=NativeConsentReference(**document["consent_ref"]),
         )
 
     @api.get("/v1/models", response_model=ModelStatusResponse, tags=["models"])

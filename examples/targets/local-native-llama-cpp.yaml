@@ -1,0 +1,93 @@
+# SPDX-License-Identifier: Apache-2.0
+target_profile_version: 0.2.0
+id: target.local-native-llama-cpp
+status: non-production-local
+environment: validation
+tenant_id: local
+platform:
+  operating_system: linux
+  architecture: x86_64
+  accelerators: []
+  drivers: []
+  container_runtime: none (native installation)
+capacity:
+  ram_gib: 32
+  storage_gib: 100
+network:
+  mode: isolated-no-egress
+  inbound_control_plane: false
+permissions:
+  mutation_allowed: true
+  allowed_operations: [inventory, validate, render, plan, verify, apply, rollback, destroy]
+execution:
+  mutation_acknowledgement: native-non-production-user-consented
+  native_components:
+    - manifest_id: component.fixture-lexical-search
+      harness_kind: oak_stand_in
+      artifacts:
+        - role: harness
+          source: oak-stand-in:http-server
+          sha256: sha256:71ec5f57b36e7f6aa9f963197845708cda430b7f028ea9bbf063fea80cf4351a
+          size_bytes: 1756
+          format: file
+      listen_port: 18431
+      health_probe: {path: /health}
+    - manifest_id: component.fixture-local-model
+      harness_kind: llama_cpp_server
+      artifacts:
+        - role: harness
+          source: https://github.com/ggml-org/llama.cpp/releases/download/b11721/llama-b11721-bin-macos-arm64.tar.gz
+          sha256: sha256:2ace55512ee1ab4e2703f80c135c2a92d40d3367a5b3a98d21b103ffa7f0eb82
+          size_bytes: 12292671
+          format: tar.gz
+        - role: model
+          source: https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/9217f5db79a29953eb74d5343926648285ec7e67/qwen2.5-0.5b-instruct-q4_k_m.gguf
+          sha256: sha256:74a4da8c9fdbcd15bd1f6d01d621410d31c6fc00986f5eb687824e7b93d7a9db
+          size_bytes: 491400032
+          format: file
+      listen_port: 18432
+      health_probe: {path: /health}
+    - manifest_id: component.fixture-high-assurance-model
+      harness_kind: llama_cpp_server
+      artifacts:
+        - role: harness
+          source: https://github.com/ggml-org/llama.cpp/releases/download/b11721/llama-b11721-bin-macos-arm64.tar.gz
+          sha256: sha256:2ace55512ee1ab4e2703f80c135c2a92d40d3367a5b3a98d21b103ffa7f0eb82
+          size_bytes: 12292671
+          format: tar.gz
+        - role: model
+          source: https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/9217f5db79a29953eb74d5343926648285ec7e67/qwen2.5-0.5b-instruct-q4_k_m.gguf
+          sha256: sha256:74a4da8c9fdbcd15bd1f6d01d621410d31c6fc00986f5eb687824e7b93d7a9db
+          size_bytes: 491400032
+          format: file
+      listen_port: 18433
+      health_probe: {path: /health}
+  allowed_download_hosts:
+    - github.com
+    - release-assets.githubusercontent.com
+    - huggingface.co
+    - us.aws.cdn.hf.co
+secrets:
+  allowed_references: []
+notes:
+  - Example non-production target for a native installation with a real harness (ADR-0019).
+    It installs llama.cpp's llama-server (build b11721 of 2026-10-18, for macOS on Apple
+    silicon) with Qwen2.5-0.5B-Instruct quantised to Q4_K_M (Apache-2.0, 491,400,032
+    bytes) for each model node, and OAK's stand-in for the search node. Each digest and size
+    is the one GitHub and Hugging Face publish for the file; nothing here was downloaded to
+    write it.
+  - Installing downloads about 12 MB and 491 MB once per model node, starts each llama-server
+    on 127.0.0.1 at its port, waits for /health to answer, and stops it. To run it later,
+    start the llama-server binary in the runner home's native folder with the same arguments.
+  - The downloads redirect, so the hosts list the file hosts as well as GitHub and Hugging
+    Face. Hugging Face's file host can differ by region; a redirect to a host this list does
+    not name is refused, and the refusal names the host to add if you trust it.
+  - On Linux, swap the harness archive for llama-b11721-bin-ubuntu-x64.tar.gz (17,972,490
+    bytes, sha256:68c7a4dfb6a53e607b73c00c839bfc81c55141cd0a7697c0252e634190647c2f) or
+    llama-b11721-bin-ubuntu-arm64.tar.gz (14,022,511 bytes,
+    sha256:fafae7c6df59f4bcaadf0e1ec4320deaacf0b3f7eeadb4fdf0ad586f0daaf397); those builds
+    may need system libraries the release names.
+  - The declared platform is the one the synthetic catalogue components require; the native
+    adapter itself runs on macOS on Apple silicon and on Linux on x86_64 and aarch64.
+  - Not yet rehearsed. Whether macOS runs the downloaded binary is decided by Gatekeeper and
+    its code signing, which only an install on the machine shows.

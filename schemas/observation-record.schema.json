@@ -94,7 +94,8 @@
             {
               "enum": [
                 "network-none-never-started",
-                "network-none-started-hardened"
+                "network-none-started-hardened",
+                "native-user-consented"
               ]
             },
             {
@@ -538,15 +539,19 @@
       }
     },
     "unpredicted": {
+      "description": "A reading with no prediction to compare, from a container (named by `container_name`) or from a native installation (named by `installation_id`, ADR-0019).",
       "type": "object",
       "additionalProperties": false,
       "required": [
         "node_id",
-        "container_name",
         "metric",
         "value",
         "unit",
         "evidence_ref"
+      ],
+      "oneOf": [
+        {"required": ["container_name"], "not": {"required": ["installation_id"]}},
+        {"required": ["installation_id"], "not": {"required": ["container_name"]}}
       ],
       "properties": {
         "node_id": {
@@ -555,6 +560,10 @@
         "container_name": {
           "type": "string",
           "pattern": "^oak-fixture-[a-z0-9][a-z0-9-]{0,62}$"
+        },
+        "installation_id": {
+          "type": "string",
+          "pattern": "^installation\\.[a-f0-9]{24}$"
         },
         "metric": {
           "enum": [

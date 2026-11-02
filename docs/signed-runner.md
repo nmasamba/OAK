@@ -333,7 +333,9 @@ aarch64, and refuses any other platform (`OAK-NATIVE-PLATFORM`). For a verified 
    download refused as soon as it grows past the acknowledged size (`OAK-NATIVE-HOST`,
    `OAK-NATIVE-SIZE`, `OAK-NATIVE-DOWNLOAD`); the stand-in is copied from inside OAK instead. A file whose size
    or SHA-256 is not the profile's is refused before anything runs (`OAK-NATIVE-DIGEST`).
-   An archive is unpacked member by member, and a link, a device, an absolute path, a `..`,
+   An archive is unpacked member by member. A link to a file inside it, such as a library's
+   versioned name, is written as a copy of that file, so nothing unpacked is ever a link; a
+   link that leaves the archive or names nothing in it, a device, an absolute path, a `..`,
    more than 10,000 members or more than 64 GiB is refused (`OAK-NATIVE-ARCHIVE`).
 3. It starts each component from its harness kind's fixed argument template: the stand-in
    through the runner's own interpreter, `llama-server` with `--host 127.0.0.1`, its port

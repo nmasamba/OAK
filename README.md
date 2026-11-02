@@ -177,6 +177,15 @@ labelled containers from it; a rollback removes the containers, and the image st
 you remove it. And if you install OAK's keychain support in the source way, a stored AI
 token goes into your operating system's keychain instead.
 
+A design can also be installed without Docker, after you consent to what that gives up
+(`oak approve native_consent`): the runner then downloads only the programs and models your
+target profile names, from the hosts it names, checks each one's size and SHA-256, installs
+them in one folder under `~/.oak/runner/native`, starts each once to check it answers, and
+stops it. Nothing keeps running and nothing starts with your computer; a `START.txt` in that
+folder says how to start each one, and removing the installation deletes the folder. OAK's
+`oak scan` reports whether Docker and `uv` are installed and links to their official
+installers; it never installs them.
+
 This is what `docker compose up` starts:
 
 | Container | What it does | Where you reach it |

@@ -25,6 +25,7 @@ from oak.domain import OAKError
 from oak.runner.adapters import AdapterFailureError
 from oak.runner.native import (
     MARKER,
+    START_FILE,
     NativeArtifact,
     NativeComponent,
     NativeProcessAdapter,
@@ -100,6 +101,15 @@ def test_the_stand_in_is_installed_proven_stopped_and_removed(tmp_path: Path) ->
     directory = root / INSTALLATION
     assert stat.S_IMODE(os.lstat(directory).st_mode) == 0o700
     assert json.loads((directory / MARKER).read_text())["state"] == "installed"
+    # Nothing is left running, so the user is told how to start each component.
+    assert status["content"]["running"] is False
+    assert status["content"]["start_instructions"] == START_FILE
+    instructions = directory / START_FILE
+    assert stat.S_IMODE(os.lstat(instructions).st_mode) == 0o600
+    text = instructions.read_text(encoding="utf-8")
+    assert text.startswith("Nothing from this installation is running.")
+    assert f"node.answer (oak_stand_in) on 127.0.0.1:{port}" in text
+    assert f"--port {port}" in text
 
     again = adapter.apply(_parameters(port=port), 120)
     assert again[1]["content"]["passed"] is True, "a second apply adopts its own installation"
@@ -327,3 +337,158 @@ def test_the_ceilings_only_ever_lower_the_runners_own_limits() -> None:
             assert soft <= current_soft
         if current_hard != resource.RLIM_INFINITY:
             assert hard <= current_hard
+
+
+def _tar(path: Path, members: list[tarfile.TarInfo | tuple[str, bytes]]) -> Path:
+    with tarfile.open(path, "w:gz") as bundle:
+        for member in members:
+            if isinstance(member, tarfile.TarInfo):
+                bundle.addfile(member)
+            else:
+                name, content = member
+                info = tarfile.TarInfo(name)
+                info.size = len(content)
+                bundle.addfile(info, io.BytesIO(content))
+    return path
+
+
+def _link(name: str, target: str, *, hard: bool = False) -> tarfile.TarInfo:
+    info = tarfile.TarInfo(name)
+    info.type = tarfile.LNKTYPE if hard else tarfile.SYMTYPE
+    info.linkname = target
+    return info
+
+
+def test_a_release_s_library_links_unpack_as_copies_and_never_as_links(tmp_path: Path) -> None:
+    """A versioned library and its links, as a release built with CMake ships them; a link
+    may come before the file it names."""
+
+    archive = _tar(
+        tmp_path / "release.tar.gz",
+        [
+            _link("./build/bin/libllama.dylib", "libllama.0.dylib"),
+            _link("./build/bin/libllama.0.dylib", "../bin/libllama.0.0.1.dylib"),
+            ("./build/bin/libllama.0.0.1.dylib", b"library"),
+            ("./build/bin/llama-server", b"\x7fELF"),
+            _link("build/bin/hard-copy", "build/bin/llama-server", hard=True),
+        ],
+    )
+    out = tmp_path / "unpacked"
+    out.mkdir()
+
+    _unpack_tar(archive, out)
+
+    folder = out / "build" / "bin"
+    for name, content in (
+        ("libllama.dylib", b"library"),
+        ("libllama.0.dylib", b"library"),
+        ("libllama.0.0.1.dylib", b"library"),
+        ("hard-copy", b"\x7fELF"),
+    ):
+        path = folder / name
+        assert not path.is_symlink() and path.read_bytes() == content, name
+        assert stat.S_IMODE(path.stat().st_mode) == 0o600
+    assert not any(path.is_symlink() for path in out.rglob("*"))
+
+
+@pytest.mark.parametrize(
+    "members",
+    [
+        [_link("bin/x", "../../outside")],
+        [("real", b"x"), _link("bin/x", "../../real")],
+        [_link("bin/x", "/etc/passwd")],
+        [_link("bin/x", "missing")],
+        [("lib/real", b"x"), _link("bin/lib", "../lib")],
+        [_link("bin/a", "b"), _link("bin/b", "a")],
+        [_link("bin/x", "../../outside", hard=True)],
+    ],
+)
+def test_a_link_that_leaves_names_nothing_or_loops_is_refused(
+    tmp_path: Path, members: list[tarfile.TarInfo | tuple[str, bytes]]
+) -> None:
+    archive = _tar(tmp_path / "release.tar.gz", members)
+    out = tmp_path / "unpacked"
+    out.mkdir()
+
+    with pytest.raises(OAKError) as caught:
+        _unpack_tar(archive, out)
+
+    assert caught.value.code == "OAK-NATIVE-ARCHIVE"
+    assert not (tmp_path / "outside").exists()
+    assert not any(path.is_symlink() for path in out.rglob("*"))
+
+
+def test_a_zip_link_inside_the_archive_unpacks_as_a_copy(tmp_path: Path) -> None:
+    archive = tmp_path / "release.zip"
+    archive.write_bytes(
+        _zip(
+            [
+                ("bin/libggml.0.dylib", b"library", stat.S_IFREG | 0o644),
+                ("bin/libggml.dylib", b"libggml.0.dylib", stat.S_IFLNK | 0o777),
+            ]
+        )
+    )
+    out = tmp_path / "unpacked"
+    out.mkdir()
+
+    _unpack_zip(archive, out)
+
+    copy = out / "bin" / "libggml.dylib"
+    assert not copy.is_symlink() and copy.read_bytes() == b"library"
+
+
+def test_an_archive_that_cannot_be_unpacked_fails_the_install_it_started(
+    tmp_path: Path,
+) -> None:
+    """A duplicate member, or a truncated archive, is the archive's fault: nothing runs, and
+    the install it started is removed."""
+
+    duplicated = _tar(
+        tmp_path / "duplicated.tar.gz",
+        [("build/bin/llama-server", b"one"), ("build/bin/llama-server", b"two")],
+    ).read_bytes()
+    truncated = duplicated[: len(duplicated) // 2]
+    for content in (duplicated, truncated):
+        digest = "sha256:" + hashlib.sha256(content).hexdigest()
+
+        def fetch(
+            source: str,
+            destination: Path,
+            *,
+            archive: bytes = content,
+            named: str = digest,
+            **_: Any,
+        ) -> tuple[int, str]:
+            destination.write_bytes(archive)
+            return len(archive), named
+
+        def popen(*arguments: Any, **keywords: Any) -> Any:
+            raise AssertionError("nothing may start")
+
+        parameters = _parameters(port=_free_port())
+        parameters["allowed_download_hosts"] = ["example.org"]
+        parameters["components"][0].update(
+            harness_kind="llama_cpp_server",
+            artifacts=[
+                {
+                    "role": "harness",
+                    "source": "https://example.org/llama.tar.gz",
+                    "sha256": digest,
+                    "size_bytes": len(content),
+                    "format": "tar.gz",
+                },
+                {
+                    "role": "model",
+                    "source": "https://example.org/model.gguf",
+                    "sha256": digest,
+                    "size_bytes": len(content),
+                    "format": "file",
+                },
+            ],
+        )
+        adapter = NativeProcessAdapter(tmp_path / "native", fetch=fetch, popen=popen)
+        with pytest.raises(AdapterFailureError) as caught:
+            adapter.apply(parameters, 120)
+        assert caught.value.code == "OAK-NATIVE-ARCHIVE"
+        adapter.compensate(parameters, caught.value.created, 120)
+        assert not (tmp_path / "native" / INSTALLATION).exists()

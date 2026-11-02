@@ -11,8 +11,9 @@ runner's own target profile):
    never adopted, stopped or removed.
 2. For each artifact it fetches the bytes over HTTPS from an acknowledged host (or copies
    the stand-in from inside OAK), and refuses them unless their size and SHA-256 are the
-   ones the profile acknowledged. An archive is unpacked member by member: a link, an
-   absolute path, a `..`, a device or more than the limits is refused.
+   ones the profile acknowledged. An archive is unpacked member by member: a link to a
+   file inside it is written as a copy of that file, and a link that leaves it or names
+   nothing in it, an absolute path, a `..`, a device or more than the limits is refused.
 3. It starts each component from its harness kind's fixed argument template, bound to
    127.0.0.1, with only `PATH`, `HOME` and `LANG` in its environment and its own process
    group; probes its health path; and **stops it**: nothing is left running and no unit
@@ -30,6 +31,7 @@ import os
 import platform
 import re
 import resource
+import shlex
 import shutil
 import signal
 import stat
@@ -52,6 +54,9 @@ from oak.runner import native_network
 from oak.runner.adapters import AdapterFailureError
 
 MARKER = ".oak-installation.json"
+# Written beside the marker once every component has passed its check: how the user starts
+# each one, since the install leaves nothing running (the owner's Q4d answer).
+START_FILE = "START.txt"
 SUPPORTED_PLATFORMS = frozenset({("darwin", "arm64"), ("linux", "x86_64"), ("linux", "aarch64")})
 # The file inside OAK for each stand-in name the domain admits.
 STAND_IN_FILES = {"http-server": "http_server.py"}
@@ -65,6 +70,10 @@ STOP_SECONDS = 10.0
 DOWNLOAD_TIMEOUT_SECONDS = 60.0
 MAXIMUM_ARCHIVE_MEMBERS = 10_000
 MAXIMUM_UNPACKED_BYTES = 64 * 2**30
+# A link inside a release archive (a library's versioned name, say) is unpacked as a copy of
+# the file it names, never as a link; a chain of links longer than this is refused.
+MAXIMUM_LINK_HOPS = 8
+MAXIMUM_LINK_TARGET_BYTES = 4096
 LLAMA_SERVER = "llama-server"
 # The ceilings a component's check runs under, as far as this platform applies them
 # (ADR-0019; the consent names `resource_ceilings` among what a native install relaxes):
@@ -241,6 +250,7 @@ class NativeProcessAdapter:
         created = False
         installed: list[dict[str, Any]] = []
         tested: list[dict[str, Any]] = []
+        started_file = False
 
         def evidence() -> tuple[dict[str, Any], ...]:
             items: list[dict[str, Any]] = [
@@ -252,6 +262,8 @@ class NativeProcessAdapter:
                         "installation_id": installation.installation_id,
                         "relaxed_controls": list(NATIVE_RELAXED_CONTROLS),
                         "installation": installed,
+                        "running": False,
+                        "start_instructions": START_FILE if started_file else None,
                     },
                 }
             ]
@@ -342,6 +354,8 @@ class NativeProcessAdapter:
                 raise OAKError(
                     "OAK-NATIVE-SMOKE", "a native component did not answer its health probe"
                 )
+            _write_start_instructions(directory, prepared)
+            started_file = True
             self._write_marker(directory, installation, state="installed")
         except OAKError as error:
             raise AdapterFailureError(
@@ -412,10 +426,13 @@ class NativeProcessAdapter:
             if os.path.lexists(staging):
                 shutil.rmtree(staging)
             staging.mkdir(mode=0o700)
-            if artifact.format == "zip":
-                _unpack_zip(download, staging)
-            else:
-                _unpack_tar(download, staging)
+            try:
+                if artifact.format == "zip":
+                    _unpack_zip(download, staging)
+                else:
+                    _unpack_tar(download, staging)
+            except (OSError, EOFError, tarfile.TarError, zipfile.BadZipFile) as error:
+                raise OAKError("OAK-NATIVE-ARCHIVE", "the archive could not be unpacked") from error
             staging.rename(unpacked)
         return unpacked
 
@@ -625,6 +642,35 @@ class NativeProcessAdapter:
         }
 
 
+def _write_start_instructions(
+    directory: Path, prepared: list[tuple[NativeComponent, Path, tuple[str, ...]]]
+) -> None:
+    """How to start each installed component by hand: the same command the check ran.
+
+    A file in the installation, never a record: its paths name the user's home.
+    """
+
+    lines = [
+        "Nothing from this installation is running. OAK started each program once to check",
+        "that it answers on this computer, then stopped it. To start one yourself, run its",
+        "commands in a terminal, and stop it with Ctrl-C. Removing the installation",
+        "(oak approve destroy, then oak dispatch destroy) deletes this folder.",
+    ]
+    for component, working_directory, argv in prepared:
+        lines += [
+            "",
+            f"{component.node_id} ({component.harness_kind}) on 127.0.0.1:"
+            f"{component.listen_port}, health {component.probe_path}",
+            f"  cd {shlex.quote(str(working_directory))}",
+            f"  {shlex.join(argv)}",
+        ]
+    path = directory / START_FILE
+    temporary = directory / f"{START_FILE}.tmp"
+    temporary.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    os.chmod(temporary, 0o600)
+    temporary.replace(path)
+
+
 def _file_digest(path: Path) -> tuple[int, str]:
     digest = hashlib.sha256()
     size = 0
@@ -644,8 +690,66 @@ def _member_path(base: Path, name: str) -> Path:
     return base.joinpath(*pure.parts)
 
 
+def _archive_name(name: str) -> str:
+    """A member's name inside its archive, normalized (`./` dropped)."""
+
+    return "/".join(PurePosixPath(name).parts)
+
+
+def _link_target(name: str, linkname: str, *, hard: bool) -> str:
+    """The member a link names, normalized inside the archive; refuses one that leaves it.
+
+    A symbolic link is read from its own directory, a hard link from the archive's root.
+    """
+
+    if not linkname or linkname.startswith("/") or "\\" in linkname:
+        raise OAKError("OAK-NATIVE-ARCHIVE", "an archive link leaves its directory")
+    parts = [] if hard else list(PurePosixPath(_archive_name(name)).parent.parts)
+    for part in PurePosixPath(linkname).parts:
+        if part == "..":
+            if not parts:
+                raise OAKError("OAK-NATIVE-ARCHIVE", "an archive link leaves its directory")
+            parts.pop()
+        elif part not in ("", "."):
+            parts.append(part)
+    if not parts:
+        raise OAKError("OAK-NATIVE-ARCHIVE", "an archive link leaves its directory")
+    return "/".join(parts)
+
+
+def _copy_links(links: dict[str, str], written: dict[str, Path], base: Path, total: int) -> None:
+    """Each link as a copy of the regular file it names, once every file is unpacked.
+
+    Nothing on disk is ever a link, so no later member can be written through one.
+    """
+
+    for name, target in links.items():
+        final = target
+        hops = 0
+        while final in links:
+            hops += 1
+            if hops > MAXIMUM_LINK_HOPS:
+                raise OAKError("OAK-NATIVE-ARCHIVE", "an archive link chain is too long")
+            final = links[final]
+        source = written.get(final)
+        if source is None:
+            raise OAKError(
+                "OAK-NATIVE-ARCHIVE", "an archive link names nothing the archive holds as a file"
+            )
+        total += source.stat().st_size
+        if total > MAXIMUM_UNPACKED_BYTES:
+            raise OAKError("OAK-NATIVE-ARCHIVE", "the archive unpacks to too many bytes")
+        destination = _member_path(base, name)
+        destination.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        with source.open("rb") as reader, destination.open("xb") as output:
+            shutil.copyfileobj(reader, output)
+        os.chmod(destination, 0o600)
+
+
 def _unpack_zip(archive: Path, base: Path) -> None:
     total = 0
+    written: dict[str, Path] = {}
+    links: dict[str, str] = {}
     with zipfile.ZipFile(archive) as bundle:
         members = bundle.infolist()
         if len(members) > MAXIMUM_ARCHIVE_MEMBERS:
@@ -656,8 +760,16 @@ def _unpack_zip(archive: Path, base: Path) -> None:
             if member.is_dir():
                 target.mkdir(mode=0o700, parents=True, exist_ok=True)
                 continue
+            if mode == stat.S_IFLNK:
+                if member.file_size > MAXIMUM_LINK_TARGET_BYTES:
+                    raise OAKError("OAK-NATIVE-ARCHIVE", "an archive link is too long")
+                linkname = bundle.read(member).decode("utf-8", errors="strict")
+                links[_archive_name(member.filename)] = _link_target(
+                    member.filename, linkname, hard=False
+                )
+                continue
             if mode not in (0, stat.S_IFREG):
-                raise OAKError("OAK-NATIVE-ARCHIVE", "an archive member is a link or a device")
+                raise OAKError("OAK-NATIVE-ARCHIVE", "an archive member is a device or a pipe")
             total += member.file_size
             if total > MAXIMUM_UNPACKED_BYTES:
                 raise OAKError("OAK-NATIVE-ARCHIVE", "the archive unpacks to too many bytes")
@@ -665,10 +777,14 @@ def _unpack_zip(archive: Path, base: Path) -> None:
             with bundle.open(member) as source, target.open("xb") as output:
                 shutil.copyfileobj(source, output)
             os.chmod(target, 0o600)
+            written[_archive_name(member.filename)] = target
+    _copy_links(links, written, base, total)
 
 
 def _unpack_tar(archive: Path, base: Path) -> None:
     total = 0
+    written: dict[str, Path] = {}
+    links: dict[str, str] = {}
     with tarfile.open(archive, mode="r:gz") as bundle:
         count = 0
         for member in bundle:
@@ -679,8 +795,13 @@ def _unpack_tar(archive: Path, base: Path) -> None:
             if member.isdir():
                 target.mkdir(mode=0o700, parents=True, exist_ok=True)
                 continue
+            if member.issym() or member.islnk():
+                links[_archive_name(member.name)] = _link_target(
+                    member.name, member.linkname, hard=member.islnk()
+                )
+                continue
             if not member.isreg():
-                raise OAKError("OAK-NATIVE-ARCHIVE", "an archive member is a link or a device")
+                raise OAKError("OAK-NATIVE-ARCHIVE", "an archive member is a device or a pipe")
             total += member.size
             if total > MAXIMUM_UNPACKED_BYTES:
                 raise OAKError("OAK-NATIVE-ARCHIVE", "the archive unpacks to too many bytes")
@@ -691,6 +812,8 @@ def _unpack_tar(archive: Path, base: Path) -> None:
             with source, target.open("xb") as output:
                 shutil.copyfileobj(source, output)
             os.chmod(target, 0o600)
+            written[_archive_name(member.name)] = target
+    _copy_links(links, written, base, total)
 
 
 def _single_executable(tree: Path, name: str) -> Path:

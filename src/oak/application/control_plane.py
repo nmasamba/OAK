@@ -44,6 +44,7 @@ from oak.compiler import DeterministicBriefInterpreter
 from oak.contracts import SchemaRegistry
 from oak.domain import ArtifactReference, OAKError, canonical_json_bytes, content_digest
 from oak.domain.design_case import next_patch_version
+from oak.domain.runner_adapters import native_consent_reference
 from oak.ports import (
     BriefIntakePort,
     CaseDirectoryPort,
@@ -292,6 +293,19 @@ class CommunityControlPlane:
         return planning.list_candidates()
 
     @_case_scoped
+    def native_consent_text(self) -> dict[str, Any]:
+        """The consent text a native installation is approved against, with its reference.
+
+        What `oak approve native_consent` shows; reading it records nothing (ADR-0019).
+        """
+
+        if self._native_consent is None:
+            raise OAKError(
+                "OAK-NATIVE-CONSENT", "no consent text is installed for a native installation"
+            )
+        document = self._native_consent()
+        return {"consent": document, "consent_ref": native_consent_reference(document)}
+
     def architecture(
         self,
         case_id: str,

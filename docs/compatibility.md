@@ -170,6 +170,11 @@ mechanical migration; **breaking** otherwise.
   `tests/unit/test_native_consent_text.py` pins its digest per version. No stored document
   changes and no reference digest moves, because the reference case compiles for a container
   target; a `0.9.0` reader refuses a workspace holding a consent.
+- Tier 3's Batch B lets `observation-record.schema.json` (still `0.1.0`) describe a native
+  installation: `target.isolation` gains `native-user-consented`, and a row of
+  `unpredicted_measurements` names either a `container_name`, as before, or an
+  `installation_id`, never both. Every stored record still validates; a `0.9.0` reader
+  refuses a record of a native installation.
 - Sprint 14 (unreleased, ADR-0018) made an objective's `value` in `common.schema.json`
   nullable, with `unknown_reason` required exactly when it is null. Every stored document
   still validates, because the compiler writes a null only for a candidate that holds a

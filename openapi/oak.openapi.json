@@ -745,6 +745,49 @@
         "title": "NarrativeMode",
         "type": "string"
       },
+      "NativeConsentReference": {
+        "additionalProperties": false,
+        "properties": {
+          "digest": {
+            "title": "Digest",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "digest"
+        ],
+        "title": "NativeConsentReference",
+        "type": "object"
+      },
+      "NativeConsentResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "consent": {
+            "additionalProperties": true,
+            "title": "Consent",
+            "type": "object"
+          },
+          "consent_ref": {
+            "$ref": "#/components/schemas/NativeConsentReference"
+          }
+        },
+        "required": [
+          "consent",
+          "consent_ref"
+        ],
+        "title": "NativeConsentResponse",
+        "type": "object"
+      },
       "OperationResponse": {
         "additionalProperties": false,
         "properties": {
@@ -5617,6 +5660,101 @@
         "summary": "Verify Model Credential",
         "tags": [
           "models"
+        ]
+      }
+    },
+    "/v1/native-consent": {
+      "get": {
+        "description": "The consent text a native installation is approved against, and its digest.\n\nWhat `oak approve native_consent` shows, served so the web can show it beside a native\nplan (ADR-0019). Reading it records nothing: a consent is given only on the local\ncommand line, with this digest.",
+        "operationId": "get_native_consent_v1_native_consent_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-OAK-Actor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Oak-Actor"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-OAK-Tenant",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Oak-Tenant"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NativeConsentResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The request was refused: a problem document"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Too many requests: a problem document, with Retry-After",
+            "headers": {
+              "Retry-After": {
+                "description": "Whole seconds to wait before retrying",
+                "schema": {
+                  "minimum": 1,
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Any other refusal or failure: a problem document"
+          }
+        },
+        "summary": "Get Native Consent",
+        "tags": [
+          "system"
         ]
       }
     },

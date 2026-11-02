@@ -328,6 +328,32 @@ question.data-volume: What document volume and update cadence must the design su
     Confirmation creates immutable successors for the affected claims — the original
     interpretation is never edited, and the audit trail records who decided what.
   </p>
+  <h2>2a · Describe this machine (optional)</h2>
+  <p>
+    If the design is for the computer you are working on, OAK can read its hardware
+    instead of asking. <code>oak scan</code> reads the processor, memory and graphics
+    through the operating system's own tools (<code>sysctl</code> and
+    <code>system_profiler</code> on macOS; <code>lscpu</code>, <code>nvidia-smi</code> and
+    <code>rocm-smi</code> on Linux), keeps no serial number, host name or user name, and
+    records nothing. It also says whether Docker and <code>uv</code> are installed, and
+    where to get whichever is missing; it never installs them. On the Mac this manual was
+    written on:
+  </p>
+  <pre><code>uv run oak scan
+<span class="out">Proposed hardware for this machine (nothing is recorded until you confirm it):
+  Platform: macos, arm64
+  CPU: Apple M1 Max, 10 cores (10 threads)
+  Memory: 64 GiB, shared with the GPU
+  GPU: Apple M1 Max (apple, metal), unified memory
+  Storage: 1858.2 GiB
+Prerequisites: docker present, uv present</span></code></pre>
+  <p>
+    <code>uv run oak scan --confirm</code> records the proposal and confirms it into the
+    case's hardware, each value marked as measured, between interpretation and candidate
+    generation; <code>--propose</code> records it for confirming later, in the terminal or
+    with <strong>Confirm hardware</strong> on the case page. The rest of this chapter was
+    captured without a scan, so if you confirm one, each case version below is two higher.
+  </p>
   <h2>2b · Look for newer options (optional, on your consent)</h2>
   <p>
     At <em>ready_for_candidates</em>, and only then, OAK can look for newer open models
@@ -1195,6 +1221,81 @@ uv run oak observe</code></pre>
     installation as <code>removed</code>. The pinned placeholder image stays in your
     Docker; chapter 9 says how to remove it.
   </p>
+
+  <h2>Install natively, without Docker</h2>
+  <p>
+    A target profile can instead install each component on your computer, as you, outside
+    any container, once you consent to what that gives up.
+    <code>local-native-stand-in.yaml</code> installs OAK's own small stand-in server for
+    each node, so nothing is downloaded and no Docker is needed;
+    <code>local-native-llama-cpp.yaml</code> installs llama.cpp's server with a small model
+    instead. Each program is started once to check that it answers on 127.0.0.1, and then
+    stopped: nothing keeps running. Compile the journey once more against the stand-in
+    profile, in a workspace of its own as before, with its own mailbox
+    (<code>export OAK_DISPATCH_MAILBOX=$PWD/mailbox-native</code>) and runner home, and
+    enroll that runner. <code>oak architecture</code> then names the third approval:
+  </p>
+  <pre><code>uv run oak plan candidate-03 \
+  --target ../examples/targets/local-native-stand-in.yaml \
+  --output ./bundle
+uv run oak architecture
+<span class="out">…
+Would install on target.local-native-stand-in outside Docker, then stop each program after its check:
+  node.retrieval           oak_stand_in on 127.0.0.1:18431
+  node.generation          oak_stand_in on 127.0.0.1:18432
+Approvals a native install needs, all current: architecture absent, native_consent absent, apply absent</span></code></pre>
+  <p>
+    After <code>oak sign</code> and <code>oak approve architecture</code>, ask for the
+    consent. Without <code>--consent</code>, the command prints what a native installation
+    relaxes, the risk of each, what stays, and the text's digest, and records nothing:
+  </p>
+  <pre><code>uv run oak approve native_consent
+<span class="out">Install this architecture on your computer, outside Docker
+
+OAK will download the programs and models this design needs, check each one against the size and digest your target profile names, install them in a folder of their own, start each once to prove it answers, and then stop it. …
+
+What this relaxes:
+- The installed programs can use your network and the internet. Risk: A program that misbehaves, or was built to, can send what it reads elsewhere or download more.
+…
+What stays:
+- Nothing is installed without your signed approval of the architecture, of the installation and of this consent.
+…
+Consent text consent.native-installation 0.1.0: sha256:7d863baca59d2b6236ee953886004088f86a36a8206e7898298ef76e254a9605
+To consent: oak approve native_consent --consent sha256:7d863baca59d2b6236ee953886004088f86a36a8206e7898298ef76e254a9605
+OAK-NATIVE-CONSENT: read the consent text, then approve with --consent and the digest it shows</span></code></pre>
+  <p>
+    Give the consent with that digest; <code>oak approve apply</code> is refused until you
+    do (<code>OAK-NATIVE-CONSENT</code>). Then dispatch and run the runner, with the native
+    profile as its target:
+  </p>
+  <pre><code>uv run oak approve native_consent --consent sha256:7d86…9605
+uv run oak approve apply
+uv run oak dispatch apply
+OAK_RUNNER_MAILBOX=$OAK_DISPATCH_MAILBOX \
+OAK_RUNNER_TRUST_ANCHORS=$OAK_TRUST_DIRECTORY \
+OAK_RUNNER_TARGET_PROFILE=../examples/targets/local-native-stand-in.yaml \
+OAK_RUNNER_HOME=$PWD/runner-home \
+uv run oak-runner run-once
+<span class="out">completed dispatch.public-manual-qa.13: succeeded
+installed natively in $PWD/runner-home/native/installation.00db…0892; nothing is running. To start a component yourself, see $PWD/runner-home/native/installation.00db…0892/START.txt</span>
+uv run oak ingest
+uv run oak observe
+<span class="out">…
+Measured, with no prediction to compare:
+  node.retrieval                     startup_seconds 0.267 seconds
+  node.generation                    startup_seconds 0.271 seconds
+…</span></code></pre>
+  <p>
+    The runner verified the stand-in's size and SHA-256 against the profile before running
+    it, started each one under three ceilings (no core files, at most 4,096 open files, no
+    written file over 2 GiB), probed it, and stopped it. The installation is one folder,
+    readable by you only; its <code>START.txt</code> gives each component's command, should
+    you want to start one yourself. <code>oak approve destroy</code>, <code>oak dispatch
+    destroy</code> and one more run of the runner remove exactly that folder. The web
+    workspace's bundle page shows the same consent text and the three approvals' state,
+    and gives the install steps with the plan's consent digest filled in; it records
+    nothing.
+  </p>
 </section>
 
 <section class="chapter">
@@ -1304,7 +1405,7 @@ rm -rf ~/.oak
 
 # 3 · Workspaces you created (you chose these paths; OAK does not track them),
 #     and chapter 6's trust directory and mailboxes; trust/ holds DEVELOPMENT PRIVATE KEYS
-rm -rf ./workspace ./runner-demo ./runner-started ./case-export ./restored ./report.pdf ./report.json ./runner.identity.json ./trust ./mailbox ./mailbox-started
+rm -rf ./workspace ./runner-demo ./runner-started ./runner-native ./case-export ./restored ./report.pdf ./report.json ./runner.identity.json ./trust ./mailbox ./mailbox-started ./mailbox-native
 
 # 4 · Build output, venv and caches inside the checkout
 make clean-all
@@ -1322,8 +1423,10 @@ cd .. &amp;&amp; rm -rf OAK</code></pre>
     A key stored in the operating-system keychain is <em>not</em> under
     <code>~/.oak</code> and survives this: remove those first, one family at a time, with
     <code>oak models remove-key &lt;family&gt;</code>.
-    Chapter 6 placed its trust directory and two mailboxes in the repository root and its
-    runner homes inside <code>runner-demo/</code> and <code>runner-started/</code>:
+    Chapter 6 placed its trust directory and three mailboxes in the repository root and its
+    runner homes inside <code>runner-demo/</code>, <code>runner-started/</code> and
+    <code>runner-native/</code>, whose runner home also holds the native installation if you
+    did not destroy it; stop anything you started from its <code>START.txt</code> first:
     <code>trust/</code> holds development private keys, which is why step 3 names it
     explicitly rather than leaving it to the checkout's removal. Shared caches
     (<code>~/.cache/uv</code>, the pnpm store, Playwright browsers) and
@@ -1365,7 +1468,11 @@ pnpm --dir web exec node ../docs/manual/build_manual.mjs</code></pre>
     instead. Chapter 3's research and report sections were run on the recorded fixture
     research source; <code>oak research</code> and <code>oak report</code> are exercised by
     <code>tests/integration/test_research_cli.py</code> and
-    <code>tests/integration/test_report_cli.py</code> rather than the end-to-end suites. Chapter 5's shell commands were run against the <code>0.8.0</code> Compose stack,
+    <code>tests/integration/test_report_cli.py</code> rather than the end-to-end suites.
+    Chapter 3's machine scan and chapter 6's native installation were run on an Apple silicon
+    Mac on 2 November 2026; <code>tests/integration/test_hardware_scan_host.py</code> runs the
+    scan, and the native journey in <code>tests/e2e/test_runner_journey.py</code> runs the
+    install, check, stop and removal on all three platforms CI covers. Chapter 5's shell commands were run against the <code>0.8.0</code> Compose stack,
     as the tour records. The operations behind them are exercised by the interface conformance and MCP
     suites (<code>tests/integration/test_interface_conformance.py</code>,
     <code>tests/e2e/test_mcp_interface.py</code>), which need a PostgreSQL database; CI

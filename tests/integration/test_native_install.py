@@ -112,6 +112,9 @@ class NativeJourney:
         assert ingested.rejected == (), ingested
         return dict(ingested.accepted[-1]["payload"])
 
+    def observe(self) -> dict[str, Any]:
+        return dict(self.harness.release.record_observation(self.context("observe")).document)
+
     @property
     def installation(self) -> Path:
         apply = next(item for item in self.plan["operations"] if item["kind"] == "apply")
@@ -152,6 +155,30 @@ def test_a_native_install_proves_each_component_and_leaves_nothing_running(
     assert marker["installation_id"] == journey.installation.name
     assert marker["state"] == "installed"
     assert oct(journey.installation.stat().st_mode & 0o777) == "0o700"
+
+
+def test_an_observation_reads_the_native_install_and_its_removal(journey: NativeJourney) -> None:
+    journey.install()
+
+    installed = journey.observe()
+    assert journey.case["status"] == "observing"
+    assert installed["target"]["isolation"] == "native-user-consented"
+    assert installed["installation_state"] == "present"
+    measures = {item["id"]: item for item in installed["deployment_measures"]}
+    assert measures["EV-DEP-01"]["result"] == "pass"
+    assert measures["smoke-test"]["result"] == "pass"
+    assert {row["node_id"] for row in installed["unpredicted_measurements"]} == {
+        "node.retrieval",
+        "node.generation",
+    }
+    assert all(
+        row["installation_id"] == journey.installation.name
+        for row in installed["unpredicted_measurements"]
+    )
+
+    journey.approve("destroy")
+    journey.dispatch_and_run(("destroy",))
+    assert journey.observe()["installation_state"] == "removed"
 
 
 def test_destroy_removes_exactly_the_installation(journey: NativeJourney) -> None:

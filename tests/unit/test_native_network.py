@@ -128,3 +128,19 @@ def test_a_redirect_is_followed_only_to_an_acknowledged_https_host(target: str) 
     )
     assert followed is not None and followed.full_url == "https://objects.githubusercontent.com/x"
     assert handler.max_redirections == native_network.MAXIMUM_REDIRECTS
+
+
+@pytest.mark.parametrize(
+    ("target", "named"),
+    [
+        ("https://eu.aws.cdn.hf.co/x", "eu.aws.cdn.hf.co"),
+        ("http://objects.githubusercontent.com/x", "a host that is not https or not a plain name"),
+        ("https://bad‮host.example/x", "a host that is not https or not a plain name"),
+    ],
+)
+def test_a_refused_redirect_names_the_host_when_it_is_a_plain_name(target: str, named: str) -> None:
+    handler = _AllowedRedirects(ALLOWED)
+    request = urllib.request.Request("https://github.com/release")
+    with pytest.raises(OAKError) as caught:
+        handler.redirect_request(request, io.BytesIO(), 302, "Found", {}, target)  # type: ignore[arg-type]
+    assert f"redirected to {named}," in caught.value.message

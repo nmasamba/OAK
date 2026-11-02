@@ -211,6 +211,26 @@ export async function getVersion(baseUrl = ""): Promise<VersionResponse> {
   );
 }
 
+export interface NativeConsentResponse {
+  readonly consent: JsonObject;
+  readonly consent_ref: Readonly<{
+    id: string;
+    version: string;
+    digest: string;
+  }>;
+}
+
+/** The consent text a native installation is approved against, and its digest (ADR-0019). */
+export async function getNativeConsent(
+  baseUrl = "",
+): Promise<NativeConsentResponse> {
+  return requestJson<NativeConsentResponse>(
+    "/v1/native-consent",
+    { headers: { Accept: "application/json" } },
+    baseUrl,
+  );
+}
+
 export async function createDesignCase(
   input: Readonly<{ original_name: string; content: string }>,
   options: CommandOptions,

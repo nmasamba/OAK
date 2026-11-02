@@ -14,7 +14,7 @@ and publishes nothing.
 
 - Owner/agent: owner-directed coding agent
 - Started: 2026-11-02
-- Last updated: 2026-11-02 (M4, the native adapter)
+- Last updated: 2026-11-02 (M5, the platforms and documents; the rehearsal waits for the owner)
 - State: in-progress
 - Claimed tasks: `OAK-V1-039`–`OAK-V1-043`
 
@@ -412,6 +412,31 @@ kinds, and an existing case or profile reads as before.
   journey, what the native adapter does), `compatibility.md`, the error reference and its
   quick table, the changelog. Unit, contract and integration suites green (1,468 and 623
   passed), lint, format, types and boundaries green.
+- [x] 2026-11-02 M4 gate. `make check` on `9947591` in the detached gate worktree, with the
+  throwaway PostgreSQL: no failing target; unit and contract 1,468 passed, integration 623,
+  end to end 47 (the native journey among them).
+- [ ] 2026-11-02 M5 (`OAK-V1-042`), all but the rehearsal. The native journey runs in
+  `make check` through the installed entrypoints with no Docker, so all three CI jobs prove
+  it; nothing joins `tests/expected-skips.json`. After an install the runner prints the
+  folder and that nothing is running, and `START.txt` there gives each component's command.
+  The ADR's resource ceilings are applied in the child and recorded (M4's decision).
+  `oak observe` reads a native installation (`observation-record.schema.json`:
+  `native-user-consented`, rows named by `installation_id`, exactly one of the two names).
+  `GET /v1/native-consent` serves the text and its reference (`503 OAK-NATIVE-CONSENT` on a
+  server without it); the bundle page shows a consent light, the text in a disclosure, a
+  notice if the text changed after the compile, and the steps with the plan's digest
+  (`web/e2e/native.spec.ts`). Archive links inside a release are copied, never created; a
+  refused redirect names a plain host. `examples/targets/local-native-llama-cpp.yaml`
+  (build `b11721` of 2026-10-18, at least two weeks old as pins here are; Qwen2.5-0.5B-Instruct
+  Q4_K_M at commit `9217f5d`), its sizes and digests read from GitHub's and Hugging Face's
+  metadata and its redirect hosts from header-only requests, with no file downloaded; a test
+  compiles it. The real CLI journey was run on this Mac for the manual. Documents:
+  `operations.md`, `platforms.md`, the README, `interfaces.md`, `compatibility.md`, the
+  manual (a scan step in chapter 3, the native install in chapter 6, the uninstall and the
+  colophon) and its PDF. Nine mutation checks, each killed after two tests were tightened
+  (a completion claiming a complete check of fewer nodes; a link that climbs out to a file
+  that exists). Unit and contract 1,485 passed; `make validate` green. Open: the rehearsal,
+  which waits for the owner's approval of each download.
 
 ## Decisions
 
@@ -481,6 +506,23 @@ kinds, and an existing case or profile reads as before.
 - 2026-11-02 M4. **The consent text's pin moves with the draft.** Its digest is in every
   native plan and consent, so `tests/unit/test_native_consent_text.py` pins it per version:
   after the owner's sign-off, an edit means a new version and a new pin.
+- 2026-11-02 M5. **The web reads the consent text through a read-only endpoint.**
+  ADR-0019 says the web shows the text before the install approval; approvals stay on the
+  local command line, so the web shows the text, the consent's state and the steps with the
+  plan's digest, through `GET /v1/native-consent`, and records nothing.
+- 2026-11-02 M5. **A link inside a release archive is unpacked as a copy.** llama.cpp now
+  ships `.tar.gz` builds, and tar keeps the links a CMake build makes between a library's
+  versioned names; refusing every link would refuse the release. Copying the file a link
+  names inside the archive keeps the rule that nothing unpacked is a link, so no later
+  member can be written through one; a link that leaves the archive, names nothing in it,
+  or loops is still refused.
+- 2026-11-02 M5. **How to start an installed component is a file in the installation, not a
+  record.** The owner's Q4d answer leaves nothing running, so the user needs the commands;
+  they name paths in the user's home, so they go in `START.txt` beside the marker, and the
+  evidence says only that the file exists and nothing runs.
+- 2026-11-02 M5. **The llama.cpp example pins a build at least two weeks old**, as the
+  repository pins its actions; llama.cpp's binaries are now prerelease builds, and its
+  `v0.8.0` release carries none.
 - 2026-11-02 M2. **The manual's scan section lands in M5**, with the native path, so the
   manual's PDF is rebuilt once.
 - 2026-11-02 Kickoff. **The branch starts from the image fix, not from `main`.** `main`'s
@@ -510,7 +552,15 @@ kinds, and an existing case or profile reads as before.
   block, so the view uses `plan_apply_adapter`, which tolerates one missing.
 - 2026-11-02 M4, for M5. The web's bundle page shows the architecture and apply approvals;
   for a native plan it should show the consent's state and the consent text beside them, as
-  ADR-0019 says. `oak observe` on a native installation is M5's.
+  ADR-0019 says. `oak observe` on a native installation is M5's. Both done in M5.
+- 2026-11-02 M5. Hugging Face redirects a model download to a regional CDN host
+  (`us.aws.cdn.hf.co` from here), so a profile written in one region can be refused in
+  another; the refusal now names the host. GitHub redirects release assets to
+  `release-assets.githubusercontent.com`. The adapter's `START.txt` and the runner's message
+  name the stand-in's file `download`, which the runner's interpreter runs as a script.
+- 2026-11-02 M5. The manual's PDF could not be inspected here (no PDF renderer on this Mac,
+  and the browser pane shows local files only as a static snapshot); its HTML source, from
+  which Chromium prints it, follows the chapter's existing patterns.
 
 ## Self-review
 

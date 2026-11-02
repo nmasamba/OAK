@@ -384,3 +384,31 @@ def test_the_runner_refuses_a_download_from_a_host_it_does_not_acknowledge(
     target["execution"]["allowed_download_hosts"] = ["downloads.example.net", "models.example.org"]
     parameters["allowed_download_hosts"] = ["downloads.example.net", "models.example.org"]
     _check_native_installation(parameters, envelope, plan, target)
+
+
+def test_the_llama_cpp_example_compiles_with_exactly_its_hosts(tmp_path: Path) -> None:
+    """The example a user rehearses: it compiles and names its downloads without fetching."""
+
+    harness = build_compiled_case(tmp_path, target_name="local-native-llama-cpp.yaml")
+    apply = _apply(_plan(harness))
+
+    assert apply["permissions"]["network_destinations"] == [
+        "github.com",
+        "huggingface.co",
+        "release-assets.githubusercontent.com",
+        "us.aws.cdn.hf.co",
+    ]
+    assert {
+        component["node_id"]: component["harness_kind"]
+        for component in apply["parameters"]["components"]
+    } == {"node.retrieval": "oak_stand_in", "node.generation": "llama_cpp_server"}
+    case = harness.release._repository.current_case()
+    bundle = harness.release._repository.read_json_artifact(
+        ArtifactReference.from_document(case["deployment_bundle_ref"])
+    )
+    results = {
+        result["id"]: result["result"]
+        for result in bundle["extensions"]["oak.community/preflight_results"]
+    }
+    assert results["preflight.installation"] == "pass"
+    assert results["preflight.network"] == "pass"
