@@ -206,6 +206,22 @@
         "title": "ConfirmClaimsRequest",
         "type": "object"
       },
+      "ConfirmHardwareRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "proposal_id": {
+            "maxLength": 160,
+            "minLength": 3,
+            "title": "Proposal Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "proposal_id"
+        ],
+        "title": "ConfirmHardwareRequest",
+        "type": "object"
+      },
       "CreateDesignCaseRequest": {
         "additionalProperties": false,
         "properties": {
@@ -976,6 +992,30 @@
           "detail"
         ],
         "title": "Problem",
+        "type": "object"
+      },
+      "ProposeHardwareRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "scan": {
+            "additionalProperties": true,
+            "title": "Scan",
+            "type": "object"
+          },
+          "scanned_by": {
+            "default": "oak_scan",
+            "enum": [
+              "oak_scan",
+              "runner_inventory"
+            ],
+            "title": "Scanned By",
+            "type": "string"
+          }
+        },
+        "required": [
+          "scan"
+        ],
+        "title": "ProposeHardwareRequest",
         "type": "object"
       },
       "ReadinessResponse": {
@@ -3048,6 +3088,160 @@
         ]
       }
     },
+    "/v1/design-cases/{case_id}:confirm-hardware": {
+      "post": {
+        "description": "Confirm the case's pending hardware proposal into its intent.",
+        "operationId": "confirm_hardware_v1_design_cases__case_id__confirm_hardware_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "case_id",
+            "required": true,
+            "schema": {
+              "title": "Case Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 240,
+              "minLength": 16,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "maxLength": 90,
+              "minLength": 3,
+              "title": "If-Match",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 160,
+                  "minLength": 8,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Correlation-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-OAK-Actor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Oak-Actor"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-OAK-Tenant",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Oak-Tenant"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmHardwareRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DesignCaseResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The request was refused: a problem document"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Too many requests: a problem document, with Retry-After",
+            "headers": {
+              "Retry-After": {
+                "description": "Whole seconds to wait before retrying",
+                "schema": {
+                  "minimum": 1,
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Any other refusal or failure: a problem document"
+          }
+        },
+        "summary": "Confirm Hardware",
+        "tags": [
+          "design-cases"
+        ]
+      }
+    },
     "/v1/design-cases/{case_id}:create-assurance-plan": {
       "post": {
         "operationId": "create_assurance_plan_endpoint_v1_design_cases__case_id__create_assurance_plan_post",
@@ -3518,6 +3712,160 @@
           }
         },
         "summary": "Interpret Design Case",
+        "tags": [
+          "design-cases"
+        ]
+      }
+    },
+    "/v1/design-cases/{case_id}:propose-hardware": {
+      "post": {
+        "description": "Record a hardware scan's result as the case's proposal; no intent value changes.",
+        "operationId": "propose_hardware_v1_design_cases__case_id__propose_hardware_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "case_id",
+            "required": true,
+            "schema": {
+              "title": "Case Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 240,
+              "minLength": 16,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "maxLength": 90,
+              "minLength": 3,
+              "title": "If-Match",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 160,
+                  "minLength": 8,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Correlation-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-OAK-Actor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Oak-Actor"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-OAK-Tenant",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Oak-Tenant"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProposeHardwareRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DesignCaseResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The request was refused: a problem document"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Too many requests: a problem document, with Retry-After",
+            "headers": {
+              "Retry-After": {
+                "description": "Whole seconds to wait before retrying",
+                "schema": {
+                  "minimum": 1,
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Any other refusal or failure: a problem document"
+          }
+        },
+        "summary": "Propose Hardware",
         "tags": [
           "design-cases"
         ]
