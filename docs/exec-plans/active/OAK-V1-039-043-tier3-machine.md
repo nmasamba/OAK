@@ -361,8 +361,13 @@ kinds, and an existing case or profile reads as before.
   for an unknown model name and for sockets on Arm, and counts cores per cluster; the
   nested layout of other releases is read by walking every child.
 - 2026-11-02 M1. Adding `RR-055` moves the register past the 54 entries both repositories
-  cite (`STATUS.md` here, the original spec repo's `STATUS.md`, the readiness list); the
-  closing sweep in M6 updates every citation to the final count, since M3 adds more.
+  cite. `tests/contract/test_configuration_reference.py` pins the "stable-id entries" count
+  in `STATUS.md` to the register, so each new entry moves the live citations at once
+  (`STATUS.md` here and the original spec repo's); the readiness list in the completed
+  readiness plan follows at M6. The kickoff commit also cited ADR-0019 in `STATUS.md`
+  before the record existed, which `tests/contract/test_adr_references.py` refuses; the
+  row now says "a new decision record" until M3 writes it. Both were caught by CI, not
+  locally: run `make test` before every push, not only the milestone's own tests.
 
 ## Self-review
 
