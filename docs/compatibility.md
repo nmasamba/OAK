@@ -140,6 +140,17 @@ mechanical migration; **breaking** otherwise.
   or snapshot this build writes (`assurance_plan_ref`, `patterns`), as it refuses any
   document carrying a field it does not know; the move is forward-only in that sense, as
   every additive field has been.
+- Tier 3's Batch B adds `hardware-proposal.schema.json` (`0.1.0`, closed) and the artifact
+  kind `hardware_proposal` that holds it, and two values to the audit event's `event_type`
+  enum (additive): `hardware_proposed`, when a scan result is recorded as a case's
+  proposal, and `hardware_confirmed`, when a user confirms it into the intent. A
+  confirmation revises `spec.hardware` through the existing successor rules, each value
+  recorded with the provenance source `measured` and the proposal as its evidence, and
+  records which proposal it confirmed in the intent extension `oak.community/hardware_scan`;
+  the case extension `oak.community/hardware_proposal_ref` names the latest proposal. Both
+  extensions are optional, so no stored document changes, and no reference digest moves:
+  the reference case holds no scan. A `0.9.0` reader cannot validate a workspace holding a
+  proposal or either event.
 - Sprint 14 (unreleased, ADR-0018) made an objective's `value` in `common.schema.json`
   nullable, with `unknown_reason` required exactly when it is null. Every stored document
   still validates, because the compiler writes a null only for a candidate that holds a
@@ -255,6 +266,13 @@ mechanical migration; **breaking** otherwise.
   `ResearchReviewResponse` schemas, listed as unreleased in
   `tests/unit/test_openapi_compatibility.py` until the next release rewrites the baseline.
   It changes no existing operation.
+- Tier 3's Batch B adds `POST /v1/design-cases/{case_id}:propose-hardware` and
+  `POST /v1/design-cases/{case_id}:confirm-hardware`, with the `ProposeHardwareRequest`
+  and `ConfirmHardwareRequest` schemas, listed as unreleased in
+  `tests/unit/test_openapi_compatibility.py` until the next release rewrites the baseline.
+  Both answer `DesignCaseResponse`, need `Idempotency-Key` and `If-Match`, and change no
+  existing operation; the new codes are `OAK-HARDWARE-PROPOSAL` (`422`),
+  `OAK-HARDWARE-STATE` (`409`) and `OAK-HARDWARE-EMPTY` (`422`).
 - The loopback guard (Sprint 9) — `Host` allowlist, `Origin` and `Sec-Fetch-Site` checks —
   runs as middleware before routing. It adds no parameter to the OpenAPI contract and is
   therefore outside this baseline; its behaviour is documented in
@@ -427,12 +445,18 @@ mechanical migration; **breaking** otherwise.
     duplicate too and records nothing, so a restore interrupted in that one-commit window
     shows as a restored history with no `workspace_restored` event; an export of another
     state of the case is refused with `OAK-IDEMPOTENCY-CONFLICT` as before.
+- Tier 3's Batch B adds `oak scan`: alone it prints the machine's proposal and records
+  nothing; `--propose` records it as the case's hardware proposal and `--confirm` records
+  and confirms it, on the local workspace or, with `--server`, on a server (the case is
+  then named, `OAK-REMOTE-CASE-REQUIRED` otherwise). The scan always runs on the machine the
+  command runs on. `--output json` gives `proposal` and `recommendations`, and, when
+  recording, `case`, `intent`, `proposal_id` and `confirmed`.
 
 ## MCP
 
 - The tool registry in `oak.interfaces.mcp.tools.TOOL_DEFINITIONS` is the contract:
   tool names, required arguments, argument bounds, and result document shapes.
-  `tests/contract/test_mcp_contract.py` pins that registry against a list of the eleven
+  `tests/contract/test_mcp_contract.py` pins that registry against a list of the twelve
   contract tools held in the test itself — it does **not** parse
   [docs/interfaces.md](interfaces.md), so adding a tool fails the test but keeping the
   capability matrix in step is a human step.
@@ -454,6 +478,10 @@ mechanical migration; **breaking** otherwise.
   engineering batch, every tool that takes a `case_id` answers `OAK-CASE-NOT-FOUND` for a
   case the server does not hold, as REST does, where it answered
   `OAK-WORKSPACE-NOT-FOUND`. The result stays an error with the opaque message.
+- Tier 3's Batch B adds the tool `oak_hardware_propose` (compatible): a scan result
+  recorded as a case's hardware proposal, with `case_id`, `scan`, `expected_version` and
+  `idempotency_key` required and `actor` optional, since a proposal decides nothing.
+  Confirming it is deliberately not an MCP tool.
 
 ## Runner protocol
 
@@ -489,6 +517,10 @@ mechanical migration; **breaking** otherwise.
   formats follow the schema rules above.
 - The four forbidden execution fields (`command`, `shell`, `executable`, `argv`) are
   permanently invalid in every protocol version.
+- Tier 3's Batch B adds `hardware` to the `inventory` operation's evidence, beside the
+  fields it already carried: the scan's proposal, as `hardware-proposal.schema.json`
+  describes its fields. A `0.9` control plane stores evidence it does not read, and a
+  `0.9` runner reports none.
 
 ## Deprecation process
 

@@ -258,6 +258,32 @@ class CommunityControlPlane:
         return service.confirm(answers, context)
 
     @_case_scoped
+    def propose_hardware(
+        self,
+        case_id: str,
+        scan: dict[str, Any],
+        context: CommandContext,
+        *,
+        scanned_by: str = "oak_scan",
+    ) -> DesignResult:
+        """Record a scan result a client sent as the case's hardware proposal.
+
+        The scan ran where the hardware is, never on this host (`development.md`).
+        """
+
+        service = self._design_for_case(case_id, context.tenant_id)
+        self._verify_case(case_id, service.current().case)
+        return service.propose_hardware(scan, context, scanned_by=scanned_by)
+
+    @_case_scoped
+    def confirm_hardware(
+        self, case_id: str, proposal_id: str, context: CommandContext
+    ) -> DesignResult:
+        service = self._design_for_case(case_id, context.tenant_id)
+        self._verify_case(case_id, service.current().case)
+        return service.confirm_hardware(proposal_id, context)
+
+    @_case_scoped
     def list_candidates(self, case_id: str, *, tenant_id: str) -> tuple[dict[str, Any], ...]:
         planning = self._planning_for_case(case_id, tenant_id)
         self._verify_case(case_id, self.get_design_case(case_id, tenant_id=tenant_id).case)

@@ -32,6 +32,7 @@ from oak.application import (
     ReportService,
     WorkspaceFormatService,
 )
+from oak.application.design_case import HARDWARE_PROPOSAL_EXTENSION
 from oak.bootstrap import (
     create_candidate_planning_service,
     create_design_case_service,
@@ -1214,24 +1215,118 @@ def keys(
 
 @app.command()
 def scan(
+    design_case: Annotated[
+        str | None,
+        typer.Argument(help="Design case to give the result to; required with --server."),
+    ] = None,
+    propose: Annotated[
+        bool,
+        typer.Option("--propose", help="Record the result as the case's hardware proposal."),
+    ] = False,
+    confirm_result: Annotated[
+        bool,
+        typer.Option("--confirm", help="Record the result and confirm it into the case's intent."),
+    ] = False,
     output: Annotated[
         OutputFormat, typer.Option("--output", help="Output format.")
     ] = OutputFormat.HUMAN,
+    idempotency_key: Annotated[
+        str | None,
+        typer.Option("--idempotency-key", help="Stable retry key; derived by default."),
+    ] = None,
 ) -> None:
-    """Scan this machine's CPU, memory and GPUs, and say what is missing; record nothing."""
+    """Scan this machine's CPU, memory and GPUs, and say what is missing.
+
+    Alone it records nothing. `--propose` records the result as the case's hardware
+    proposal, which a user confirms here, over REST or in the web workspace; `--confirm`
+    records it and confirms it at once. The scan always runs on this machine, also with
+    `--server`, because it describes where it runs.
+    """
 
     try:
         from oak.bootstrap import scan_hardware
 
         proposal = scan_hardware()
         advice = recommendations(proposal)
-        _emit(
-            {"proposal": proposal, "recommendations": advice},
-            output,
-            human=_scan_summary(proposal, advice),
-        )
-    except (OAKError, OSError, RuntimeError, ValueError) as error:
+        document: dict[str, Any] = {"proposal": proposal, "recommendations": advice}
+        human = _scan_summary(proposal, advice)
+        if propose or confirm_result:
+            recorded, said = _record_scan(
+                proposal, design_case, confirm=confirm_result, idempotency_key=idempotency_key
+            )
+            document.update(recorded)
+            human = f"{human}\n{said}"
+        _emit(document, output, human=human)
+    except (OAKError, ContractValidationError, OSError, RuntimeError, ValueError) as error:
         _abort(error)
+
+
+def _record_scan(
+    proposal: dict[str, Any],
+    design_case: str | None,
+    *,
+    confirm: bool,
+    idempotency_key: str | None,
+) -> tuple[dict[str, Any], str]:
+    """Give a scan's result to a case: record it as the proposal, and confirm it if asked."""
+
+    remote = _remote()
+    if remote is not None:
+        from oak.interfaces.cli import remote as remote_mode
+
+        case_id = _remote_case_id(design_case)
+        result = remote.propose_hardware(
+            case_id,
+            proposal,
+            expected_version=remote.current_case_version(case_id),
+            idempotency_key=idempotency_key
+            or remote_mode.derived_key("propose-hardware", remote_mode.document_identity(proposal)),
+        )
+        case = remote_mode.require_field(result, "case")
+        proposal_id = str(
+            remote_mode.require_field(case, "extensions", HARDWARE_PROPOSAL_EXTENSION, "id")
+        )
+        if confirm:
+            result = remote.confirm_hardware(
+                case_id,
+                proposal_id,
+                expected_version=str(remote_mode.require_field(case, "version")),
+                idempotency_key=remote_mode.derived_key("confirm-hardware", proposal_id),
+            )
+            case = remote_mode.require_field(result, "case")
+        return _recorded_scan(case, result.get("intent"), proposal_id, confirm)
+    service = _workspace_service()
+    current = service.current().case
+    if design_case is not None and design_case != current["id"]:
+        raise OAKError("OAK-CASE-NOT-FOUND", "requested design case is not current")
+    proposed = service.propose_hardware(
+        proposal,
+        _context(idempotency_key=idempotency_key, expected_version=str(current["version"])),
+    )
+    proposal_id = str(proposed.case["extensions"][HARDWARE_PROPOSAL_EXTENSION]["id"])
+    if not confirm:
+        return _recorded_scan(proposed.case, proposed.intent, proposal_id, False)
+    confirmed = service.confirm_hardware(
+        proposal_id,
+        _context(idempotency_key=None, expected_version=str(proposed.case["version"])),
+    )
+    return _recorded_scan(confirmed.case, confirmed.intent, proposal_id, True)
+
+
+def _recorded_scan(
+    case: dict[str, Any], intent: Any, proposal_id: str, confirmed: bool
+) -> tuple[dict[str, Any], str]:
+    said = (
+        f"Confirmed {proposal_id} into {case['id']}@{case['version']}, now {case['status']}"
+        if confirmed
+        else f"Recorded {proposal_id} in {case['id']}@{case['version']}; confirm it to use it"
+    )
+    return {
+        "case": case,
+        "intent": intent,
+        "proposal_id": proposal_id,
+        "confirmed": confirmed,
+    }, said
 
 
 def _scan_summary(proposal: dict[str, Any], advice: list[str]) -> str:

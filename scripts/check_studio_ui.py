@@ -70,6 +70,10 @@ KNOWN_MUTATIONS = frozenset(
         # Sprint 14 (ADR-0018): the two research mutations; a plan read is a GET.
         "researchCatalogue",
         "reviewResearchItem",
+        # Tier 3 Batch B (OAK-V1-039): confirming the hardware a scan proposed. The scan
+        # itself runs where the hardware is, never in the browser, so there is no proposal
+        # call here.
+        "confirmHardware",
     }
 )
 

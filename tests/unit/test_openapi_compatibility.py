@@ -29,6 +29,9 @@ UNRELEASED_OPERATIONS: frozenset[str] = frozenset(
         "GET /v1/design-cases/{case_id}/research-plan",
         "POST /v1/design-cases/{case_id}:research",
         "POST /v1/design-cases/{case_id}:review-research-item",
+        # Tier 3 Batch B (OAK-V1-039): a scan result proposed to a case, and its confirmation.
+        "POST /v1/design-cases/{case_id}:propose-hardware",
+        "POST /v1/design-cases/{case_id}:confirm-hardware",
     }
 )
 UNRELEASED_SCHEMAS: frozenset[str] = frozenset(
@@ -46,6 +49,9 @@ UNRELEASED_SCHEMAS: frozenset[str] = frozenset(
         # response already carried, now declared.
         "FieldProblem",
         "Problem",
+        # Tier 3 Batch B (OAK-V1-039): the two hardware request bodies.
+        "ConfirmHardwareRequest",
+        "ProposeHardwareRequest",
     }
 )
 

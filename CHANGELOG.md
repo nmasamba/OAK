@@ -27,6 +27,22 @@ installation. In progress; entries land with each milestone.
   missing, with each tool's official page; it never installs anything. `oak scan` records
   nothing; the inventory evidence gains a `hardware` object beside its existing fields.
   The runner's executable allowlist gains the five tools (`RR-055`).
+- **A scan's result enters a case only when the user confirms it** (`OAK-V1-039`, part 2).
+  `oak scan --propose` records the result as the case's hardware proposal (a new
+  `hardware_proposal` artifact, a `hardware_proposed` event; no intent value changes), and
+  `oak scan --confirm`, `POST /v1/design-cases/{case_id}:confirm-hardware` or **Confirm
+  hardware** on the case page confirms it (`hardware_confirmed`): `spec.hardware` takes the
+  measured values, each with the provenance source `measured` and the proposal as its
+  evidence, and an open hardware question the scan answered is resolved. So
+  `constraint.hardware`, the estimators and research's hardware class read the confirmed
+  machine through the paths that already read the brief's. A proposal can enter a case
+  between interpretation and candidate generation (`OAK-HARDWARE-STATE` otherwise); only
+  the case's pending proposal can be confirmed, once (`OAK-HARDWARE-PROPOSAL`); a scan that
+  knows nothing cannot be (`OAK-HARDWARE-EMPTY`). REST adds
+  `POST /v1/design-cases/{case_id}:propose-hardware`, and MCP the tool
+  `oak_hardware_propose`, because the scan runs where the hardware is and the API host is
+  never the target; confirming is not an MCP tool. The proposal's schema is closed: no
+  field can carry a serial number, a GPU id, a host name or a user name.
 
 ### After Batch A (`OAK-V1-038`)
 

@@ -15,6 +15,8 @@ DOCUMENTED_TOOLS = frozenset(
         "oak_design_case_interpret",
         "oak_questions_list",
         "oak_claims_confirm",
+        # Tier 3 Batch B (OAK-V1-039): a scan result as a proposal, never its confirmation.
+        "oak_hardware_propose",
         "oak_candidates_generate",
         "oak_candidates_list",
         "oak_candidate_evaluate",
@@ -66,7 +68,7 @@ def test_every_tool_schema_is_closed_and_every_string_is_bounded() -> None:
         assert schema["required"], definition.name
         for property_name, property_schema in schema["properties"].items():
             if property_schema == {"type": "object"}:
-                assert property_name in {"answers", "target"}, definition.name
+                assert property_name in {"answers", "target", "scan"}, definition.name
                 continue
             assert property_schema["type"] == "string", (definition.name, property_name)
             assert 0 < property_schema["minLength"] <= property_schema["maxLength"]
@@ -77,6 +79,7 @@ def test_mutating_tools_require_idempotency_and_versioned_tools_require_expected
         "oak_design_case_create",
         "oak_design_case_interpret",
         "oak_claims_confirm",
+        "oak_hardware_propose",
         "oak_candidates_generate",
         "oak_candidate_evaluate",
         "oak_assurance_plan_create",

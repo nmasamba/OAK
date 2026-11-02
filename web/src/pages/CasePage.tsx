@@ -19,6 +19,7 @@ import {
 import { recallInterpretMode, rememberInterpretMode } from "../interpretMode";
 import { ModeChooser, ModeDetail, type InterpretMode } from "../ModeSelect";
 import { currentModelToken } from "../modelToken";
+import { HardwareMoment } from "../HardwareMoment";
 import { ProblemAlert, toActionFailure, type ActionFailure } from "../problems";
 import { ResearchMoment } from "../ResearchMoment";
 import { Link, useRouter } from "../router";
@@ -367,6 +368,13 @@ export function CasePage({ caseId }: { readonly caseId: string }) {
             </p>
           </Moment>
         )}
+
+        <HardwareMoment
+          caseId={caseId}
+          caseDocument={caseDocument}
+          disabled={pendingAction !== null}
+          onChanged={refresh}
+        />
 
         <ResearchMoment
           caseId={caseId}

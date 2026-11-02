@@ -143,6 +143,8 @@ prohibition).
 | List questions | ○ | ○ | ○ | ○ | ○ |
 | Confirm claims | ● | ● | ● | ● | ● |
 | Scan this machine's hardware (`oak scan`; records nothing) | ● | ● | — | — | — |
+| Propose a scan result to a case (`oak scan --propose`) | ● | ● | ● | ● | — |
+| Confirm a case's hardware proposal (`oak scan --confirm`; **Confirm hardware**) | ● | ● | ● | — | ● |
 | Generate candidates | ● | ● | ● | ● | ● |
 | List candidates | ● | ● | ○ | ○ | ○ |
 | Evaluate candidate | ● | ● | ● | ● | ● |

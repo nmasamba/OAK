@@ -47,6 +47,7 @@ from oak.interfaces.api.models import (
     CanonicalExport,
     CompileBundleRequest,
     ConfirmClaimsRequest,
+    ConfirmHardwareRequest,
     CreateDesignCaseRequest,
     DesignCaseListResponse,
     DesignCaseResponse,
@@ -64,6 +65,7 @@ from oak.interfaces.api.models import (
     OperationResponse,
     OutboxLagResponse,
     Problem,
+    ProposeHardwareRequest,
     ReadinessResponse,
     ReportResponse,
     ResearchPlanResponse,
@@ -1025,6 +1027,70 @@ def create_app(
             correlation_id=correlation_id,
         )
         result = plane().confirm(case_id, body.answers, context)
+        response.headers["ETag"] = _etag(str(result.case["version"]))
+        return DesignCaseResponse(
+            case=result.case,
+            intent=result.intent,
+            duplicate=result.duplicate,
+        )
+
+    @api.post(
+        "/v1/design-cases/{case_id}:propose-hardware",
+        response_model=DesignCaseResponse,
+        tags=["design-cases"],
+    )
+    def propose_hardware(
+        case_id: str,
+        body: ProposeHardwareRequest,
+        response: Response,
+        request: Request,
+        idempotency_key: IdempotencyHeader,
+        expected: ExpectedVersionHeader,
+        auth: AuthorityDependency,
+        correlation_id: CorrelationHeader = None,
+    ) -> DesignCaseResponse:
+        """Record a hardware scan's result as the case's proposal; no intent value changes."""
+
+        context = command_context(
+            request,
+            auth,
+            idempotency_key=idempotency_key,
+            expected_version=_expected_version(expected),
+            correlation_id=correlation_id,
+        )
+        result = plane().propose_hardware(case_id, body.scan, context, scanned_by=body.scanned_by)
+        response.headers["ETag"] = _etag(str(result.case["version"]))
+        return DesignCaseResponse(
+            case=result.case,
+            intent=result.intent,
+            duplicate=result.duplicate,
+        )
+
+    @api.post(
+        "/v1/design-cases/{case_id}:confirm-hardware",
+        response_model=DesignCaseResponse,
+        tags=["design-cases"],
+    )
+    def confirm_hardware(
+        case_id: str,
+        body: ConfirmHardwareRequest,
+        response: Response,
+        request: Request,
+        idempotency_key: IdempotencyHeader,
+        expected: ExpectedVersionHeader,
+        auth: AuthorityDependency,
+        correlation_id: CorrelationHeader = None,
+    ) -> DesignCaseResponse:
+        """Confirm the case's pending hardware proposal into its intent."""
+
+        context = command_context(
+            request,
+            auth,
+            idempotency_key=idempotency_key,
+            expected_version=_expected_version(expected),
+            correlation_id=correlation_id,
+        )
+        result = plane().confirm_hardware(case_id, body.proposal_id, context)
         response.headers["ETag"] = _etag(str(result.case["version"]))
         return DesignCaseResponse(
             case=result.case,

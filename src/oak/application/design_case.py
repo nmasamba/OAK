@@ -34,6 +34,7 @@ from oak.domain import (
 )
 from oak.domain.audit import audit_event_document
 from oak.domain.design_case import next_patch_version
+from oak.domain.hardware import PROPOSAL_FIELDS, intent_hardware
 from oak.domain.intake import holds_control_character
 from oak.ports import (
     BriefIntakePort,
@@ -47,6 +48,12 @@ INTENT_MEDIA_TYPE = "application/vnd.oak.system-intent+json"
 SOURCE_MEDIA_TYPE = "application/vnd.oak.source-record+json"
 AUDIT_MEDIA_TYPE = "application/vnd.oak.audit-event+json"
 PROPOSAL_MEDIA_TYPE = "application/vnd.oak.interpretation-proposal+json"
+HARDWARE_PROPOSAL_MEDIA_TYPE = "application/vnd.oak.hardware-proposal+json"
+# On the case: the latest hardware proposal recorded for it.
+HARDWARE_PROPOSAL_EXTENSION = "oak.community/hardware_proposal_ref"
+# On the intent: which proposal its hardware values were confirmed from, by whom and when.
+HARDWARE_SCAN_EXTENSION = "oak.community/hardware_scan"
+HARDWARE_SCANNERS = frozenset({"oak_scan", "runner_inventory"})
 INTERPRETER_MODES = ("deterministic", "online", "local")
 MODEL_MODES = frozenset({"online", "local"})
 NOT_CONFIGURED_REMEDIES = {
@@ -582,6 +589,291 @@ class DesignCaseService:
                 idempotency_key=context.idempotency_key,
                 input_digest=input_digest,
                 artifacts=(intent_artifact, event_artifact, case_artifact),
+                current_case_ref=case_artifact.reference,
+                event_artifact=event_artifact,
+                event_document=event_document,
+                updated_at=context.occurred_at,
+            )
+        )
+        return DesignResult(
+            case=committed.case_document,
+            intent=self._intent_for_case(committed.case_document),
+            duplicate=committed.duplicate,
+        )
+
+    # ----- the hardware scan's proposal (Tier 3 Batch B) ---------------------------------
+
+    def propose_hardware(
+        self, scan: dict[str, Any], context: CommandContext, *, scanned_by: str = "oak_scan"
+    ) -> DesignResult:
+        """Record what a hardware scan proposes for this case; no intent value changes.
+
+        The scan runs where the hardware is (the local CLI, or a runner's inventory), and the
+        proposal holds only the fields its schema admits. The case points at the latest one
+        until a user confirms it with ``confirm_hardware`` or a later scan replaces it.
+        """
+
+        if not isinstance(scan, dict) or set(scan) != set(PROPOSAL_FIELDS):
+            raise OAKError(
+                "OAK-HARDWARE-PROPOSAL", "a scan result holds exactly the scanner's fields"
+            )
+        if scanned_by not in HARDWARE_SCANNERS:
+            raise OAKError("OAK-HARDWARE-PROPOSAL", "the scan's origin is not one OAK knows")
+        try:
+            input_digest = self._request_digest(context, {"scan": scan, "scanned_by": scanned_by})
+        except (TypeError, ValueError) as error:
+            raise OAKError(
+                "OAK-HARDWARE-PROPOSAL", "a scan result is not canonical JSON data"
+            ) from error
+        context = self._normalized_context(context, "propose_hardware", input_digest)
+        self._check_context(context)
+        manifest = self._repository.manifest()
+        if manifest["tenant_id"] != context.tenant_id:
+            raise OAKError("OAK-TENANT-MISMATCH", "workspace tenant does not match command")
+        duplicate_case = self._repository.idempotent_case(context.idempotency_key, input_digest)
+        if duplicate_case is not None:
+            return DesignResult(
+                case=duplicate_case,
+                intent=self._intent_for_case(duplicate_case),
+                duplicate=True,
+            )
+        current_document = self._require_case()
+        current = DesignCase.from_document(current_document)
+        self._require_hardware_state(current, context)
+        intent = self._intent_for_case(current_document)
+        proposal: dict[str, Any] = {
+            "schema_version": "0.1.0",
+            "id": self._hardware_proposal_id(current.id, context.occurred_at, input_digest),
+            "version": "0.1.0",
+            "case_id": current.id,
+            "recorded_at": context.occurred_at,
+            "scanned_by": scanned_by,
+            **copy.deepcopy(scan),
+            "extensions": {},
+        }
+        self._registry.validate("hardware-proposal.schema.json", proposal)
+        proposal_artifact = json_artifact(
+            artifact_id=str(proposal["id"]),
+            version=str(proposal["version"]),
+            kind="hardware_proposal",
+            media_type=HARDWARE_PROPOSAL_MEDIA_TYPE,
+            document=proposal,
+        )
+        reference = proposal_artifact.reference.to_document()
+        successor = current.revise(
+            status=current.status,
+            updated_at=context.occurred_at,
+            extensions={**(current.extensions or {}), HARDWARE_PROPOSAL_EXTENSION: reference},
+        )
+        return self._commit_hardware_event(
+            manifest,
+            successor,
+            context,
+            input_digest,
+            event_type="hardware_proposed",
+            intent=intent,
+            intent_ref=current.intent_ref,
+            reference=reference,
+            artifacts=(proposal_artifact,),
+        )
+
+    def confirm_hardware(self, proposal_id: str, context: CommandContext) -> DesignResult:
+        """Confirm the case's pending hardware proposal into ``spec.hardware``.
+
+        Only the proposal the case points at can be confirmed, and only once. Each value it
+        sets is recorded as ``measured``, with the proposal as its evidence and the confirming
+        actor; a field the scan left unknown keeps what it had, and an open question on a
+        path the scan answered is resolved.
+        """
+
+        input_digest = self._request_digest(context, {"proposal_id": proposal_id})
+        context = self._normalized_context(context, "confirm_hardware", input_digest)
+        self._check_context(context)
+        manifest = self._repository.manifest()
+        if manifest["tenant_id"] != context.tenant_id:
+            raise OAKError("OAK-TENANT-MISMATCH", "workspace tenant does not match command")
+        duplicate_case = self._repository.idempotent_case(context.idempotency_key, input_digest)
+        if duplicate_case is not None:
+            return DesignResult(
+                case=duplicate_case,
+                intent=self._intent_for_case(duplicate_case),
+                duplicate=True,
+            )
+        current_document = self._require_case()
+        current = DesignCase.from_document(current_document)
+        self._require_hardware_state(current, context)
+        reference = (current.extensions or {}).get(HARDWARE_PROPOSAL_EXTENSION)
+        if not isinstance(reference, dict) or reference.get("id") != proposal_id:
+            raise OAKError(
+                "OAK-HARDWARE-PROPOSAL", "the case has no pending hardware proposal with that id"
+            )
+        proposal = self._repository.read_json_artifact(ArtifactReference.from_document(reference))
+        self._registry.validate("hardware-proposal.schema.json", proposal)
+        intent = copy.deepcopy(self._intent_for_case(current_document))
+        confirmed = intent["extensions"].get(HARDWARE_SCAN_EXTENSION)
+        if isinstance(confirmed, dict) and confirmed.get("proposal_ref") == reference:
+            raise OAKError("OAK-HARDWARE-PROPOSAL", "that hardware proposal is already confirmed")
+        values = intent_hardware(proposal)
+        if not values:
+            raise OAKError("OAK-HARDWARE-EMPTY", "the scan proposes no value to confirm")
+        ran = [str(tool["name"]) for tool in proposal["tools"] if tool["status"] == "ran"]
+        rationale = (
+            f"Measured by OAK's hardware scan ({', '.join(ran) or 'the runtime alone'}) and "
+            "confirmed by the user."
+        )
+        hardware = intent["spec"].setdefault("hardware", {})
+        for field, value in values.items():
+            path = f"/spec/hardware/{field}"
+            for stale in [
+                key for key in intent["provenance"] if key == path or key.startswith(f"{path}/")
+            ]:
+                del intent["provenance"][stale]
+            hardware[field] = value
+            # One record per scalar, as every intent value has: a list's elements each get
+            # one, and an empty list (a scan that found no GPU) gets none.
+            scalars = (
+                [f"{path}/{index}" for index in range(len(value))]
+                if isinstance(value, list)
+                else [path]
+            )
+            for scalar in scalars:
+                intent["provenance"][scalar] = {
+                    "source": "measured",
+                    "confidence": 1.0,
+                    "rationale": rationale,
+                    "evidence_refs": [str(proposal["id"])],
+                    "materiality": "critical",
+                    "confirmation_required": False,
+                    "confirmed_by": context.actor,
+                    "confirmed_at": context.occurred_at,
+                }
+        question_by_id = {
+            str(question["id"]): copy.deepcopy(question)
+            for question in current_document["unresolved_questions"]
+        }
+        # A question on a field the scan measured is answered; the section's question is
+        # answered only when every hardware value now rests on this proposal, since a value
+        # the brief stated and the scan did not measure still needs the user's word.
+        answered = {f"/spec/hardware/{field}" for field in values}
+        if all(
+            record.get("source") == "measured" and proposal["id"] in record["evidence_refs"]
+            for path, record in intent["provenance"].items()
+            if path.startswith("/spec/hardware/")
+        ):
+            answered.add("/spec/hardware")
+        for question in question_by_id.values():
+            if question["status"] in {"open", "bounded"} and question["path"] in answered:
+                question["status"] = "resolved"
+        self._sync_intent_questions(intent, question_by_id)
+        intent["extensions"][HARDWARE_SCAN_EXTENSION] = {
+            "proposal_ref": reference,
+            "confirmed_by": context.actor,
+            "confirmed_at": context.occurred_at,
+        }
+        open_questions = any(question["status"] == "open" for question in question_by_id.values())
+        unconfirmed_model = self._has_unconfirmed_model_records(intent)
+        intent["status"] = "draft" if open_questions or unconfirmed_model else "clarified"
+        old_intent_version = str(intent["version"])
+        intent["version"] = next_patch_version(old_intent_version)
+        intent["supersedes"] = f"{intent['id']}@{old_intent_version}"
+        intent["created_at"] = context.occurred_at
+        verify_intent_provenance(intent)
+        self._registry.validate("system-intent.schema.json", intent)
+        intent_artifact = json_artifact(
+            artifact_id=str(intent["id"]),
+            version=str(intent["version"]),
+            kind="system_intent",
+            media_type=INTENT_MEDIA_TYPE,
+            document=intent,
+        )
+        successor = current.revise(
+            status=(
+                DesignCaseStatus.NEEDS_CONFIRMATION
+                if open_questions or unconfirmed_model
+                else DesignCaseStatus.READY_FOR_CANDIDATES
+            ),
+            updated_at=context.occurred_at,
+            intent_ref=intent_artifact.reference,
+            unresolved_questions=tuple(question_by_id.values()),
+        )
+        return self._commit_hardware_event(
+            manifest,
+            successor,
+            context,
+            input_digest,
+            event_type="hardware_confirmed",
+            intent=intent,
+            intent_ref=intent_artifact.reference,
+            reference=reference,
+            artifacts=(intent_artifact,),
+        )
+
+    @staticmethod
+    def _require_hardware_state(current: DesignCase, context: CommandContext) -> None:
+        if current.status not in {
+            DesignCaseStatus.NEEDS_CONFIRMATION,
+            DesignCaseStatus.READY_FOR_CANDIDATES,
+        }:
+            raise OAKError(
+                "OAK-HARDWARE-STATE",
+                "a hardware proposal enters a case after its brief is interpreted and before "
+                "its candidates are generated",
+            )
+        if context.expected_version is not None and context.expected_version != current.version:
+            raise OAKError(
+                "OAK-EXPECTED-VERSION",
+                "expected case version does not match current version",
+                retriable=True,
+            )
+
+    @staticmethod
+    def _hardware_proposal_id(case_id: str, occurred_at: str, input_digest: str) -> str:
+        stamp = "".join(character for character in occurred_at if character.isalnum()).lower()
+        suffix = case_id.removeprefix("design-case.")
+        return f"hardware-proposal.{suffix}.{stamp}.{input_digest.removeprefix('sha256:')[:12]}"
+
+    def _commit_hardware_event(
+        self,
+        manifest: dict[str, Any],
+        successor: DesignCase,
+        context: CommandContext,
+        input_digest: str,
+        *,
+        event_type: str,
+        intent: dict[str, Any],
+        intent_ref: ArtifactReference | None,
+        reference: dict[str, Any],
+        artifacts: tuple[Artifact, ...],
+    ) -> DesignResult:
+        sequence = len(manifest["audit_events"]) + 1
+        previous = manifest["audit_events"][-1]["digest"] if manifest["audit_events"] else None
+        event_document = audit_event_document(
+            sequence=sequence,
+            previous_event_digest=previous,
+            case_id=successor.id,
+            case_version=successor.version,
+            event_type=event_type,
+            actor=context.actor,
+            tenant_id=context.tenant_id,
+            interface_origin=context.interface_origin,
+            correlation_id=context.correlation_id,
+            idempotency_key=context.idempotency_key,
+            input_digest=input_digest,
+            occurred_at=context.occurred_at,
+            intent_ref=intent_ref,
+            source_record_ref=self._source_record_ref(intent),
+            extensions={HARDWARE_PROPOSAL_EXTENSION: reference},
+        )
+        event_artifact = self._audit_artifact(event_document, sequence)
+        successor = successor.with_audit_head(event_artifact.digest)
+        case_artifact = self._case_artifact(successor)
+        committed = self._repository.commit(
+            build_workspace_mutation(
+                workspace_id=str(manifest["id"]),
+                expected_case_version=context.expected_version,
+                idempotency_key=context.idempotency_key,
+                input_digest=input_digest,
+                artifacts=(*artifacts, event_artifact, case_artifact),
                 current_case_ref=case_artifact.reference,
                 event_artifact=event_artifact,
                 event_document=event_document,

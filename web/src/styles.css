@@ -2741,3 +2741,17 @@ summary {
   display: grid;
   gap: 6px;
 }
+
+/* Tier 3 Batch B (OAK-V1-039): the hardware a scan proposed, and what it left unknown. */
+.hardware-lines {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.hardware-unknowns {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--text-3);
+  font-size: var(--size-small);
+}

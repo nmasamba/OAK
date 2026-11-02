@@ -27,6 +27,17 @@ MACOS_TOOLS = ("sysctl", "system_profiler")
 LINUX_TOOLS = ("lscpu", "nvidia-smi", "rocm-smi")
 SCAN_TOOLS = MACOS_TOOLS + LINUX_TOOLS
 PREREQUISITES = ("docker", "uv")
+# The fields a scan result carries, as `build_proposal` returns them.
+PROPOSAL_FIELDS = (
+    "platform",
+    "cpu",
+    "memory",
+    "storage_gib",
+    "accelerators",
+    "prerequisites",
+    "unknown",
+    "tools",
+)
 INSTALL_PAGES = {
     "docker": "https://docs.docker.com/get-started/get-docker/",
     "uv": "https://docs.astral.sh/uv/getting-started/installation/",

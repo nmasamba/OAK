@@ -175,6 +175,9 @@ documented flow uses it.
 | `OAK-RATE-LIMIT-ADDRESS`, `OAK-RATE-LIMIT-TENANT` | More requests in a minute than the API admits from one address or one tenant (`429`) | Wait the `Retry-After` seconds; the limits are `OAK_REQUESTS_PER_MINUTE_PER_ADDRESS` and `OAK_REQUESTS_PER_MINUTE_PER_TENANT` |
 | `OAK-OPERATION-QUOTA` | The tenant has `OAK_OPERATIONS_PER_TENANT` operations queued or running (`429`) | Wait for the worker, cancel one, or raise the value |
 | `OAK-MODEL-BUDGET` | The case has recorded its daily number of billable model requests (`429` on the API) | Use the deterministic mode, wait for 00:00 UTC, or raise `OAK_MODEL_REQUESTS_PER_CASE_PER_DAY` |
+| `OAK-HARDWARE-PROPOSAL` | A scan result carries a field the scanner never writes, or names a proposal the case is not waiting on | Send what `oak scan --output json` printed under `proposal`, unchanged; confirm the proposal the case's `oak.community/hardware_proposal_ref` names |
+| `OAK-HARDWARE-STATE` | A hardware proposal arrived before the brief was interpreted or after the candidates were generated (`409`) | Scan between interpretation and candidate generation; a case past that point keeps the hardware it was designed for |
+| `OAK-HARDWARE-EMPTY` | The scan could tell nothing to confirm | Read the scan's unknowns, install the tool one names, and scan again; or answer the hardware questions yourself |
 | `OAK-REMOTE-UNSUPPORTED` | A local-only command was run with `--server` | Signing, approval, dispatch, keys, model-provider configuration, extensions and policy are local-only by design |
 | `OAK-REMOTE-UNAVAILABLE` | The control plane could not be reached | Check the URL and that `oak-api` is running |
 | `OAK-TENANT-MISMATCH` | A different tenant was requested | Reported as not-found on purpose, so it leaks no existence information |

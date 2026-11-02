@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://oak.example/schemas/hardware-proposal.schema.json",
+  "title": "HardwareProposal",
+  "description": "What a hardware scan proposes about the machine a design is for: allowlisted fields only, each string bounded and drawn from a narrow character set, an unknown entry with its reason wherever a tool could not say. No field can carry a serial number, a GPU UUID, a host name or a user name. Nothing enters a design case's intent until a user confirms it.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "id", "version", "case_id", "recorded_at", "scanned_by", "platform", "cpu", "memory", "storage_gib", "accelerators", "prerequisites", "unknown", "tools", "extensions"],
+  "properties": {
+    "schema_version": {"const": "0.1.0"},
+    "id": {"$ref": "common.schema.json#/$defs/identifier"},
+    "version": {"$ref": "common.schema.json#/$defs/semver"},
+    "case_id": {"$ref": "common.schema.json#/$defs/identifier"},
+    "recorded_at": {"type": "string", "format": "date-time"},
+    "scanned_by": {"enum": ["oak_scan", "runner_inventory"]},
+    "platform": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operating_system", "architecture"],
+      "properties": {
+        "operating_system": {"enum": ["macos", "linux", null]},
+        "architecture": {"enum": ["x86_64", "arm64", null]}
+      }
+    },
+    "cpu": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["model", "physical_cores", "logical_cores"],
+      "properties": {
+        "model": {"$ref": "#/$defs/model"},
+        "physical_cores": {"$ref": "#/$defs/count"},
+        "logical_cores": {"$ref": "#/$defs/count"}
+      }
+    },
+    "memory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ram_gib", "unified"],
+      "properties": {
+        "ram_gib": {"$ref": "#/$defs/gib"},
+        "unified": {"type": "boolean"}
+      }
+    },
+    "storage_gib": {"$ref": "#/$defs/gib"},
+    "accelerators": {
+      "description": "Every GPU a vendor's tool reported; null when the GPUs cannot be known, an empty list only when every vendor's tool answered.",
+      "oneOf": [
+        {"type": "null"},
+        {"type": "array", "maxItems": 16, "items": {"$ref": "#/$defs/accelerator"}}
+      ]
+    },
+    "prerequisites": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "state"],
+        "properties": {
+          "name": {"enum": ["docker", "uv"]},
+          "state": {"enum": ["present", "absent", "not_running"]}
+        }
+      }
+    },
+    "unknown": {
+      "type": "array",
+      "maxItems": 16,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["field", "reason"],
+        "properties": {
+          "field": {"enum": ["platform", "cpu", "memory", "accelerators", "accelerators.nvidia", "accelerators.amd"]},
+          "reason": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9 ._()-]{0,119}$"}
+        }
+      }
+    },
+    "tools": {
+      "type": "array",
+      "maxItems": 5,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "status"],
+        "properties": {
+          "name": {"enum": ["sysctl", "system_profiler", "lscpu", "nvidia-smi", "rocm-smi"]},
+          "status": {"enum": ["ran", "absent", "failed", "timed_out", "too_large"]}
+        }
+      }
+    },
+    "extensions": {"$ref": "common.schema.json#/$defs/extensions"}
+  },
+  "$defs": {
+    "model": {
+      "description": "A model name as a tool printed it: short plain text, or null.",
+      "oneOf": [
+        {"type": "null"},
+        {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9 ()@.,+/_\\[\\]-]{0,79}$"}
+      ]
+    },
+    "count": {"oneOf": [{"type": "null"}, {"type": "integer", "minimum": 1, "maximum": 4096}]},
+    "gib": {"oneOf": [{"type": "null"}, {"type": "number", "minimum": 0, "maximum": 1048576}]},
+    "accelerator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["vendor", "model", "memory_gib", "unified_memory", "runtime", "driver_version"],
+      "properties": {
+        "vendor": {"enum": ["apple", "nvidia", "amd", "intel", "other"]},
+        "model": {"$ref": "#/$defs/model"},
+        "memory_gib": {"$ref": "#/$defs/gib"},
+        "unified_memory": {"type": "boolean"},
+        "runtime": {"enum": ["metal", "cuda", "rocm", null]},
+        "driver_version": {"oneOf": [{"type": "null"}, {"type": "string", "pattern": "^[0-9][0-9.]{0,31}$"}]}
+      }
+    }
+  }
+}

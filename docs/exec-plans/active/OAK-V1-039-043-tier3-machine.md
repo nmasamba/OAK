@@ -14,7 +14,7 @@ and publishes nothing.
 
 - Owner/agent: owner-directed coding agent
 - Started: 2026-11-02
-- Last updated: 2026-11-02 (M1, the scanner)
+- Last updated: 2026-11-02 (M2, the proposal enters the case)
 - State: in-progress
 - Claimed tasks: `OAK-V1-039`–`OAK-V1-043`
 
@@ -275,7 +275,11 @@ By milestone, to be filled as each lands:
   Linux "no GPU" would be a guess unless both vendors' tools answered, and the scan says
   unknown instead. uv is never run; the scan only looks it up.
 - **M2, the proposal.** Only the confirmed profile enters the case, and its schema cannot
-  carry an identifier of the machine or its user.
+  carry an identifier of the machine or its user: the schema is closed, an extra field is
+  refused before anything is recorded, and every string is bounded and pattern-limited. A
+  client can still send a false scan, as a brief can state false hardware; that is why
+  nothing reaches the intent until a user confirms it, and why MCP can propose but not
+  confirm. The web never scans: the browser is never the machine a design is for.
 - **M3–M5, native installation.** What relaxes is ADR-0017's container isolation set and
   nothing else; what stays is the signed plan bound to bundle and target, the two approvals
   and the consent, typed operations without a shell, verified downloads, and a tested
@@ -324,6 +328,36 @@ kinds, and an existing case or profile reads as before.
   NVIDIA and AMD by fixture only), the changelog, and the original spec repo's
   `docs/build/security-invariants.md` § Runner execution. Every runner suite, `make
   validate`, `format-check`, `lint` and `typecheck` green.
+- [x] 2026-11-02 M2 (`OAK-V1-039`, part 2). `schemas/hardware-proposal.schema.json` (`0.1.0`,
+  closed; its example, `EXAMPLE_BY_SCHEMA`, the schemas README) and the artifact kind
+  `hardware_proposal` (`KIND_SCHEMA`, `JSON_MEDIA_KIND`, the manifest's kind enum); the audit
+  events `hardware_proposed` and `hardware_confirmed`. `DesignCaseService.propose_hardware`
+  records a scan result as the case's proposal (the case extension
+  `oak.community/hardware_proposal_ref`; no intent value changes) and `confirm_hardware`
+  confirms the pending one into `spec.hardware`: each value `measured`, one provenance
+  record per scalar as the intent's invariant requires, the proposal as evidence, the intent
+  extension `oak.community/hardware_scan`, a field's question resolved when it was measured
+  and the section's when every hardware value was. The control plane, REST
+  (`:propose-hardware`, `:confirm-hardware`, listed as unreleased), MCP
+  (`oak_hardware_propose`, the interface contract and its pinned tool list updated), the
+  remote client and `oak scan --propose` / `--confirm` locally and with `--server`; the
+  web client's `confirmHardware` (guard G2 extended) and the case page's `HardwareMoment`
+  (pending proposal with **Confirm hardware**, the confirmed machine, or the command to
+  scan). New codes `OAK-HARDWARE-PROPOSAL`, `OAK-HARDWARE-STATE`, `OAK-HARDWARE-EMPTY`, with
+  quick-table rows. Tests: `tests/integration/test_hardware_case.py` (nine cases: no intent
+  change until confirmed; the hardware question and no other answered; a value the scan
+  did not measure keeps the section open; the confirmed profile reaching
+  `constraint.hardware`, `unknown` before and `fail` after for the component that needs
+  `fixture-gpu`, with research's class `cpu-medium` for no GPU and `accelerator-medium`
+  for a 24 GiB one; only the pending proposal, once; no identifier or extra field; refused
+  after candidates; an empty scan refused), `tests/integration/test_hardware_interfaces.py`
+  (the local CLI, MCP proposing and REST confirming on one control plane, REST's refusal,
+  the remote CLI against a live loopback API) and the browser spec
+  `web/e2e/hardware.spec.ts` (the moment, its accessibility, the confirmation); eight
+  mutation checks, each killed. Documents: `compatibility.md` (schema, REST, CLI, MCP,
+  runner evidence), `interfaces.md` (two rows), `operations.md` (the machine a design is
+  for), the changelog, and the original spec repo's `docs/build/interface-contract.md`.
+  `make validate`, `format-check`, `lint`, `typecheck` and `test` green.
 
 ## Decisions
 
@@ -348,6 +382,22 @@ kinds, and an existing case or profile reads as before.
     process only to smoke-test it, then stops it; no unit file is written and nothing is
     left running; the runner tells the user how to start it.
   - **Q4(e), the consent text:** drafted in M3 and brought to the owner for sign-off.
+- 2026-11-02 M2. **A proposal enters a case between interpretation and candidate
+  generation, and only the latest one can be confirmed, once.** Candidates are designed
+  for the hardware they were generated against, so a scan after them would describe a
+  machine the designs never saw (`OAK-HARDWARE-STATE`); a newer scan replaces the pending
+  one. The runner's `inventory` carries the same proposal in its evidence, but a dispatch
+  comes after compilation, so its scan can serve a later case (REST takes
+  `scanned_by: runner_inventory`), not the one dispatched.
+- 2026-11-02 M2. **Confirmed values are `measured`, an existing provenance source**, one
+  record per scalar as every intent value has; no enum changes. The section question
+  (`/spec/hardware`, which interpretation asks) is resolved only when every hardware value
+  rests on the proposal, because a value the brief stated and the scan did not measure
+  still needs the user's word.
+- 2026-11-02 M2. **`recorded_at`, not `scanned_at`.** The server knows when a proposal
+  entered the case, not when the client's scan ran, so the document says only that.
+- 2026-11-02 M2. **The manual's scan section lands in M5**, with the native path, so the
+  manual's PDF is rebuilt once.
 - 2026-11-02 Kickoff. **The branch starts from the image fix, not from `main`.** `main`'s
   CI was red after PR #42's merge for a reason `OAK-V1-038` fixes; starting there keeps this
   batch's CI about this batch.

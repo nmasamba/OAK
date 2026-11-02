@@ -188,6 +188,34 @@ The absence of metrics is recorded as a limitation, not presented as a design go
 
 ---
 
+### The machine a design is for
+
+A design's hardware constraints, its estimates and research's hardware class read the
+intent's `hardware` section. A brief can declare it; a scan can measure it. On the machine
+the design is for:
+
+```bash
+oak scan
+```
+
+prints what OAK found and records nothing: the CPU, the memory, each GPU with its runtime,
+the storage, and whatever it could not find out, with the reason (a GPU whose vendor's tool
+is not installed is unknown, never "none"). It also says whether Docker and uv are present
+and, when one is missing, where to get it; it installs nothing. To give the result to a case:
+
+```bash
+oak scan --confirm
+```
+
+records it as the case's hardware proposal and confirms it; `--propose` only records it, for
+confirming later with **Confirm hardware** on the case page or over REST. With
+`--server <url>` name the case (`oak --server <url> scan <case-id> --propose`): the scan
+still runs where you are, which is the point, since the server is never the machine it
+designs for. A proposal can enter a case between interpretation and candidate generation;
+after that the case keeps the hardware it was designed for (`OAK-HARDWARE-STATE`). The raw
+output of the tools never leaves the machine: only the proposal's fields, which can hold no
+serial number, GPU id, host name or user name.
+
 ## Back up
 
 OAK keeps state in **two stores that are backed up by different tools**, plus a key

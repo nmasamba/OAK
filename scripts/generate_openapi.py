@@ -540,6 +540,22 @@ export async function confirmDesignCase(
   );
 }
 
+export async function confirmHardware(
+  caseId: string,
+  proposalId: string,
+  options: CommandOptions,
+): Promise<DesignCaseResponse> {
+  return requestJson<DesignCaseResponse>(
+    `/v1/design-cases/${encodeURIComponent(caseId)}:confirm-hardware`,
+    {
+      method: "POST",
+      headers: commandHeaders(options),
+      body: JSON.stringify({ proposal_id: proposalId }),
+    },
+    options.baseUrl,
+  );
+}
+
 export async function generateCandidates(
   caseId: string,
   options: CommandOptions,
