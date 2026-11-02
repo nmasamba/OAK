@@ -585,6 +585,19 @@ def check(root: Path = ROOT) -> list[str]:
             )
     if len(set(snapshots.values())) > 1:
         failures.append("deploy/images: both Dockerfiles must name one DEBIAN_SNAPSHOT date")
+    # The venv's bytecode by one process in sorted order (OAK-V1-038): uv's parallel workers
+    # made a module's bytecode depend on what the same worker had compiled before.
+    single_compile = re.search(
+        r"^\s*&& python -m compileall -q -j 1 --invalidation-mode checked-hash /app/\.venv/",
+        api_dockerfile,
+        flags=re.MULTILINE,
+    )
+    if "UV_COMPILE_BYTECODE=0" not in api_dockerfile or single_compile is None:
+        failures.append(
+            "deploy/images/api.Dockerfile: the venv's bytecode must be compiled by one process "
+            "(UV_COMPILE_BYTECODE=0, then python -m compileall -q -j 1 "
+            "--invalidation-mode checked-hash)"
+        )
     if not re.search(r"^ARG SOURCE_DATE_EPOCH$", api_dockerfile, flags=re.MULTILINE):
         failures.append("deploy/images/api.Dockerfile: expected ARG SOURCE_DATE_EPOCH")
     release_pin = _check_image_reproduction(
