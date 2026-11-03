@@ -15,7 +15,7 @@ and publishes nothing.
 - Owner/agent: owner-directed coding agent
 - Started: 2026-11-02
 - Last updated: 2026-11-03 (M6, the closing review's fixes; the rehearsal and the consent sign-off wait for the owner)
-- State: in-progress
+- State: in-progress: code complete and open as PR #44 (https://github.com/nmasamba/OAK/pull/44); the llama.cpp rehearsal waits for the owner's approval of its downloads, and the consent text for the owner's sign-off
 - Claimed tasks: `OAK-V1-039`–`OAK-V1-043`
 
 One plan covers five task IDs: one for hardware scanning, three for native installation
@@ -28,8 +28,8 @@ made `main` green again after Batch A.
 green. After PR #42 merged it was not: the arm64 job failed twice, once on two different
 API image builds and once on a package the snapshot archive refused. `OAK-V1-038` fixes
 both on `fix/image-package-index` (PR #43). This branch, `tier3-machine`, starts from that
-fix (`7e96ed7`), so its CI is not red for a reason it does not own. Once the owner merges
-PR #43, the branch takes `main` and its PR targets `main`.
+fix (`7e96ed7`), so its CI is not red for a reason it does not own. Its PR, #44, targets
+`main`; until the owner merges PR #43 it also shows #43's commits.
 
 ## Outcome
 
@@ -40,7 +40,8 @@ After this plan:
    CUDA or ROCm) through fixed argument vectors over five tools (`sysctl` and
    `system_profiler` on macOS; `lscpu`, `nvidia-smi` and `rocm-smi` on Linux), parsing
    machine-readable output only and reporting `unknown` with a reason whenever a tool is
-   absent. Apple silicon's memory is reported as unified, never as invented GPU memory. The
+   absent. Apple silicon's memory is reported as unified; confirmed, the GPU's memory is the
+   system memory it shares, never an invented figure. The
    scan also says whether Docker and uv are present and recommends installing whichever is
    missing (the owner's addition), and never installs anything. The runner's `inventory`
    operation and a local `oak scan` command share the module. The result enters the case
@@ -50,7 +51,7 @@ After this plan:
    accept a scan result as a proposal, because the scan runs where the hardware is and the
    API host is never the target; the web workspace shows the proposal and its confirmation
    as a moment on the case page. The raw inventory never leaves the machine, and the
-   proposal's schema cannot hold a serial number, a GPU UUID, a host name or a user name.
+   scanner writes no serial number, GPU UUID, host name or user name into the proposal.
 2. **The records allow a native install, and say exactly what it relaxes** (`OAK-V1-040`).
    ADR-0019, beside ADR-0017, decides it; the target profile gains a `native` execution
    mode that maps each component to a typed harness kind the adapter knows, with typed
@@ -449,6 +450,10 @@ kinds, and an existing case or profile reads as before.
   changed again before the owner's sign-off (a program built to leave its process group can
   outlive the stop), and its pin with it. Unit and contract 1,504 passed; integration and
   end to end 683 passed, 4 skipped, with the throwaway PostgreSQL.
+- [x] 2026-11-03 M6 gates. `make check` on `27f836c` failed once, on the macOS race recorded
+  under Discoveries; fixed in `93df6e3`. `make check` on `93df6e3` in the detached gate
+  worktree, with the throwaway PostgreSQL: no failing target; unit and contract 1,504
+  passed, integration 636, end to end 47.
 
 ## Decisions
 
