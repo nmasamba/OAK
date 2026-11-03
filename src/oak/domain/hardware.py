@@ -158,40 +158,59 @@ def _size_bytes(value: Any) -> int | None:
     return int(match.group(1)) * (2**20 if match.group(2) == "MB" else _GIB)
 
 
-def _lscpu_fields(items: Any, found: dict[str, str]) -> None:
+def _lscpu_entries(items: Any, found: list[tuple[str, str]]) -> None:
+    """Every field and value, in the order lscpu prints them, children after their parent."""
+
     for item in items if isinstance(items, list) else []:
         if not isinstance(item, dict):
             continue
         field = item.get("field")
         data = item.get("data")
         if isinstance(field, str) and isinstance(data, str):
-            found.setdefault(field.strip().rstrip(":").casefold(), data.strip())
-        _lscpu_fields(item.get("children"), found)
+            found.append((field.strip().rstrip(":").casefold(), data.strip()))
+        _lscpu_entries(item.get("children"), found)
 
 
-def parse_lscpu(stdout: str) -> dict[str, Any]:
-    """``lscpu -J``: flat in some util-linux releases, nested under the vendor in others."""
-
-    document = json.loads(stdout)
-    fields: dict[str, str] = {}
-    _lscpu_fields(document.get("lscpu") if isinstance(document, dict) else None, fields)
-    if not fields:
-        raise ValueError("lscpu printed no fields")
-    physical = None
+def _cores(group: dict[str, str]) -> int | None:
     # x86 counts cores per socket; Arm machines often per cluster, with sockets as "-".
     for per_key, unit_key in (
         ("core(s) per socket", "socket(s)"),
         ("core(s) per cluster", "cluster(s)"),
     ):
-        per_unit, units = _count(fields.get(per_key)), _count(fields.get(unit_key))
+        per_unit, units = _count(group.get(per_key)), _count(group.get(unit_key))
         if per_unit and units:
-            physical = per_unit * units
-            break
+            return per_unit * units
+    return None
+
+
+def parse_lscpu(stdout: str) -> dict[str, Any]:
+    """``lscpu -J``: flat in some util-linux releases, nested under the vendor in others.
+
+    A machine with two kinds of core (Arm's big.LITTLE) lists one model-name group per
+    kind, each with its own counts: the cores are summed over the groups, and the model
+    names joined.
+    """
+
+    document = json.loads(stdout)
+    entries: list[tuple[str, str]] = []
+    _lscpu_entries(document.get("lscpu") if isinstance(document, dict) else None, entries)
+    if not entries:
+        raise ValueError("lscpu printed no fields")
+    fields: dict[str, str] = {}
+    groups: list[dict[str, str]] = []
+    for key, value in entries:
+        fields.setdefault(key, value)
+        if key == "model name":
+            groups.append({key: value})
+        elif groups:
+            groups[-1].setdefault(key, value)
+    counted = [cores for cores in map(_cores, groups or [fields]) if cores is not None]
+    names = list(dict.fromkeys(group["model name"] for group in groups))
     return {
         "architecture": normalize_architecture(fields.get("architecture", "")),
-        "cpu_model": bounded_model(fields.get("model name")),
+        "cpu_model": bounded_model(" + ".join(names)) if names else None,
         "logical_cores": _count(fields.get("cpu(s)")),
-        "physical_cores": physical,
+        "physical_cores": sum(counted) if counted else _cores(fields),
     }
 
 
@@ -300,6 +319,9 @@ def build_proposal(
         accelerators = _linux_accelerators(outcomes, reader)
     else:
         unknown.append({"field": "platform", "reason": f"{system} is not a scanned platform"})
+    if ram_gib is not None:
+        # The runtime's figure stands in for a tool that failed: memory is known.
+        unknown[:] = [entry for entry in unknown if entry["field"] != "memory"]
     known = {entry["field"] for entry in unknown}
     if cpu["model"] is None and "cpu" not in known:
         unknown.append({"field": "cpu", "reason": "the tool did not name the CPU model"})
@@ -390,8 +412,11 @@ def _linux_accelerators(
 def intent_hardware(proposal: dict[str, Any]) -> dict[str, Any]:
     """The ``spec.hardware`` values a confirmed proposal sets; an unknown sets nothing.
 
-    Apple silicon's memory is unified: ``vram_gib`` stays unset rather than invented, and
-    the GPU appears among the accelerators.
+    Once the scan has measured the accelerators, the values that describe them are
+    replaced together, so nothing the brief said about another GPU survives: ``vram_gib``
+    is the largest discrete GPU's memory or, for unified memory (Apple silicon), the system
+    memory the GPU shares, and ``None`` (cleared) when neither is known; ``drivers`` is the
+    measured list, empty when the GPUs report none.
     """
 
     values: dict[str, Any] = {}
@@ -411,17 +436,22 @@ def intent_hardware(proposal: dict[str, Any]) -> dict[str, Any]:
             }
         )
         discrete = [gpu["memory_gib"] for gpu in accelerators if gpu["memory_gib"] is not None]
+        unified = any(gpu["unified_memory"] for gpu in accelerators)
         if discrete:
             values["vram_gib"] = max(discrete)
-        drivers = sorted(
+        elif unified and proposal["memory"]["ram_gib"] is not None:
+            # The GPU addresses the same memory as the CPU, so what fits in one fits in the
+            # other: the weight-floor check and the research hardware class read this.
+            values["vram_gib"] = proposal["memory"]["ram_gib"]
+        else:
+            values["vram_gib"] = None
+        values["drivers"] = sorted(
             {
                 f"{gpu['vendor']}-driver-{gpu['driver_version']}"
                 for gpu in accelerators
                 if gpu["driver_version"]
             }
         )
-        if drivers:
-            values["drivers"] = drivers
     return values
 
 

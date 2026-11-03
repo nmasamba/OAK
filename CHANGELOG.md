@@ -55,8 +55,10 @@ installation. In progress; entries land with each milestone.
   knows nothing cannot be (`OAK-HARDWARE-EMPTY`). REST adds
   `POST /v1/design-cases/{case_id}:propose-hardware`, and MCP the tool
   `oak_hardware_propose`, because the scan runs where the hardware is and the API host is
-  never the target; confirming is not an MCP tool. The proposal's schema is closed: no
-  field can carry a serial number, a GPU id, a host name or a user name.
+  never the target; confirming is not an MCP tool. The proposal's schema is closed and
+  bounds every field; OAK's scanner writes no serial number, GPU id, host name or user name
+  into it, while a proposal a client builds itself is held to the same shapes, not to their
+  meaning.
 - **A native installation: installed, checked and stopped** (`OAK-V1-041`). The runner's
   native adapter, `adapter.local-native`, installs each component of the selected
   architecture outside Docker, as the user, for a target profile that acknowledges
@@ -97,6 +99,50 @@ installation. In progress; entries land with each milestone.
   and Qwen2.5-0.5B-Instruct by the digests their publishers list; it is not yet rehearsed.
   Documents: `operations.md`, `platforms.md`, the README, `interfaces.md` and the manual,
   with its PDF.
+
+#### Fixed (the closing review, `OAK-V1-043`)
+
+Two independent reviews of the finished batch, one on the native installation's security
+and one on correctness elsewhere, reported fourteen findings; all were confirmed and fixed,
+with a test where they were code.
+
+- **A native check could pass without its component.** A component that answered once and
+  died, or another program already listening on its port, passed. Now the port must be free
+  before the component starts, and only the component itself, still running after answering
+  twice, passes.
+- **"Stopped" was not checked.** The stop signalled the process group only while its first
+  process lived, and recorded every component as stopped. Now the whole group gets `SIGKILL`
+  after `SIGTERM` in every case, a component is recorded as stopped only when nothing of its
+  group remains (`OAK-NATIVE-STOP` otherwise), and `SIGTERM` or `SIGHUP` to the runner during
+  a check stops the component before the runner exits.
+- **A real model could not install inside a five-minute lease, and a download ignored the
+  lease.** A native `apply` is now dispatched with an hour's lease, which its plan admits; a
+  download stops when the lease ends, and a file two components share downloads once.
+- **A repeated install ran an unpacked tree it never checked again.** Every `apply` now
+  unpacks the archive afresh from its verified bytes.
+- **Some failures escaped without compensation.** An error other than OAK's own while
+  installing is now `OAK-NATIVE-IO`, with the install it started removed; the installation
+  directory appears only with its marker, and a removal renames the directory away first,
+  so a failure part way never leaves a directory without its marker. A profile can name
+  only plain DNS hosts, and a host the IDNA codec refuses is a download failure.
+- **The same scan, again, replayed an old case version.** A scan proposed a second time
+  after the case moved on returned the first result, and `oak scan --confirm` then failed
+  for ever; a derived key now covers the case version, locally and remotely.
+- **An Apple silicon scan switched off the weight-floor check.** Unified memory now gives
+  the GPU the system memory as `vram_gib`, so the check and the research hardware class have
+  a figure to read, and a scan that measures the accelerators replaces the brief's GPU memory
+  and drivers rather than leaving a stale figure beside them.
+- **Smaller scan defects.** Memory was reported unknown beside a figure the runtime gave;
+  an Arm machine with two kinds of core counted one cluster; a long case id made every
+  proposal's id too long.
+- **Interfaces and the report.** The case-scoped error mapping had moved from `GET
+  …/architecture` to the consent read; a native plan's approvals table said "two" until a
+  consent existed.
+- **Documents.** The proposal's privacy claim now says what the code guarantees (the
+  scanner writes no identifier; a client's own proposal is held to the same shapes, not
+  meanings); `RR-055` names the environment the tools really get; the manual's consent
+  output includes the draft line and its scan note says what a confirmed scan changes; and
+  `compatibility.md` lists `GET /v1/native-consent`, its schemas and its `503`.
 
 ### After Batch A (`OAK-V1-038`)
 

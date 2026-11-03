@@ -213,8 +213,8 @@ confirming later with **Confirm hardware** on the case page or over REST. With
 still runs where you are, which is the point, since the server is never the machine it
 designs for. A proposal can enter a case between interpretation and candidate generation;
 after that the case keeps the hardware it was designed for (`OAK-HARDWARE-STATE`). The raw
-output of the tools never leaves the machine: only the proposal's fields, which can hold no
-serial number, GPU id, host name or user name.
+output of the tools never leaves the machine: only the proposal's fields, into which the
+scanner writes no serial number, GPU id, host name or user name.
 
 ## Back up
 

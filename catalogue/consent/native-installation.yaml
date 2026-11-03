@@ -37,6 +37,6 @@ retained_controls:
   - Nothing is installed without your signed approval of the architecture, of the installation and of this consent.
   - Every download comes only from a host your target profile names, and its size and SHA-256 are checked before anything runs.
   - Programs start with fixed arguments OAK knows for each kind of program, never with a command taken from a document, and listen only on this computer.
-  - After its check, every program is stopped. Nothing keeps running, and nothing starts with your computer.
+  - After its check, OAK stops each program and every process it started. Only a program built to slip out of that could keep running, and nothing starts with your computer.
   - Uninstalling removes exactly the folder the installation created, and nothing else.
 extensions: {}

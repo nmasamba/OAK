@@ -14,7 +14,7 @@ and publishes nothing.
 
 - Owner/agent: owner-directed coding agent
 - Started: 2026-11-02
-- Last updated: 2026-11-02 (M5, the platforms and documents; the rehearsal waits for the owner)
+- Last updated: 2026-11-03 (M6, the closing review's fixes; the rehearsal and the consent sign-off wait for the owner)
 - State: in-progress
 - Claimed tasks: `OAK-V1-039`–`OAK-V1-043`
 
@@ -437,6 +437,18 @@ kinds, and an existing case or profile reads as before.
   (a completion claiming a complete check of fewer nodes; a link that climbs out to a file
   that exists). Unit and contract 1,485 passed; `make validate` green. Open: the rehearsal,
   which waits for the owner's approval of each download.
+- [x] 2026-11-02 M5 gates on `f7b200c`, in the detached gate worktree. `make check` with the
+  throwaway PostgreSQL: no failing target; unit and contract 1,486 passed, integration 627,
+  end to end 47. `make web-e2e-isolated` on a throwaway Compose project: 35 passed (the
+  native spec among them), the two manual captures skipped as expected; the project, its
+  volumes and its images removed afterwards.
+- [x] 2026-11-03 M6 (`OAK-V1-043`), the closing review. Two independent reviewers read the
+  finished diff, one on the native installation's security and one on correctness
+  elsewhere; their fourteen findings all held and are fixed (see Self-review), each code fix
+  with a test, and twenty-one mutation checks of those fixes each killed. The consent text
+  changed again before the owner's sign-off (a program built to leave its process group can
+  outlive the stop), and its pin with it. Unit and contract 1,504 passed; integration and
+  end to end 683 passed, 4 skipped, with the throwaway PostgreSQL.
 
 ## Decisions
 
@@ -564,4 +576,29 @@ kinds, and an existing case or profile reads as before.
 
 ## Self-review
 
-(Empty until the work happens.)
+The closing review (M6) ran two independent reviewers over the finished diff, as the token
+economy allows for finished code: one on the native installation's security, one on
+correctness everywhere else. Each finding was checked against the code before it was fixed;
+all fourteen held. Each code fix has a test that fails without it (twenty-one mutation
+checks, each killed).
+
+| # | Finding | Where | Severity | Fix and proof |
+|---|---|---|---|---|
+| S1 | A component that answered once and died, or another listener on its port, passed its check | `runner/native.py` `_wait_ready` | Medium | Only the component, still running after answering twice, passes; the port must be free first (`OAK-NATIVE-START`); two tests |
+| S2 | The stop signalled the group only while its first process lived, never killed a child left behind or one ignoring `SIGTERM`, and recorded "stopped" unchecked; `SIGTERM` to the runner mid-check skipped the stop | `runner/native.py` `_stop` | Medium | `SIGTERM`, then `SIGKILL` to the whole group every time; stopped only when the group is gone (`OAK-NATIVE-STOP`); `SIGTERM`/`SIGHUP` handlers during the check; three tests, one in a child process |
+| S3 | A real model could not install inside a five-minute lease, and downloads ignored the lease | `release.py`, `compiler/planning.py`, `native_network.fetch` | Medium | A native plan admits, and its `apply` dispatch gets, an hour; a download stops when the lease ends; a file two components share downloads once; four tests |
+| S4 | A re-apply ran an unpacked tree it never re-verified | `runner/native.py` `_obtain` | Medium/low | Every `apply` unpacks afresh from the re-verified bytes; a test |
+| S5 | Non-OAK errors escaped without compensation; a failed marker write or removal could leave a directory without its marker; a host the IDNA codec refuses crashed the fetch | `runner/native.py`, `native_network.py`, the target profile schema | Low | `OAK-NATIVE-IO` with compensation; created under a temporary name and renamed with its marker; removed through a rename; hosts are plain DNS names; four tests |
+| C1 | The same scan proposed again after the case moved on replayed an old version, so `oak scan --confirm` failed for ever | `application/design_case.py`, CLI remote path | Medium | Derived keys cover the case version, locally and remotely; a test |
+| C2 | Confirming an Apple silicon scan switched off the weight-floor check and lowered the research hardware class; a GPU with unknown memory kept the brief's figure | `domain/hardware.intent_hardware`, `confirm_hardware` | Medium | Unified memory gives `vram_gib` the system memory; re-measured accelerators replace GPU memory and drivers, an unknown figure is cleared; two tests |
+| C3 | The case-scoped error mapping had moved from `architecture` to the consent read | `application/control_plane.py` | Low | Restored; a structural test pins every case-scoped method |
+| C4 | Memory reported unknown beside the runtime's figure on macOS | `domain/hardware.build_proposal` | Low | The memory unknown is dropped when a figure exists; a test |
+| C5 | An Arm machine with two kinds of core counted one cluster | `domain/hardware.parse_lscpu` | Low | Cores summed over every model group, names joined; a constructed fixture and a test |
+| C6 | A case id of 125 characters or more made every proposal id too long | `application/design_case._hardware_proposal_id` | Low | The case part is shortened to fit 160; a test |
+| C7 | A native plan's report said "two approvals" until a consent existed | `application/report/composer.py` | Low | Read from the bundle's installation preflight, already a report input; a composer test |
+| C8 | Docs claimed no proposal field can carry an identifier; a client's own proposal can | CHANGELOG, `operations.md`, the schema's description | Low (docs) | Reworded to what the code guarantees |
+| C9 | `RR-055`'s environment, the manual's consent output and scan note, and `compatibility.md`'s REST list were incomplete | docs | Low (docs) | Corrected |
+
+The consent text changed twice in the batch, both before the owner's sign-off: the
+resource ceilings (M4) and that a program built to leave its process group can outlive the
+stop (S2). Its pin moved with it; `RR-056` and ADR-0019 say the same.

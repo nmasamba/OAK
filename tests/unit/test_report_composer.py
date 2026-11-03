@@ -523,6 +523,36 @@ def test_governance_reports_gates_blockers_and_approval_states(
     assert [block["step"] for block in waiting] == ["Plan assurance", "Compile the bundle"]
 
 
+def test_a_native_plan_s_report_counts_three_approvals_before_any_is_given(
+    reference: dict[str, ReportRecords],
+) -> None:
+    """OAK-V1-043: the bundle the report reads says the plan installs natively."""
+
+    records = reference["bundle_compiled"]
+    bundle = copy.deepcopy(records.bundle)
+    assert bundle is not None
+    # The reference compile is read-only, so it has no installation preflight; a native
+    # compile records one in this shape.
+    bundle["extensions"]["oak.community/preflight_results"].append(
+        {
+            "id": "preflight.installation",
+            "category": "compatibility",
+            "result": "pass",
+            "reason": "Every installable node's component has an acknowledged harness.",
+            "evidence": {"mode": "native"},
+        }
+    )
+    document = compose(replace(records, bundle=bundle))
+
+    table = next(t for t in blocks(document, "governance", "table") if t["id"] == "approvals")
+    assert [row["cells"][0]["text"] for row in table["rows"]] == [
+        "Approve architecture",
+        "Approve native_consent",
+        "Approve apply",
+    ]
+    assert table["caption"] == "The three approvals a native install needs"
+
+
 def test_evidence_shows_metrics_and_waits_for_observations(
     reference: dict[str, ReportRecords],
 ) -> None:

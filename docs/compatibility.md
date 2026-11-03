@@ -155,8 +155,10 @@ mechanical migration; **breaking** otherwise.
   acknowledgement `native-non-production-user-consented`, the typed `native_components`
   (each catalogue component's harness kind, artifacts with their source, SHA-256, size and
   format, loopback listen port and health-probe path), required with that
-  acknowledgement, and `allowed_download_hosts` (ADR-0019). Every stored profile still
-  validates; a `0.9.0` reader refuses a profile carrying the new acknowledgement or fields.
+  acknowledgement, and `allowed_download_hosts` (ADR-0019), each a plain DNS name (labels of
+  one to 63 letters, digits or inner hyphens, at most 253 characters). Every stored profile
+  still validates; a `0.9.0` reader refuses a profile carrying the new acknowledgement or
+  fields.
   It adds `native-consent.schema.json` (`0.1.0`), the consent a native installation's
   `native_consent` approval names by digest; the text OAK shows is
   `catalogue/consent/native-installation.yaml`.
@@ -297,6 +299,12 @@ mechanical migration; **breaking** otherwise.
   Both answer `DesignCaseResponse`, need `Idempotency-Key` and `If-Match`, and change no
   existing operation; the new codes are `OAK-HARDWARE-PROPOSAL` (`422`),
   `OAK-HARDWARE-STATE` (`409`) and `OAK-HARDWARE-EMPTY` (`422`).
+- Tier 3's Batch B adds `GET /v1/native-consent`, read-only, answering
+  `NativeConsentResponse` (the consent text a native installation is approved against, and
+  its `NativeConsentReference`: id, version and digest); both schemas are listed as
+  unreleased in `tests/unit/test_openapi_compatibility.py`. A server that cannot read its
+  consent text answers `503` with `OAK-NATIVE-CONSENT`, on this route and on a compile for a
+  native target, because that is the server's configuration, not the request's.
 - The loopback guard (Sprint 9) — `Host` allowlist, `Origin` and `Sec-Fetch-Site` checks —
   runs as middleware before routing. It adds no parameter to the OpenAPI contract and is
   therefore outside this baseline; its behaviour is documented in
@@ -559,7 +567,11 @@ mechanical migration; **breaking** otherwise.
   Step 9 requires a `native_consent` approval beside the `architecture` and `apply`
   approvals for a native `apply`; the dispatch attaches it as `approval-native-consent`. A
   `0.9` runner denies a native plan (`OAK-RUNNER-ADAPTER`), and container plans verify
-  exactly as before.
+  exactly as before. A native plan's `lease_policy.maximum_seconds` is `3600` and the
+  control plane issues a native `apply` dispatch an hour's lease, because the install
+  downloads inside it; every other plan and dispatch keeps `300`, byte for byte. New codes:
+  `OAK-NATIVE-STOP` (a process a component started outlived the stop) and `OAK-NATIVE-IO`
+  (a file of the installation could not be written or read).
 
 ## Deprecation process
 

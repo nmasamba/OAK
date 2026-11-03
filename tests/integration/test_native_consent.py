@@ -12,13 +12,14 @@ controls, or whose parameters are not the ones its own profile acknowledges.
 from __future__ import annotations
 
 import copy
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 import pytest
 
 from oak.bootstrap import load_native_consent
-from oak.contracts import load_yaml_document
+from oak.contracts import ContractValidationError, SchemaRegistry, load_yaml_document
 from oak.domain import ArtifactReference, OAKError, canonical_json_bytes, content_digest
 from oak.domain.runner_adapters import (
     NATIVE_ADAPTER_ID,
@@ -115,6 +116,8 @@ def test_a_native_plan_names_the_consent_text_it_was_compiled_against(tmp_path: 
 
     assert apply["adapter"]["id"] == NATIVE_ADAPTER_ID
     assert apply["parameters"]["consent_ref"] == native_consent_reference(load_native_consent())
+    # A native install downloads inside its dispatch, so its plan admits an hour's lease.
+    assert plan["lease_policy"]["maximum_seconds"] == 3600
     # The example installs only OAK's stand-in, so the install may reach no host at all.
     assert apply["parameters"]["allowed_download_hosts"] == []
     assert apply["permissions"]["network_destinations"] == []
@@ -194,6 +197,7 @@ def test_a_container_plan_takes_no_native_consent(tmp_path: Path) -> None:
 
     assert caught.value.code == "OAK-NATIVE-CONSENT"
     assert "installs nothing natively" in caught.value.message
+    assert _plan(harness)["lease_policy"]["maximum_seconds"] == 300
 
 
 def test_a_consent_text_that_changed_after_the_compile_is_refused(tmp_path: Path) -> None:
@@ -265,6 +269,22 @@ def test_a_native_install_dispatch_carries_three_approvals_and_verifies(
         "approval-apply",
     } <= set(attachments)
     assert _verify(harness, envelope, attachments).requested_kinds == ("apply",)
+    lease = envelope["lease"]
+    issued = datetime.fromisoformat(lease["issued_at"].replace("Z", "+00:00"))
+    expires = datetime.fromisoformat(lease["expires_at"].replace("Z", "+00:00"))
+    assert (expires - issued).total_seconds() == 3600
+
+
+@pytest.mark.parametrize(
+    "host", ["x..invalid", "-github.com", "github.com-", "a" * 64 + ".com", "GitHub.com", ""]
+)
+def test_a_profile_names_only_plain_dns_hosts(host: str) -> None:
+    registry = SchemaRegistry.from_directory(ROOT / "schemas")
+    target = _target()
+    target["execution"]["allowed_download_hosts"] = [host]
+
+    with pytest.raises(ContractValidationError):
+        registry.validate("target-profile.schema.json", target)
 
 
 def test_the_runner_denies_a_native_install_without_its_consent(tmp_path: Path) -> None:

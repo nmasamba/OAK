@@ -108,7 +108,12 @@ rather than letting the mode contradict it silently.
   it is smoke-tested and whenever the user starts it; a downloaded harness is trusted as far
   as its acknowledged digest; on macOS, Gatekeeper and code signing decide whether a
   downloaded binary runs at all, which the rehearsal verifies before `platforms.md` claims it.
-  The register records each; `RR-043` covers containers only.
+  A program built to leave its process group can keep a process running after the check,
+  which the stop of the whole group cannot reach. The register records each; `RR-043`
+  covers containers only.
+- **A longer lease for a native install.** It downloads its harness and model inside its
+  dispatch, so a native `apply` is dispatched with an hour's lease where a container install
+  has five minutes, and the runner stops a download when the lease ends.
 - **Three platforms, one stand-in.** CI proves the native path on macOS on Apple silicon and on
   both Linux architectures with the stand-in; a real harness is proven by hand on the owner's
   machine, with its digests recorded.

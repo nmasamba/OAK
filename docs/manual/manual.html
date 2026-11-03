@@ -352,7 +352,10 @@ Prerequisites: docker present, uv present</span></code></pre>
     case's hardware, each value marked as measured, between interpretation and candidate
     generation; <code>--propose</code> records it for confirming later, in the terminal or
     with <strong>Confirm hardware</strong> on the case page. The rest of this chapter was
-    captured without a scan, so if you confirm one, each case version below is two higher.
+    captured without a scan. If you confirm one, what follows describes your machine rather
+    than the brief's: each case version below is two higher, the research plan's hardware
+    class (and so its consent digest) can differ, and a candidate's hardware check can
+    change its result.
   </p>
   <h2>2b · Look for newer options (optional, on your consent)</h2>
   <p>
@@ -1260,15 +1263,16 @@ What this relaxes:
 What stays:
 - Nothing is installed without your signed approval of the architecture, of the installation and of this consent.
 …
-Consent text consent.native-installation 0.1.0: sha256:7d863baca59d2b6236ee953886004088f86a36a8206e7898298ef76e254a9605
-To consent: oak approve native_consent --consent sha256:7d863baca59d2b6236ee953886004088f86a36a8206e7898298ef76e254a9605
+Consent text consent.native-installation 0.1.0: sha256:d3b3d10e92301fbada6d430405eec13629dbc6e58a953a44b99262413d4a59e8
+This text is a draft: it has not been signed off for release.
+To consent: oak approve native_consent --consent sha256:d3b3d10e92301fbada6d430405eec13629dbc6e58a953a44b99262413d4a59e8
 OAK-NATIVE-CONSENT: read the consent text, then approve with --consent and the digest it shows</span></code></pre>
   <p>
     Give the consent with that digest; <code>oak approve apply</code> is refused until you
     do (<code>OAK-NATIVE-CONSENT</code>). Then dispatch and run the runner, with the native
     profile as its target:
   </p>
-  <pre><code>uv run oak approve native_consent --consent sha256:7d86…9605
+  <pre><code>uv run oak approve native_consent --consent sha256:d3b3…59e8
 uv run oak approve apply
 uv run oak dispatch apply
 OAK_RUNNER_MAILBOX=$OAK_DISPATCH_MAILBOX \

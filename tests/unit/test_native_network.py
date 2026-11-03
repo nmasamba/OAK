@@ -144,3 +144,45 @@ def test_a_refused_redirect_names_the_host_when_it_is_a_plain_name(target: str, 
     with pytest.raises(OAKError) as caught:
         handler.redirect_request(request, io.BytesIO(), 302, "Found", {}, target)  # type: ignore[arg-type]
     assert f"redirected to {named}," in caught.value.message
+
+
+def test_a_host_the_idna_codec_refuses_is_a_download_failure_not_a_crash(tmp_path: Path) -> None:
+    """A profile can no longer name such a host, but the runner fails closed regardless."""
+
+    with pytest.raises(OAKError) as caught:
+        fetch(
+            "https://x..invalid/a",
+            tmp_path / "f",
+            allowed_hosts=frozenset({"x..invalid"}),
+            expected_size=4,
+            timeout=1,
+        )
+    assert caught.value.code == "OAK-NATIVE-DOWNLOAD"
+
+
+def test_a_download_stops_when_the_lease_ends(tmp_path: Path) -> None:
+    from datetime import UTC, datetime, timedelta
+
+    with pytest.raises(OAKError) as caught:
+        fetch(
+            "https://github.com/release",
+            tmp_path / "f",
+            allowed_hosts=ALLOWED,
+            expected_size=4,
+            timeout=1,
+            opener=_opener(b"four"),
+            deadline=datetime.now(UTC) - timedelta(seconds=1),
+        )
+    assert caught.value.code == "OAK-RUNNER-LEASE-EXPIRED"
+
+
+def test_a_port_with_a_listener_is_not_free() -> None:
+    import socket
+
+    with socket.socket() as listener:
+        listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        listener.bind(("127.0.0.1", 0))
+        listener.listen()
+        port = int(listener.getsockname()[1])
+        assert native_network.port_free(port) is False
+    assert native_network.port_free(port) is True

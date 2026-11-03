@@ -1275,12 +1275,17 @@ def _record_scan(
         from oak.interfaces.cli import remote as remote_mode
 
         case_id = _remote_case_id(design_case)
+        version = remote.current_case_version(case_id)
         result = remote.propose_hardware(
             case_id,
             proposal,
-            expected_version=remote.current_case_version(case_id),
+            expected_version=version,
+            # Scoped to the case version, so the same scan after the case moved on is a new
+            # proposal rather than a replay of an older one.
             idempotency_key=idempotency_key
-            or remote_mode.derived_key("propose-hardware", remote_mode.document_identity(proposal)),
+            or remote_mode.derived_key(
+                "propose-hardware", f"{version}:{remote_mode.document_identity(proposal)}"
+            ),
         )
         case = remote_mode.require_field(result, "case")
         proposal_id = str(

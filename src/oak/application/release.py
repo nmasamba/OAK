@@ -40,6 +40,7 @@ from oak.domain.design_case import DesignCase, DesignCaseStatus
 from oak.domain.runner_adapters import (
     NATIVE_ADAPTER_ID,
     NATIVE_CONSENT_BINDING_KEY,
+    NATIVE_LEASE_SECONDS,
     architecture_binding_matches,
     native_consent_binding,
     native_consent_binding_matches,
@@ -549,7 +550,7 @@ class ReleaseService:
                 "lease_id": f"lease.{current.id.removeprefix('design-case.')}.{sequence}",
                 "nonce": _deterministic_nonce("lease", plan_ref.digest, context.idempotency_key),
                 "issued_at": context.occurred_at,
-                "expires_at": _add_seconds(context.occurred_at, LEASE_SECONDS),
+                "expires_at": _add_seconds(context.occurred_at, _lease_seconds(kinds, plan)),
                 "heartbeat_seconds": LEASE_HEARTBEAT_SECONDS,
             },
             "issued_at": context.occurred_at,
@@ -1441,6 +1442,15 @@ def _derived_key_scope(context: CommandContext) -> dict[str, Any]:
     """
 
     return {} if context.idempotency_key else {"case_version": context.expected_version}
+
+
+def _lease_seconds(kinds: tuple[str, ...], plan: dict[str, Any]) -> int:
+    """Five minutes, or an hour for a native install, which downloads inside its dispatch;
+    never more than the plan's own lease policy admits."""
+
+    if "apply" in kinds and plan_apply_adapter(plan) == NATIVE_ADAPTER_ID:
+        return min(NATIVE_LEASE_SECONDS, int(plan["lease_policy"]["maximum_seconds"]))
+    return LEASE_SECONDS
 
 
 def _approval_identity(action: str, plan_ref: ArtifactReference, previous: Any) -> str:

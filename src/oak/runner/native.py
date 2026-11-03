@@ -38,9 +38,10 @@ import stat
 import subprocess
 import sys
 import tarfile
+import threading
 import time
 import zipfile
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from datetime import datetime
 from importlib import resources
@@ -67,6 +68,8 @@ READINESS_POLL_SECONDS = 0.25
 SETTLE_SECONDS = 0.5
 PROBE_TIMEOUT_SECONDS = 2.0
 STOP_SECONDS = 10.0
+# How long the stop waits, after the group's SIGKILL, for its last member to be gone.
+GONE_SECONDS = 2.0
 DOWNLOAD_TIMEOUT_SECONDS = 60.0
 MAXIMUM_ARCHIVE_MEMBERS = 10_000
 MAXIMUM_UNPACKED_BYTES = 64 * 2**30
@@ -92,6 +95,7 @@ NOT_LIMITED = ("memory", "cpu_time", "processes")
 Popen = Callable[..., subprocess.Popen[bytes]]
 Fetch = Callable[..., tuple[int, str]]
 Probe = Callable[[int, str, float], int | None]
+PortFree = Callable[[int], bool]
 
 
 @dataclass(frozen=True, slots=True)
@@ -216,6 +220,7 @@ class NativeProcessAdapter:
         *,
         fetch: Fetch = native_network.fetch,
         probe: Probe = native_network.probe,
+        port_free: PortFree = native_network.port_free,
         popen: Popen = subprocess.Popen,
         platform_key: tuple[str, str] | None = None,
         sleep: Callable[[float], None] = time.sleep,
@@ -224,6 +229,7 @@ class NativeProcessAdapter:
         self._root = root
         self._fetch = fetch
         self._probe = probe
+        self._port_free = port_free
         self._popen = popen
         self._platform = platform_key or (platform.system().lower(), platform.machine().lower())
         self._sleep = sleep
@@ -307,11 +313,18 @@ class NativeProcessAdapter:
             if os.path.lexists(directory):
                 self._require_owned(directory, installation.installation_id)
             else:
+                # Built under a name of its own and renamed into place with its marker, so
+                # the installation's path never exists without one.
                 self._root.mkdir(parents=True, exist_ok=True, mode=0o700)
-                directory.mkdir(mode=0o700)
+                creating = self._root / f".{installation.installation_id}.creating"
+                if os.path.lexists(creating):
+                    _delete_tree(creating)
+                creating.mkdir(mode=0o700)
+                self._write_marker(creating, installation, state="installing")
+                creating.rename(directory)
                 created = True
-                self._write_marker(directory, installation, state="installing")
             prepared: list[tuple[NativeComponent, Path, tuple[str, ...]]] = []
+            verified: dict[str, Path] = {}
             for component in installation.components:
                 beat()
                 self._before(deadline)
@@ -319,7 +332,11 @@ class NativeProcessAdapter:
                 component_directory.mkdir(mode=0o700, exist_ok=True)
                 files = {
                     artifact.role: self._obtain(
-                        artifact, component_directory, installation.allowed_hosts
+                        artifact,
+                        component_directory,
+                        installation.allowed_hosts,
+                        deadline=deadline,
+                        verified=verified,
                     )
                     for artifact in component.artifacts
                 }
@@ -350,6 +367,10 @@ class NativeProcessAdapter:
                         component, argv, working_directory, directory / component.slug, deadline
                     )
                 )
+            if not all(row["stopped"] for row in tested):
+                raise OAKError(
+                    "OAK-NATIVE-STOP", "a process a native component started is still running"
+                )
             if not all(row["passed"] for row in tested):
                 raise OAKError(
                     "OAK-NATIVE-SMOKE", "a native component did not answer its health probe"
@@ -361,6 +382,14 @@ class NativeProcessAdapter:
             raise AdapterFailureError(
                 error.code,
                 error.message,
+                created=(installation.installation_id,) if created else (),
+                evidence=evidence(),
+            ) from error
+        except (OSError, ValueError, subprocess.SubprocessError) as error:
+            # Never a traceback with the user's paths, and never without compensation.
+            raise AdapterFailureError(
+                "OAK-NATIVE-IO",
+                "a file of the installation could not be written or read",
                 created=(installation.installation_id,) if created else (),
                 evidence=evidence(),
             ) from error
@@ -380,15 +409,32 @@ class NativeProcessAdapter:
             raise OAKError("OAK-RUNNER-LEASE-EXPIRED", "the lease expired before the next step")
 
     def _obtain(
-        self, artifact: NativeArtifact, component_directory: Path, allowed: frozenset[str]
+        self,
+        artifact: NativeArtifact,
+        component_directory: Path,
+        allowed: frozenset[str],
+        *,
+        deadline: datetime | None = None,
+        verified: dict[str, Path] | None = None,
     ) -> Path:
-        """The verified artifact on disk: the downloaded file, or its unpacked tree."""
+        """The verified artifact on disk: the downloaded file, or its unpacked tree.
+
+        A file another component of this installation already verified is linked rather than
+        downloaded again. An archive is unpacked afresh from its verified bytes every time,
+        so what runs is never a tree left from before.
+        """
 
         role_directory = component_directory / artifact.role
         role_directory.mkdir(mode=0o700, exist_ok=True)
         download = role_directory / "download"
         if download.is_symlink():
             raise OAKError("OAK-NATIVE-OWNERSHIP", "an artifact path is a link")
+        known = (verified or {}).get(artifact.sha256)
+        if not download.exists() and known is not None:
+            try:
+                os.link(known, download)
+            except OSError:
+                shutil.copyfile(known, download)
         if download.exists():
             size, digest = _file_digest(download)
         elif artifact.source.startswith("oak-stand-in:"):
@@ -407,6 +453,7 @@ class NativeProcessAdapter:
                     allowed_hosts=allowed,
                     expected_size=artifact.size_bytes,
                     timeout=DOWNLOAD_TIMEOUT_SECONDS,
+                    deadline=deadline,
                 )
             except OAKError:
                 download.unlink(missing_ok=True)
@@ -418,22 +465,25 @@ class NativeProcessAdapter:
                 "an artifact's size or SHA-256 differs from what the target profile acknowledges",
             )
         os.chmod(download, 0o600)
+        if verified is not None:
+            verified[artifact.sha256] = download
         if artifact.format == "file":
             return download
         unpacked = role_directory / "unpacked"
-        if not unpacked.exists():
-            staging = role_directory / "unpacking"
-            if os.path.lexists(staging):
-                shutil.rmtree(staging)
-            staging.mkdir(mode=0o700)
-            try:
-                if artifact.format == "zip":
-                    _unpack_zip(download, staging)
-                else:
-                    _unpack_tar(download, staging)
-            except (OSError, EOFError, tarfile.TarError, zipfile.BadZipFile) as error:
-                raise OAKError("OAK-NATIVE-ARCHIVE", "the archive could not be unpacked") from error
-            staging.rename(unpacked)
+        staging = role_directory / "unpacking"
+        if os.path.lexists(staging):
+            _delete_tree(staging)
+        staging.mkdir(mode=0o700)
+        try:
+            if artifact.format == "zip":
+                _unpack_zip(download, staging)
+            else:
+                _unpack_tar(download, staging)
+        except (OSError, EOFError, ValueError, tarfile.TarError, zipfile.BadZipFile) as error:
+            raise OAKError("OAK-NATIVE-ARCHIVE", "the archive could not be unpacked") from error
+        if os.path.lexists(unpacked):
+            _delete_tree(unpacked)
+        staging.rename(unpacked)
         return unpacked
 
     @staticmethod
@@ -473,6 +523,12 @@ class NativeProcessAdapter:
             "HOME": str(component_directory),
             "LANG": "C.UTF-8",
         }
+        if not self._port_free(component.listen_port):
+            # Another listener would answer the probe in the component's place.
+            raise OAKError(
+                "OAK-NATIVE-START",
+                f"port {component.listen_port} on 127.0.0.1 is already in use",
+            )
         limits = child_limits()
 
         def apply_limits() -> None:
@@ -501,15 +557,16 @@ class NativeProcessAdapter:
                     "OAK-NATIVE-START", f"{component.node_id} could not be started"
                 ) from error
             try:
-                status, seconds = self._wait_ready(component, process, started, deadline)
+                with _stop_on_signal():
+                    status, seconds = self._wait_ready(component, process, started, deadline)
             finally:
-                exit_code = self._stop(process)
+                exit_code, stopped = _stop(process)
         return {
             "node_id": component.node_id,
             "passed": status == 200,
             "http_status": status,
             "seconds_to_ready": seconds,
-            "stopped": True,
+            "stopped": stopped,
             "exit_code": exit_code,
             "resource_limits": {label: pair[0] for label, (_, pair) in limits.items()},
             "not_limited": list(NOT_LIMITED),
@@ -533,31 +590,18 @@ class NativeProcessAdapter:
             if status == 200:
                 seconds = round(self._clock() - started, 3)
                 self._sleep(SETTLE_SECONDS)
-                if process.poll() is None:
-                    settled = self._probe(
-                        component.listen_port, component.probe_path, PROBE_TIMEOUT_SECONDS
-                    )
-                    if settled == 200:
-                        return settled, seconds
-                    status = settled
-                return status, None
+                settled = (
+                    self._probe(component.listen_port, component.probe_path, PROBE_TIMEOUT_SECONDS)
+                    if process.poll() is None
+                    else None
+                )
+                # Only the component itself, still running after answering twice, passes: a
+                # process that died, or another listener on its port, never does.
+                if settled == 200 and process.poll() is None:
+                    return settled, seconds
+                return (None if settled == 200 else settled), None
             self._sleep(READINESS_POLL_SECONDS)
         return status, None
-
-    @staticmethod
-    def _stop(process: subprocess.Popen[bytes]) -> int | None:
-        """Stop the whole process group the component started; never leave it running."""
-
-        if process.poll() is None:
-            with contextlib.suppress(ProcessLookupError):
-                os.killpg(process.pid, signal.SIGTERM)
-            try:
-                process.wait(STOP_SECONDS)
-            except subprocess.TimeoutExpired:
-                with contextlib.suppress(ProcessLookupError):
-                    os.killpg(process.pid, signal.SIGKILL)
-                process.wait(STOP_SECONDS)
-        return process.returncode
 
     # ----- ownership ----------------------------------------------------------------
 
@@ -627,12 +671,33 @@ class NativeProcessAdapter:
         return self._remove(installation_id, operation="compensation")
 
     def _remove(self, installation_id: str, *, operation: str) -> dict[str, Any]:
+        """Remove exactly the installation, after checking its marker.
+
+        The directory is renamed out of the way first, so a removal that fails part-way
+        leaves the installation's path absent and a leftover a later removal finishes,
+        never a directory without its marker.
+        """
+
         directory = self._root / installation_id
+        leftovers = (
+            self._root / f".{installation_id}.removing",
+            self._root / f".{installation_id}.creating",
+        )
         removed = False
-        if os.path.lexists(directory):
-            self._require_owned(directory, installation_id)
-            shutil.rmtree(directory)
-            removed = True
+        try:
+            if os.path.lexists(directory):
+                self._require_owned(directory, installation_id)
+                if os.path.lexists(leftovers[0]):
+                    _delete_tree(leftovers[0])
+                directory.rename(leftovers[0])
+                removed = True
+            for leftover in leftovers:
+                if os.path.lexists(leftover):
+                    _delete_tree(leftover)
+        except OSError as error:
+            raise OAKError(
+                "OAK-NATIVE-UNINSTALL", "the installation could not be removed"
+            ) from error
         if os.path.lexists(directory):
             raise OAKError("OAK-NATIVE-UNINSTALL", "the installation directory is still there")
         return {
@@ -640,6 +705,69 @@ class NativeProcessAdapter:
             "operation": operation,
             "content": {"installation_id": installation_id, "removed": removed, "absent": True},
         }
+
+
+def _delete_tree(path: Path) -> None:
+    """Delete a directory the runner made, refusing a link in its place."""
+
+    if os.path.islink(path) or not os.path.isdir(path):
+        raise OAKError("OAK-NATIVE-OWNERSHIP", "a path the runner made is not its directory")
+    shutil.rmtree(path)
+
+
+@contextlib.contextmanager
+def _stop_on_signal() -> Iterator[None]:
+    """While a component runs, SIGTERM or SIGHUP to the runner still stops it.
+
+    Python's default for both ends the process without running `finally`, which would
+    leave the component running; this turns them into an exit that unwinds through the
+    stop. Only the main thread can install handlers, and the runner has no other.
+    """
+
+    if threading.current_thread() is not threading.main_thread():
+        yield
+        return
+
+    def interrupted(signum: int, frame: Any) -> None:
+        raise SystemExit(128 + signum)
+
+    previous = {
+        number: signal.signal(number, interrupted) for number in (signal.SIGTERM, signal.SIGHUP)
+    }
+    try:
+        yield
+    finally:
+        for number, handler in previous.items():
+            signal.signal(number, handler)
+
+
+def _stop(process: subprocess.Popen[bytes]) -> tuple[int | None, bool]:
+    """Stop the component's whole process group, and say whether any of it is left.
+
+    The group is signalled whether or not its first process is still alive: a child it
+    started stays in the group after it exits, and a child that ignores SIGTERM is killed.
+    """
+
+    group = process.pid
+    with contextlib.suppress(ProcessLookupError):
+        os.killpg(group, signal.SIGTERM)
+    with contextlib.suppress(subprocess.TimeoutExpired):
+        process.wait(STOP_SECONDS)
+    with contextlib.suppress(ProcessLookupError):
+        os.killpg(group, signal.SIGKILL)
+    with contextlib.suppress(subprocess.TimeoutExpired):
+        process.wait(STOP_SECONDS)
+    give_up = time.monotonic() + GONE_SECONDS
+    while True:
+        try:
+            os.killpg(group, 0)
+        except ProcessLookupError:
+            return process.returncode, True
+        except PermissionError:
+            return process.returncode, False
+        if time.monotonic() >= give_up:
+            return process.returncode, False
+        time.sleep(0.05)
 
 
 def _write_start_instructions(

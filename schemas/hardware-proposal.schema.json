@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://oak.example/schemas/hardware-proposal.schema.json",
   "title": "HardwareProposal",
-  "description": "What a hardware scan proposes about the machine a design is for: allowlisted fields only, each string bounded and drawn from a narrow character set, an unknown entry with its reason wherever a tool could not say. No field can carry a serial number, a GPU UUID, a host name or a user name. Nothing enters a design case's intent until a user confirms it.",
+  "description": "What a hardware scan proposes about the machine a design is for: allowlisted fields only, each string bounded and drawn from a narrow character set, an unknown entry with its reason wherever a tool could not say. OAK's scanner writes no serial number, GPU UUID, host name or user name into any field; a proposal a client builds itself is held to the same shapes, not to their meaning. Nothing enters a design case's intent until a user confirms it.",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "id", "version", "case_id", "recorded_at", "scanned_by", "platform", "cpu", "memory", "storage_gib", "accelerators", "prerequisites", "unknown", "tools", "extensions"],

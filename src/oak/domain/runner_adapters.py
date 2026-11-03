@@ -211,10 +211,17 @@ NATIVE_ADAPTER_DIGEST = content_digest(
         }
     )
 )
+# A native install downloads its harness and model inside its dispatch, so its lease is an
+# hour where a container install's is five minutes; the runner stops a download as the
+# lease ends rather than keep fetching without authority.
+NATIVE_LEASE_SECONDS = 3600
 NATIVE_CONSENT_BINDING_KEY = "oak.community/native_consent"
 NATIVE_CONSENT_ID = "consent.native-installation"
 _DIGEST = r"^sha256:[a-f0-9]{64}$"
-_HOST = r"^[a-z0-9][a-z0-9.-]{0,252}$"
+# A DNS name: dot-separated labels of one to 63 letters, digits or inner hyphens, at most
+# 253 characters. Nothing else can be fetched from, so nothing else is acknowledged.
+_LABEL = r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?"
+_HOST = rf"^(?=.{{1,253}}$){_LABEL}(?:\.{_LABEL})*$"
 NATIVE_ARTIFACT_SCHEMA: dict[str, Any] = {
     "type": "object",
     "additionalProperties": False,

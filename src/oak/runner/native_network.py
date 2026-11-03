@@ -13,11 +13,13 @@ from __future__ import annotations
 import hashlib
 import http.client
 import re
+import socket
 import ssl
 import urllib.error
 import urllib.parse
 import urllib.request
 from collections.abc import Callable
+from datetime import datetime
 from pathlib import Path
 from typing import IO, Any
 
@@ -25,7 +27,9 @@ from oak.domain import OAKError
 
 MAXIMUM_REDIRECTS = 5
 CHUNK_BYTES = 1 << 20
-_HOST = re.compile(r"[a-z0-9][a-z0-9.-]{0,252}")
+_HOST = re.compile(
+    r"(?=.{1,253}$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*"
+)
 
 Opener = Callable[[str, float], Any]
 
@@ -101,6 +105,7 @@ def fetch(
     expected_size: int,
     timeout: float,
     opener: Opener | None = None,
+    deadline: datetime | None = None,
 ) -> tuple[int, str]:
     """Download ``source`` into a new file at ``destination``.
 
@@ -124,6 +129,11 @@ def fetch(
                     "a download ended on a host the target profile does not acknowledge",
                 )
             while True:
+                if deadline is not None and datetime.now(deadline.tzinfo) >= deadline:
+                    # The dispatch's authority ended: stop rather than keep fetching.
+                    raise OAKError(
+                        "OAK-RUNNER-LEASE-EXPIRED", "the lease expired during a download"
+                    )
                 chunk = response.read(CHUNK_BYTES)
                 if not chunk:
                     break
@@ -134,9 +144,32 @@ def fetch(
                     )
                 digest.update(chunk)
                 output.write(chunk)
-    except (urllib.error.URLError, http.client.HTTPException, ssl.SSLError, OSError) as error:
+    except (
+        urllib.error.URLError,
+        http.client.HTTPException,
+        ssl.SSLError,
+        OSError,
+        ValueError,
+    ) as error:
+        # ValueError covers a host name the IDNA codec refuses, before any connection.
         raise OAKError("OAK-NATIVE-DOWNLOAD", "an artifact could not be downloaded") from error
     return written, "sha256:" + digest.hexdigest()
+
+
+def port_free(port: int) -> bool:
+    """Whether 127.0.0.1:port can be bound now, the way the stand-in binds it.
+
+    With address reuse, a closed connection's TIME_WAIT does not count as in use; a
+    listener on the port does.
+    """
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as candidate:
+        candidate.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            candidate.bind(("127.0.0.1", port))
+        except OSError:
+            return False
+    return True
 
 
 def probe(port: int, path: str, timeout: float) -> int | None:

@@ -292,7 +292,6 @@ class CommunityControlPlane:
         self._verify_case(case_id, self.get_design_case(case_id, tenant_id=tenant_id).case)
         return planning.list_candidates()
 
-    @_case_scoped
     def native_consent_text(self) -> dict[str, Any]:
         """The consent text a native installation is approved against, with its reference.
 
@@ -306,6 +305,7 @@ class CommunityControlPlane:
         document = self._native_consent()
         return {"consent": document, "consent_ref": native_consent_reference(document)}
 
+    @_case_scoped
     def architecture(
         self,
         case_id: str,

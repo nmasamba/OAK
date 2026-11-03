@@ -9,6 +9,8 @@ import io
 import json
 import os
 import resource
+import shutil
+import signal
 import socket
 import stat
 import subprocess
@@ -492,3 +494,327 @@ def test_an_archive_that_cannot_be_unpacked_fails_the_install_it_started(
         assert caught.value.code == "OAK-NATIVE-ARCHIVE"
         adapter.compensate(parameters, caught.value.created, 120)
         assert not (tmp_path / "native" / INSTALLATION).exists()
+
+
+# -- what the closing review found (OAK-V1-043) ------------------------------------------
+
+ONE_ANSWER = """
+import http.server, sys
+port = int(sys.argv[sys.argv.index("--port") + 1])
+class Handler(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+    def log_message(self, *args):
+        pass
+http.server.HTTPServer(("127.0.0.1", port), Handler).handle_request()
+"""
+
+# Starts a child that ignores SIGTERM, records its pid, then becomes the real component.
+FORKER = """
+import os, signal, sys, time
+record, argv = sys.argv[1], sys.argv[2:]
+child = os.fork()
+if child == 0:
+    signal.signal(signal.SIGTERM, signal.SIG_IGN)
+    time.sleep(60)
+    os._exit(0)
+with open(record, "w") as out:
+    out.write(str(child))
+os.execv(argv[0], argv)
+"""
+
+# Starts a child, records its pid, and exits at once, leaving the child in its group.
+LEAVER = """
+import os, sys, time
+child = os.fork()
+if child == 0:
+    time.sleep(60)
+    os._exit(0)
+with open(sys.argv[1], "w") as out:
+    out.write(str(child))
+"""
+
+
+def _gone(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return True
+    return False
+
+
+def test_a_component_that_dies_after_answering_never_passes(tmp_path: Path) -> None:
+    def popen(argv: list[str], **keywords: Any) -> Any:
+        return subprocess.Popen([sys.executable, "-I", "-c", ONE_ANSWER, *argv[1:]], **keywords)
+
+    adapter = NativeProcessAdapter(tmp_path / "native", popen=popen)
+    with pytest.raises(AdapterFailureError) as caught:
+        adapter.apply(_parameters(port=_free_port()), 120)
+
+    assert caught.value.code == "OAK-NATIVE-SMOKE"
+    row = caught.value.evidence[1]["content"]["smoke_test"][0]
+    assert row["passed"] is False and row["stopped"] is True
+
+
+def test_a_port_already_in_use_is_refused_before_anything_starts(tmp_path: Path) -> None:
+    def popen(*arguments: Any, **keywords: Any) -> Any:
+        raise AssertionError("nothing may start")
+
+    with socket.socket() as listener:
+        listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        listener.bind(("127.0.0.1", 0))
+        listener.listen()
+        port = int(listener.getsockname()[1])
+        with pytest.raises(AdapterFailureError) as caught:
+            NativeProcessAdapter(tmp_path / "native", popen=popen).apply(
+                _parameters(port=port), 120
+            )
+
+    assert caught.value.code == "OAK-NATIVE-START"
+    assert f"port {port}" in caught.value.message
+
+
+def test_a_child_that_ignores_sigterm_is_killed_with_its_group(tmp_path: Path) -> None:
+    record = tmp_path / "child.pid"
+
+    def popen(argv: list[str], **keywords: Any) -> Any:
+        wrapped = [sys.executable, "-I", "-c", FORKER, str(record), *argv]
+        return subprocess.Popen(wrapped, **keywords)
+
+    evidence = NativeProcessAdapter(tmp_path / "native", popen=popen).apply(
+        _parameters(port=_free_port()), 120
+    )
+
+    assert evidence[1]["content"]["passed"] is True
+    assert evidence[1]["content"]["stopped"] is True
+    assert _gone(int(record.read_text()))
+
+
+def test_a_child_left_behind_by_a_component_that_exits_is_killed(tmp_path: Path) -> None:
+    record = tmp_path / "child.pid"
+
+    def popen(argv: list[str], **keywords: Any) -> Any:
+        return subprocess.Popen([sys.executable, "-I", "-c", LEAVER, str(record)], **keywords)
+
+    with pytest.raises(AdapterFailureError) as caught:
+        NativeProcessAdapter(tmp_path / "native", popen=popen).apply(
+            _parameters(port=_free_port()), 120
+        )
+
+    assert caught.value.code == "OAK-NATIVE-SMOKE"
+    assert caught.value.evidence[1]["content"]["stopped"] is True
+    assert _gone(int(record.read_text()))
+
+
+SIGNALLED = """
+import json, os, signal, subprocess, sys
+from pathlib import Path
+from oak.runner.native import NativeProcessAdapter
+
+record, parameters, root = Path(sys.argv[1]), json.loads(sys.argv[2]), Path(sys.argv[3])
+
+def popen(argv, **keywords):
+    process = subprocess.Popen(argv, **keywords)
+    record.write_text(str(process.pid))
+    return process
+
+def sleep(seconds):
+    os.kill(os.getpid(), signal.SIGTERM)
+
+adapter = NativeProcessAdapter(root, popen=popen, sleep=sleep, probe=lambda *args: None)
+adapter.apply(parameters, 120)
+"""
+
+
+def test_a_runner_told_to_stop_during_a_check_stops_the_component_first(tmp_path: Path) -> None:
+    """SIGTERM's default would end the runner without its `finally`, and leave the
+    component running: it is turned into an exit that stops the component on the way."""
+
+    record = tmp_path / "component.pid"
+    parameters = _parameters(port=_free_port())
+    ran = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            SIGNALLED,
+            str(record),
+            json.dumps(parameters),
+            str(tmp_path / "native"),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+
+    assert ran.returncode == 128 + signal.SIGTERM, ran.stderr
+    assert _gone(int(record.read_text()))
+
+
+def test_a_re_apply_runs_a_fresh_unpack_of_the_verified_archive(tmp_path: Path) -> None:
+    archive = _tar(tmp_path / "release.tar.gz", [("bin/llama-server", b"original")])
+    content = archive.read_bytes()
+    digest = "sha256:" + hashlib.sha256(content).hexdigest()
+
+    def fetch(source: str, destination: Path, **_: Any) -> tuple[int, str]:
+        destination.write_bytes(content)
+        return len(content), digest
+
+    adapter = NativeProcessAdapter(tmp_path / "native", fetch=fetch)
+    artifact = NativeArtifact(
+        role="harness",
+        source="https://example.org/release.tar.gz",
+        sha256=digest,
+        size_bytes=len(content),
+        format="tar.gz",
+    )
+    component = tmp_path / "component"
+    component.mkdir()
+    tree = adapter._obtain(artifact, component, frozenset({"example.org"}))
+    (tree / "bin" / "llama-server").write_bytes(b"changed after the check")
+
+    again = adapter._obtain(artifact, component, frozenset({"example.org"}))
+
+    assert (again / "bin" / "llama-server").read_bytes() == b"original"
+
+
+def test_an_installation_never_exists_without_its_marker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "native"
+    original = NativeProcessAdapter._write_marker
+    calls: list[str] = []
+
+    def failing(directory: Path, installation: Any, *, state: str) -> None:
+        calls.append(state)
+        if len(calls) == 1:
+            raise OSError("no space left on device")
+        original(directory, installation, state=state)
+
+    monkeypatch.setattr(NativeProcessAdapter, "_write_marker", staticmethod(failing))
+    adapter = NativeProcessAdapter(root)
+    parameters = _parameters(port=_free_port())
+
+    with pytest.raises(AdapterFailureError) as caught:
+        adapter.apply(parameters, 120)
+    assert caught.value.code == "OAK-NATIVE-IO" and caught.value.created == ()
+    assert not (root / INSTALLATION).exists()
+
+    adapter.apply(parameters, 120)
+    assert json.loads((root / INSTALLATION / MARKER).read_text())["state"] == "installed"
+    assert not (root / f".{INSTALLATION}.creating").exists()
+
+
+def test_a_removal_that_fails_part_way_is_finished_by_the_next(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "native"
+    adapter = NativeProcessAdapter(root)
+    parameters = _parameters(port=_free_port())
+    adapter.apply(parameters, 120)
+    real = shutil.rmtree
+    failures = [OSError("device busy")]
+
+    def flaky(path: Any, *arguments: Any, **keywords: Any) -> None:
+        if failures:
+            raise failures.pop()
+        real(path, *arguments, **keywords)
+
+    monkeypatch.setattr("oak.runner.native.shutil.rmtree", flaky)
+    with pytest.raises(OAKError) as caught:
+        adapter.destroy(parameters, 120)
+    assert caught.value.code == "OAK-NATIVE-UNINSTALL"
+    assert not (root / INSTALLATION).exists(), "the installation's path is already free"
+
+    finished = adapter.destroy(parameters, 120)
+    assert finished["content"]["absent"] is True
+    assert list(root.iterdir()) == []
+
+
+FAKE_LLAMA = """
+import http.server, sys
+arguments = sys.argv[1:]
+assert arguments[arguments.index("--host") + 1] == "127.0.0.1"
+port = int(arguments[arguments.index("--port") + 1])
+with open(arguments[arguments.index("--model") + 1], "rb") as model:
+    assert model.read() == b"GGUF model"
+class Handler(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200 if self.path == "/health" else 404)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+    def log_message(self, *args):
+        pass
+http.server.HTTPServer(("127.0.0.1", port), Handler).serve_forever()
+"""
+
+
+def test_a_llama_cpp_release_installs_offline_and_each_file_downloads_once(
+    tmp_path: Path,
+) -> None:
+    """The `llama_cpp_server` kind end to end, with a release shaped like llama.cpp's (a
+    versioned library and its link) and two nodes sharing the harness and the model."""
+
+    release = _tar(
+        tmp_path / "llama.tar.gz",
+        [
+            ("build/bin/llama-server", FAKE_LLAMA.encode("utf-8")),
+            ("build/bin/libllama.0.0.1.dylib", b"library"),
+            _link("build/bin/libllama.dylib", "libllama.0.0.1.dylib"),
+        ],
+    ).read_bytes()
+    files = {
+        "https://example.org/llama.tar.gz": release,
+        "https://example.org/model.gguf": b"GGUF model",
+    }
+    fetched: list[str] = []
+
+    def fetch(source: str, destination: Path, **_: Any) -> tuple[int, str]:
+        fetched.append(source)
+        destination.write_bytes(files[source])
+        return len(files[source]), "sha256:" + hashlib.sha256(files[source]).hexdigest()
+
+    def popen(argv: list[str], **keywords: Any) -> Any:
+        return subprocess.Popen([sys.executable, "-I", *argv], **keywords)
+
+    def artifact(role: str, source: str, format_: str) -> dict[str, Any]:
+        content = files[source]
+        return {
+            "role": role,
+            "source": source,
+            "sha256": "sha256:" + hashlib.sha256(content).hexdigest(),
+            "size_bytes": len(content),
+            "format": format_,
+        }
+
+    parameters = _parameters(port=_free_port())
+    parameters["allowed_download_hosts"] = ["example.org"]
+    template = parameters["components"][0]
+    parameters["components"] = [
+        {
+            **template,
+            "node_id": node,
+            "harness_kind": "llama_cpp_server",
+            "artifacts": [
+                artifact("harness", "https://example.org/llama.tar.gz", "tar.gz"),
+                artifact("model", "https://example.org/model.gguf", "file"),
+            ],
+            "listen_port": _free_port(),
+        }
+        for node in ("node.generation", "node.review")
+    ]
+
+    evidence = NativeProcessAdapter(tmp_path / "native", fetch=fetch, popen=popen).apply(
+        parameters, 120
+    )
+
+    tested = evidence[1]["content"]
+    assert tested["passed"] is True and tested["stopped"] is True
+    assert sorted(fetched) == sorted(files), "each file downloads once per installation"
+    trees = list((tmp_path / "native" / INSTALLATION).glob("*/harness/unpacked/build/bin"))
+    assert len(trees) == 2
+    for tree in trees:
+        assert (tree / "libllama.dylib").read_bytes() == b"library"
+        assert not (tree / "libllama.dylib").is_symlink()

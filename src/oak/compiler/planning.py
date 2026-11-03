@@ -25,6 +25,7 @@ from oak.domain.runner_adapters import (
     ISOLATION_STARTED_HARDENED,
     MAXIMUM_CONTAINERS,
     NATIVE_ADAPTER_ID,
+    NATIVE_LEASE_SECONDS,
     REVIEW_ADAPTER_DIGEST,
     REVIEW_ADAPTER_ID,
     REVIEW_ADAPTER_VERSION,
@@ -32,6 +33,7 @@ from oak.domain.runner_adapters import (
     container_name_for,
     harness_shape_problem,
     installation_id_for,
+    is_native_target,
 )
 
 BUNDLE_MEDIA_TYPE = "application/vnd.oak.deployment-bundle+json"
@@ -510,7 +512,15 @@ def _runner_plan_document(
             "signature_ref": signature.reference.to_document(),
             "verification_policy_ref": verification_policy.reference.to_document(),
         },
-        "lease_policy": {"maximum_seconds": 300, "heartbeat_seconds": 30, "require_nonce": True},
+        "lease_policy": {
+            # A native install downloads inside its dispatch (ADR-0019), so its plan admits
+            # a longer lease; every other plan keeps five minutes, byte for byte.
+            "maximum_seconds": NATIVE_LEASE_SECONDS
+            if mutation and is_native_target(target)
+            else 300,
+            "heartbeat_seconds": 30,
+            "require_nonce": True,
+        },
         "evidence_policy": {
             "allowed_categories": evidence_categories,
             "maximum_bytes": 1_048_576,

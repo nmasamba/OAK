@@ -654,6 +654,22 @@ def _missing_evaluation(ctx: _Context) -> dict[str, Any]:
     )
 
 
+def _installs_natively(bundle: dict[str, Any] | None) -> bool:
+    """Whether the compiled bundle's installation preflight judged a native install."""
+
+    extensions = (bundle or {}).get("extensions")
+    results = (
+        extensions.get("oak.community/preflight_results") if isinstance(extensions, dict) else None
+    )
+    return any(
+        isinstance(result, dict)
+        and result.get("id") == "preflight.installation"
+        and isinstance(result.get("evidence"), dict)
+        and result["evidence"].get("mode") == "native"
+        for result in (results if isinstance(results, list) else [])
+    )
+
+
 def _missing_observation() -> dict[str, Any]:
     return _not_yet(
         "Observed cost, latency, quality and energy", "Install, then observe", "oak observe"
@@ -1857,11 +1873,11 @@ def _governance(ctx: _Context) -> dict[str, Any]:
     approvals = ctx.records.approvals
     if ctx.case.get("runner_plan_ref") is not None:
         rows = []
-        # A native install's consent (ADR-0019) is listed once one is recorded; the report
-        # does not read the plan, so a native plan awaiting it shows the other two.
+        # A native install (ADR-0019) needs a third approval, the consent. The bundle the
+        # report already reads says how its plan installs, so the plan itself is not read.
         actions = (
             ("architecture", "native_consent", "apply")
-            if "native_consent" in approvals
+            if "native_consent" in approvals or _installs_natively(ctx.records.bundle)
             else ("architecture", "apply")
         )
         for action in actions:

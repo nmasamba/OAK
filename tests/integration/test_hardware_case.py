@@ -284,3 +284,100 @@ def test_a_scan_that_knows_nothing_cannot_be_confirmed(tmp_path: Path) -> None:
             _context("accept", "0.1.3", 3),
         )
     assert caught.value.code == "OAK-HARDWARE-EMPTY"
+
+
+def test_the_same_scan_after_the_case_moved_on_is_a_new_proposal(tmp_path: Path) -> None:
+    """With derived keys, as the CLI uses them: scanning the same machine again after another
+    proposal is a new proposal at the current version, not a replay of the first (OAK-V1-043)."""
+
+    from dataclasses import replace
+
+    design = _case(tmp_path, ready=True)
+
+    def derived(label: str, version: str, minute: int) -> CommandContext:
+        return replace(_context(label, version, minute), idempotency_key="")
+
+    first = design.propose_hardware(_scan([RTX_4090]), derived("first", "0.1.2", 2))
+    design.propose_hardware(_scan(None), derived("second", "0.1.3", 3))
+    again = design.propose_hardware(_scan([RTX_4090]), derived("again", "0.1.4", 4))
+
+    assert again.duplicate is False
+    assert again.case["version"] == "0.1.5"
+    proposal = again.case["extensions"][HARDWARE_PROPOSAL_EXTENSION]["id"]
+    assert proposal != first.case["extensions"][HARDWARE_PROPOSAL_EXTENSION]["id"]
+    confirmed = design.confirm_hardware(proposal, derived("accept", "0.1.5", 5))
+    assert confirmed.intent["spec"]["hardware"]["accelerators"] == ["nvidia-cuda"]
+
+    retried = design.propose_hardware(_scan([RTX_4090]), derived("again", "0.1.4", 4))
+    assert retried.duplicate is True, "a retry at the same version is still a retry"
+
+
+def test_a_confirmed_scan_replaces_the_brief_s_gpu_figures_and_keeps_the_checks_on(
+    tmp_path: Path,
+) -> None:
+    """A GPU whose memory the scan cannot read clears the brief's figure for another GPU,
+    and unified memory gives the GPU the system memory, so the weight-floor check and the
+    research hardware class still have a figure to read (OAK-V1-043)."""
+
+    from oak.compiler.candidates import _weight_floor_shortfall
+
+    design = _case(tmp_path, ready=True)
+    nvidia = design.propose_hardware(_scan([RTX_4090]), _context("nvidia", "0.1.2", 2))
+    design.confirm_hardware(
+        nvidia.case["extensions"][HARDWARE_PROPOSAL_EXTENSION]["id"],
+        _context("accept-nvidia", "0.1.3", 3),
+    )
+    unknown_memory = {**RTX_4090, "memory_gib": None, "driver_version": None}
+    proposed = design.propose_hardware(_scan([unknown_memory]), _context("again", "0.1.4", 4))
+    confirmed = design.confirm_hardware(
+        proposed.case["extensions"][HARDWARE_PROPOSAL_EXTENSION]["id"],
+        _context("accept-again", "0.1.5", 5),
+    )
+
+    hardware = confirmed.intent["spec"]["hardware"]
+    assert "vram_gib" not in hardware
+    assert hardware["drivers"] == []
+    assert not any(
+        key.startswith(("/spec/hardware/vram_gib", "/spec/hardware/drivers"))
+        for key in confirmed.intent["provenance"]
+    )
+
+    apple = {
+        "platform": {"operating_system": "macos", "architecture": "arm64"},
+        "cpu": {"model": "Apple M1 Max", "physical_cores": 10, "logical_cores": 10},
+        "memory": {"ram_gib": 64.0, "unified": True},
+        "storage_gib": 500.0,
+        "accelerators": [
+            {
+                "vendor": "apple",
+                "model": "Apple M1 Max",
+                "memory_gib": None,
+                "unified_memory": True,
+                "runtime": "metal",
+                "driver_version": None,
+            }
+        ],
+        "prerequisites": [
+            {"name": "docker", "state": "present"},
+            {"name": "uv", "state": "present"},
+        ],
+        "unknown": [],
+        "tools": [
+            {"name": "sysctl", "status": "ran"},
+            {"name": "system_profiler", "status": "ran"},
+        ],
+    }
+    mac = design.propose_hardware(apple, _context("mac", "0.1.6", 6))
+    on_mac = design.confirm_hardware(
+        mac.case["extensions"][HARDWARE_PROPOSAL_EXTENSION]["id"],
+        _context("accept-mac", "0.1.7", 7),
+    )
+    mac_hardware = on_mac.intent["spec"]["hardware"]
+    assert mac_hardware["vram_gib"] == 64.0
+    heavy = {
+        "id": "component.researched-heavy",
+        "extensions": {"oak.community/research": {"weight_floor_gib": 140.0}},
+    }
+    assert _weight_floor_shortfall(mac_hardware, [heavy]) is not None
+    vocabulary = ResearchVocabularyLoader(ROOT / "catalogue").load()
+    assert classify_hardware(on_mac.intent, vocabulary) == "accelerator-large"

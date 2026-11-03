@@ -189,7 +189,11 @@ def test_an_apple_silicon_scan_reports_unified_memory_and_metal() -> None:
         "ram_gib": 64.0,
         "storage_gib": 500.0,
         "accelerators": ["apple-metal"],
-    }, "no vram_gib is invented for unified memory"
+        # The GPU shares the system memory, so the weight-floor check and the research
+        # hardware class compare against it (OAK-V1-043); Apple's GPU reports no driver.
+        "vram_gib": 64.0,
+        "drivers": [],
+    }
     _assert_no_identifier(proposal)
 
 
@@ -348,3 +352,55 @@ def test_build_proposal_fills_memory_from_the_runtime_when_no_tool_does() -> Non
     assert proposal["memory"]["ram_gib"] == 8.0
     assert proposal["storage_gib"] is None
     assert {"field": "cpu", "reason": "lscpu is not installed"} in proposal["unknown"]
+
+
+def test_a_gpu_whose_memory_is_unknown_clears_the_figure_rather_than_keep_another() -> None:
+    """Measured accelerators replace every value that describes them (OAK-V1-043)."""
+
+    proposal = {
+        "platform": {"operating_system": "linux", "architecture": "x86_64"},
+        "memory": {"ram_gib": 32.0, "unified": False},
+        "storage_gib": None,
+        "accelerators": [
+            {
+                "vendor": "amd",
+                "model": "AMD Instinct MI210",
+                "memory_gib": None,
+                "unified_memory": False,
+                "runtime": "rocm",
+                "driver_version": None,
+            }
+        ],
+    }
+    assert intent_hardware(proposal) == {
+        "cpu_architectures": ["x86_64"],
+        "ram_gib": 32.0,
+        "accelerators": ["amd-rocm"],
+        "vram_gib": None,
+        "drivers": [],
+    }
+    assert intent_hardware({**proposal, "accelerators": []})["vram_gib"] is None
+
+
+def test_a_machine_with_two_kinds_of_core_counts_every_cluster() -> None:
+    """Arm's big.LITTLE lists one model-name group per kind of core (OAK-V1-043)."""
+
+    values = parse_lscpu(_fixture("linux-arm64-big-little/lscpu.json"))
+
+    assert values["physical_cores"] == 8
+    assert values["logical_cores"] == 8
+    assert values["cpu_model"] == "Cortex-A55 + Cortex-A76"
+
+
+def test_memory_the_runtime_reports_is_not_unknown_when_sysctl_fails() -> None:
+    machine = _Machine(
+        {
+            "sysctl": CommandResult(1, "", "sysctl: unknown oid"),
+            "system_profiler": CommandResult(0, _fixture("macos-arm64/system_profiler.json"), ""),
+        },
+        {"sysctl", "system_profiler"},
+    )
+    proposal = _scan(machine, "Darwin", "arm64")
+
+    assert proposal["memory"]["ram_gib"] is not None
+    assert {entry["field"] for entry in proposal["unknown"]} == {"cpu"}

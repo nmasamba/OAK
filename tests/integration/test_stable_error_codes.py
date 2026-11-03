@@ -137,6 +137,17 @@ CASE_SCOPED_METHODS = (
 )
 
 
+def test_each_case_scoped_method_carries_the_mapping_and_nothing_else_does() -> None:
+    """The behavioural test below can pass without the decorator (an inner read may map the
+    code itself), so the decorator's place is pinned too: OAK-V1-043 found it moved."""
+
+    from oak.application.control_plane import CommunityControlPlane
+
+    for name in CASE_SCOPED_METHODS:
+        assert hasattr(getattr(CommunityControlPlane, name), "__wrapped__"), name
+    assert not hasattr(CommunityControlPlane.native_consent_text, "__wrapped__")
+
+
 def _unknown_case_calls(plane):  # type: ignore[no-untyped-def]
     import yaml
 

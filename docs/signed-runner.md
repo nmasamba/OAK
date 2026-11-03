@@ -322,36 +322,53 @@ adapter's identity digest. No create carries a volume, an environment variable o
 ### What the native adapter does
 
 `adapter.local-native` (`0.1.0`) runs on macOS on Apple silicon and on Linux on x86_64 and
-aarch64, and refuses any other platform (`OAK-NATIVE-PLATFORM`). For a verified native
-`apply`, in order:
+aarch64, and refuses any other platform (`OAK-NATIVE-PLATFORM`). A native `apply` runs under
+a lease of an hour rather than five minutes, because it downloads inside its dispatch; its
+plan's lease policy admits that and no more. For a verified native `apply`, in order:
 
-1. It creates `native/<installation id>` in the runner home, readable by the user only, and
-   writes the ownership marker `.oak-installation.json` naming the installation. A directory
-   it did not create and mark is never adopted, stopped or removed (`OAK-NATIVE-OWNERSHIP`).
+1. It creates `native/<installation id>` in the runner home, readable by the user only,
+   under a name of its own first and renamed into place with its ownership marker
+   `.oak-installation.json`, so the installation's path never exists without the marker. A
+   directory it did not create and mark is never adopted, stopped or removed
+   (`OAK-NATIVE-OWNERSHIP`).
 2. It fetches each artifact over HTTPS from an acknowledged host, with TLS verified, no
-   proxy taken from the environment, every redirect checked against the same hosts, and a
-   download refused as soon as it grows past the acknowledged size (`OAK-NATIVE-HOST`,
-   `OAK-NATIVE-SIZE`, `OAK-NATIVE-DOWNLOAD`); the stand-in is copied from inside OAK instead. A file whose size
-   or SHA-256 is not the profile's is refused before anything runs (`OAK-NATIVE-DIGEST`).
-   An archive is unpacked member by member. A link to a file inside it, such as a library's
-   versioned name, is written as a copy of that file, so nothing unpacked is ever a link; a
-   link that leaves the archive or names nothing in it, a device, an absolute path, a `..`,
-   more than 10,000 members or more than 64 GiB is refused (`OAK-NATIVE-ARCHIVE`).
+   proxy taken from the environment, every redirect checked against the same hosts, a
+   download refused as soon as it grows past the acknowledged size, and stopped when the
+   lease ends (`OAK-NATIVE-HOST`, `OAK-NATIVE-SIZE`, `OAK-NATIVE-DOWNLOAD`,
+   `OAK-RUNNER-LEASE-EXPIRED`); the stand-in is copied from inside OAK instead, and a file
+   another component of the same installation already verified is linked, not fetched
+   again. A file whose size or SHA-256 is not the profile's is refused before anything runs
+   (`OAK-NATIVE-DIGEST`), and every `apply` checks the files again. An archive is unpacked
+   afresh from its verified bytes on every `apply`, member by member. A link to a file
+   inside it, such as a library's versioned name, is written as a copy of that file, so
+   nothing unpacked is ever a link; a link that leaves the archive or names nothing in it,
+   a device, an absolute path, a `..`, more than 10,000 members or more than 64 GiB is
+   refused (`OAK-NATIVE-ARCHIVE`).
 3. It starts each component from its harness kind's fixed argument template: the stand-in
    through the runner's own interpreter, `llama-server` with `--host 127.0.0.1`, its port
-   and its model file. The process gets only `PATH`, `HOME` and `LANG`, a process group of
-   its own, and three ceilings, each only ever lower than the runner's own: no core files, at
-   most 4,096 open files, and no written file over 2 GiB. Memory, CPU time and the number of
-   processes are not limited, and the evidence records both lists. The adapter probes the health path on 127.0.0.1 until it answers `200`, for
-   up to 20 seconds for the stand-in and 240 for `llama-server`, and then stops the group:
-   `SIGTERM`, then `SIGKILL` after 10 seconds. A component that does not answer fails the
-   install (`OAK-NATIVE-SMOKE`), and the install is rolled back.
-4. Nothing keeps running, and nothing is registered to start with the computer. The
-   evidence names each verified artifact, each component's check, and that it was stopped.
+   and its model file. The port must be free first, so another listener can never answer in
+   the component's place (`OAK-NATIVE-START`). The process gets only `PATH`, `HOME` and
+   `LANG`, a process group of its own, and three ceilings, each only ever lower than the
+   runner's own: no core files, at most 4,096 open files, and no written file over 2 GiB.
+   Memory, CPU time and the number of processes are not limited, and the evidence records
+   both lists. The adapter probes the health path on 127.0.0.1 until it answers `200`, for
+   up to 20 seconds for the stand-in and 240 for `llama-server`; the component passes only
+   if it is still running after answering twice, half a second apart. Then the adapter
+   stops the whole group: `SIGTERM`, then, after up to 10 seconds, `SIGKILL` to whatever is
+   left of it, including a child its first process left behind; it records the component
+   as stopped only when nothing of the group remains (`OAK-NATIVE-STOP` otherwise). A
+   component that does not pass fails the install (`OAK-NATIVE-SMOKE`), and the install is
+   rolled back. `SIGTERM` or `SIGHUP` to the runner during a check stops the component
+   before the runner exits.
+4. Nothing keeps running, and nothing is registered to start with the computer; a program
+   built to leave its process group could still leave a process behind (`RR-056`). The
+   evidence names each verified artifact, each component's check, and whether it stopped.
 
 `rollback` and `destroy` remove exactly the installation's directory after checking its
-marker, and fail if it is still there (`OAK-NATIVE-UNINSTALL`). A failed `apply` removes it
-only when that `apply` created it.
+marker: renamed out of the way first, so a removal that fails part way leaves the path
+free and a leftover that the next removal finishes (`OAK-NATIVE-UNINSTALL`). A failed
+`apply` removes the installation only when that `apply` created it, and a file the adapter
+cannot write or read fails it with `OAK-NATIVE-IO`.
 
 ## Heartbeats
 

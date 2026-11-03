@@ -619,8 +619,14 @@ class DesignCaseService:
             )
         if scanned_by not in HARDWARE_SCANNERS:
             raise OAKError("OAK-HARDWARE-PROPOSAL", "the scan's origin is not one OAK knows")
+        # A derived key is scoped to the case version: the same machine scanned again after
+        # the case moved on is a new proposal, not a replay of the first one. An explicit
+        # key stays the caller's retry handle.
+        scope = {} if context.idempotency_key else {"case_version": context.expected_version}
         try:
-            input_digest = self._request_digest(context, {"scan": scan, "scanned_by": scanned_by})
+            input_digest = self._request_digest(
+                context, {"scan": scan, "scanned_by": scanned_by, **scope}
+            )
         except (TypeError, ValueError) as error:
             raise OAKError(
                 "OAK-HARDWARE-PROPOSAL", "a scan result is not canonical JSON data"
@@ -728,6 +734,11 @@ class DesignCaseService:
                 key for key in intent["provenance"] if key == path or key.startswith(f"{path}/")
             ]:
                 del intent["provenance"][stale]
+            if value is None:
+                # Measured as unknown (a GPU whose memory the scan could not read): the
+                # brief's figure for another GPU is cleared, and nothing claims a value.
+                hardware.pop(field, None)
+                continue
             hardware[field] = value
             # One record per scalar, as every intent value has: a list's elements each get
             # one, and an empty list (a scan that found no GPU) gets none.
@@ -754,7 +765,9 @@ class DesignCaseService:
         # A question on a field the scan measured is answered; the section's question is
         # answered only when every hardware value now rests on this proposal, since a value
         # the brief stated and the scan did not measure still needs the user's word.
-        answered = {f"/spec/hardware/{field}" for field in values}
+        answered = {
+            f"/spec/hardware/{field}" for field, value in values.items() if value is not None
+        }
         if all(
             record.get("source") == "measured" and proposal["id"] in record["evidence_refs"]
             for path, record in intent["provenance"].items()
@@ -829,8 +842,12 @@ class DesignCaseService:
     @staticmethod
     def _hardware_proposal_id(case_id: str, occurred_at: str, input_digest: str) -> str:
         stamp = "".join(character for character in occurred_at if character.isalnum()).lower()
-        suffix = case_id.removeprefix("design-case.")
-        return f"hardware-proposal.{suffix}.{stamp}.{input_digest.removeprefix('sha256:')[:12]}"
+        digest = input_digest.removeprefix("sha256:")[:12]
+        # An identifier holds at most 160 characters, so a long case id is shortened here;
+        # the stamp and digest keep the proposal distinct within its own case.
+        room = 160 - len("hardware-proposal...") - len(stamp) - len(digest)
+        suffix = case_id.removeprefix("design-case.")[: max(room, 1)]
+        return f"hardware-proposal.{suffix}.{stamp}.{digest}"
 
     def _commit_hardware_event(
         self,

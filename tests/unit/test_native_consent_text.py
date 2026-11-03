@@ -26,7 +26,7 @@ from tests.runner_support import ROOT
 # adds a pin; `0.1.0` is the unreleased draft awaiting the owner's sign-off, so its pin moves
 # with each edit until then.
 PINNED = {
-    "0.1.0": "sha256:7d863baca59d2b6236ee953886004088f86a36a8206e7898298ef76e254a9605",
+    "0.1.0": "sha256:d3b3d10e92301fbada6d430405eec13629dbc6e58a953a44b99262413d4a59e8",
 }
 
 
