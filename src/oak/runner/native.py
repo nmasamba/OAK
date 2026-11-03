@@ -785,7 +785,9 @@ def _write_start_instructions(
     lines = [
         "Nothing from this installation is running. OAK started each program once to check",
         "that it answers on this computer, then stopped it. To start one yourself, run its",
-        "commands in a terminal, and stop it with Ctrl-C. Removing the installation",
+        "commands in a terminal, and stop it with Ctrl-C. While one runs, other programs on",
+        "this computer can talk to it, and so can a web page open in your browser, unless",
+        "the browser stops it, so stop it when you are done. Removing the installation",
         "(oak approve destroy, then oak dispatch destroy) deletes this folder.",
     ]
     for component, working_directory, argv in prepared:

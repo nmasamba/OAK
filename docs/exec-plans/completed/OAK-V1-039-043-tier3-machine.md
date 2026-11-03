@@ -14,8 +14,9 @@ and publishes nothing.
 
 - Owner/agent: owner-directed coding agent
 - Started: 2026-11-02
-- Last updated: 2026-11-03 (M6, the closing review's fixes; the rehearsal and the consent sign-off wait for the owner)
-- State: in-progress: code complete and open as PR #44 (https://github.com/nmasamba/OAK/pull/44); the llama.cpp rehearsal waits for the owner's approval of its downloads, and the consent text for the owner's sign-off
+- Last updated: 2026-11-03 (the rehearsal, and the close)
+- State: complete (PR #44 open, https://github.com/nmasamba/OAK/pull/44; the merges, and the
+  sign-off of the consent text, are the owner's)
 - Claimed tasks: `OAK-V1-039`–`OAK-V1-043`
 
 One plan covers five task IDs: one for hardware scanning, three for native installation
@@ -416,7 +417,7 @@ kinds, and an existing case or profile reads as before.
 - [x] 2026-11-02 M4 gate. `make check` on `9947591` in the detached gate worktree, with the
   throwaway PostgreSQL: no failing target; unit and contract 1,468 passed, integration 623,
   end to end 47 (the native journey among them).
-- [ ] 2026-11-02 M5 (`OAK-V1-042`), all but the rehearsal. The native journey runs in
+- [x] 2026-11-02 M5 (`OAK-V1-042`), all but the rehearsal. The native journey runs in
   `make check` through the installed entrypoints with no Docker, so all three CI jobs prove
   it; nothing joins `tests/expected-skips.json`. After an install the runner prints the
   folder and that nothing is running, and `START.txt` there gives each component's command.
@@ -436,8 +437,8 @@ kinds, and an existing case or profile reads as before.
   manual (a scan step in chapter 3, the native install in chapter 6, the uninstall and the
   colophon) and its PDF. Nine mutation checks, each killed after two tests were tightened
   (a completion claiming a complete check of fewer nodes; a link that climbs out to a file
-  that exists). Unit and contract 1,485 passed; `make validate` green. Open: the rehearsal,
-  which waits for the owner's approval of each download.
+  that exists). Unit and contract 1,485 passed; `make validate` green. The rehearsal came
+  last, once the owner had approved each download; it has its own entry below.
 - [x] 2026-11-02 M5 gates on `f7b200c`, in the detached gate worktree. `make check` with the
   throwaway PostgreSQL: no failing target; unit and contract 1,486 passed, integration 627,
   end to end 47. `make web-e2e-isolated` on a throwaway Compose project: 35 passed (the
@@ -454,6 +455,28 @@ kinds, and an existing case or profile reads as before.
   under Discoveries; fixed in `93df6e3`. `make check` on `93df6e3` in the detached gate
   worktree, with the throwaway PostgreSQL: no failing target; unit and contract 1,504
   passed, integration 636, end to end 47.
+- [x] 2026-11-03 M5's rehearsal (`OAK-V1-042`). The owner approved both downloads by name,
+  source and size. `examples/targets/local-native-llama-cpp.yaml` ran through the installed
+  `oak` and `oak-runner` from `747c093` on the owner's Mac (M1 Max, 64 GiB, macOS 26.3.1),
+  with candidate-03, in a scratch workspace, mailbox and runner home under throwaway keys;
+  the owner's `~/.oak` and Compose stack were not touched. Both downloads matched the
+  profile, measured again with `shasum`: the archive at 12,292,671 bytes and
+  `sha256:2ace55512ee1ab4e2703f80c135c2a92d40d3367a5b3a98d21b103ffa7f0eb82`, the model at
+  491,400,032 bytes and
+  `sha256:74a4da8c9fdbcd15bd1f6d01d621410d31c6fc00986f5eb687824e7b93d7a9db`. macOS ran the
+  binary: it is ad-hoc signed, `spctl --assess` rejects it, and it carried no quarantine
+  attribute. `/health` answered 200 after 19.849 seconds, the stand-in's after 0.277; both
+  exited 0 and nothing stayed on a port. The install took 224 seconds. `oak observe` read
+  `present`, with `EV-DEP-01` and the smoke test passing. Started by hand from `START.txt`,
+  the server was ready in 0.62 seconds, listened on 127.0.0.1 only, answered "Paris" to a
+  one-word question and exited 0 on SIGINT. `oak approve destroy`, `oak dispatch destroy`
+  and the runner removed the folder in a second; a canary beside it stayed, `oak observe`
+  read `removed`, and both journals verified against their signed heads. `platforms.md` and
+  the example's notes record it.
+- [x] 2026-11-03 What the rehearsal changed. The draft consent text and `START.txt` now say
+  that a web page open in the browser can reach a running component (see Discoveries); the
+  draft's pin, the manual's digest and its PDF moved with the text. The example's notes no
+  longer say each model node downloads again.
 
 ## Decisions
 
@@ -548,6 +571,17 @@ kinds, and an existing case or profile reads as before.
 
 ## Discoveries and follow-ups
 
+- 2026-11-03 Rehearsal. **`llama-server` says it has no API key and allows every origin.**
+  Its own log says so on every start; this was not tried from a browser. Started from
+  `START.txt`, it can therefore be used by a web page open in the user's browser unless the
+  browser stops that, which the consent's `loopback_port` risk did not say. The draft text
+  and `START.txt` now do. Passing a generated `--api-key` in the harness template would
+  close it, but changes what every client must send, so that is the owner's call.
+- 2026-11-03 Rehearsal. **The runner prints nothing while it downloads.** The install was
+  silent for more than three minutes here, and a larger model would take far longer.
+  Progress needs a seam the adapter does not have; a follow-up, not a fix here.
+- 2026-11-03 Rehearsal. **`EV-DEP-03` stays `unknown` after a plain uninstall**, as designed:
+  a `destroy` is not a rollback, and nothing was compensated.
 - 2026-11-02 M1. `system_profiler -detailLevel mini` lists each display's serial number
   under the GPU that drives it (`_spdisplays_display-serial-number`); the fixture carries a
   synthetic one and a test proves it never reaches a proposal.

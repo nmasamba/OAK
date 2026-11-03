@@ -650,6 +650,8 @@ Each installation is one folder, `native/<installation id>` in the runner home
 (`~/.oak/runner` unless `OAK_RUNNER_HOME` says otherwise), readable by you only and marked as
 the runner's by `.oak-installation.json`. After an install, `oak-runner run-once` prints the
 folder; its `START.txt` gives, for each component, the command that starts it on its port.
+`llama-server` has no API key there and allows every origin, so while it runs a web page open
+in your browser can use it, unless the browser stops that: stop it when you are done.
 Stop a component you started with Ctrl-C.
 
 Remove an installation the signed way, as above with `destroy` (or `rollback`):

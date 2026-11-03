@@ -96,7 +96,10 @@ installation. In progress; entries land with each milestone.
   release archive, such as a library's versioned name, is unpacked as a copy of the file it
   names; a refused redirect names the host, because a CDN's host can differ by region.
   `examples/targets/local-native-llama-cpp.yaml` pins llama.cpp's server (build `b11721`)
-  and Qwen2.5-0.5B-Instruct by the digests their publishers list; it is not yet rehearsed.
+  and Qwen2.5-0.5B-Instruct by the digests their publishers list, and was rehearsed by hand
+  on macOS on Apple silicon on 2026-11-03 (`platforms.md` has what it measured). `llama-server`
+  logged that it has no API key and allows every origin, so the consent text and `START.txt`
+  say that a web page open in your browser can reach a running component.
   Documents: `operations.md`, `platforms.md`, the README, `interfaces.md` and the manual,
   with its PDF.
 

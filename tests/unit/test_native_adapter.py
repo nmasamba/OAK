@@ -110,6 +110,7 @@ def test_the_stand_in_is_installed_proven_stopped_and_removed(tmp_path: Path) ->
     assert stat.S_IMODE(os.lstat(instructions).st_mode) == 0o600
     text = instructions.read_text(encoding="utf-8")
     assert text.startswith("Nothing from this installation is running.")
+    assert "a web page open in your browser" in text
     assert f"node.answer (oak_stand_in) on 127.0.0.1:{port}" in text
     assert f"--port {port}" in text
 

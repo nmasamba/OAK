@@ -198,13 +198,35 @@ A GPU is seen only through its vendor's tool, so on Linux without `nvidia-smi` a
 | macOS on Apple silicon, OAK's stand-in | Verified in CI: `check-macos-arm64` runs the native journey through the installed `oak` and `oak-runner` (`tests/e2e/test_runner_journey.py`), the integration journey with its canary uninstall (`tests/integration/test_native_install.py`) and the adapter's refusals |
 | Linux x86_64, OAK's stand-in | Verified in CI on `check`, the same tests |
 | Linux aarch64, OAK's stand-in | Verified in CI on `check-linux-arm64`, the same tests |
-| llama.cpp's `llama-server` with a model (`llama_cpp_server`) | Not yet verified: its example profile is rehearsed by hand on the owner's machine, after the owner approves each download |
+| llama.cpp's `llama-server` with a model (`llama_cpp_server`), macOS on Apple silicon | Verified by hand, once, on 2026-11-03: `examples/targets/local-native-llama-cpp.yaml` through the installed `oak` and `oak-runner` on an M1 Max with 64 GiB under macOS 26.3.1, the owner having approved each download. Build `b11721` with Qwen2.5-0.5B-Instruct Q4_K_M only |
+| `llama_cpp_server` on Linux | Not verified: the Linux archives the example's notes name have never been installed |
 
 The stand-in is OAK's own small server, copied from inside OAK and verified by digest like a
 download, so CI proves every step of the native path — the consent, the checks, the start,
 the probe, the stop and the uninstall — without a network or a downloaded binary. Whether a
 downloaded harness runs at all on macOS is decided by Gatekeeper and its code signing, which
-only the rehearsal can show.
+only a rehearsal can show.
+
+What the rehearsal showed, for that build and model on that machine:
+
+- **The downloads** matched the profile: the archive at 12,292,671 bytes and
+  `sha256:2ace55512ee1ab4e2703f80c135c2a92d40d3367a5b3a98d21b103ffa7f0eb82`, the model at
+  491,400,032 bytes and
+  `sha256:74a4da8c9fdbcd15bd1f6d01d621410d31c6fc00986f5eb687824e7b93d7a9db`, measured again
+  with `shasum` after the runner had checked them.
+- **macOS ran the binary.** The build is ad-hoc signed and not notarised, and `spctl --assess`
+  rejects it, but a file the runner downloads carries no quarantine attribute, so Gatekeeper
+  is not asked. An archive unpacked from a browser's download would be a different case.
+- **The check.** `/health` answered 200 after 19.8 seconds on the first start and the process
+  exited 0 when stopped, with nothing left on its port. The install took 224 seconds in all,
+  nearly all of it the download.
+- **`START.txt` works as written.** Started by hand, the server was ready in under a second,
+  listened on 127.0.0.1 only, answered a chat request correctly and exited 0 on Ctrl-C.
+- **The uninstall** took about a second: it removed the installation's folder, and a file
+  placed beside that folder stayed. `oak observe` then reads `removed`.
+- **Its log warns** that it has no API key and that CORS allows all origins, so while it runs
+  a web page open in your browser can use it, unless the browser stops that. The consent text
+  and `START.txt` say so.
 
 ## What is not tested where
 
