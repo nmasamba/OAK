@@ -243,11 +243,25 @@ What makes two builds one image (`RR-006`, closed by Tier 3's Batch A):
   Debian's packages from the same snapshot date: its Alpine variant had no dated archive to
   pin to, and the newest upstream Alpine image still carried fixable findings, so neither
   upgrading at build time nor standing still could satisfy both the proof and the scan.
+- **An index that cannot be fetched fails the build** (`apt-get update --error-on=any`,
+  `OAK-V1-038`). Without the flag apt warns and carries on without that index, so the
+  upgrade installs fewer updates: an image short of security fixes that also differs from
+  the next build's. The archive refuses requests when it is busy (`503`), so apt retries
+  each file ten times with a growing delay, and `scripts/reproduce_images.py` and the
+  browser suite retry a failed build twice, after one and then three minutes. A mismatch
+  is reported with each layer that differs, the Dockerfile step that made it and the
+  files in it.
+- **The venv's bytecode is compiled by one process, in sorted order** (`OAK-V1-038`).
+  CPython's bytecode for a module can depend on what the same process compiled before it,
+  and uv's parallel workers take files as they come, so a build of the fix differed from
+  its rebuild in `pycparser`'s `c_parser.cpython-313.pyc` alone. The build stage sets
+  `UV_COMPILE_BYTECODE=0` and runs `python -m compileall -q -j 1 --invalidation-mode
+  checked-hash` over the venv, and `make toolchain-check` requires both; the runtime
+  writes no bytecode.
 - The API image's user is created with a fixed shadow date and without the account
   files' backups, and what apt, dpkg and ldconfig write with the build's clock is removed.
 - Every build passes `SOURCE_DATE_EPOCH`, the source commit's time: Python compiles
-  hash-based bytecode with it (the venv's `.pyc` files are compiled at build time by `uv`;
-  the runtime writes none), BuildKit stamps the image configuration with it, and the
+  hash-based bytecode with it, BuildKit stamps the image configuration with it, and the
   exporter rewrites every layer's file timestamps to it (`rewrite-timestamp=true`).
 
 Two honest caveats:
@@ -260,7 +274,9 @@ Two honest caveats:
   job), but keeps no evidence of them; this workflow builds and scans the release's own.
 - **The claim is per platform and per builder.** A platform CI did not build twice, a
   build with another BuildKit, and a Compose build, which passes no source date, make no
-  claim; `snapshot.debian.org` is a build-time dependency; and the base images move only
+  claim; `snapshot.debian.org` is a build-time dependency, and while it refuses requests
+  for longer than the retries wait a build fails rather than yield a different image; and
+  the base images move only
   when their digests are re-pinned. The provenance says `byte_reproducible: true` only
   from the record of two matching builds, naming the platform, the BuildKit, the
   snapshot date and both image IDs, and only when the record is about these images: the

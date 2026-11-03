@@ -25,8 +25,9 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 import urllib.request
-from collections.abc import Iterator, Mapping
+from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -47,6 +48,8 @@ EXPECTED_SKIPS = frozenset(
 _PROJECT = re.compile(r"oak-e2e-[a-z0-9][a-z0-9-]{0,40}")
 _RESERVED_PORTS = frozenset({5173, 8080, 15432})
 _COMMIT = re.compile(r"[0-9a-f]{40}")
+BUILD_ATTEMPTS = 3
+RETRY_PAUSES_SECONDS = (60, 180)
 
 
 class SuiteError(RuntimeError):
@@ -160,6 +163,28 @@ def _reported_commit(api_port: int) -> str:
     return str(document.get("commit"))
 
 
+def build_images(compose: list[str], sleep: Callable[[float], None] = time.sleep) -> None:
+    """Build the project's images, retried twice, after one and then three minutes.
+
+    The images take their packages from `snapshot.debian.org`, which refuses requests when it
+    is busy, and an index apt cannot fetch fails the build rather than being skipped.
+    """
+
+    for attempt in range(1, BUILD_ATTEMPTS + 1):
+        if _run([*compose, "build"]) == 0:
+            return
+        if attempt < BUILD_ATTEMPTS:
+            pause = RETRY_PAUSES_SECONDS[attempt - 1]
+            print(
+                f"the images did not build (attempt {attempt} of {BUILD_ATTEMPTS}); "
+                f"retrying in {pause} s",
+                file=sys.stderr,
+                flush=True,
+            )
+            sleep(pause)
+    raise SuiteError(f"the images did not build in {BUILD_ATTEMPTS} attempts")
+
+
 def run(project: str, api_port: int, web_port: int, commit: str, keep: bool) -> int:
     check_target(project, api_port, web_port)
     with tempfile.TemporaryDirectory(prefix="oak-browser-suite-") as scratch:
@@ -168,7 +193,8 @@ def run(project: str, api_port: int, web_port: int, commit: str, keep: bool) -> 
         report = Path(scratch) / "report.json"
         compose = ["docker", "compose", "-p", project, "-f", "compose.yaml", "-f", str(override)]
         try:
-            if _run([*compose, "up", "--detach", "--build", "--wait", "--wait-timeout", "600"]):
+            build_images(compose)
+            if _run([*compose, "up", "--detach", "--wait", "--wait-timeout", "600"]):
                 raise SuiteError("the stack did not become healthy")
             reported = _reported_commit(api_port)
             if reported != commit:

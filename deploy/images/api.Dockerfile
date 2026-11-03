@@ -10,7 +10,7 @@ FROM python:3.13.12-slim@sha256:f1927c75e81efd1e091dbd64b6c0ecaa5630b38635a3d1c0
 WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    UV_COMPILE_BYTECODE=1 \
+    UV_COMPILE_BYTECODE=0 \
     UV_LINK_MODE=copy \
     PATH="/app/.venv/bin:$PATH"
 # The source commit's time, passed by scripts/reproduce_images.py and the workflows: with
@@ -30,9 +30,15 @@ COPY alembic.ini ./alembic.ini
 # `uv_cache.json` beside the project's own dist-info is uv's record of the build it made
 # from this tree, stamped with the build's clock; uv is not in the runtime image and
 # nothing reads it there, so it goes, with its RECORD line, or two builds differ by it.
+# The venv's bytecode is compiled by one process, in sorted order. uv compiles with several
+# worker processes that take files as they come, and CPython's bytecode for a module can
+# depend on what the same process compiled before it: one CI build of two differed in
+# pycparser's c_parser.pyc alone (RR-006, OAK-V1-038). compileall sorts each directory and,
+# with one worker, compiles in that order, so every build compiles in the same history.
 RUN uv sync --frozen --no-dev --no-editable \
     && rm -f /app/.venv/lib/python*/site-packages/oak_community-*.dist-info/uv_cache.json \
-    && sed -i '/\/uv_cache\.json,/d' /app/.venv/lib/python*/site-packages/oak_community-*.dist-info/RECORD
+    && sed -i '/\/uv_cache\.json,/d' /app/.venv/lib/python*/site-packages/oak_community-*.dist-info/RECORD \
+    && python -m compileall -q -j 1 --invalidation-mode checked-hash /app/.venv/lib/python*/site-packages
 
 # Runtime stage.
 FROM python:3.13.12-slim@sha256:f1927c75e81efd1e091dbd64b6c0ecaa5630b38635a3d1c04034ac636e1f94c8
@@ -60,8 +66,12 @@ RUN sed -i \
     && grep -q "snapshot.debian.org/archive/debian/${DEBIAN_SNAPSHOT}" /etc/apt/sources.list.d/debian.sources \
     && grep -q "snapshot.debian.org/archive/debian-security/${DEBIAN_SNAPSHOT}" /etc/apt/sources.list.d/debian.sources \
     && ! grep -rqs "deb.debian.org\|nginx.org" /etc/apt/sources.list.d /etc/apt/sources.list \
-    && apt-get -o Acquire::Check-Valid-Until=false -o Acquire::Retries=5 update \
-    && apt-get -o Acquire::Check-Valid-Until=false -o Acquire::Retries=5 \
+    # An index that cannot be fetched fails the build (`--error-on=any`). Without the flag
+    # apt warns and carries on without that index, the upgrade installs fewer updates, and
+    # the image both misses security fixes and differs from the next build's (RR-006). The
+    # archive refuses requests when busy, so each file is retried with a growing delay.
+    && apt-get -o Acquire::Check-Valid-Until=false -o Acquire::Retries=10 update --error-on=any \
+    && apt-get -o Acquire::Check-Valid-Until=false -o Acquire::Retries=10 \
         upgrade --yes --no-install-recommends \
     && apt-get clean \
     # What apt and dpkg log, and what ldconfig caches, carry the build's own clock.

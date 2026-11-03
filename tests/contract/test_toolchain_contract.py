@@ -835,6 +835,34 @@ def test_a_gate_that_could_pass_without_proving_its_claim_is_rejected(
             "deploy/images/api.Dockerfile: expected ARG SOURCE_DATE_EPOCH",
         ),
         (
+            "deploy/images/api.Dockerfile",
+            "update --error-on=any",
+            "update",
+            "deploy/images/api.Dockerfile: apt-get update must run with --error-on=any",
+        ),
+        (
+            "deploy/images/web.Dockerfile",
+            "update --error-on=any",
+            "update # --error-on=any",
+            "deploy/images/web.Dockerfile: apt-get update must run with --error-on=any",
+        ),
+        (
+            "deploy/images/api.Dockerfile",
+            "UV_COMPILE_BYTECODE=0",
+            "UV_COMPILE_BYTECODE=1",
+            "deploy/images/api.Dockerfile: the venv's bytecode must be compiled by one process "
+            "(UV_COMPILE_BYTECODE=0, then python -m compileall -q -j 1 "
+            "--invalidation-mode checked-hash)",
+        ),
+        (
+            "deploy/images/api.Dockerfile",
+            "compileall -q -j 1",
+            "compileall -q -j 0",
+            "deploy/images/api.Dockerfile: the venv's bytecode must be compiled by one process "
+            "(UV_COMPILE_BYTECODE=0, then python -m compileall -q -j 1 "
+            "--invalidation-mode checked-hash)",
+        ),
+        (
             "deploy/images/web.Dockerfile",
             "ARG DEBIAN_SNAPSHOT=20261029T000000Z",
             "ARG DEBIAN_SNAPSHOT=20261001T000000Z",
@@ -878,8 +906,9 @@ def test_a_gate_that_could_pass_without_proving_its_claim_is_rejected(
 def test_an_image_build_that_cannot_prove_it_reproduces_is_rejected(
     tmp_path: Path, relative: str, original: str, replacement: str, failure: str
 ) -> None:
-    """OAK-V1-035 (RR-006): one dated snapshot in both Dockerfiles, the source date, and each
-    workflow building both images twice."""
+    """OAK-V1-035 (RR-006): one dated snapshot in both Dockerfiles, the source date, an index
+    apt cannot fetch failing the build (OAK-V1-038), and each workflow building both images
+    twice."""
 
     tree = _mirror(ROOT, tmp_path)
     path = tree / relative

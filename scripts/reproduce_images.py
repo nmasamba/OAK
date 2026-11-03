@@ -27,23 +27,38 @@ local run names such a builder:
         --output docs/release/0.9.0/image-reproducibility.json \\
         deploy/images/api.Dockerfile deploy/images/web.Dockerfile
 
+A build that fails is retried twice, after one and then three minutes: the snapshot
+archive refuses requests when it is busy, and an index apt cannot fetch fails the build
+rather than being skipped (`OAK-V1-038`). When two builds differ, the script names each
+layer that differs, the Dockerfile step that made it and the files in it.
+
 Exit codes: 0 every image reproduced, 1 an image did not, 3 a build could not run.
 """
 
 from __future__ import annotations
 
 import argparse
+import gzip
+import hashlib
+import io
 import json
 import re
 import shutil
 import subprocess
 import sys
+import tarfile
+import tempfile
+import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import IO, Any
 
 ROOT = Path(__file__).resolve().parents[1]
 VERSION = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
 SNAPSHOT = re.compile(r"^ARG DEBIAN_SNAPSHOT=(?P<date>\d{8}T\d{6}Z)$", re.MULTILINE)
+BUILD_ATTEMPTS = 3
+RETRY_PAUSES_SECONDS = (60, 180)
+DIFFERING_FILES_SHOWN = 20
 
 
 def _run(command: list[str], **keywords: Any) -> subprocess.CompletedProcess[str]:
@@ -102,8 +117,9 @@ def build(
     epoch: int,
     no_cache: bool,
     builder: str | None,
+    sleep: Callable[[float], None] = time.sleep,
 ) -> str:
-    """One build with every reproducibility flag; returns the image ID."""
+    """One build with every reproducibility flag, retried twice; returns the image ID."""
 
     command = [
         "docker",
@@ -122,10 +138,115 @@ def build(
         ".",
     ]
     print(f"building {tag} for {platform}{' without cache' if no_cache else ''}", file=sys.stderr)
-    completed = _run(command, cwd=ROOT)
-    if completed.returncode != 0:
-        raise SystemExit(f"could not build {tag}:\n{completed.stderr[-3000:]}")
-    return _image_id(tag)
+    for attempt in range(1, BUILD_ATTEMPTS + 1):
+        completed = _run(command, cwd=ROOT)
+        if completed.returncode == 0:
+            return _image_id(tag)
+        if attempt < BUILD_ATTEMPTS:
+            pause = RETRY_PAUSES_SECONDS[attempt - 1]
+            print(
+                f"the build of {tag} failed (attempt {attempt} of {BUILD_ATTEMPTS}); "
+                f"retrying in {pause} s:\n{completed.stderr[-1500:]}",
+                file=sys.stderr,
+            )
+            sleep(pause)
+    raise SystemExit(
+        f"could not build {tag} in {BUILD_ATTEMPTS} attempts:\n{completed.stderr[-3000:]}"
+    )
+
+
+def _saved_image(path: Path) -> tuple[dict[str, Any], list[bytes]]:
+    """The configuration and the layer blobs of an image `docker save` wrote."""
+
+    with tarfile.open(path) as archive:
+        manifest = json.load(_member(archive, "manifest.json"))[0]
+        config = json.load(_member(archive, manifest["Config"]))
+        layers = [_member(archive, name).read() for name in manifest["Layers"]]
+    return config, layers
+
+
+def _member(archive: tarfile.TarFile, name: str) -> IO[bytes]:
+    member = archive.extractfile(name)
+    if member is None:
+        raise SystemExit(f"the saved image has no file {name}")
+    return member
+
+
+def _layer_entries(blob: bytes) -> dict[str, tuple[Any, ...]] | None:
+    """Each path in a layer with what makes it differ; None for a format not read here."""
+
+    if blob[:2] == b"\x1f\x8b":
+        blob = gzip.decompress(blob)
+    entries: dict[str, tuple[Any, ...]] = {}
+    try:
+        with tarfile.open(fileobj=io.BytesIO(blob)) as archive:
+            for member in archive.getmembers():
+                handle = archive.extractfile(member) if member.isfile() else None
+                content = handle.read() if handle is not None else b""
+                entries[member.name] = (
+                    member.type,
+                    member.mode,
+                    member.uid,
+                    member.gid,
+                    member.mtime,
+                    member.linkname,
+                    hashlib.sha256(content).hexdigest(),
+                )
+    except tarfile.ReadError:
+        return None
+    return entries
+
+
+def differences(first: Path, second: Path) -> list[str]:
+    """Each differing layer of two saved images, the step that made it and its files."""
+
+    first_config, first_layers = _saved_image(first)
+    second_config, second_layers = _saved_image(second)
+    steps = [
+        str(entry.get("created_by", ""))
+        for entry in first_config.get("history", [])
+        if not entry.get("empty_layer")
+    ]
+    first_ids = first_config["rootfs"]["diff_ids"]
+    second_ids = second_config["rootfs"]["diff_ids"]
+    lines: list[str] = []
+    if len(first_ids) != len(second_ids):
+        lines.append(f"the images have {len(first_ids)} and {len(second_ids)} layers")
+    for index, (one, other) in enumerate(zip(first_ids, second_ids, strict=False)):
+        if one == other:
+            continue
+        step = steps[index] if index < len(steps) else "an unknown step"
+        lines.append(f"layer {index} differs, made by: {' '.join(step.split())[:240]}")
+        first_entries = _layer_entries(first_layers[index])
+        second_entries = _layer_entries(second_layers[index])
+        if first_entries is None or second_entries is None:
+            lines.append("  (the layer is compressed in a format this script does not read)")
+            continue
+        changed = [
+            name
+            for name in sorted(first_entries.keys() | second_entries.keys())
+            if first_entries.get(name) != second_entries.get(name)
+        ]
+        lines.extend(f"  {name}" for name in changed[:DIFFERING_FILES_SHOWN])
+        if len(changed) > DIFFERING_FILES_SHOWN:
+            lines.append(f"  and {len(changed) - DIFFERING_FILES_SHOWN} more")
+    if not lines:
+        lines.append("every layer matches; the image configurations differ")
+    return lines
+
+
+def explain(first_tag: str, second_tag: str) -> list[str]:
+    """Save both images and say where they differ; a failure to save is said, not raised."""
+
+    with tempfile.TemporaryDirectory(prefix="oak-reproduce-") as scratch:
+        paths = []
+        for tag in (first_tag, second_tag):
+            path = Path(scratch) / (re.sub(r"[^A-Za-z0-9_.-]", "_", tag) + ".tar")
+            completed = _run(["docker", "save", "--output", str(path), tag])
+            if completed.returncode != 0:
+                return [f"could not save {tag} to compare: {completed.stderr[-500:]}"]
+            paths.append(path)
+        return differences(paths[0], paths[1])
 
 
 def reproduce(
@@ -142,6 +263,9 @@ def reproduce(
         second = build(
             dockerfile, rebuild_tag, platform=platform, epoch=epoch, no_cache=True, builder=builder
         )
+        if first != second:
+            for line in explain(tag, rebuild_tag):
+                print(f"{name}: {line}", file=sys.stderr)
         _run(["docker", "image", "rm", "--no-prune", rebuild_tag])
         images[name] = {
             "tag": tag,
