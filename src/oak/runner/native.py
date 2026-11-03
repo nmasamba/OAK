@@ -746,14 +746,18 @@ def _stop(process: subprocess.Popen[bytes]) -> tuple[int | None, bool]:
 
     The group is signalled whether or not its first process is still alive: a child it
     started stays in the group after it exits, and a child that ignores SIGTERM is killed.
+
+    macOS answers EPERM, not ESRCH, for a group whose remaining members are all zombies
+    waiting for their new parent to reap them, so EPERM is neither a failure to signal nor
+    proof that something runs: the stop waits for the group to be gone either way.
     """
 
     group = process.pid
-    with contextlib.suppress(ProcessLookupError):
+    with contextlib.suppress(ProcessLookupError, PermissionError):
         os.killpg(group, signal.SIGTERM)
     with contextlib.suppress(subprocess.TimeoutExpired):
         process.wait(STOP_SECONDS)
-    with contextlib.suppress(ProcessLookupError):
+    with contextlib.suppress(ProcessLookupError, PermissionError):
         os.killpg(group, signal.SIGKILL)
     with contextlib.suppress(subprocess.TimeoutExpired):
         process.wait(STOP_SECONDS)
@@ -764,7 +768,7 @@ def _stop(process: subprocess.Popen[bytes]) -> tuple[int | None, bool]:
         except ProcessLookupError:
             return process.returncode, True
         except PermissionError:
-            return process.returncode, False
+            pass
         if time.monotonic() >= give_up:
             return process.returncode, False
         time.sleep(0.05)

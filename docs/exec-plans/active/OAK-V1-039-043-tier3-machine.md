@@ -570,6 +570,13 @@ kinds, and an existing case or profile reads as before.
   another; the refusal now names the host. GitHub redirects release assets to
   `release-assets.githubusercontent.com`. The adapter's `START.txt` and the runner's message
   name the stand-in's file `download`, which the runner's interpreter runs as a script.
+- 2026-11-03 M6. macOS answers `EPERM`, not `ESRCH`, to a signal for a process group
+  whose remaining members are all zombies waiting for their new parent (launchd) to reap
+  them. The gate caught it: the first version of the hardened stop treated that `EPERM` as a
+  failure (`OAK-NATIVE-IO`) or as "still running" (`OAK-NATIVE-STOP`), about four times in
+  six on this Mac. The stop now suppresses `EPERM` when signalling and keeps waiting, up to
+  two seconds, for the group to be gone; twenty repetitions of the race then ended as they
+  should.
 - 2026-11-02 M5. The manual's PDF could not be inspected here (no PDF renderer on this Mac,
   and the browser pane shows local files only as a static snapshot); its HTML source, from
   which Chromium prints it, follows the chapter's existing patterns.
