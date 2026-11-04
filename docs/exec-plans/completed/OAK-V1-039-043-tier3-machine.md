@@ -15,8 +15,8 @@ and publishes nothing.
 - Owner/agent: owner-directed coding agent
 - Started: 2026-11-02
 - Last updated: 2026-11-04 (the rehearsal, and the close)
-- State: complete (PR #44 open, https://github.com/nmasamba/OAK/pull/44; the merges, and the
-  sign-off of the consent text, are the owner's)
+- State: complete (PR #44 open, https://github.com/nmasamba/OAK/pull/44; PR #43 merged as
+  `c4764c5`; PR #44's merge and the sign-off of the consent text are the owner's)
 - Claimed tasks: `OAK-V1-039`–`OAK-V1-043`
 
 One plan covers five task IDs: one for hardware scanning, three for native installation
