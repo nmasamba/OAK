@@ -93,7 +93,8 @@ notes:
     may need system libraries the release names.
   - The declared platform is the one the synthetic catalogue components require; the native
     adapter itself runs on macOS on Apple silicon and on Linux on x86_64 and aarch64.
-  - Rehearsed by hand on 2026-11-03 on macOS 26.3.1 on Apple silicon, with candidate-03;
-    docs/platforms.md has what it measured. The macOS build is ad-hoc signed and not
-    notarised, so spctl rejects it, and macOS ran it because a file the runner downloads
-    carries no quarantine attribute. The Linux archives above have not been installed.
+  - Rehearsed by hand on 2026-11-03, and with the key on 2026-11-04, on macOS 26.3.1 on Apple
+    silicon, with candidate-03; docs/platforms.md has what each measured. The macOS build is
+    ad-hoc signed and not notarised, so spctl rejects it, and macOS ran it because a file the
+    runner downloads carries no quarantine attribute. The Linux archives above have not been
+    installed.

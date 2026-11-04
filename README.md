@@ -182,7 +182,8 @@ A design can also be installed without Docker, after you consent to what that gi
 target profile names, from the hosts it names, checks each one's size and SHA-256, installs
 them in one folder under `~/.oak/runner/native`, starts each once to check it answers, and
 stops it. Nothing keeps running and nothing starts with your computer; a `START.txt` in that
-folder says how to start each one, and removing the installation deletes the folder. OAK's
+folder says how to start each one and how a client sends the key OAK generated for a model
+server there, and removing the installation deletes the folder. OAK's
 `oak scan` reports whether Docker and `uv` are installed and links to their official
 installers; it never installs them.
 

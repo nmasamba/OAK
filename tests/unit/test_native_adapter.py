@@ -1012,8 +1012,10 @@ def test_start_txt_says_how_a_client_sends_the_key_without_holding_it(tmp_path: 
     port = parameters["components"][0]["listen_port"]
     quoted = f"'{_key_file(root)}'"
     assert f"--api-key-file {quoted}" in text
-    assert f'curl -H "Authorization: Bearer $(cat {quoted})"' in text
-    assert f"http://127.0.0.1:{port}/v1/models" in text
+    # The key goes to curl on its input: `curl -H "...$(cat file)"` would put it in `ps`.
+    assert f"""printf 'header = "Authorization: Bearer %s"\\n' "$(cat {quoted})" |""" in text
+    assert f"curl -K - http://127.0.0.1:{port}/v1/models" in text
+    assert "curl -H" not in text
     prose = " ".join(text.split())
     assert "which only your user account can read" in prose
     assert "a web page open in your browser" in prose

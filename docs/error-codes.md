@@ -494,11 +494,11 @@ documented flow uses it.
 | `OAK-NARRATIVE-MALFORMED` | the model's answer was longer than allowed; the model's answer was not the requested JSON; the narrator did not name its model | `src/oak/adapters/models/report_narrator.py:121` |
 | `OAK-NARRATIVE-MODE` | narrative must be deterministic, online or local | `src/oak/application/report/service.py:120` |
 | `OAK-NARRATIVE-UNAVAILABLE` | the provider did not answer; the provider did not answer within the request deadline | `src/oak/adapters/models/fake_narrator.py:33` |
-| `OAK-NATIVE-ARCHIVE` | an archive link chain is too long; an archive link is too long; an archive link leaves its directory; and 7 more | `src/oak/runner/native.py:1006` |
+| `OAK-NATIVE-ARCHIVE` | an archive link chain is too long; an archive link is too long; an archive link leaves its directory; and 7 more | `src/oak/runner/native.py:1008` |
 | `OAK-NATIVE-CONSENT` | --consent belongs to `oak approve native_consent` only; a native target compiles only with its consent document; give the digest of the consent text you read; `oak approve native_consent` shows the text and its digest; and 9 more (some dynamic) | `src/oak/adapters/catalogue/consent.py:28` |
 | `OAK-NATIVE-DIGEST` | an artifact's size or SHA-256 differs from what the target profile acknowledges | `src/oak/runner/native.py:487` |
 | `OAK-NATIVE-DOWNLOAD` | an artifact could not be downloaded | `src/oak/runner/native_network.py:155` |
-| `OAK-NATIVE-HARNESS` | the harness kind has no argument template; the stand-in names no file OAK ships (some dynamic) | `src/oak/runner/native.py:1041` |
+| `OAK-NATIVE-HARNESS` | the harness kind has no argument template; the stand-in names no file OAK ships (some dynamic) | `src/oak/runner/native.py:1043` |
 | `OAK-NATIVE-HOST` | a download ended on a host the target profile does not acknowledge; an artifact's host is not one the target profile acknowledges (some dynamic) | `src/oak/runner/native_network.py:117` |
 | `OAK-NATIVE-IO` | *reason or mapping code; carries no fixed message* | `src/oak/runner/native.py:415` |
 | `OAK-NATIVE-KEY` | a model server answered a request that carried no key | `src/oak/runner/native.py:395` |

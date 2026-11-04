@@ -106,6 +106,43 @@ did. Nothing migrates, and nothing outside the installation's folder changes.
 
 - [x] 2026-11-04 PR #44 confirmed merged (`e91047b`). Branched from it as `tier3-native-api-key`.
 - [x] 2026-11-04 The owner chose the key, and approved both downloads by name, source and size.
+- [x] 2026-11-04 M1. The key, the check, `OAK-NATIVE-KEY`, `START.txt`, the consent text and its
+  pin, tests first. `tests/unit/test_native_adapter.py` and the native journey pass, the journey
+  searching every file it wrote for the key.
+- [x] 2026-11-04 M2, first attempt: failed. The install reported `OAK-NATIVE-DOWNLOAD` after 150
+  seconds, compensated and left nothing. See Discoveries.
+- [x] 2026-11-04 M2, second attempt. `examples/targets/local-native-llama-cpp.yaml` through the
+  installed `oak` and `oak-runner` from `aa5d334`, on the owner's Mac (M1 Max, macOS 26.3.1), with
+  candidate-03, in a scratch workspace, mailbox and runner home under throwaway keys; `~/.oak`
+  was not touched. Both downloads matched the profile, measured again with `shasum` (12,292,671
+  bytes, `sha256:2ace…eb82`; 491,400,032 bytes, `sha256:74a4…a9db`). The install took 183
+  seconds. Its check: `/health` 200 after 3.8 seconds, `status_without_key` 401, stopped, exit 0;
+  no warning in `run.log`. The key: 65 bytes, `-rw-------` in a `drwx------` folder, one key on
+  one line. Started from `START.txt`: `/health` and `/v1/health` 200; `/v1/models`, `/models`,
+  `/props`, `/slots`, `/metrics` and `/v1/chat/completions` 401, GET and POST; a wrong key 401;
+  `Authorization: Bearer` and `X-Api-Key` each answered "Paris"; listening on 127.0.0.1 only;
+  exit 0 on SIGINT. A second signed `apply` took 8 seconds, downloaded nothing, kept the key and
+  passed its check, and `START.txt`'s final client lines worked as written. `grep` for the key
+  over everything both applies wrote found only `api-key.txt`. `oak observe` read `present`,
+  with `EV-DEP-01`, `EV-DEP-02` and the smoke test passing, then `removed`; the uninstall took a
+  second, a canary beside the folder stayed, and all three journals verified against their
+  signed heads. Everything the rehearsal wrote was then deleted.
+- [x] 2026-11-04 M2, the browser (the desktop app's pane, Chromium 152). A page from
+  `http://127.0.0.1:18501`, a different origin from either server. Against a control, the same
+  binary and model with no key: `/v1/models` 200, a JSON POST 200 with the answer "Paris", and a
+  `text/plain` no-cors POST the page could not read still ran the model (`launch_slot_` in the
+  log). Against the keyed server: `/health` 200, `/v1/models` 401, the JSON POST 401, and the
+  no-cors POST refused, with no generation. From `https://example.com` all eight requests were
+  blocked before they left (`ERR_BLOCKED_BY_CLIENT`, `local-network-access` `denied`) and neither
+  server saw them. The server's own page loads with the key on, says "Access denied" and offers
+  Enter API Key; the key was not typed into it.
+
+- [x] 2026-11-04 Mutation checks. Each new guard was removed in turn and a test failed, 19 of 19:
+  the mode check, the file's shape, a link's refusal, the file's mode, the flag, the key on a
+  command line, `passed` ignoring the key, `OAK-NATIVE-KEY`, the check not sent, sent to
+  `/health`, or passing on another status, the stand-in given a key or a row field, a re-apply
+  never keeping the key, one key for everyone, the key in `START.txt`, `START.txt` without its
+  client, and the key in evidence, once against the unit test and once against the journey.
 
 ## Decisions
 
@@ -122,9 +159,13 @@ did. Nothing migrates, and nothing outside the installation's folder changes.
   read it; not `LLAMA_API_KEY`, because the runner passes a fixed three-variable environment.
 - 2026-11-04 **`--cors-origins localhost` instead of a key: rejected.** The flag exists, but CORS
   stops a page reading a response, not sending a request. The server parses every body as JSON
-  whatever its `Content-Type`, so a plain cross-origin POST still starts a generation, and a
-  rebound DNS name makes the page same-origin. Alongside the key it would add only hiding
-  `/health`, at the price of tying the kind to builds that have the flag.
+  whatever its `Content-Type`, so a plain cross-origin POST still starts a generation, which the
+  rehearsal then measured, and a rebound DNS name makes the page same-origin. Alongside the key
+  it would add only hiding `/health`, at the price of tying the kind to builds that have the flag.
+- 2026-11-04 **A second attempt at the install fell within the owner's approval.** The approval
+  named two files by name, source and size. The first attempt left nothing, those files were
+  unchanged, and the failure was a transport error, not a refusal: finishing the same two
+  downloads into the same scratch state widened nothing. The closing report says it took two.
 - 2026-11-04 **The key lives only in its file.** `START.txt` names the file and shows a command
   that reads it, so one place holds the value.
 - 2026-11-04 **A re-apply keeps a good key,** so clients that hold it keep working; a file that
@@ -138,5 +179,25 @@ did. Nothing migrates, and nothing outside the installation's folder changes.
 
 ## Discoveries and follow-ups
 
+- 2026-11-04 M2. **The first real install failed, and its cause is not established.** It reported
+  `OAK-NATIVE-DOWNLOAD` ("an artifact could not be downloaded") 150 seconds in, then compensated
+  and left `native/` empty. That code is a transport failure, not a host, size or digest refusal.
+  This session's own API calls failed on name lookups (`ENOTFOUND`) 19 seconds later, and the
+  adapter's socket timeout is 60 seconds, which fits a stall, but the system logs available held
+  nothing for that window, so an outage on this Mac is likely and unproven. Before retrying,
+  HEAD requests and GitHub's API showed each file unchanged at its source, with the size and
+  digest the owner approved and the redirect hosts the profile names; the second attempt
+  finished. A failed native download starts again from nothing: resuming one is not in scope.
+- 2026-11-04 M2. **`curl -H "Authorization: Bearer $(cat file)"` puts the key in `ps`.** This was
+  `START.txt`'s first example, and measuring it showed the key on the client's command line for
+  as long as the client ran: the exposure the key file exists to avoid, reintroduced by the
+  instructions. `START.txt` now hands the header to `curl` on its input (`curl -K -`), which
+  measured clean. An example is code too.
+- 2026-11-04 M2. **The server's own page asks for the key itself** (Enter API Key), so `START.txt`
+  says so rather than pointing into its settings, as reading the source had suggested.
+- 2026-11-04 M2. **`GET /` answers 415 to a client that offers no gzip,** which looks like a
+  refusal and is not: it is the web UI's own check, with or without a key.
+- 2026-11-04 M2. On the control, `/v1/models` gave the page the model's full path, and so the
+  user's home directory. With the key it answers 401.
 - 2026-11-04 Reading `b11721`: `--api-key-file` with an empty file starts a server with no key and
   no error, which is why the check and the file's shape test exist.

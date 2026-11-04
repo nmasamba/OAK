@@ -873,9 +873,11 @@ def _write_start_instructions(
         ]
         if component.harness_kind in KEYED_PATHS:
             lines += [
-                "  A client sends the key in its Authorization header, as this one does:",
-                f'  curl -H "Authorization: Bearer $(cat {key_file})" {origin}/v1/models',
-                f"  The server's own web page, {origin}/, takes it in its settings, as API Key.",
+                "  A client sends the key in its Authorization header. This one does, and hands",
+                "  it to curl on its input: on a command line, other users could see it.",
+                f"""  printf 'header = "Authorization: Bearer %s"\\n' "$(cat {key_file})" |""",
+                f"    curl -K - {origin}/v1/models",
+                f"  The server's own web page, {origin}/, asks for it: choose Enter API Key.",
             ]
     path = directory / START_FILE
     temporary = directory / f"{START_FILE}.tmp"

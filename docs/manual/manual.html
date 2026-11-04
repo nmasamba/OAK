@@ -1294,7 +1294,10 @@ Measured, with no prediction to compare:
     it, started each one under three ceilings (no core files, at most 4,096 open files, no
     written file over 2 GiB), probed it, and stopped it. The installation is one folder,
     readable by you only; its <code>START.txt</code> gives each component's command, should
-    you want to start one yourself. <code>oak approve destroy</code>, <code>oak dispatch
+    you want to start one yourself. A model server from
+    <code>local-native-llama-cpp.yaml</code> runs its model only for a client that sends the
+    key OAK generated for that installation; <code>START.txt</code> says where the key is and
+    how to send it. <code>oak approve destroy</code>, <code>oak dispatch
     destroy</code> and one more run of the runner remove exactly that folder. The web
     workspace's bundle page shows the same consent text and the three approvals' state,
     and gives the install steps with the plan's consent digest filled in; it records
