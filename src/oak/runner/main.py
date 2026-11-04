@@ -12,6 +12,7 @@ import contextlib
 import fcntl
 import json
 import os
+import select
 import shutil
 import sys
 import tempfile
@@ -143,8 +144,11 @@ class _TerminalProgress:
             line = f"  {_size(update.written)} of {_size(update.total)} ({percent}%)"
             text = "\r" + line.ljust(self._width)
             self._width = len(line)
-        self._terminal.write(text)
-        self._terminal.flush()
+        # This runs inside the download's loop, and a write to a terminal paused with Ctrl-S,
+        # or to one nobody is reading, would block it: what cannot go at once is dropped.
+        if select.select([], [self._terminal], [], 0)[1]:
+            self._terminal.write(text)
+            self._terminal.flush()
 
 
 def _terminal_progress() -> _TerminalProgress | None:

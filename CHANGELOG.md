@@ -17,8 +17,9 @@ All notable changes to OAK Community are recorded here.
   script captures does not change. A file is named by the last segment of its URL as written,
   without the host or the query string, or by its role when that is not a plain name.
   Progress is shown and forgotten: no journal, evidence, heartbeat or other signed message
-  gains anything, and a terminal that goes away during a download fails nothing. The check
-  that follows a download still prints nothing while it waits.
+  gains anything. What the terminal cannot take at once, when it is paused with Ctrl-S, say,
+  is dropped rather than waited for, so the download goes on. The check that follows a
+  download still prints nothing while it waits.
 
 ### Tier 3, Batch B (`OAK-V1-039`–`043`)
 

@@ -534,8 +534,8 @@ class NativeProcessAdapter:
             self._report(replace(update, finished=True))
 
     def _report(self, update: DownloadProgress) -> None:
-        """A report that cannot be made is dropped: a terminal that went away fails no
-        install, and inside `fetch` it would otherwise read as a failed download."""
+        """A report that cannot be made is dropped, as a heartbeat's is: a write to the
+        terminal that fails is no failed install, and inside `fetch` it would read as one."""
 
         if self._progress is not None:
             with contextlib.suppress(OSError, ValueError):

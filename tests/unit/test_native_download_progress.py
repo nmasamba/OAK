@@ -5,14 +5,20 @@ real runner."""
 
 from __future__ import annotations
 
+import contextlib
 import functools
 import hashlib
 import io
 import itertools
 import json
+import os
+import pty
+import signal
 import subprocess
 import sys
 import tarfile
+import termios
+from collections.abc import Iterator
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
@@ -215,6 +221,15 @@ def test_only_a_real_download_is_reported(tmp_path: Path) -> None:
     ]
 
 
+class _Terminal(io.StringIO):
+    """Keeps what it is shown, and always has room for more."""
+
+    _room = os.open(os.devnull, os.O_WRONLY)
+
+    def fileno(self) -> int:
+        return self._room
+
+
 def test_a_file_with_no_plain_name_is_shown_by_its_role(tmp_path: Path) -> None:
     source = "https://example.org/models/" + "x" * 121
     updates: list[DownloadProgress] = []
@@ -223,14 +238,14 @@ def test_a_file_with_no_plain_name_is_shown_by_its_role(tmp_path: Path) -> None:
         _parameters(_component("node.answer", 18432, model_url=source)), 120
     )
 
-    terminal = io.StringIO()
+    terminal = _Terminal()
     show = _TerminalProgress(terminal)
     show(next(update for update in updates if update.role == "model"))
     assert terminal.getvalue() == "downloading the model (4,000 bytes)\n"
 
 
 def test_a_terminal_sees_the_file_then_one_line_that_repaints() -> None:
-    terminal = io.StringIO()
+    terminal = _Terminal()
     show = _TerminalProgress(terminal)
     update = DownloadProgress("model", "tiny-q4.gguf", 0, 491_400_032)
 
@@ -247,8 +262,8 @@ def test_a_terminal_sees_the_file_then_one_line_that_repaints() -> None:
     )
 
 
-class _LineBuffered(io.StringIO):
-    """Shows only what was flushed, as stdout holds back a line that has no newline yet."""
+class _Buffered(_Terminal):
+    """Shows only what was flushed."""
 
     def __init__(self) -> None:
         super().__init__()
@@ -258,11 +273,11 @@ class _LineBuffered(io.StringIO):
         self.shown = self.getvalue()
 
 
-def test_each_repaint_reaches_the_terminal_at_once() -> None:
-    """A repainted line ends in no newline: unflushed, it would sit in the buffer and the
-    terminal would look as stuck as it did before."""
+def test_each_repaint_is_flushed() -> None:
+    """Python's line buffering also flushes a write holding a carriage return, so this is
+    not what makes a repaint appear on stdout today; it only keeps that from being assumed."""
 
-    terminal = _LineBuffered()
+    terminal = _Buffered()
     show = _TerminalProgress(terminal)
 
     show(DownloadProgress("model", "tiny-q4.gguf", 1_000_000, 2_000_000))
@@ -270,8 +285,47 @@ def test_each_repaint_reaches_the_terminal_at_once() -> None:
     assert terminal.shown == "\r  1.0 MB of 2.0 MB (50%)"
 
 
+@contextlib.contextmanager
+def _within(seconds: float) -> Iterator[None]:
+    """Fails a write that blocks, rather than hanging the whole suite on it."""
+
+    def expired(signum: int, frame: Any) -> None:
+        raise TimeoutError("a write to the terminal blocked")
+
+    previous = signal.signal(signal.SIGALRM, expired)
+    signal.setitimer(signal.ITIMER_REAL, seconds)
+    try:
+        yield
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, previous)
+
+
+def test_a_paused_terminal_does_not_stop_the_download() -> None:
+    """A terminal paused with Ctrl-S stops taking output, and a write to it then blocks until
+    Ctrl-Q. The reporter runs inside the download's loop, so that would stop the download,
+    and the lease check with it: what the terminal cannot take at once is dropped instead."""
+
+    leader, follower = pty.openpty()
+    terminal = os.fdopen(follower, "w")
+    show = _TerminalProgress(terminal)
+    update = DownloadProgress("model", "tiny-q4.gguf", 0, 5000)
+    termios.tcflow(follower, termios.TCOOFF)
+    try:
+        with _within(seconds=20):
+            show(update)
+            for written in range(1, 5000):
+                show(replace(update, written=written))
+            show(replace(update, written=5000, finished=True))
+    finally:
+        # The terminal's far end first: closing the near end could wait for it to drain.
+        os.close(leader)
+        with contextlib.suppress(OSError):
+            terminal.close()
+
+
 def test_a_shorter_line_leaves_nothing_of_the_longer_one_behind() -> None:
-    terminal = io.StringIO()
+    terminal = _Terminal()
     show = _TerminalProgress(terminal)
     update = DownloadProgress("model", "big.gguf", 1, 1_200_000_000)
 
@@ -284,7 +338,7 @@ def test_a_shorter_line_leaves_nothing_of_the_longer_one_behind() -> None:
 
 
 def test_a_download_that_never_moved_adds_no_blank_line() -> None:
-    terminal = io.StringIO()
+    terminal = _Terminal()
     show = _TerminalProgress(terminal)
     update = DownloadProgress("model", "tiny-q4.gguf", 0, 4000)
 
@@ -295,7 +349,7 @@ def test_a_download_that_never_moved_adds_no_blank_line() -> None:
 
 
 def test_each_download_on_a_terminal_starts_a_fresh_line() -> None:
-    terminal = io.StringIO()
+    terminal = _Terminal()
     show = _TerminalProgress(terminal)
     first = DownloadProgress("harness", "llama.tar.gz", 0, 2_000_000)
     second = DownloadProgress("model", "m.gguf", 0, 2_000_000)

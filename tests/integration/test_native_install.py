@@ -14,6 +14,7 @@ import functools
 import hashlib
 import io
 import json
+import os
 import socket
 import subprocess
 import sys
@@ -284,8 +285,15 @@ class _Response(io.BytesIO):
 
 
 class _Terminal(io.StringIO):
+    """Keeps what it is shown, and always has room for more."""
+
+    _room = os.open(os.devnull, os.O_WRONLY)
+
     def isatty(self) -> bool:
         return True
+
+    def fileno(self) -> int:
+        return self._room
 
 
 def _downloading(document: dict[str, Any]) -> None:

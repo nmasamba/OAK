@@ -370,8 +370,10 @@ bytes so far. That is only for a person at a terminal. When stdout is a file or 
 prints no progress, so what a script captures does not change. A file is named by the last
 segment of its URL as written, without the host or the query string, or by its role when
 that segment is not a plain name. Progress is shown and forgotten: it is not journaled and
-reaches no evidence, heartbeat or other signed message, and a terminal that goes away during
-a download fails nothing. The wait for a component to answer (step 3) prints nothing.
+reaches no evidence, heartbeat or other signed message. What the terminal cannot take at once,
+when it is paused with Ctrl-S, say, is dropped rather than waited for, and a write that fails
+is ignored, so the download goes on either way. The wait for a component to answer (step 3)
+prints nothing.
 
 `rollback` and `destroy` remove exactly the installation's directory after checking its
 marker: renamed out of the way first, so a removal that fails part way leaves the path

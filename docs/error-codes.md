@@ -266,8 +266,8 @@ documented flow uses it.
 | `OAK-RUNNER-APPLY` | container labels could not be read; container state could not be read; fixture container creation failed | `src/oak/runner/adapters.py:393` |
 | `OAK-RUNNER-APPROVAL` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:512` |
 | `OAK-RUNNER-ATTACHMENT` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:263` |
-| `OAK-RUNNER-BUSY` | another oak-runner run-once is using this runner home | `src/oak/runner/main.py:84` |
-| `OAK-RUNNER-CONFIG` | OAK_RUNNER_DISPATCH_RETENTION_DAYS must be a whole number of days; OAK_RUNNER_DISPATCH_RETENTION_DAYS must be between 0 and 3650; OAK_RUNNER_HEARTBEAT_SECONDS must be 0, or 1 to 3600; and 6 more | `src/oak/runner/main.py:176` |
+| `OAK-RUNNER-BUSY` | another oak-runner run-once is using this runner home | `src/oak/runner/main.py:85` |
+| `OAK-RUNNER-CONFIG` | OAK_RUNNER_DISPATCH_RETENTION_DAYS must be a whole number of days; OAK_RUNNER_DISPATCH_RETENTION_DAYS must be between 0 and 3650; OAK_RUNNER_HEARTBEAT_SECONDS must be 0, or 1 to 3600; and 6 more | `src/oak/runner/main.py:180` |
 | `OAK-RUNNER-DIGEST` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:849` |
 | `OAK-RUNNER-DRIFT` | target state digest drifted during execution | `src/oak/runner/execution.py:336` |
 | `OAK-RUNNER-ENVIRONMENT` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:308` |
@@ -278,7 +278,7 @@ documented flow uses it.
 | `OAK-RUNNER-KEY` | runner key length is invalid; runner key must be a private regular file; the mailbox holds completions but the runner home has no key to tell this runner's own from them; and 1 more | `src/oak/runner/identity.py:44` |
 | `OAK-RUNNER-LEASE` | the lease expired before the next side effect | `src/oak/runner/adapters.py:773` |
 | `OAK-RUNNER-LEASE-EXPIRED` | the lease expired before the next step; the lease expired during a download | `src/oak/runner/native.py:429` |
-| `OAK-RUNNER-MAILBOX` | *dynamic message* | `src/oak/runner/main.py:340` |
+| `OAK-RUNNER-MAILBOX` | *dynamic message* | `src/oak/runner/main.py:344` |
 | `OAK-RUNNER-NETWORK` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:492` |
 | `OAK-RUNNER-OPERATION` | operation kind is not supported | `src/oak/runner/execution.py:338` |
 | `OAK-RUNNER-PARAMETERS` | container entry is not permitted; container list is not permitted; container name is not permitted; and 8 more | `src/oak/runner/adapters.py:815` |
