@@ -1263,16 +1263,16 @@ What this relaxes:
 What stays:
 - Nothing is installed without your signed approval of the architecture, of the installation and of this consent.
 …
-Consent text consent.native-installation 0.1.0: sha256:d2b8b60dd3004eb9d98204a6a0293879a4be302de4bcaa1f3b92d296519b3b2c
+Consent text consent.native-installation 0.1.0: sha256:bbed21d565009b414adf4e6eb0ee0cbdb22f5682294a34f9afb18db11daa0603
 This text is a draft: it has not been signed off for release.
-To consent: oak approve native_consent --consent sha256:d2b8b60dd3004eb9d98204a6a0293879a4be302de4bcaa1f3b92d296519b3b2c
+To consent: oak approve native_consent --consent sha256:bbed21d565009b414adf4e6eb0ee0cbdb22f5682294a34f9afb18db11daa0603
 OAK-NATIVE-CONSENT: read the consent text, then approve with --consent and the digest it shows</span></code></pre>
   <p>
     Give the consent with that digest; <code>oak approve apply</code> is refused until you
     do (<code>OAK-NATIVE-CONSENT</code>). Then dispatch and run the runner, with the native
     profile as its target:
   </p>
-  <pre><code>uv run oak approve native_consent --consent sha256:d2b8…3b2c
+  <pre><code>uv run oak approve native_consent --consent sha256:bbed…0603
 uv run oak approve apply
 uv run oak dispatch apply
 OAK_RUNNER_MAILBOX=$OAK_DISPATCH_MAILBOX \

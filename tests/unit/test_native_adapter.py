@@ -8,6 +8,7 @@ import hashlib
 import io
 import json
 import os
+import re
 import resource
 import shutil
 import signal
@@ -17,6 +18,7 @@ import subprocess
 import sys
 import tarfile
 import zipfile
+from collections.abc import Callable
 from importlib import resources
 from pathlib import Path
 from typing import Any
@@ -24,8 +26,10 @@ from typing import Any
 import pytest
 
 from oak.domain import OAKError
+from oak.runner import native_network
 from oak.runner.adapters import AdapterFailureError
 from oak.runner.native import (
+    API_KEY_FILE,
     MARKER,
     START_FILE,
     NativeArtifact,
@@ -113,6 +117,10 @@ def test_the_stand_in_is_installed_proven_stopped_and_removed(tmp_path: Path) ->
     assert "a web page open in your browser" in text
     assert f"node.answer (oak_stand_in) on 127.0.0.1:{port}" in text
     assert f"--port {port}" in text
+    # The stand-in only says it is there, so it takes no key and START.txt offers none.
+    assert not (directory / API_KEY_FILE).exists()
+    assert "status_without_key" not in test["content"]["smoke_test"][0]
+    assert API_KEY_FILE not in text and "Authorization" not in text
 
     again = adapter.apply(_parameters(port=port), 120)
     assert again[1]["content"]["passed"] is True, "a second apply adopts its own installation"
@@ -734,6 +742,9 @@ def test_a_removal_that_fails_part_way_is_finished_by_the_next(
     assert list(root.iterdir()) == []
 
 
+# What build b11721's `llama-server` does with `--api-key-file` (tools/server/server-http.cpp
+# at that tag): /health stays open, and everything else, routed or not, answers 401 unless
+# the request carries the key; a GET on a POST route that got past the key would answer 404.
 FAKE_LLAMA = """
 import http.server, sys
 arguments = sys.argv[1:]
@@ -741,6 +752,25 @@ assert arguments[arguments.index("--host") + 1] == "127.0.0.1"
 port = int(arguments[arguments.index("--port") + 1])
 with open(arguments[arguments.index("--model") + 1], "rb") as model:
     assert model.read() == b"GGUF model"
+with open(arguments[arguments.index("--api-key-file") + 1], encoding="ascii") as keys:
+    key = keys.read().strip()
+class Handler(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        offered = self.headers.get("Authorization")
+        status = 200 if self.path == "/health" else 404 if offered == "Bearer " + key else 401
+        self.send_response(status)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+    def log_message(self, *args):
+        pass
+http.server.HTTPServer(("127.0.0.1", port), Handler).serve_forever()
+"""
+
+# A server that takes the argument and enforces nothing, as an empty key file would leave it.
+KEYLESS_LLAMA = """
+import http.server, sys
+arguments = sys.argv[1:]
+port = int(arguments[arguments.index("--port") + 1])
 class Handler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200 if self.path == "/health" else 404)
@@ -752,36 +782,40 @@ http.server.HTTPServer(("127.0.0.1", port), Handler).serve_forever()
 """
 
 
-def test_a_llama_cpp_release_installs_offline_and_each_file_downloads_once(
-    tmp_path: Path,
-) -> None:
-    """The `llama_cpp_server` kind end to end, with a release shaped like llama.cpp's (a
-    versioned library and its link) and two nodes sharing the harness and the model."""
+class LlamaRelease:
+    """A release shaped like llama.cpp's, fetched and started without a network: a versioned
+    library, its link, and a server program run by the test's own interpreter."""
 
-    release = _tar(
-        tmp_path / "llama.tar.gz",
-        [
-            ("build/bin/llama-server", FAKE_LLAMA.encode("utf-8")),
-            ("build/bin/libllama.0.0.1.dylib", b"library"),
-            _link("build/bin/libllama.dylib", "libllama.0.0.1.dylib"),
-        ],
-    ).read_bytes()
-    files = {
-        "https://example.org/llama.tar.gz": release,
-        "https://example.org/model.gguf": b"GGUF model",
-    }
-    fetched: list[str] = []
+    def __init__(self, tmp_path: Path, *, server: str = FAKE_LLAMA) -> None:
+        release = _tar(
+            tmp_path / "llama.tar.gz",
+            [
+                ("build/bin/llama-server", server.encode("utf-8")),
+                ("build/bin/libllama.0.0.1.dylib", b"library"),
+                _link("build/bin/libllama.dylib", "libllama.0.0.1.dylib"),
+            ],
+        ).read_bytes()
+        self.files = {
+            "https://example.org/llama.tar.gz": release,
+            "https://example.org/model.gguf": b"GGUF model",
+        }
+        self.fetched: list[str] = []
+        self.started: list[tuple[list[str], dict[str, Any]]] = []
 
-    def fetch(source: str, destination: Path, **_: Any) -> tuple[int, str]:
-        fetched.append(source)
-        destination.write_bytes(files[source])
-        return len(files[source]), "sha256:" + hashlib.sha256(files[source]).hexdigest()
+    def fetch(self, source: str, destination: Path, **_: Any) -> tuple[int, str]:
+        self.fetched.append(source)
+        destination.write_bytes(self.files[source])
+        return len(self.files[source]), "sha256:" + hashlib.sha256(self.files[source]).hexdigest()
 
-    def popen(argv: list[str], **keywords: Any) -> Any:
+    def popen(self, argv: list[str], **keywords: Any) -> Any:
+        self.started.append((list(argv), keywords))
         return subprocess.Popen([sys.executable, "-I", *argv], **keywords)
 
-    def artifact(role: str, source: str, format_: str) -> dict[str, Any]:
-        content = files[source]
+    def adapter(self, root: Path, **keywords: Any) -> NativeProcessAdapter:
+        return NativeProcessAdapter(root, fetch=self.fetch, popen=self.popen, **keywords)
+
+    def _artifact(self, role: str, source: str, format_: str) -> dict[str, Any]:
+        content = self.files[source]
         return {
             "role": role,
             "source": source,
@@ -790,32 +824,287 @@ def test_a_llama_cpp_release_installs_offline_and_each_file_downloads_once(
             "format": format_,
         }
 
-    parameters = _parameters(port=_free_port())
-    parameters["allowed_download_hosts"] = ["example.org"]
-    template = parameters["components"][0]
-    parameters["components"] = [
-        {
-            **template,
-            "node_id": node,
-            "harness_kind": "llama_cpp_server",
-            "artifacts": [
-                artifact("harness", "https://example.org/llama.tar.gz", "tar.gz"),
-                artifact("model", "https://example.org/model.gguf", "file"),
-            ],
-            "listen_port": _free_port(),
-        }
-        for node in ("node.generation", "node.review")
-    ]
+    def parameters(self, *nodes: str, installation_id: str = INSTALLATION) -> dict[str, Any]:
+        parameters = _parameters(port=_free_port())
+        parameters["installation_id"] = installation_id
+        parameters["allowed_download_hosts"] = ["example.org"]
+        template = parameters["components"][0]
+        parameters["components"] = [
+            {
+                **template,
+                "node_id": node,
+                "harness_kind": "llama_cpp_server",
+                "artifacts": [
+                    self._artifact("harness", "https://example.org/llama.tar.gz", "tar.gz"),
+                    self._artifact("model", "https://example.org/model.gguf", "file"),
+                ],
+                "listen_port": _free_port(),
+            }
+            for node in nodes or ("node.generation",)
+        ]
+        return parameters
 
-    evidence = NativeProcessAdapter(tmp_path / "native", fetch=fetch, popen=popen).apply(
-        parameters, 120
+
+def test_a_llama_cpp_release_installs_offline_and_each_file_downloads_once(
+    tmp_path: Path,
+) -> None:
+    """The `llama_cpp_server` kind end to end, with a release shaped like llama.cpp's (a
+    versioned library and its link) and two nodes sharing the harness and the model."""
+
+    release = LlamaRelease(tmp_path)
+
+    evidence = release.adapter(tmp_path / "native").apply(
+        release.parameters("node.generation", "node.review"), 120
     )
 
     tested = evidence[1]["content"]
     assert tested["passed"] is True and tested["stopped"] is True
-    assert sorted(fetched) == sorted(files), "each file downloads once per installation"
+    assert sorted(release.fetched) == sorted(release.files), "each file downloads once"
     trees = list((tmp_path / "native" / INSTALLATION).glob("*/harness/unpacked/build/bin"))
     assert len(trees) == 2
     for tree in trees:
         assert (tree / "libllama.dylib").read_bytes() == b"library"
         assert not (tree / "libllama.dylib").is_symlink()
+
+
+# -- the installation's key (OAK-V1-045) -------------------------------------------------
+
+
+def _key_file(root: Path, installation_id: str = INSTALLATION) -> Path:
+    return root / installation_id / API_KEY_FILE
+
+
+def test_each_installation_has_a_key_of_its_own_that_only_the_user_can_read(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "native"
+    other = "installation." + "b" * 24
+    release = LlamaRelease(tmp_path)
+    adapter = release.adapter(root)
+
+    adapter.apply(release.parameters(), 120)
+    adapter.apply(release.parameters(installation_id=other), 120)
+
+    first, second = _key_file(root), _key_file(root, other)
+    assert first.read_text(encoding="ascii") != second.read_text(encoding="ascii")
+    for path in (first, second):
+        # One 256-bit key on one line, so a `#` comment or an empty file cannot be what
+        # `--api-key-file` reads: either would leave the server with no key at all.
+        assert re.fullmatch(r"[0-9a-f]{64}\n", path.read_text(encoding="ascii"))
+        details = os.lstat(path)
+        assert stat.S_ISREG(details.st_mode) and stat.S_IMODE(details.st_mode) == 0o600
+        assert details.st_uid == os.getuid()
+        assert stat.S_IMODE(os.lstat(path.parent).st_mode) == 0o700
+
+
+def test_a_server_gets_the_path_of_the_key_and_never_the_key(tmp_path: Path) -> None:
+    """The file is why the key stays out of `ps`, where other users could read it."""
+
+    root = tmp_path / "native"
+    release = LlamaRelease(tmp_path)
+
+    release.adapter(root).apply(release.parameters("node.generation", "node.review"), 120)
+
+    key = _key_file(root).read_text(encoding="ascii").strip()
+    assert len(release.started) == 2, "both servers of the installation start"
+    for argv, keywords in release.started:
+        assert argv[argv.index("--api-key-file") + 1] == str(_key_file(root))
+        assert "--api-key" not in argv
+        assert key not in " ".join(argv)
+        assert set(keywords["env"]) == {"PATH", "HOME", "LANG"}
+        assert key not in " ".join(keywords["env"].values())
+
+
+def test_the_check_refuses_a_request_without_the_key_and_never_runs_the_model(
+    tmp_path: Path,
+) -> None:
+    probed: list[str] = []
+
+    def probe(port: int, path: str, timeout: float) -> int | None:
+        probed.append(path)
+        return native_network.probe(port, path, timeout)
+
+    release = LlamaRelease(tmp_path)
+
+    evidence = release.adapter(tmp_path / "native", probe=probe).apply(release.parameters(), 120)
+
+    row = evidence[1]["content"]["smoke_test"][0]
+    assert row["passed"] is True and row["http_status"] == 200
+    assert row["status_without_key"] == 401
+    # `http_status` is /health's, open without the key; the second path is the one that
+    # generates text, reached with a GET, which that route does not take.
+    assert set(probed) == {"/health", "/v1/chat/completions"}
+    assert probed[-1] == "/v1/chat/completions"
+
+
+def test_a_server_that_answers_without_the_key_fails_the_install(tmp_path: Path) -> None:
+    root = tmp_path / "native"
+    release = LlamaRelease(tmp_path, server=KEYLESS_LLAMA)
+    parameters = release.parameters()
+    adapter = release.adapter(root)
+
+    with pytest.raises(AdapterFailureError) as caught:
+        adapter.apply(parameters, 120)
+
+    assert caught.value.code == "OAK-NATIVE-KEY"
+    test = caught.value.evidence[1]["content"]
+    assert test["passed"] is False and test["stopped"] is True
+    row = test["smoke_test"][0]
+    assert row["passed"] is False and row["status_without_key"] == 404
+    assert row["http_status"] == 200, "its health probe alone would have passed it"
+    assert not (root / INSTALLATION / START_FILE).exists(), "nobody is told to start it"
+
+    adapter.compensate(parameters, caught.value.created, 120)
+    assert not (root / INSTALLATION).exists(), "the key goes with the failed install"
+
+
+def test_a_server_that_stops_answering_after_its_health_probe_does_not_pass(
+    tmp_path: Path,
+) -> None:
+    def probe(port: int, path: str, timeout: float) -> int | None:
+        return None if path != "/health" else native_network.probe(port, path, timeout)
+
+    release = LlamaRelease(tmp_path)
+
+    with pytest.raises(AdapterFailureError) as caught:
+        release.adapter(tmp_path / "native", probe=probe).apply(release.parameters(), 120)
+
+    assert caught.value.code == "OAK-NATIVE-SMOKE"
+    row = caught.value.evidence[1]["content"]["smoke_test"][0]
+    assert row["passed"] is False and row["status_without_key"] is None
+
+
+@pytest.mark.parametrize("server", [FAKE_LLAMA, KEYLESS_LLAMA], ids=["installed", "failed"])
+def test_the_key_reaches_no_evidence_no_marker_and_no_message(tmp_path: Path, server: str) -> None:
+    root = tmp_path / "native"
+    release = LlamaRelease(tmp_path, server=server)
+    adapter = release.adapter(root)
+    parameters = release.parameters("node.generation", "node.review")
+    message = ""
+    try:
+        evidence = adapter.apply(parameters, 120)
+    except AdapterFailureError as error:
+        evidence = error.evidence
+        message = f"{error.code} {error.message} {error!r}"
+
+    key = _key_file(root).read_text(encoding="ascii").strip()
+    assert evidence, "there is evidence to look through"
+    assert key not in json.dumps(evidence, sort_keys=True)
+    assert key not in message
+    assert key not in (root / INSTALLATION / MARKER).read_text(encoding="utf-8")
+    holders = [
+        path.name
+        for path in (root / INSTALLATION).rglob("*")
+        if path.is_file() and key.encode("ascii") in path.read_bytes()
+    ]
+    assert holders == [API_KEY_FILE], "the key file is the one place the key lives"
+
+
+def test_start_txt_says_how_a_client_sends_the_key_without_holding_it(tmp_path: Path) -> None:
+    root = tmp_path / "with space" / "native"
+    release = LlamaRelease(tmp_path)
+    parameters = release.parameters()
+
+    release.adapter(root).apply(parameters, 120)
+
+    instructions = root / INSTALLATION / START_FILE
+    text = instructions.read_text(encoding="utf-8")
+    port = parameters["components"][0]["listen_port"]
+    quoted = f"'{_key_file(root)}'"
+    assert f"--api-key-file {quoted}" in text
+    assert f'curl -H "Authorization: Bearer $(cat {quoted})"' in text
+    assert f"http://127.0.0.1:{port}/v1/models" in text
+    prose = " ".join(text.split())
+    assert "which only your user account can read" in prose
+    assert "a web page open in your browser" in prose
+    assert _key_file(root).read_text(encoding="ascii").strip() not in text
+
+
+def test_a_re_apply_keeps_the_key_its_clients_already_hold(tmp_path: Path) -> None:
+    root = tmp_path / "native"
+    release = LlamaRelease(tmp_path)
+    parameters = release.parameters()
+    adapter = release.adapter(root)
+    adapter.apply(parameters, 120)
+    before = _key_file(root).read_bytes()
+
+    evidence = adapter.apply(parameters, 120)
+
+    assert evidence[1]["content"]["passed"] is True
+    assert _key_file(root).read_bytes() == before
+
+
+def _rewrite(path: Path, content: bytes, mode: int) -> None:
+    path.chmod(0o600)
+    path.write_bytes(content)
+    path.chmod(mode)
+
+
+@pytest.mark.parametrize(
+    ("change", "reason"),
+    [
+        (lambda path, key: _rewrite(path, key, 0o644), "others could read it"),
+        (lambda path, key: _rewrite(path, key, 0o640), "its group could read it"),
+        (lambda path, key: _rewrite(path, b"", 0o600), "empty: no key at all"),
+        (lambda path, key: _rewrite(path, b"# a comment\n", 0o600), "only a comment"),
+        (lambda path, key: _rewrite(path, key + key, 0o600), "two keys"),
+        (lambda path, key: _rewrite(path, key.strip(), 0o600), "not the line OAK writes"),
+    ],
+    ids=["world", "group", "empty", "comment", "two", "truncated"],
+)
+def test_a_key_file_that_is_no_longer_the_one_oak_wrote_is_replaced(
+    tmp_path: Path, change: Callable[[Path, bytes], None], reason: str
+) -> None:
+    root = tmp_path / "native"
+    release = LlamaRelease(tmp_path)
+    parameters = release.parameters()
+    adapter = release.adapter(root)
+    adapter.apply(parameters, 120)
+    path = _key_file(root)
+    before = path.read_bytes()
+    change(path, before)
+
+    evidence = adapter.apply(parameters, 120)
+
+    assert evidence[1]["content"]["passed"] is True, reason
+    assert stat.S_IMODE(os.lstat(path).st_mode) == 0o600
+    assert re.fullmatch(rb"[0-9a-f]{64}\n", path.read_bytes())
+    assert path.read_bytes() != before
+
+
+def test_a_link_in_place_of_the_key_file_is_refused_before_anything_starts(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "native"
+    release = LlamaRelease(tmp_path)
+    parameters = release.parameters()
+    adapter = release.adapter(root)
+    adapter.apply(parameters, 120)
+    path = _key_file(root)
+    elsewhere = tmp_path / "elsewhere.txt"
+    elsewhere.write_text("not a key", encoding="utf-8")
+    path.unlink()
+    path.symlink_to(elsewhere)
+    release.started.clear()
+
+    with pytest.raises(AdapterFailureError) as caught:
+        adapter.apply(parameters, 120)
+
+    assert caught.value.code == "OAK-NATIVE-OWNERSHIP"
+    assert caught.value.created == (), "the installation was already there, so it stays"
+    assert release.started == []
+    assert elsewhere.read_text(encoding="utf-8") == "not a key"
+
+
+def test_removing_the_installation_removes_its_key(tmp_path: Path) -> None:
+    root = tmp_path / "native"
+    release = LlamaRelease(tmp_path)
+    parameters = release.parameters()
+    adapter = release.adapter(root)
+    adapter.apply(parameters, 120)
+    assert _key_file(root).exists()
+
+    adapter.destroy(parameters, 120)
+
+    assert not _key_file(root).exists()
+    assert list(root.iterdir()) == []

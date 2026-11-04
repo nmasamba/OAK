@@ -79,9 +79,10 @@ notes:
   - Installing downloads about 12 MB and 491 MB once, however many model nodes the design has,
     starts each llama-server on 127.0.0.1 at its port, waits for /health to answer, and stops
     it. To run it later, use the commands in START.txt in the installation's folder.
-  - llama-server logs that it has no API key and that CORS allows all origins, so while it
-    runs a web page open in your browser can use it, unless the browser stops that, as
-    other programs on the computer can. Stop it when you are done.
+  - Each llama-server starts with --api-key-file and the key OAK generated for this
+    installation, in a file only your user account can read, so a client has to send that
+    key; START.txt shows how. /health and the server's own web page answer without it, so a
+    web page open in your browser can tell a server is there, but cannot use it.
   - The downloads redirect, so the hosts list the file hosts as well as GitHub and Hugging
     Face. Hugging Face's file host can differ by region; a redirect to a host this list does
     not name is refused, and the refusal names the host to add if you trust it.

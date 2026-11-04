@@ -31,8 +31,8 @@ relaxed_controls:
     relaxes: Memory, processor time and the number of processes are not limited. While OAK checks a program, it may not write core files, open more than 4,096 files or write a file larger than 2 GiB.
     risk: A program can slow your computer down or use up its memory while it runs.
   - id: loopback_port
-    relaxes: Each program listens on a port on this computer (127.0.0.1) while it runs.
-    risk: Other programs on this computer and other people signed in to it can talk to it while it runs, and so can a web page open in your browser, unless the browser stops it.
+    relaxes: Each program listens on a port on this computer (127.0.0.1) while it runs. A model server runs its model only for a client that sends the key OAK generated for this installation, which is kept in a file only your user account can read.
+    risk: Other programs on this computer, other people signed in to it and web pages open in your browser can reach that port while it runs, so they can tell something is there, but they cannot use a model server without the key. Any program running as you can read the key.
 retained_controls:
   - Nothing is installed without your signed approval of the architecture, of the installation and of this consent.
   - Every download comes only from a host your target profile names, and its size and SHA-256 are checked before anything runs.

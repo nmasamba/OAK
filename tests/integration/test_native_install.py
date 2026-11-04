@@ -10,8 +10,13 @@ only what the failed install created.
 
 from __future__ import annotations
 
+import hashlib
+import io
 import json
 import socket
+import subprocess
+import sys
+import tarfile
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -21,7 +26,7 @@ import yaml
 
 from oak.contracts import load_yaml_document
 from oak.domain import ArtifactReference
-from oak.runner.native import MARKER, NativeProcessAdapter
+from oak.runner.native import API_KEY_FILE, MARKER, NativeProcessAdapter
 from tests.container_support import FakeClock
 from tests.runner_support import ROOT, build_compiled_case, consent_digest, enroll_test_runner
 
@@ -55,7 +60,12 @@ def _listening(port: int) -> bool:
 
 class NativeJourney:
     def __init__(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, probe_path: str = "/health"
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        *,
+        probe_path: str = "/health",
+        harness: dict[str, Any] | None = None,
     ) -> None:
         document = load_yaml_document(EXAMPLE.read_text(encoding="utf-8"))
         components = document["execution"]["native_components"]
@@ -63,6 +73,9 @@ class NativeJourney:
         for entry, port in zip(components, self.ports, strict=True):
             entry["listen_port"] = port
             entry["health_probe"] = {"path": probe_path}
+            entry.update(harness or {})
+        if harness is not None:
+            document["execution"]["allowed_download_hosts"] = ["example.org"]
         self.profile = tmp_path / "native-target.yaml"
         self.profile.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
         self.harness = build_compiled_case(tmp_path, target_name=str(self.profile), now=_now())
@@ -237,3 +250,89 @@ def test_a_directory_the_runner_did_not_create_is_never_adopted_or_removed(
     assert kept["removed"] is False and kept["kept"] is True
     assert canary.read_text(encoding="utf-8") == "someone else's"
     assert not (journey.installation / MARKER).exists()
+
+
+# Answers its health probe and refuses everything else: `llama-server` with a key.
+KEYED_SERVER = """
+import http.server, sys
+port = int(sys.argv[sys.argv.index("--port") + 1])
+class Handler(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200 if self.path == "/health" else 401)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+    def log_message(self, *args):
+        pass
+http.server.HTTPServer(("127.0.0.1", port), Handler).serve_forever()
+"""
+
+
+def test_the_installations_key_reaches_no_record_and_no_journal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The whole journey, then every file it wrote: the plan, the mailbox, the runner's
+    journal and the case's records. The key is only in the key file."""
+
+    release = tmp_path / "llama-release.tar.gz"
+    with tarfile.open(release, "w:gz") as bundle:
+        program = tarfile.TarInfo("bin/llama-server")
+        content = KEYED_SERVER.encode("utf-8")
+        program.size = len(content)
+        bundle.addfile(program, io.BytesIO(content))
+    files = {
+        "https://example.org/llama.tar.gz": release.read_bytes(),
+        "https://example.org/model.gguf": b"GGUF model",
+    }
+    release.unlink()
+
+    def artifact(role: str, source: str, format_: str) -> dict[str, Any]:
+        digest = "sha256:" + hashlib.sha256(files[source]).hexdigest()
+        return {
+            "role": role,
+            "source": source,
+            "sha256": digest,
+            "size_bytes": len(files[source]),
+            "format": format_,
+        }
+
+    def fetch(source: str, destination: Path, **_: Any) -> tuple[int, str]:
+        destination.write_bytes(files[source])
+        return len(files[source]), "sha256:" + hashlib.sha256(files[source]).hexdigest()
+
+    def popen(argv: list[str], **keywords: Any) -> Any:
+        return subprocess.Popen([sys.executable, "-I", *argv], **keywords)
+
+    journey = NativeJourney(
+        tmp_path,
+        monkeypatch,
+        harness={
+            "harness_kind": "llama_cpp_server",
+            "artifacts": [
+                artifact("harness", "https://example.org/llama.tar.gz", "tar.gz"),
+                artifact("model", "https://example.org/model.gguf", "file"),
+            ],
+        },
+    )
+
+    payload = journey.install(
+        NativeProcessAdapter(journey.runner_home / "native", fetch=fetch, popen=popen)
+    )
+
+    assert payload["outcome"] == "succeeded", payload
+    tested = _evidence(payload, "test_result")
+    assert {row["status_without_key"] for row in tested["smoke_test"]} == {401}
+    observed = journey.observe()
+    assert {item["id"]: item["result"] for item in observed["deployment_measures"]}[
+        "smoke-test"
+    ] == "pass"
+    key_file = journey.installation / API_KEY_FILE
+    key = key_file.read_bytes().strip()
+    assert len(key) == 64
+    journals = list(journey.runner_home.rglob("*journal*"))
+    assert journals, "the journal is among the files looked through"
+    holders = [
+        path
+        for path in tmp_path.rglob("*")
+        if path.is_file() and not path.is_symlink() and key in path.read_bytes()
+    ]
+    assert holders == [key_file]
