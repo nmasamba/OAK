@@ -7,7 +7,7 @@
 - Owner/agent: owner-directed coding agent
 - Started: 2026-11-04
 - Last updated: 2026-11-04
-- State: in-progress
+- State: complete (the PR's merge is the owner's)
 
 ## Outcome
 
@@ -134,6 +134,10 @@ restores the silence and leaves every record readable.
 - [x] 2026-11-04 After those fixes: 31 mutants, the two new ones removing and blocking on the
   `select`, all killed. In a real pseudo-terminal, a real Ctrl-S went in 1.46 seconds into the
   run and `apply` returned at 3.51 seconds with no Ctrl-Q sent.
+- [x] 2026-11-04 `make check` on `ce476e0`, on a fresh, migrated PostgreSQL on 127.0.0.1:15434:
+  1,540 unit and contract (1 skipped), 637 integration (4 skipped), 47 end-to-end, no
+  `make: ***`, and no count of PostgreSQL-gated tests skipped. `make validate` and the
+  repository checks passed again after this entry, which changes only this plan.
 
 ## Decisions
 
