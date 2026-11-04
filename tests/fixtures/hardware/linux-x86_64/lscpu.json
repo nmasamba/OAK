@@ -1,0 +1,90 @@
+{
+   "lscpu": [
+      {
+         "field": "Architecture:",
+         "data": "x86_64",
+         "children": [
+            {
+               "field": "CPU op-mode(s):",
+               "data": "32-bit, 64-bit"
+            },
+            {
+               "field": "Address sizes:",
+               "data": "48 bits physical, 48 bits virtual"
+            },
+            {
+               "field": "Byte Order:",
+               "data": "Little Endian"
+            }
+         ]
+      },
+      {
+         "field": "CPU(s):",
+         "data": "4",
+         "children": [
+            {
+               "field": "On-line CPU(s) list:",
+               "data": "0-3"
+            }
+         ]
+      },
+      {
+         "field": "Vendor ID:",
+         "data": "AuthenticAMD",
+         "children": [
+            {
+               "field": "Model name:",
+               "data": "AMD EPYC 7763 64-Core Processor",
+               "children": [
+                  {
+                     "field": "CPU family:",
+                     "data": "25"
+                  },
+                  {
+                     "field": "Model:",
+                     "data": "1"
+                  },
+                  {
+                     "field": "Thread(s) per core:",
+                     "data": "2"
+                  },
+                  {
+                     "field": "Core(s) per socket:",
+                     "data": "2"
+                  },
+                  {
+                     "field": "Socket(s):",
+                     "data": "1"
+                  },
+                  {
+                     "field": "Stepping:",
+                     "data": "1"
+                  },
+                  {
+                     "field": "BogoMIPS:",
+                     "data": "4890.86"
+                  },
+                  {
+                     "field": "Flags:",
+                     "data": "fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge"
+                  }
+               ]
+            }
+         ]
+      },
+      {
+         "field": "Virtualization features:",
+         "data": null,
+         "children": [
+            {
+               "field": "Hypervisor vendor:",
+               "data": "Microsoft"
+            },
+            {
+               "field": "Virtualization type:",
+               "data": "full"
+            }
+         ]
+      }
+   ]
+}

@@ -1,0 +1,68 @@
+# SPDX-License-Identifier: Apache-2.0
+target_profile_version: 0.2.0
+id: target.local-native-stand-in
+status: non-production-local
+environment: validation
+tenant_id: local
+platform:
+  operating_system: linux
+  architecture: x86_64
+  accelerators: []
+  drivers: []
+  container_runtime: none (native installation)
+capacity:
+  ram_gib: 32
+  storage_gib: 100
+network:
+  mode: isolated-no-egress
+  inbound_control_plane: false
+permissions:
+  mutation_allowed: true
+  allowed_operations: [inventory, validate, render, plan, verify, apply, rollback, destroy]
+execution:
+  mutation_acknowledgement: native-non-production-user-consented
+  native_components:
+    - manifest_id: component.fixture-lexical-search
+      harness_kind: oak_stand_in
+      artifacts:
+        - role: harness
+          source: oak-stand-in:http-server
+          sha256: sha256:71ec5f57b36e7f6aa9f963197845708cda430b7f028ea9bbf063fea80cf4351a
+          size_bytes: 1756
+          format: file
+      listen_port: 18431
+      health_probe: {path: /health}
+    - manifest_id: component.fixture-local-model
+      harness_kind: oak_stand_in
+      artifacts:
+        - role: harness
+          source: oak-stand-in:http-server
+          sha256: sha256:71ec5f57b36e7f6aa9f963197845708cda430b7f028ea9bbf063fea80cf4351a
+          size_bytes: 1756
+          format: file
+      listen_port: 18432
+      health_probe: {path: /health}
+    - manifest_id: component.fixture-high-assurance-model
+      harness_kind: oak_stand_in
+      artifacts:
+        - role: harness
+          source: oak-stand-in:http-server
+          sha256: sha256:71ec5f57b36e7f6aa9f963197845708cda430b7f028ea9bbf063fea80cf4351a
+          size_bytes: 1756
+          format: file
+      listen_port: 18433
+      health_probe: {path: /health}
+secrets:
+  allowed_references: []
+notes:
+  - Synthetic non-production target for a native installation (ADR-0019). It installs, for
+    each node of the selected candidate, OAK's own stand-in server, which the runner copies
+    from inside OAK and verifies by size and SHA-256 as it would a download. Nothing is
+    downloaded, so it lists no download hosts.
+  - Each stand-in is started once on 127.0.0.1 at its port, probed at /health, and stopped.
+    Nothing keeps running and nothing starts with the computer. It implements none of the
+    components; it proves the install, check, stop and uninstall loop on every platform.
+  - The declared platform is the one the synthetic catalogue components require. The native
+    adapter itself runs on macOS on Apple silicon and on Linux on x86_64 and aarch64.
+  - Installing needs three signed approvals - the architecture, the consent to what a native
+    installation relaxes, and the installation - and the consent text's digest.

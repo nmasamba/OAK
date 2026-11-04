@@ -13,7 +13,7 @@ developer release; see [README.md](../README.md) and
 
 ## Install paths
 
-OAK has three install paths with genuinely different requirements. Choose the row you need
+OAK has four install paths with genuinely different requirements. Choose the row you need
 before reading the platform table.
 
 | Path | What it gives you | Needs |
@@ -21,6 +21,7 @@ before reading the platform table.
 | **CLI only** | The whole `init → design → questions → confirm → candidates → evaluate → select → assure → plan → export` journey, plus `architecture`, `report`, `research`, `models`, `render`, `policy`, `extensions` and `validate`, against a file workspace | Python 3.13 and `uv`. No database, no Docker, and no network after install — unless you configure a model provider with `oak models` or consent to a research run (`oak research --consent`, anonymous requests to three public hosts); both are optional and off by default |
 | **Control plane** | `oak-api`, `oak-worker`, `oak-db-migrate`, `oak mcp serve`, the REST surface and the web workspace | The CLI row, plus PostgreSQL 17. There is no SQLite fallback. `oak-worker`, `oak-db-migrate` and `oak-mcp` refuse to start without `OAK_DATABASE_URL`; `oak-api` starts, warns, reports `/readyz` as not ready and refuses every request that needs the database with `503 OAK-DATABASE-UNCONFIGURED` |
 | **Signed runner** | `oak dispatch`, `oak-runner`, `oak ingest` and `oak observe` against the shipped fixture profiles, including installing one container per node of the selected candidate, starting and smoke-testing them where the profile allows it, and removing them | The CLI row, plus a Docker daemon reachable on its default socket that can pull the pinned placeholder image anonymously from Docker Hub on the first install |
+| **Native install** | The same commands against a profile that acknowledges `native-non-production-user-consented` (ADR-0019): each component installed outside Docker, as you, checked once and stopped; `oak approve native_consent` first | The CLI row on macOS on Apple silicon or Linux on x86_64 or aarch64, and no Docker. OAK's stand-in profile downloads nothing; a profile with a real harness needs HTTPS access to the hosts it names |
 
 The Compose profile is the packaged form of the control-plane row: it supplies PostgreSQL,
 the API, the worker and the web bundle, and it pins Python, `uv`, Node.js and `pnpm` inside
@@ -120,6 +121,21 @@ It must print `macosx-11.0-arm64`. If it does not, recreate the environment with
   registry credentials, the first time `apply` creates a container, unless the daemon
   already has it.
 
+### Native install
+
+- Everything from the CLI row, on macOS on Apple silicon or Linux on x86_64 or aarch64. The
+  runner refuses any other platform (`OAK-NATIVE-PLATFORM`).
+- **No Docker.** Each component runs as you, outside any container, only while the runner
+  checks it; the consent text that `oak approve native_consent` shows lists what that
+  relaxes.
+- **The runner home holds the installations**, one directory each under `native/`, readable
+  by you only. Removing one with `oak approve destroy` and `oak dispatch destroy` removes
+  that directory and nothing else.
+- **Network access only to the profile's download hosts**, for a profile that downloads a
+  real harness or model; `examples/targets/local-native-stand-in.yaml` downloads nothing.
+  The runner takes no proxy from your environment, so a network that needs a proxy cannot
+  download today.
+
 ### Browser end-to-end (`make web-e2e`)
 
 - Playwright's Chromium build. On a clean Linux host, `playwright install chromium` is not
@@ -163,6 +179,55 @@ One clarification, because the naming invites the opposite conclusion: the
 target workload** — the system OAK designed for you. It is read-only, it executes nothing, and
 it has no relationship to deploying OAK itself.
 
+### Hardware scan (`oak scan` and the runner's `inventory`)
+
+| Path | How it is proven |
+|---|---|
+| macOS (`sysctl`, `system_profiler`) | Verified in CI: `check-macos-arm64` runs the real scan (`tests/integration/test_hardware_scan_host.py`) |
+| Linux without a GPU (`lscpu`) | Verified in CI on `check` (x86_64) and `check-linux-arm64` |
+| NVIDIA GPUs (`nvidia-smi`) | Verified by fixture only (`tests/fixtures/hardware/`): no CI runner has one |
+| AMD GPUs (`rocm-smi`) | Verified by fixture only, likewise |
+
+A GPU is seen only through its vendor's tool, so on Linux without `nvidia-smi` and
+`rocm-smi` the GPUs are reported as unknown, and an Intel GPU on Linux is never seen.
+
+### Native installation (ADR-0019)
+
+| Path | How it is proven |
+|---|---|
+| macOS on Apple silicon, OAK's stand-in | Verified in CI: `check-macos-arm64` runs the native journey through the installed `oak` and `oak-runner` (`tests/e2e/test_runner_journey.py`), the integration journey with its canary uninstall (`tests/integration/test_native_install.py`) and the adapter's refusals |
+| Linux x86_64, OAK's stand-in | Verified in CI on `check`, the same tests |
+| Linux aarch64, OAK's stand-in | Verified in CI on `check-linux-arm64`, the same tests |
+| llama.cpp's `llama-server` with a model (`llama_cpp_server`), macOS on Apple silicon | Verified by hand, once, on 2026-11-03: `examples/targets/local-native-llama-cpp.yaml` through the installed `oak` and `oak-runner` on an M1 Max with 64 GiB under macOS 26.3.1, the owner having approved each download. Build `b11721` with Qwen2.5-0.5B-Instruct Q4_K_M only |
+| `llama_cpp_server` on Linux | Not verified: the Linux archives the example's notes name have never been installed |
+
+The stand-in is OAK's own small server, copied from inside OAK and verified by digest like a
+download, so CI proves every step of the native path — the consent, the checks, the start,
+the probe, the stop and the uninstall — without a network or a downloaded binary. Whether a
+downloaded harness runs at all on macOS is decided by Gatekeeper and its code signing, which
+only a rehearsal can show.
+
+What the rehearsal showed, for that build and model on that machine:
+
+- **The downloads** matched the profile: the archive at 12,292,671 bytes and
+  `sha256:2ace55512ee1ab4e2703f80c135c2a92d40d3367a5b3a98d21b103ffa7f0eb82`, the model at
+  491,400,032 bytes and
+  `sha256:74a4da8c9fdbcd15bd1f6d01d621410d31c6fc00986f5eb687824e7b93d7a9db`, measured again
+  with `shasum` after the runner had checked them.
+- **macOS ran the binary.** The build is ad-hoc signed and not notarised, and `spctl --assess`
+  rejects it, but a file the runner downloads carries no quarantine attribute, so Gatekeeper
+  is not asked. An archive unpacked from a browser's download would be a different case.
+- **The check.** `/health` answered 200 after 19.8 seconds on the first start and the process
+  exited 0 when stopped, with nothing left on its port. The install took 224 seconds in all,
+  nearly all of it the download.
+- **`START.txt` works as written.** Started by hand, the server was ready in under a second,
+  listened on 127.0.0.1 only, answered a chat request correctly and exited 0 on Ctrl-C.
+- **The uninstall** took about a second: it removed the installation's folder, and a file
+  placed beside that folder stayed. `oak observe` then reads `removed`.
+- **Its log warns** that it has no API key and that CORS allows all origins, so while it runs
+  a web page open in your browser can use it, unless the browser stops that. The consent text
+  and `START.txt` say so.
+
 ## What is not tested where
 
 `make toolchain-check` fails if the running Python or the pnpm-provisioned Node differs
@@ -179,5 +244,6 @@ CI (`.github/workflows/ci.yml`) runs `make check` on three platforms: `ubuntu-la
 unless its skips, by reason and count, are the ones `tests/expected-skips.json` lists for it.
 The macOS job cannot run the PostgreSQL suites or the Docker journeys, because GitHub's macOS
 runners have neither Docker nor service containers, so the macOS control-plane and
-signed-runner rows stay verified by the release rehearsal
+signed-runner rows stay verified by the release rehearsal; the native install path needs
+neither, so all three jobs run it with OAK's stand-in
 ([release/0.9.0/](release/0.9.0/clean-room.md)). `RR-014` records what closed.

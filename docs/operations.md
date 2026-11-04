@@ -188,6 +188,34 @@ The absence of metrics is recorded as a limitation, not presented as a design go
 
 ---
 
+### The machine a design is for
+
+A design's hardware constraints, its estimates and research's hardware class read the
+intent's `hardware` section. A brief can declare it; a scan can measure it. On the machine
+the design is for:
+
+```bash
+oak scan
+```
+
+prints what OAK found and records nothing: the CPU, the memory, each GPU with its runtime,
+the storage, and whatever it could not find out, with the reason (a GPU whose vendor's tool
+is not installed is unknown, never "none"). It also says whether Docker and uv are present
+and, when one is missing, where to get it; it installs nothing. To give the result to a case:
+
+```bash
+oak scan --confirm
+```
+
+records it as the case's hardware proposal and confirms it; `--propose` only records it, for
+confirming later with **Confirm hardware** on the case page or over REST. With
+`--server <url>` name the case (`oak --server <url> scan <case-id> --propose`): the scan
+still runs where you are, which is the point, since the server is never the machine it
+designs for. A proposal can enter a case between interpretation and candidate generation;
+after that the case keeps the hardware it was designed for (`OAK-HARDWARE-STATE`). The raw
+output of the tools never leaves the machine: only the proposal's fields, into which the
+scanner writes no serial number, GPU id, host name or user name.
+
 ## Back up
 
 OAK keeps state in **two stores that are backed up by different tools**, plus a key
@@ -560,8 +588,9 @@ verify` re-checks it.
 
 ## Installed architectures
 
-A selected architecture can be installed on the runner's local Docker daemon, from a
-target profile that acknowledges it. [signed-runner.md](signed-runner.md#installing-testing-and-observing)
+A selected architecture can be installed on the runner's local Docker daemon, or natively
+on the runner's machine without Docker (see [Native installations](#native-installations)),
+from a target profile that acknowledges it. [signed-runner.md](signed-runner.md#installing-testing-and-observing)
 has the whole journey. The commands an operator meets:
 
 | Command | What it does | Where it runs |
@@ -597,6 +626,48 @@ docker rm --force --volumes <name>
 
 A removal by hand produces no runner completion, so `oak observe` cannot see it.
 
+### Native installations
+
+A profile that acknowledges `native-non-production-user-consented`
+([ADR-0019](adr/architecture/0019-native-installation-with-recorded-consent.md)) installs each
+node's component on the runner's machine, as you, outside any container:
+`examples/targets/local-native-stand-in.yaml` installs OAK's own stand-in server and downloads
+nothing, and `examples/targets/local-native-llama-cpp.yaml` installs llama.cpp's server with a
+small model. Each component is started once to check that it answers on 127.0.0.1, then
+stopped: **nothing keeps running and nothing starts with your computer.**
+
+| Command | What it does | Where it runs |
+|---|---|---|
+| `oak approve native_consent` | Prints the consent text: what a native installation relaxes, its risks, what stays, and the text's digest. Records nothing (`OAK-NATIVE-CONSENT`) | Local only |
+| `oak approve native_consent --consent <digest>` | Records your consent to that text, after `oak approve architecture` and before `oak approve apply`, which is refused without it | Local only |
+| `oak observe` | As for containers: whether the install and its check passed, and each component's seconds to its first healthy answer | Local only |
+
+The web workspace's bundle page shows the same text and the consent's state beside the other
+two approvals, and the install steps with the plan's consent digest filled in; it records
+nothing.
+
+Each installation is one folder, `native/<installation id>` in the runner home
+(`~/.oak/runner` unless `OAK_RUNNER_HOME` says otherwise), readable by you only and marked as
+the runner's by `.oak-installation.json`. After an install, `oak-runner run-once` prints the
+folder; its `START.txt` gives, for each component, the command that starts it on its port.
+`llama-server` has no API key there and allows every origin, so while it runs a web page open
+in your browser can use it, unless the browser stops that: stop it when you are done.
+Stop a component you started with Ctrl-C.
+
+Remove an installation the signed way, as above with `destroy` (or `rollback`):
+
+```bash
+oak approve destroy
+oak dispatch destroy
+oak-runner run-once
+oak ingest
+```
+
+The runner removes the folder only when its marker names that installation, and nothing
+beside it. If the runner cannot, first make sure nothing from the installation is running,
+read `.oak-installation.json` to be sure the folder is the one you mean, and delete that one
+folder. A removal by hand produces no runner completion, so `oak observe` cannot see it.
+
 ## Uninstall
 
 Removing OAK means four separate things. Doing only the first leaves your design cases,
@@ -614,7 +685,8 @@ docker image rm -f $(docker image ls -q 'oak-community-*') 2>/dev/null || true
 docker image rm -f $(docker image ls -q 'oak-community/*') 2>/dev/null || true
 docker rm --force --volumes $(docker ps -aq --filter "label=oak.fixture=true") 2>/dev/null || true
 
-# 2. Home-directory state: PRIVATE KEYS, provider keys, mailbox, extensions, runner journals
+# 2. Home-directory state: PRIVATE KEYS, provider keys, mailbox, extensions, runner journals,
+#    and any native installation (~/.oak/runner/native); stop anything you started from one
 #    (~/.oak/credentials holds any provider key the CLI stored in the file backend)
 rm -rf ~/.oak
 # A key stored in the OS keychain is not under ~/.oak. Remove those first, per family:

@@ -29,6 +29,12 @@ UNRELEASED_OPERATIONS: frozenset[str] = frozenset(
         "GET /v1/design-cases/{case_id}/research-plan",
         "POST /v1/design-cases/{case_id}:research",
         "POST /v1/design-cases/{case_id}:review-research-item",
+        # Tier 3 Batch B (OAK-V1-039): a scan result proposed to a case, and its confirmation.
+        "POST /v1/design-cases/{case_id}:propose-hardware",
+        "POST /v1/design-cases/{case_id}:confirm-hardware",
+        # Tier 3 Batch B (OAK-V1-042): the consent text a native installation is approved
+        # against, read so the web can show it beside a native plan.
+        "GET /v1/native-consent",
     }
 )
 UNRELEASED_SCHEMAS: frozenset[str] = frozenset(
@@ -46,6 +52,12 @@ UNRELEASED_SCHEMAS: frozenset[str] = frozenset(
         # response already carried, now declared.
         "FieldProblem",
         "Problem",
+        # Tier 3 Batch B (OAK-V1-039): the two hardware request bodies.
+        "ConfirmHardwareRequest",
+        "ProposeHardwareRequest",
+        # Tier 3 Batch B (OAK-V1-042): the consent text and its reference.
+        "NativeConsentReference",
+        "NativeConsentResponse",
     }
 )
 

@@ -32,6 +32,7 @@ from oak.application import (
     ReportService,
     WorkspaceFormatService,
 )
+from oak.application.design_case import HARDWARE_PROPOSAL_EXTENSION
 from oak.bootstrap import (
     create_candidate_planning_service,
     create_design_case_service,
@@ -41,6 +42,7 @@ from oak.bootstrap import (
 )
 from oak.contracts import ContractValidationError, load_json_document, load_yaml_document
 from oak.domain import OAKError, SecretValue
+from oak.domain.hardware import recommendations
 from oak.domain.intake import holds_control_character
 
 
@@ -1212,6 +1214,174 @@ def keys(
 
 
 @app.command()
+def scan(
+    design_case: Annotated[
+        str | None,
+        typer.Argument(help="Design case to give the result to; required with --server."),
+    ] = None,
+    propose: Annotated[
+        bool,
+        typer.Option("--propose", help="Record the result as the case's hardware proposal."),
+    ] = False,
+    confirm_result: Annotated[
+        bool,
+        typer.Option("--confirm", help="Record the result and confirm it into the case's intent."),
+    ] = False,
+    output: Annotated[
+        OutputFormat, typer.Option("--output", help="Output format.")
+    ] = OutputFormat.HUMAN,
+    idempotency_key: Annotated[
+        str | None,
+        typer.Option("--idempotency-key", help="Stable retry key; derived by default."),
+    ] = None,
+) -> None:
+    """Scan this machine's CPU, memory and GPUs, and say what is missing.
+
+    Alone it records nothing. `--propose` records the result as the case's hardware
+    proposal, which a user confirms here, over REST or in the web workspace; `--confirm`
+    records it and confirms it at once. The scan always runs on this machine, also with
+    `--server`, because it describes where it runs.
+    """
+
+    try:
+        from oak.bootstrap import scan_hardware
+
+        proposal = scan_hardware()
+        advice = recommendations(proposal)
+        document: dict[str, Any] = {"proposal": proposal, "recommendations": advice}
+        human = _scan_summary(proposal, advice)
+        if propose or confirm_result:
+            recorded, said = _record_scan(
+                proposal, design_case, confirm=confirm_result, idempotency_key=idempotency_key
+            )
+            document.update(recorded)
+            human = f"{human}\n{said}"
+        _emit(document, output, human=human)
+    except (OAKError, ContractValidationError, OSError, RuntimeError, ValueError) as error:
+        _abort(error)
+
+
+def _record_scan(
+    proposal: dict[str, Any],
+    design_case: str | None,
+    *,
+    confirm: bool,
+    idempotency_key: str | None,
+) -> tuple[dict[str, Any], str]:
+    """Give a scan's result to a case: record it as the proposal, and confirm it if asked."""
+
+    remote = _remote()
+    if remote is not None:
+        from oak.interfaces.cli import remote as remote_mode
+
+        case_id = _remote_case_id(design_case)
+        version = remote.current_case_version(case_id)
+        result = remote.propose_hardware(
+            case_id,
+            proposal,
+            expected_version=version,
+            # Scoped to the case version, so the same scan after the case moved on is a new
+            # proposal rather than a replay of an older one.
+            idempotency_key=idempotency_key
+            or remote_mode.derived_key(
+                "propose-hardware", f"{version}:{remote_mode.document_identity(proposal)}"
+            ),
+        )
+        case = remote_mode.require_field(result, "case")
+        proposal_id = str(
+            remote_mode.require_field(case, "extensions", HARDWARE_PROPOSAL_EXTENSION, "id")
+        )
+        if confirm:
+            result = remote.confirm_hardware(
+                case_id,
+                proposal_id,
+                expected_version=str(remote_mode.require_field(case, "version")),
+                idempotency_key=remote_mode.derived_key("confirm-hardware", proposal_id),
+            )
+            case = remote_mode.require_field(result, "case")
+        return _recorded_scan(case, result.get("intent"), proposal_id, confirm)
+    service = _workspace_service()
+    current = service.current().case
+    if design_case is not None and design_case != current["id"]:
+        raise OAKError("OAK-CASE-NOT-FOUND", "requested design case is not current")
+    proposed = service.propose_hardware(
+        proposal,
+        _context(idempotency_key=idempotency_key, expected_version=str(current["version"])),
+    )
+    proposal_id = str(proposed.case["extensions"][HARDWARE_PROPOSAL_EXTENSION]["id"])
+    if not confirm:
+        return _recorded_scan(proposed.case, proposed.intent, proposal_id, False)
+    confirmed = service.confirm_hardware(
+        proposal_id,
+        _context(idempotency_key=None, expected_version=str(proposed.case["version"])),
+    )
+    return _recorded_scan(confirmed.case, confirmed.intent, proposal_id, True)
+
+
+def _recorded_scan(
+    case: dict[str, Any], intent: Any, proposal_id: str, confirmed: bool
+) -> tuple[dict[str, Any], str]:
+    said = (
+        f"Confirmed {proposal_id} into {case['id']}@{case['version']}, now {case['status']}"
+        if confirmed
+        else f"Recorded {proposal_id} in {case['id']}@{case['version']}; confirm it to use it"
+    )
+    return {
+        "case": case,
+        "intent": intent,
+        "proposal_id": proposal_id,
+        "confirmed": confirmed,
+    }, said
+
+
+def _scan_summary(proposal: dict[str, Any], advice: list[str]) -> str:
+    platform_section = proposal["platform"]
+    cpu = proposal["cpu"]
+    memory = proposal["memory"]
+    lines = ["Proposed hardware for this machine (nothing is recorded until you confirm it):"]
+    lines.append(
+        f"  Platform: {platform_section['operating_system'] or 'unknown'}, "
+        f"{platform_section['architecture'] or 'unknown architecture'}"
+    )
+    cores = cpu["physical_cores"]
+    lines.append(
+        f"  CPU: {cpu['model'] or 'unknown model'}"
+        + (f", {cores} cores" if cores else "")
+        + (f" ({cpu['logical_cores']} threads)" if cpu["logical_cores"] else "")
+    )
+    if memory["ram_gib"] is None:
+        lines.append("  Memory: unknown")
+    else:
+        shared = ", shared with the GPU" if memory["unified"] else ""
+        lines.append(f"  Memory: {memory['ram_gib']:g} GiB{shared}")
+    accelerators = proposal["accelerators"]
+    if accelerators is None:
+        lines.append("  GPU: unknown")
+    elif not accelerators:
+        lines.append("  GPU: none found")
+    for gpu in accelerators or []:
+        size = (
+            "unified memory"
+            if gpu["unified_memory"]
+            else (f"{gpu['memory_gib']:g} GiB" if gpu["memory_gib"] else "memory unknown")
+        )
+        runtime = gpu["runtime"] or "no runtime found"
+        lines.append(
+            f"  GPU: {gpu['model'] or 'unknown model'} ({gpu['vendor']}, {runtime}), {size}"
+        )
+    storage = proposal["storage_gib"]
+    lines.append(f"  Storage: {storage:g} GiB" if storage is not None else "  Storage: unknown")
+    for entry in proposal["unknown"]:
+        lines.append(f"  Unknown {entry['field']}: {entry['reason']}")
+    states = ", ".join(
+        f"{entry['name']} {entry['state'].replace('_', ' ')}" for entry in proposal["prerequisites"]
+    )
+    lines.append(f"Prerequisites: {states}")
+    lines.extend(f"  {line}" for line in advice)
+    return "\n".join(lines)
+
+
+@app.command()
 def sign(
     output: Annotated[
         OutputFormat, typer.Option("--output", help="Output format.")
@@ -1247,10 +1417,19 @@ def sign(
 @app.command()
 def approve(
     action: Annotated[
-        str, typer.Argument(help="dry_run, architecture, apply, rollback, or destroy.")
+        str,
+        typer.Argument(help="dry_run, architecture, native_consent, apply, rollback, or destroy."),
     ],
     expires_at: Annotated[
         str | None, typer.Option("--expires-at", help="RFC 3339 expiry; default 24 hours.")
+    ] = None,
+    consent: Annotated[
+        str | None,
+        typer.Option(
+            "--consent",
+            help="native_consent only: the digest of the consent text you read. Without it, "
+            "the text and its digest are shown and nothing is recorded.",
+        ),
     ] = None,
     output: Annotated[
         OutputFormat, typer.Option("--output", help="Output format.")
@@ -1264,6 +1443,17 @@ def approve(
 
     try:
         _require_local("approve")
+        if consent is not None and action != "native_consent":
+            raise OAKError(
+                "OAK-NATIVE-CONSENT", "--consent belongs to `oak approve native_consent` only"
+            )
+        if action == "native_consent" and consent is None:
+            # A consent is given to a text the user has read: show it, record nothing.
+            _show_consent_text(output)
+            raise OAKError(
+                "OAK-NATIVE-CONSENT",
+                "read the consent text, then approve with --consent and the digest it shows",
+            )
         current = _workspace_service().current().case
         result = _release_service().approve(
             action,
@@ -1272,6 +1462,7 @@ def approve(
                 expected_version=str(current["version"]),
             ),
             expires_at=expires_at,
+            consent_digest=consent,
         )
         _emit(
             {"case": result.case, "approval": result.document},
@@ -1291,15 +1482,46 @@ def _approval_human(action: str, result: Any) -> str:
             line + ". This approves the selected architecture only; nothing is installed until "
             "an apply approval is also recorded and a runner executes a dispatch."
         )
+    if action == "native_consent" and not result.duplicate:
+        return (
+            line + ". This consents to what a native installation relaxes; it still needs "
+            "`oak approve apply`, then `oak dispatch apply` and a runner."
+        )
     if action == "apply" and not result.duplicate:
         return line + ". Installation still needs `oak dispatch apply` and a runner."
     return line
 
 
+def _show_consent_text(output: OutputFormat) -> None:
+    """The consent text a native installation is approved against, with its digest."""
+
+    from oak.bootstrap import load_native_consent
+    from oak.domain.runner_adapters import native_consent_reference
+
+    document = load_native_consent()
+    reference = native_consent_reference(document)
+    lines = [str(document["title"]), "", str(document["statement"]), "", "What this relaxes:"]
+    lines += [
+        f"- {entry['relaxes']} Risk: {entry['risk']}" for entry in document["relaxed_controls"]
+    ]
+    lines += ["", "What stays:"]
+    lines += [f"- {item}" for item in document["retained_controls"]]
+    lines += ["", f"Consent text {reference['id']} {reference['version']}: {reference['digest']}"]
+    if document["status"] == "draft":
+        lines.append("This text is a draft: it has not been signed off for release.")
+    lines.append(f"To consent: oak approve native_consent --consent {reference['digest']}")
+    _emit(
+        {"consent": document, "consent_ref": reference},
+        output,
+        human="\n".join(lines),
+    )
+
+
 @app.command("revoke-approval")
 def revoke_approval(
     action: Annotated[
-        str, typer.Argument(help="dry_run, architecture, apply, rollback, or destroy.")
+        str,
+        typer.Argument(help="dry_run, architecture, native_consent, apply, rollback, or destroy."),
     ],
     reason: Annotated[str, typer.Option("--reason", help="Recorded revocation reason.")],
     output: Annotated[

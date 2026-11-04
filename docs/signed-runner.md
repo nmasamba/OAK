@@ -24,7 +24,11 @@ Four authorities stay distinct and no step may be collapsed into another:
 A plan alone never authorizes execution; an approval alone never dispatches. A mutating
 operation needs a current approval for exactly that action. `apply` also needs a current
 `architecture` approval, recorded first, which names the architecture decision and the
-digest of what `apply` installs; `rollback` and `destroy` never need it. The runner refuses
+digest of what `apply` installs; `rollback` and `destroy` never need it. A native install
+([ADR-0019](adr/architecture/0019-native-installation-with-recorded-consent.md)) also needs
+a current `native_consent` approval, recorded between the two, which names the consent text
+by digest, every control a native installation relaxes, and that same installation digest.
+The runner refuses
 when the approval and envelope signatures share one identity, judged on the key material:
 one public key pinned as both plan signer and approver is refused when the anchors are read.
 
@@ -114,6 +118,19 @@ oak approve rollback
 oak dispatch rollback               # then run the runner and ingest again
 ```
 
+A native install (`--target examples/targets/local-native-stand-in.yaml`) needs one more
+approval, between the two: the consent to what a native installation relaxes. Run without
+`--consent`, it prints the consent text and its digest and records nothing; run again with
+the digest of the text you read, it records the consent:
+
+```bash
+oak approve architecture
+oak approve native_consent          # shows the text and its digest; records nothing (OAK-NATIVE-CONSENT)
+oak approve native_consent --consent sha256:<the digest it showed>
+oak approve apply                   # refused without a current native_consent (OAK-NATIVE-CONSENT)
+oak dispatch apply                  # attaches all three approvals
+```
+
 `oak observe` reads only runner completions that ingest has already accepted for the case.
 It records four measures, each with its sample size: install success, idempotent re-apply
 and rollback recovery (`EV-DEP-01`, `EV-DEP-02`, `EV-DEP-03`), and the smoke test. None of
@@ -173,8 +190,21 @@ In this order, and any failure denies the dispatch before an adapter is construc
        `execution.component_images` entry for that node's component (`OAK-RUNNER-IMAGE`);
      - if the profile declares `execution.allowed_registries`, each image's registry
        resolves inside it (`OAK-RUNNER-REGISTRY`);
+   - for the native adapter, the installation, checked against the runner's own copy of
+     the target profile in the same way:
+     - the case, the target and the derived installation identity, as above
+       (`OAK-RUNNER-PARAMETERS`);
+     - a profile whose `execution.mutation_acknowledgement` is
+       `native-non-production-user-consented` (`OAK-RUNNER-TARGET-CAPABILITY`);
+     - the download hosts are exactly the profile's `execution.allowed_download_hosts`, and
+       every component's harness kind, artifacts (source, SHA-256, size, format), port and
+       health probe are exactly the profile's `execution.native_components` entry for its
+       component, fit its harness kind, and use each node and port once
+       (`OAK-RUNNER-PARAMETERS`);
+     - every `https` artifact is on an acknowledged host (`OAK-RUNNER-NETWORK`);
    - empty secret references within the target allowance;
-   - empty network destinations.
+   - empty network destinations, except a native `apply`, whose destinations must be
+     exactly the profile's download hosts (`OAK-RUNNER-NETWORK`).
 9. **Approval** — current, unrevoked, and bound to the digest, target, action class and
    expiry:
    - each mutating kind requires a target profile that permits mutation and lists that
@@ -183,6 +213,10 @@ In this order, and any failure denies the dispatch before an adapter is construc
      installation digest equal the dispatched bundle's architecture decision and the
      digest of the plan's `apply` parameters (`OAK-RUNNER-APPROVAL`); `rollback` and
      `destroy` never need it;
+   - a native `apply` also requires a current `native_consent` approval whose binding names
+     the plan's consent text, exactly the controls the native adapter relaxes, and the
+     digest of the plan's `apply` parameters (`OAK-RUNNER-APPROVAL`); removing a native
+     installation never needs it;
    - every other requested kind requires the `dry_run` approval.
 
 Steps 8 and 9 run for each requested kind in turn.
@@ -202,6 +236,14 @@ They differ in what an install does:
   `isolated-non-production-hardened-start`: each container is also started and
   smoke-tested
   ([ADR-0017](adr/architecture/0017-acknowledged-local-installation.md), `RR-043`).
+
+A third profile, `examples/targets/local-native-stand-in.yaml`, acknowledges
+`native-non-production-user-consented`: each component is installed outside any container,
+as the user, from the harness kind its `execution.native_components` entry names, and is
+stopped once its check passes
+([ADR-0019](adr/architecture/0019-native-installation-with-recorded-consent.md), `RR-056`,
+`RR-057`). It installs OAK's own stand-in server for every synthetic component, so it
+downloads nothing; see "What the native adapter does" below.
 
 At compile, a component with no acknowledged image fails `preflight.installation`
 (`OAK-TARGET-INCOMPATIBLE`); nothing falls back to another image. A profile that still
@@ -276,6 +318,57 @@ adapter's identity digest. No create carries a volume, an environment variable o
 - **Bundled schemas.** The runner verifies every document against the schemas installed
   with it and ignores `OAK_SCHEMA_DIRECTORY`, which configures the control plane only
   (`RR-033`).
+
+### What the native adapter does
+
+`adapter.local-native` (`0.1.0`) runs on macOS on Apple silicon and on Linux on x86_64 and
+aarch64, and refuses any other platform (`OAK-NATIVE-PLATFORM`). A native `apply` runs under
+a lease of an hour rather than five minutes, because it downloads inside its dispatch; its
+plan's lease policy admits that and no more. For a verified native `apply`, in order:
+
+1. It creates `native/<installation id>` in the runner home, readable by the user only,
+   under a name of its own first and renamed into place with its ownership marker
+   `.oak-installation.json`, so the installation's path never exists without the marker. A
+   directory it did not create and mark is never adopted, stopped or removed
+   (`OAK-NATIVE-OWNERSHIP`).
+2. It fetches each artifact over HTTPS from an acknowledged host, with TLS verified, no
+   proxy taken from the environment, every redirect checked against the same hosts, a
+   download refused as soon as it grows past the acknowledged size, and stopped when the
+   lease ends (`OAK-NATIVE-HOST`, `OAK-NATIVE-SIZE`, `OAK-NATIVE-DOWNLOAD`,
+   `OAK-RUNNER-LEASE-EXPIRED`); the stand-in is copied from inside OAK instead, and a file
+   another component of the same installation already verified is linked, not fetched
+   again. A file whose size or SHA-256 is not the profile's is refused before anything runs
+   (`OAK-NATIVE-DIGEST`), and every `apply` checks the files again. An archive is unpacked
+   afresh from its verified bytes on every `apply`, member by member. A link to a file
+   inside it, such as a library's versioned name, is written as a copy of that file, so
+   nothing unpacked is ever a link; a link that leaves the archive or names nothing in it,
+   a device, an absolute path, a `..`, more than 10,000 members or more than 64 GiB is
+   refused (`OAK-NATIVE-ARCHIVE`).
+3. It starts each component from its harness kind's fixed argument template: the stand-in
+   through the runner's own interpreter, `llama-server` with `--host 127.0.0.1`, its port
+   and its model file. The port must be free first, so another listener can never answer in
+   the component's place (`OAK-NATIVE-START`). The process gets only `PATH`, `HOME` and
+   `LANG`, a process group of its own, and three ceilings, each only ever lower than the
+   runner's own: no core files, at most 4,096 open files, and no written file over 2 GiB.
+   Memory, CPU time and the number of processes are not limited, and the evidence records
+   both lists. The adapter probes the health path on 127.0.0.1 until it answers `200`, for
+   up to 20 seconds for the stand-in and 240 for `llama-server`; the component passes only
+   if it is still running after answering twice, half a second apart. Then the adapter
+   stops the whole group: `SIGTERM`, then, after up to 10 seconds, `SIGKILL` to whatever is
+   left of it, including a child its first process left behind; it records the component
+   as stopped only when nothing of the group remains (`OAK-NATIVE-STOP` otherwise). A
+   component that does not pass fails the install (`OAK-NATIVE-SMOKE`), and the install is
+   rolled back. `SIGTERM` or `SIGHUP` to the runner during a check stops the component
+   before the runner exits.
+4. Nothing keeps running, and nothing is registered to start with the computer; a program
+   built to leave its process group could still leave a process behind (`RR-056`). The
+   evidence names each verified artifact, each component's check, and whether it stopped.
+
+`rollback` and `destroy` remove exactly the installation's directory after checking its
+marker: renamed out of the way first, so a removal that fails part way leaves the path
+free and a leftover that the next removal finishes (`OAK-NATIVE-UNINSTALL`). A failed
+`apply` removes the installation only when that `apply` created it, and a file the adapter
+cannot write or read fails it with `OAK-NATIVE-IO`.
 
 ## Heartbeats
 

@@ -1,0 +1,39 @@
+# SPDX-License-Identifier: Apache-2.0
+# What `oak scan` proposed for an Apple silicon machine. Nothing here enters the case's
+# intent until a user confirms it; no field can carry an identifier of the machine.
+schema_version: 0.1.0
+id: hardware-proposal.public-manual-qa.20261102t120000z
+version: 0.1.0
+case_id: design-case.public-manual-qa
+recorded_at: "2026-11-02T12:00:00Z"
+scanned_by: oak_scan
+platform:
+  operating_system: macos
+  architecture: arm64
+cpu:
+  model: Apple M1 Max
+  physical_cores: 10
+  logical_cores: 10
+memory:
+  ram_gib: 64.0
+  unified: true
+storage_gib: 926.4
+accelerators:
+  - vendor: apple
+    model: Apple M1 Max
+    memory_gib: null
+    unified_memory: true
+    runtime: metal
+    driver_version: null
+prerequisites:
+  - name: docker
+    state: present
+  - name: uv
+    state: absent
+unknown: []
+tools:
+  - name: sysctl
+    status: ran
+  - name: system_profiler
+    status: ran
+extensions: {}

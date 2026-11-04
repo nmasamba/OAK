@@ -11,9 +11,11 @@ import {
   exportDesignCase,
   getDesignCase,
   getJsonArtifact,
+  getNativeConsent,
   listArtifacts,
   type ArtifactReference,
   type JsonObject,
+  type NativeConsentResponse,
 } from "../generated/api";
 import { ProblemAlert, toActionFailure, type ActionFailure } from "../problems";
 import { Link, useRouter } from "../router";
@@ -54,6 +56,9 @@ type PageState =
       readonly candidate: JsonObject | null;
       readonly artifactIndex: readonly JsonObject[];
       readonly approvals: Readonly<Record<string, JsonObject>>;
+      /** The consent text a native plan is approved against; null for any other plan,
+       * or when the server could not read it. */
+      readonly consent: NativeConsentResponse | null;
     }
   | { readonly kind: "failed"; readonly failure: ActionFailure };
 
@@ -66,6 +71,40 @@ const INSTALL_STEPS = [
   "oak-runner run-once",
   "oak ingest",
 ].join("\n");
+
+const NATIVE_ADAPTER = "adapter.local-native";
+
+/** The consent a native plan names (ADR-0019), or null for any other plan. */
+function nativeConsentRef(runnerPlan: JsonObject | null): JsonObject | null {
+  if (runnerPlan === null) {
+    return null;
+  }
+  for (const item of asArray(runnerPlan["operations"])) {
+    const operation = asObject(item);
+    if (operation === null || operation["kind"] !== "apply") {
+      continue;
+    }
+    if (asObject(operation["adapter"])?.["id"] !== NATIVE_ADAPTER) {
+      return null;
+    }
+    return asObject(asObject(operation["parameters"])?.["consent_ref"]);
+  }
+  return null;
+}
+
+/** A native install's steps: the consent is read, then given with the plan's digest. */
+function nativeInstallSteps(digest: string): string {
+  return [
+    "oak sign",
+    "oak approve architecture",
+    "oak approve native_consent",
+    `oak approve native_consent --consent ${digest}`,
+    "oak approve apply",
+    "oak dispatch apply",
+    "oak-runner run-once",
+    "oak ingest",
+  ].join("\n");
+}
 
 const PREDICTIONS: readonly {
   readonly name: string;
@@ -358,6 +397,12 @@ export function BundlePage({ caseId }: { readonly caseId: string }) {
             }
           }),
         );
+        // A native plan shows the consent text beside its approvals; the page still
+        // renders if the server cannot read it.
+        const consent =
+          nativeConsentRef(runnerPlan) === null
+            ? null
+            : await getNativeConsent().catch(() => null);
         setState({
           kind: "ready",
           caseDocument,
@@ -366,6 +411,7 @@ export function BundlePage({ caseId }: { readonly caseId: string }) {
           candidate,
           artifactIndex,
           approvals,
+          consent,
         });
       })
       .catch((error: unknown) =>
@@ -414,6 +460,11 @@ export function BundlePage({ caseId }: { readonly caseId: string }) {
   ).length;
   const signed =
     caseExtensions["oak.community/plan_signature_ref"] !== undefined;
+  const consentRef = nativeConsentRef(runnerPlan);
+  const consentDigest =
+    consentRef === null ? null : asString(consentRef["digest"]);
+  const consent = state.consent;
+  const consentText = consent === null ? null : consent.consent;
   const lights: readonly {
     readonly need: string;
     readonly state: LedState;
@@ -429,6 +480,15 @@ export function BundlePage({ caseId }: { readonly caseId: string }) {
       state: approvalCondition(state.approvals["architecture"], now),
       title: `Architecture approval: ${approvalCondition(state.approvals["architecture"], now)}`,
     },
+    ...(consentRef === null
+      ? []
+      : [
+          {
+            need: "consent",
+            state: approvalCondition(state.approvals["native_consent"], now),
+            title: `Native consent: ${approvalCondition(state.approvals["native_consent"], now)}`,
+          },
+        ]),
     {
       need: "install",
       state: approvalCondition(state.approvals["apply"], now),
@@ -970,8 +1030,59 @@ export function BundlePage({ caseId }: { readonly caseId: string }) {
                 </li>
               ))}
             </ul>
+            {consentRef !== null && (
+              <details className="dock-consent">
+                <summary>What a native install relaxes</summary>
+                {consentText === null ? (
+                  <p className="dock-note">
+                    The consent text could not be read here; `oak approve
+                    native_consent` shows it.
+                  </p>
+                ) : (
+                  <>
+                    <p className="dock-consent-title">
+                      {asString(consentText["title"])}
+                    </p>
+                    <p>{asString(consentText["statement"])}</p>
+                    <ul aria-label="What a native install relaxes">
+                      {asArray(consentText["relaxed_controls"]).map((item) => {
+                        const entry = asObject(item) ?? {};
+                        return (
+                          <li key={asString(entry["id"]) ?? ""}>
+                            {asString(entry["relaxes"])}{" "}
+                            <span className="dock-consent-risk">
+                              Risk: {asString(entry["risk"])}
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                    <p className="dock-consent-title">What stays</p>
+                    <ul aria-label="What stays">
+                      {asArray(consentText["retained_controls"]).map((item) => (
+                        <li key={asString(item) ?? ""}>{asString(item)}</li>
+                      ))}
+                    </ul>
+                    {consent !== null &&
+                      consent.consent_ref.digest !== consentDigest && (
+                        <p role="alert" className="dock-consent-changed">
+                          The consent text changed after this plan was compiled;
+                          compile the plan again before consenting.
+                        </p>
+                      )}
+                  </>
+                )}
+                <p className="dock-consent-digest">
+                  Consent digest <code>{consentDigest}</code>
+                </p>
+              </details>
+            )}
             <CopyPlate
-              command={INSTALL_STEPS}
+              command={
+                consentDigest === null
+                  ? INSTALL_STEPS
+                  : nativeInstallSteps(consentDigest)
+              }
               label="Copy install steps"
               className="dock-plate"
             />

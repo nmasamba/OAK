@@ -55,6 +55,7 @@
       "enum": [
         "dry_run",
         "architecture",
+        "native_consent",
         "apply",
         "rollback",
         "destroy"

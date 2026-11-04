@@ -2,6 +2,7 @@
 """Shared candidate, evaluation, assurance and planning application operations."""
 
 import copy
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
@@ -40,6 +41,11 @@ from oak.domain import (
     json_artifact,
 )
 from oak.domain.audit import audit_event_document
+from oak.domain.runner_adapters import (
+    is_native_target,
+    native_consent_problem,
+    native_consent_reference,
+)
 from oak.ports import CataloguePort, ResearchVocabularyPort, TargetProfilePort, WorkspaceRepository
 
 CASE_MEDIA_TYPE = "application/vnd.oak.design-case+json"
@@ -129,12 +135,16 @@ class CandidatePlanningService:
         registry: SchemaRegistry,
         *,
         research_vocabulary: ResearchVocabularyPort | None = None,
+        native_consent: Callable[[], dict[str, Any]] | None = None,
     ) -> None:
         self._repository = repository
         self._catalogue = catalogue
         self._target_profiles = target_profiles
         self._registry = registry
         self._research_vocabulary = research_vocabulary
+        # The consent text a native installation is approved against (ADR-0019); a plan
+        # for a native target names it by digest, so a consent binds the text the user read.
+        self._native_consent = native_consent
 
     def candidates(self, context: CommandContext) -> CandidatesResult:
         documents = self._catalogue.load()
@@ -612,6 +622,7 @@ class CandidatePlanningService:
             registry=self._registry,
             created_at=context.occurred_at,
             installation_scope=str(self._repository.manifest()["id"]),
+            native_consent=self._native_consent_reference(target),
         )
         extensions = copy.deepcopy(current.extensions or {})
         extensions["oak.community/semantic_manifest_ref"] = (
@@ -716,6 +727,25 @@ class CandidatePlanningService:
             catalogue_snapshot=self._repository.read_json_artifact(snapshot_ref),
             duplicate=duplicate,
         )
+
+    def _native_consent_reference(self, target: dict[str, Any]) -> dict[str, str] | None:
+        """The consent text a native target's plan names, or None for any other target.
+
+        Refused here, before anything is compiled or signed, when the text is missing or
+        names other controls than the native adapter relaxes.
+        """
+
+        if not is_native_target(target):
+            return None
+        if self._native_consent is None:
+            raise OAKError(
+                "OAK-NATIVE-CONSENT", "no consent text is installed for a native installation"
+            )
+        document = self._native_consent()
+        problem = native_consent_problem(document)
+        if problem is not None:
+            raise OAKError("OAK-NATIVE-CONSENT", problem)
+        return native_consent_reference(document)
 
     def _plan_result(self, case: dict[str, Any], *, duplicate: bool) -> PlanResult:
         decision_ref = self._extension_reference(case, "oak.community/selection_decision_ref")

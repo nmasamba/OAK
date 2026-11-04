@@ -44,6 +44,7 @@ from oak.compiler import DeterministicBriefInterpreter
 from oak.contracts import SchemaRegistry
 from oak.domain import ArtifactReference, OAKError, canonical_json_bytes, content_digest
 from oak.domain.design_case import next_patch_version
+from oak.domain.runner_adapters import native_consent_reference
 from oak.ports import (
     BriefIntakePort,
     CaseDirectoryPort,
@@ -132,6 +133,7 @@ class CommunityControlPlane:
         oak_version: str = "unknown",
         model_requests_per_day: int = DEFAULT_MODEL_REQUESTS_PER_CASE_PER_DAY,
         research_vocabulary: ResearchVocabularyPort | None = None,
+        native_consent: Callable[[], dict[str, Any]] | None = None,
         research_source_factory: SourceFactory | None = None,
         research_source_mode: SourceMode | None = None,
         research_runner: ResearchRunner | None = None,
@@ -153,6 +155,7 @@ class CommunityControlPlane:
         self._report_narrator_factory = report_narrator_factory
         self._oak_version = oak_version
         self._research_vocabulary = research_vocabulary
+        self._native_consent = native_consent
         self._research_source_factory = research_source_factory
         self._research_source_mode = research_source_mode
         self._research_runner = research_runner
@@ -258,10 +261,49 @@ class CommunityControlPlane:
         return service.confirm(answers, context)
 
     @_case_scoped
+    def propose_hardware(
+        self,
+        case_id: str,
+        scan: dict[str, Any],
+        context: CommandContext,
+        *,
+        scanned_by: str = "oak_scan",
+    ) -> DesignResult:
+        """Record a scan result a client sent as the case's hardware proposal.
+
+        The scan ran where the hardware is, never on this host (`development.md`).
+        """
+
+        service = self._design_for_case(case_id, context.tenant_id)
+        self._verify_case(case_id, service.current().case)
+        return service.propose_hardware(scan, context, scanned_by=scanned_by)
+
+    @_case_scoped
+    def confirm_hardware(
+        self, case_id: str, proposal_id: str, context: CommandContext
+    ) -> DesignResult:
+        service = self._design_for_case(case_id, context.tenant_id)
+        self._verify_case(case_id, service.current().case)
+        return service.confirm_hardware(proposal_id, context)
+
+    @_case_scoped
     def list_candidates(self, case_id: str, *, tenant_id: str) -> tuple[dict[str, Any], ...]:
         planning = self._planning_for_case(case_id, tenant_id)
         self._verify_case(case_id, self.get_design_case(case_id, tenant_id=tenant_id).case)
         return planning.list_candidates()
+
+    def native_consent_text(self) -> dict[str, Any]:
+        """The consent text a native installation is approved against, with its reference.
+
+        What `oak approve native_consent` shows; reading it records nothing (ADR-0019).
+        """
+
+        if self._native_consent is None:
+            raise OAKError(
+                "OAK-NATIVE-CONSENT", "no consent text is installed for a native installation"
+            )
+        document = self._native_consent()
+        return {"consent": document, "consent_ref": native_consent_reference(document)}
 
     @_case_scoped
     def architecture(
@@ -855,6 +897,7 @@ class CommunityControlPlane:
             self._target_profiles,
             self._registry,
             research_vocabulary=self._research_vocabulary,
+            native_consent=self._native_consent,
         )
 
     def _research_service(self, workspace_id: str, tenant_id: str) -> ResearchService:

@@ -6,6 +6,147 @@ All notable changes to OAK Community are recorded here.
 
 ## Unreleased
 
+### Tier 3, Batch B (`OAK-V1-039`–`043`)
+
+The second batch of Tier 3, launched by the owner on 2026-11-02: hardware scanning, then native
+installation. In progress; entries land with each milestone.
+
+#### Added
+
+- **OAK can describe the machine it runs on** (`OAK-V1-039`, part 1). The new local
+  command `oak scan` and the runner's `inventory` operation share one scanner. It reads the
+  CPU's model and cores, the memory, and each GPU's vendor, model, memory and runtime
+  (Metal, CUDA or ROCm) through five tools, each with one fixed argument vector:
+  `sysctl` and `system_profiler` on macOS, `lscpu`, `nvidia-smi` and `rocm-smi` on Linux.
+  It parses machine-readable output only and keeps only those fields, so no serial number,
+  GPU UUID, host name or user name a tool prints survives. A tool that is absent, fails,
+  times out or prints too much leaves an `unknown` with its reason, never a guess; on
+  Linux, "no GPU" is claimed only when both NVIDIA's and AMD's tools answered. Apple
+  silicon's memory is reported as unified rather than as GPU memory. The scan also says
+  whether Docker (and its daemon) and uv are present, and recommends installing what is
+  missing, with each tool's official page; it never installs anything. `oak scan` records
+  nothing; the inventory evidence gains a `hardware` object beside its existing fields.
+  The runner's executable allowlist gains the five tools (`RR-055`).
+- **The records for a native installation** (`OAK-V1-040`). ADR-0019, beside ADR-0017:
+  a target profile may acknowledge `native-non-production-user-consented` and map each
+  component to a harness kind OAK knows (`oak_stand_in`, a server inside OAK; and
+  `llama_cpp_server`), with typed artifacts (source, SHA-256, size, format), a loopback
+  port and a health probe, and the hosts it may download from; a native install needs a
+  third signed approval, `native_consent`, naming the consent document by digest, each
+  relaxed control and the installation; the process is smoke-tested and stopped, never
+  left running. `schemas/native-consent.schema.json` and the consent text,
+  `catalogue/consent/native-installation.yaml`, which stays `draft` until the owner signs
+  it off. The original spec repo's security invariants permit downloaded executable
+  selection to this adapter alone, under named controls, and its threat model's `TM-09`
+  and `TM-16` gain the native path. `RR-056` (a native process runs as the user) and
+  `RR-057` (a harness is trusted as far as its acknowledged digest) join the register;
+  `RR-043` says it covers containers only.
+- **A scan's result enters a case only when the user confirms it** (`OAK-V1-039`, part 2).
+  `oak scan --propose` records the result as the case's hardware proposal (a new
+  `hardware_proposal` artifact, a `hardware_proposed` event; no intent value changes), and
+  `oak scan --confirm`, `POST /v1/design-cases/{case_id}:confirm-hardware` or **Confirm
+  hardware** on the case page confirms it (`hardware_confirmed`): `spec.hardware` takes the
+  measured values, each with the provenance source `measured` and the proposal as its
+  evidence, and an open hardware question the scan answered is resolved. So
+  `constraint.hardware`, the estimators and research's hardware class read the confirmed
+  machine through the paths that already read the brief's. A proposal can enter a case
+  between interpretation and candidate generation (`OAK-HARDWARE-STATE` otherwise); only
+  the case's pending proposal can be confirmed, once (`OAK-HARDWARE-PROPOSAL`); a scan that
+  knows nothing cannot be (`OAK-HARDWARE-EMPTY`). REST adds
+  `POST /v1/design-cases/{case_id}:propose-hardware`, and MCP the tool
+  `oak_hardware_propose`, because the scan runs where the hardware is and the API host is
+  never the target; confirming is not an MCP tool. The proposal's schema is closed and
+  bounds every field; OAK's scanner writes no serial number, GPU id, host name or user name
+  into it, while a proposal a client builds itself is held to the same shapes, not to their
+  meaning.
+- **A native installation: installed, checked and stopped** (`OAK-V1-041`). The runner's
+  native adapter, `adapter.local-native`, installs each component of the selected
+  architecture outside Docker, as the user, for a target profile that acknowledges
+  `native-non-production-user-consented`, on macOS on Apple silicon and on Linux x86_64 and
+  aarch64. It fetches each artifact over HTTPS from an acknowledged host only, with TLS
+  verified, no proxy taken from the environment and every redirect checked; refuses a file
+  whose size or SHA-256 differs from the profile's before anything runs; unpacks an archive
+  without following a link, an absolute path or a `..`, writing a link to a file inside it
+  as a copy of that file; starts each component from its
+  harness kind's fixed argument template on 127.0.0.1, with no core files, at most 4,096
+  open files and no written file over 2 GiB; probes its health path; and stops it. Nothing
+  keeps running and nothing starts with the computer. An ownership marker keeps it from
+  adopting, stopping or removing what it did not install, and `rollback` and `destroy`
+  remove exactly the installation's directory. `oak approve native_consent` shows the
+  consent text and its digest and records the consent only when given that digest with
+  `--consent`, after the architecture approval and before `oak approve apply`; dispatch
+  attaches all three approvals, and the runner checks on its own that the consent names this
+  installation, the text and every relaxed control, and that the plan's parameters are
+  exactly what its own profile acknowledges. `examples/targets/local-native-stand-in.yaml`
+  installs OAK's own stand-in server for each node, so the whole path runs offline; `oak
+  architecture` shows a native installation with its three approvals. New codes
+  `OAK-NATIVE-CONSENT`, `-DIGEST`, `-HOST`, `-SIZE`, `-DOWNLOAD`, `-ARCHIVE`, `-HARNESS`,
+  `-PLATFORM`, `-START`, `-SMOKE`, `-OWNERSHIP` and `-UNINSTALL`.
+- **The native path on three platforms, observed, and shown in the browser**
+  (`OAK-V1-042`). `make check` runs the native journey through the installed `oak` and
+  `oak-runner`, with no Docker, so CI proves it on macOS on Apple silicon and on Linux
+  x86_64 and aarch64. After an install the runner prints the installation's folder and
+  that nothing is running, and the folder's `START.txt` gives each component's start
+  command. `oak observe` reads a native installation: install and check success, each
+  node's seconds to its first healthy answer, and the installation's state
+  (`observation-record.schema.json` gains `native-user-consented` and rows named by
+  installation). A native plan's bundle page shows the consent's state beside the other
+  two approvals, the consent text, and the install steps with the plan's consent digest,
+  read through the new `GET /v1/native-consent`; the web records no consent. A link inside a
+  release archive, such as a library's versioned name, is unpacked as a copy of the file it
+  names; a refused redirect names the host, because a CDN's host can differ by region.
+  `examples/targets/local-native-llama-cpp.yaml` pins llama.cpp's server (build `b11721`)
+  and Qwen2.5-0.5B-Instruct by the digests their publishers list, and was rehearsed by hand
+  on macOS on Apple silicon on 2026-11-03 (`platforms.md` has what it measured). `llama-server`
+  logged that it has no API key and allows every origin, so the consent text and `START.txt`
+  say that a web page open in your browser can reach a running component.
+  Documents: `operations.md`, `platforms.md`, the README, `interfaces.md` and the manual,
+  with its PDF.
+
+#### Fixed (the closing review, `OAK-V1-043`)
+
+Two independent reviews of the finished batch, one on the native installation's security
+and one on correctness elsewhere, reported fourteen findings; all were confirmed and fixed,
+with a test where they were code.
+
+- **A native check could pass without its component.** A component that answered once and
+  died, or another program already listening on its port, passed. Now the port must be free
+  before the component starts, and only the component itself, still running after answering
+  twice, passes.
+- **"Stopped" was not checked.** The stop signalled the process group only while its first
+  process lived, and recorded every component as stopped. Now the whole group gets `SIGKILL`
+  after `SIGTERM` in every case, a component is recorded as stopped only when nothing of its
+  group remains (`OAK-NATIVE-STOP` otherwise), and `SIGTERM` or `SIGHUP` to the runner during
+  a check stops the component before the runner exits.
+- **A real model could not install inside a five-minute lease, and a download ignored the
+  lease.** A native `apply` is now dispatched with an hour's lease, which its plan admits; a
+  download stops when the lease ends, and a file two components share downloads once.
+- **A repeated install ran an unpacked tree it never checked again.** Every `apply` now
+  unpacks the archive afresh from its verified bytes.
+- **Some failures escaped without compensation.** An error other than OAK's own while
+  installing is now `OAK-NATIVE-IO`, with the install it started removed; the installation
+  directory appears only with its marker, and a removal renames the directory away first,
+  so a failure part way never leaves a directory without its marker. A profile can name
+  only plain DNS hosts, and a host the IDNA codec refuses is a download failure.
+- **The same scan, again, replayed an old case version.** A scan proposed a second time
+  after the case moved on returned the first result, and `oak scan --confirm` then failed
+  for ever; a derived key now covers the case version, locally and remotely.
+- **An Apple silicon scan switched off the weight-floor check.** Unified memory now gives
+  the GPU the system memory as `vram_gib`, so the check and the research hardware class have
+  a figure to read, and a scan that measures the accelerators replaces the brief's GPU memory
+  and drivers rather than leaving a stale figure beside them.
+- **Smaller scan defects.** Memory was reported unknown beside a figure the runtime gave;
+  an Arm machine with two kinds of core counted one cluster; a long case id made every
+  proposal's id too long.
+- **Interfaces and the report.** The case-scoped error mapping had moved from `GET
+  …/architecture` to the consent read; a native plan's approvals table said "two" until a
+  consent existed.
+- **Documents.** The proposal's privacy claim now says what the code guarantees (the
+  scanner writes no identifier; a client's own proposal is held to the same shapes, not
+  meanings); `RR-055` names the environment the tools really get; the manual's consent
+  output includes the draft line and its scan note says what a confirmed scan changes; and
+  `compatibility.md` lists `GET /v1/native-consent`, its schemas and its `503`.
+
 ### After Batch A (`OAK-V1-038`)
 
 #### Fixed

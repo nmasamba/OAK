@@ -654,6 +654,22 @@ def _missing_evaluation(ctx: _Context) -> dict[str, Any]:
     )
 
 
+def _installs_natively(bundle: dict[str, Any] | None) -> bool:
+    """Whether the compiled bundle's installation preflight judged a native install."""
+
+    extensions = (bundle or {}).get("extensions")
+    results = (
+        extensions.get("oak.community/preflight_results") if isinstance(extensions, dict) else None
+    )
+    return any(
+        isinstance(result, dict)
+        and result.get("id") == "preflight.installation"
+        and isinstance(result.get("evidence"), dict)
+        and result["evidence"].get("mode") == "native"
+        for result in (results if isinstance(results, list) else [])
+    )
+
+
 def _missing_observation() -> dict[str, Any]:
     return _not_yet(
         "Observed cost, latency, quality and energy", "Install, then observe", "oak observe"
@@ -1857,7 +1873,14 @@ def _governance(ctx: _Context) -> dict[str, Any]:
     approvals = ctx.records.approvals
     if ctx.case.get("runner_plan_ref") is not None:
         rows = []
-        for action in ("architecture", "apply"):
+        # A native install (ADR-0019) needs a third approval, the consent. The bundle the
+        # report already reads says how its plan installs, so the plan itself is not read.
+        actions = (
+            ("architecture", "native_consent", "apply")
+            if "native_consent" in approvals or _installs_natively(ctx.records.bundle)
+            else ("architecture", "apply")
+        )
+        for action in actions:
             approval = approvals.get(action)
             state, word = _approval_state(approval, ctx.generated_at)
             rows.append(
@@ -1875,7 +1898,9 @@ def _governance(ctx: _Context) -> dict[str, Any]:
         blocks.append(
             _table(
                 "approvals",
-                "The two approvals an install needs",
+                "The three approvals a native install needs"
+                if len(actions) == 3
+                else "The two approvals an install needs",
                 ["Approval", "State", "Expires"],
                 rows,
             )

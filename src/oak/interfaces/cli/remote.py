@@ -329,6 +329,38 @@ class RemoteClient:
             model_token=model_mode,
         )
 
+    def propose_hardware(
+        self,
+        case_id: str,
+        scan: dict[str, Any],
+        *,
+        expected_version: str,
+        idempotency_key: str,
+    ) -> dict[str, Any]:
+        return self._request(
+            "POST",
+            f"/v1/design-cases/{case_id}:propose-hardware",
+            body={"scan": scan},
+            idempotency_key=idempotency_key,
+            expected_version=expected_version,
+        )
+
+    def confirm_hardware(
+        self,
+        case_id: str,
+        proposal_id: str,
+        *,
+        expected_version: str,
+        idempotency_key: str,
+    ) -> dict[str, Any]:
+        return self._request(
+            "POST",
+            f"/v1/design-cases/{case_id}:confirm-hardware",
+            body={"proposal_id": proposal_id},
+            idempotency_key=idempotency_key,
+            expected_version=expected_version,
+        )
+
     def confirm(
         self,
         case_id: str,

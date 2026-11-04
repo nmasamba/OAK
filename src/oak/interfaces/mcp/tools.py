@@ -169,6 +169,25 @@ TOOL_DEFINITIONS: tuple[ToolDefinition, ...] = (
         ),
     ),
     ToolDefinition(
+        name="oak_hardware_propose",
+        description=(
+            "Record a hardware scan's result (what `oak scan --output json` printed under "
+            "`proposal`) as the case's hardware proposal. No intent value changes until a user "
+            "confirms it in the CLI, over REST or in the web workspace."
+        ),
+        input_schema=_schema(
+            {
+                "case_id": _IDENTIFIER,
+                "scan": _DOCUMENT,
+                "actor": _ACTOR,
+                "expected_version": _EXPECTED_VERSION,
+                "idempotency_key": _IDEMPOTENCY_KEY,
+            },
+            required=("case_id", "scan", "expected_version", "idempotency_key"),
+            context=True,
+        ),
+    ),
+    ToolDefinition(
         name="oak_candidates_generate",
         description=(
             "Submit deterministic candidate generation as a durable asynchronous "
@@ -320,6 +339,7 @@ class MCPToolExecutor:
             "oak_design_case_interpret": self._interpret,
             "oak_questions_list": self._questions,
             "oak_claims_confirm": self._confirm,
+            "oak_hardware_propose": self._propose_hardware,
             "oak_candidates_generate": self._generate,
             "oak_candidates_list": self._list_candidates,
             "oak_candidate_evaluate": self._evaluate,
@@ -475,6 +495,14 @@ class MCPToolExecutor:
         if not isinstance(answers, dict):
             raise OAKError("OAK-CONFIRM-MALFORMED", "answers are malformed")
         result = self._plane.confirm(str(arguments["case_id"]), answers, context)
+        return {"case": result.case, "intent": result.intent, "duplicate": result.duplicate}
+
+    def _propose_hardware(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        context = self._context(arguments, expected_version=str(arguments["expected_version"]))
+        scan = arguments["scan"]
+        if not isinstance(scan, dict):
+            raise OAKError("OAK-HARDWARE-PROPOSAL", "the scan result is malformed")
+        result = self._plane.propose_hardware(str(arguments["case_id"]), scan, context)
         return {"case": result.case, "intent": result.intent, "duplicate": result.duplicate}
 
     def _generate(self, arguments: dict[str, Any]) -> dict[str, Any]:

@@ -14,7 +14,7 @@ from typing import Any
 import pytest
 
 from oak.compiler.observation import RunnerResult, build_observation_record
-from oak.contracts import SchemaRegistry, load_yaml_document
+from oak.contracts import ContractValidationError, SchemaRegistry, load_yaml_document
 from oak.domain import ArtifactReference
 from oak.domain.runner_adapters import ISOLATION_NEVER_STARTED, ISOLATION_STARTED_HARDENED
 from tests.container_support import names, parameters
@@ -457,3 +457,143 @@ def test_completions_are_scored_in_dispatch_order_whatever_the_ingest_order() ->
     measures = {item["id"]: item for item in scored.measures}
     assert measures["EV-DEP-01"]["sample_size"] == 1
     assert measures["EV-DEP-02"]["result"] == "pass"
+
+
+# -- a native installation (ADR-0019, OAK-V1-042) ----------------------------------------
+
+NATIVE_ID = "installation." + "c" * 24
+NATIVE_NODES = ("node.retrieval", "node.generation")
+
+
+def _native_plan() -> dict[str, Any]:
+    components = [
+        {"node_id": node, "manifest_id": f"component.{index}", "harness_kind": "oak_stand_in"}
+        for index, node in enumerate(NATIVE_NODES)
+    ]
+    return {
+        "target": {"id": "target.local-native-stand-in", "fingerprint": "sha256:" + "b" * 64},
+        "operations": [
+            {
+                "kind": "apply",
+                "adapter": {"id": "adapter.local-native"},
+                "parameters": {"installation_id": NATIVE_ID, "components": components},
+            }
+        ],
+    }
+
+
+def _native_install(outcome: str = "succeeded", *, tested: int = 2) -> dict:
+    rows = [
+        {"node_id": node, "passed": outcome == "succeeded", "seconds_to_ready": 0.4}
+        for node in NATIVE_NODES[:tested]
+    ]
+    evidence: list[dict[str, Any]] = [
+        {
+            "category": "status",
+            "operation": "apply",
+            "content": {"mode": "native", "installation_id": NATIVE_ID, "installation": []},
+        },
+        {
+            "category": "test_result",
+            "operation": "apply",
+            "content": {
+                "started": True,
+                "complete": tested == len(NATIVE_NODES),
+                "passed": outcome == "succeeded" and tested == len(NATIVE_NODES),
+                "stopped": True,
+                "smoke_test": rows,
+            },
+        },
+    ]
+    if outcome != "succeeded":
+        evidence.append(
+            {
+                "category": "rollback_result",
+                "operation": "compensation",
+                "content": {"installation_id": NATIVE_ID, "removed": True, "absent": True},
+            }
+        )
+    return {
+        "outcome": outcome,
+        "requested_kinds": ["apply"],
+        "applied_kinds": ["apply"] if outcome == "succeeded" else [],
+        "failed_kind": None if outcome == "succeeded" else "apply",
+        "evidence": evidence,
+    }
+
+
+def _native_removal(kind: str = "destroy") -> dict:
+    return {
+        "outcome": "succeeded",
+        "requested_kinds": [kind],
+        "applied_kinds": [kind],
+        "failed_kind": None,
+        "evidence": [
+            {
+                "category": "rollback_result",
+                "operation": kind,
+                "content": {"installation_id": NATIVE_ID, "removed": True, "absent": True},
+            }
+        ],
+    }
+
+
+def test_a_native_install_is_observed_as_one_installation_of_every_node() -> None:
+    record = _record(_native_install(), plan=_native_plan())
+
+    assert record["target"]["isolation"] == "native-user-consented"
+    assert _measure(record, "EV-DEP-01")["result"] == "pass"
+    assert _measure(record, "smoke-test")["result"] == "pass"
+    assert record["installation_state"] == "present"
+    assert [
+        (row["node_id"], row["installation_id"], row["metric"], row["value"])
+        for row in record["unpredicted_measurements"]
+    ] == [(node, NATIVE_ID, "startup_seconds", 0.4) for node in NATIVE_NODES]
+    assert all("container_name" not in row for row in record["unpredicted_measurements"])
+    assert any("outside any container" in line for line in record["limitations"])
+    assert not any("starting containers" in line for line in record["limitations"])
+
+
+def test_a_native_re_apply_is_the_idempotence_sample_and_a_removal_reads_removed() -> None:
+    record = _record(
+        _native_install(), _native_install(), _native_removal("rollback"), plan=_native_plan()
+    )
+
+    assert _measure(record, "EV-DEP-01")["sample_size"] == 1
+    assert _measure(record, "EV-DEP-02")["result"] == "pass"
+    assert _measure(record, "EV-DEP-03")["result"] == "pass"
+    assert record["installation_state"] == "removed"
+
+
+def test_a_failed_native_install_rolled_back_is_a_failed_install_and_a_recovery() -> None:
+    record = _record(_native_install("failed"), plan=_native_plan())
+
+    assert _measure(record, "EV-DEP-01")["result"] == "fail"
+    assert _measure(record, "smoke-test")["result"] == "fail"
+    assert _measure(record, "EV-DEP-03")["result"] == "pass"
+    assert record["installation_state"] == "removed"
+    assert record["unpredicted_measurements"] == []
+
+
+def test_a_native_check_of_fewer_nodes_than_planned_is_not_a_pass() -> None:
+    record = _record(_native_install(tested=1), plan=_native_plan())
+    assert _measure(record, "smoke-test")["result"] == "fail"
+
+    # Even a completion that claims a complete, passing check is counted against the plan.
+    claimed = _native_install(tested=1)
+    claimed["evidence"][1]["content"].update(complete=True, passed=True)
+    assert _measure(_record(claimed, plan=_native_plan()), "smoke-test")["result"] == "fail"
+
+
+def test_a_measurement_names_a_container_or_an_installation_never_both() -> None:
+    record = _record(_native_install(), plan=_native_plan())
+    both = dict(record["unpredicted_measurements"][0], container_name="oak-fixture-x")
+    neither = {
+        key: value
+        for key, value in record["unpredicted_measurements"][0].items()
+        if key != "installation_id"
+    }
+    for row in (both, neither):
+        broken = dict(record, unpredicted_measurements=[row])
+        with pytest.raises(ContractValidationError):
+            REGISTRY.validate("observation-record.schema.json", broken)

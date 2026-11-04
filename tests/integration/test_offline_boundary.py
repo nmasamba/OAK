@@ -73,10 +73,14 @@ NETWORK_MODULES = frozenset(
 # and it exists so that this set can stay this short: every provider profile, the hosted
 # interpreter and the catalogue lookup go through it rather than opening their own
 # connection. Any addition to this set is a trust-boundary change, not a refactor.
+# A native installation (ADR-0019) is the one exception on the runner side, and it is two
+# files: the download and loopback probe, and the stand-in server that binds 127.0.0.1.
 ALLOWED_NETWORK_IMPORTERS = frozenset(
     {
         "oak/interfaces/cli/remote.py",
         "oak/adapters/models/transport.py",
+        "oak/runner/native_network.py",
+        "oak/runner/stand_in/http_server.py",
     }
 )
 

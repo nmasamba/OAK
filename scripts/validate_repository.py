@@ -30,6 +30,8 @@ EXAMPLE_BY_SCHEMA = {
     "extension-activation.schema.json": "example-extension-activation.yaml",
     "extension-manifest.schema.json": "example-extension-manifest.yaml",
     "interpretation-proposal.schema.json": "example-interpretation-proposal.yaml",
+    "hardware-proposal.schema.json": "example-hardware-proposal.yaml",
+    "native-consent.schema.json": "example-native-consent.yaml",
     "model-configuration.schema.json": "example-model-configuration.yaml",
     "obligation-control-mapping.schema.json": "example-obligation-control-mapping.yaml",
     "plan-signature.schema.json": "example-plan-signature.yaml",

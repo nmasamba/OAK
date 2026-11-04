@@ -26,12 +26,14 @@ import yaml
 from oak.contracts import load_yaml_document
 from oak.contracts.signatures import verify_signed_document
 from oak.domain import OAKError
+from oak.domain.runner_adapters import NATIVE_ADAPTER_ID
 from oak.runner.adapters import ContainerFixtureAdapter, isolated_executor
 from oak.runner.execution import execute_dispatch
 from oak.runner.heartbeat import HEARTBEAT_INTERVAL_SECONDS, LeaseHeartbeat
 from oak.runner.identity import RunnerIdentity
 from oak.runner.journal import RunnerJournal
 from oak.runner.mailbox import RunnerMailbox, is_safe_name
+from oak.runner.native import START_FILE, NativeProcessAdapter
 from oak.runner.schemas import load_registry
 from oak.runner.verification import (
     RunnerDenialError,
@@ -60,11 +62,12 @@ def run_once(
     cancellation_requested: bool = False,
     adapter: ContainerFixtureAdapter | None = None,
     heartbeat_interval_seconds: float | None = None,
+    native_adapter: NativeProcessAdapter | None = None,
 ) -> int:
-    """Process pending dispatches once. ``adapter`` and ``heartbeat_interval_seconds`` are
-    test seams, never CLI options. The interval is the one `LeaseHeartbeat` takes, so `0`
-    beats at every step boundary; it otherwise comes from the environment, where `0`
-    switches heartbeats off.
+    """Process pending dispatches once. ``adapter``, ``native_adapter`` and
+    ``heartbeat_interval_seconds`` are test seams, never CLI options. The interval is the
+    one `LeaseHeartbeat` takes, so `0` beats at every step boundary; it otherwise comes
+    from the environment, where `0` switches heartbeats off.
 
     One run at a time per runner home: a second run started while an install is still
     in its readiness wait would otherwise take the first run's journal for an interrupted
@@ -88,9 +91,26 @@ def run_once(
                 cancellation_requested=cancellation_requested,
                 adapter=adapter,
                 heartbeat_interval_seconds=heartbeat_interval_seconds,
+                native_adapter=native_adapter,
             )
     finally:
         os.close(lock)
+
+
+def _print_native_start(
+    operations: tuple[dict[str, Any], ...], applied: tuple[str, ...], home: Path
+) -> None:
+    """After a native install, say that nothing runs and where the start commands are."""
+
+    if "apply" not in applied:
+        return
+    for operation in operations:
+        if operation["kind"] == "apply" and operation["adapter"]["id"] == NATIVE_ADAPTER_ID:
+            folder = home / "native" / str(operation["parameters"]["installation_id"])
+            print(
+                f"installed natively in {folder}; nothing is running. "
+                f"To start a component yourself, see {folder / START_FILE}"
+            )
 
 
 @contextlib.contextmanager
@@ -124,6 +144,7 @@ def _run_once_locked(
     cancellation_requested: bool,
     adapter: ContainerFixtureAdapter | None,
     heartbeat_interval_seconds: float | None = None,
+    native_adapter: NativeProcessAdapter | None = None,
 ) -> int:
     mailbox_root = _environment_path("OAK_RUNNER_MAILBOX")
     retention_seconds = _dispatch_retention_seconds()
@@ -237,6 +258,9 @@ def _run_once_locked(
             cancellation_requested=cancellation_requested,
             adapter=container,
             heartbeat=heartbeat,
+            # Native installations live under the runner home, one directory each, marked
+            # as the runner's own (ADR-0019).
+            native=native_adapter or NativeProcessAdapter(home / "native"),
         )
         try:
             mailbox.publish_message(
@@ -274,6 +298,7 @@ def _run_once_locked(
             ) from error
         processed_any = True
         print(f"completed {dispatch_id}: {outcome.outcome}")
+        _print_native_start(verified.operations, outcome.applied_kinds, home)
     if not processed_any:
         print("no pending dispatches")
     removed = mailbox.clean_processed_dispatches(

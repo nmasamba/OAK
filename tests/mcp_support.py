@@ -13,7 +13,7 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
-from oak.adapters.catalogue import LocalCatalogue, ResearchVocabularyLoader
+from oak.adapters.catalogue import LocalCatalogue, LocalConsentText, ResearchVocabularyLoader
 from oak.adapters.intake import LocalBriefIntake
 from oak.adapters.models.research_fixture import FixtureResearchSource
 from oak.adapters.models.research_sources import run_research
@@ -332,6 +332,7 @@ def build_file_control_plane(
         report_narrator_factory=report_narrator_factory,
         oak_version="0.9.0",
         research_vocabulary=ResearchVocabularyLoader(ROOT / "catalogue"),
+        native_consent=LocalConsentText(ROOT / "catalogue", registry),
         research_source_factory=lambda occurred_at: (
             FixtureResearchSource(research_fixtures, occurred_at=occurred_at).fetch,
             "fixture",

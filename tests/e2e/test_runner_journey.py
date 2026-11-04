@@ -3,17 +3,21 @@
 
 import json
 import os
+import re
 import shutil
+import socket
 import subprocess
 from pathlib import Path
 
 import pytest
+import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 OAK = ROOT / ".venv" / "bin" / "oak"
 OAK_RUNNER = ROOT / ".venv" / "bin" / "oak-runner"
 MUTATION_TARGET = ROOT / "examples/targets/local-mutation-fixture.yaml"
 STARTED_TARGET = ROOT / "examples/targets/local-started-fixture.yaml"
+NATIVE_TARGET = ROOT / "examples/targets/local-native-stand-in.yaml"
 
 
 def _run(argv: list[str], cwd: Path, env: dict[str, str]) -> subprocess.CompletedProcess[str]:
@@ -339,3 +343,89 @@ def test_the_exit_demonstration_installs_tests_observes_and_removes(tmp_path: Pa
     assert final["installation_state"] == "removed"
     rollback = next(item for item in final["deployment_measures"] if item["id"] == "EV-DEP-03")
     assert rollback["result"] == "pass"
+
+
+def _native_target(tmp_path: Path) -> tuple[Path, list[int]]:
+    """The stand-in native profile on ports free on this machine, as a user would edit it."""
+
+    document = yaml.safe_load(NATIVE_TARGET.read_text(encoding="utf-8"))
+    sockets = [socket.socket() for _ in document["execution"]["native_components"]]
+    try:
+        for item in sockets:
+            item.bind(("127.0.0.1", 0))
+        ports = [int(item.getsockname()[1]) for item in sockets]
+    finally:
+        for item in sockets:
+            item.close()
+    for entry, port in zip(document["execution"]["native_components"], ports, strict=True):
+        entry["listen_port"] = port
+    path = tmp_path / "native-target.yaml"
+    path.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
+    return path, ports
+
+
+def _listening(port: int) -> bool:
+    with socket.socket() as probe:
+        probe.settimeout(0.5)
+        return probe.connect_ex(("127.0.0.1", port)) == 0
+
+
+def test_a_native_install_needs_the_consent_and_leaves_nothing_running(tmp_path: Path) -> None:
+    """OAK-V1-041: the native stand-in installs, checks, stops and uninstalls through the
+    installed entrypoints, with no Docker, on every platform CI covers (ADR-0019)."""
+
+    environment = _environment(tmp_path)
+    workspace = tmp_path / "workspace"
+    target, ports = _native_target(tmp_path)
+    _compile_case(workspace, environment, target)
+
+    def oak(*arguments: str) -> subprocess.CompletedProcess[str]:
+        result = _run([str(OAK), *arguments], workspace, environment)
+        assert result.returncode == 0, (arguments, result.stderr)
+        return result
+
+    runner_environment = _runner_environment(environment, tmp_path, target)
+
+    def runner() -> str:
+        ran = _run([str(OAK_RUNNER), "run-once"], ROOT, runner_environment)
+        assert ran.returncode == 0, ran.stderr
+        return ran.stdout
+
+    architecture = json.loads(oak("architecture", "--output", "json").stdout)["architecture"]
+    assert architecture["installation"]["mode"] == "native"
+    assert set(architecture["installation"]["approvals"]) == {
+        "architecture",
+        "native_consent",
+        "apply",
+    }
+    oak("keys", "init")
+    _enroll(workspace, environment, runner_environment, tmp_path)
+    oak("sign")
+    oak("approve", "architecture")
+    # Without a digest, the consent text is shown and nothing is recorded.
+    shown = _run([str(OAK), "approve", "native_consent"], workspace, environment)
+    assert shown.returncode == 2 and "OAK-NATIVE-CONSENT" in shown.stderr
+    assert "What this relaxes:" in shown.stdout and "What stays:" in shown.stdout
+    match = re.search(r"--consent (sha256:[a-f0-9]{64})", shown.stdout)
+    assert match is not None, shown.stdout
+    refused = _run([str(OAK), "approve", "apply"], workspace, environment)
+    assert refused.returncode == 2 and "OAK-NATIVE-CONSENT" in refused.stderr
+    oak("approve", "native_consent", "--consent", match.group(1))
+    oak("approve", "apply")
+
+    oak("dispatch", "apply")
+    installed = runner()
+    assert "succeeded" in installed and "nothing is running" in installed
+    assert json.loads(oak("ingest", "--output", "json").stdout)["case"]["status"] == "deployed"
+    installations = list((tmp_path / "runner" / "native").glob("installation.*"))
+    assert (installations[0] / "START.txt").is_file()
+    assert len(installations) == 1
+    assert (installations[0] / ".oak-installation.json").is_file()
+    assert not any(_listening(port) for port in ports)
+
+    oak("approve", "destroy")
+    oak("dispatch", "destroy")
+    assert "succeeded" in runner()
+    oak("ingest")
+    assert not installations[0].exists()
+    assert (tmp_path / "runner" / "journals").is_dir()

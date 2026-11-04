@@ -47,6 +47,7 @@ from oak.interfaces.api.models import (
     CanonicalExport,
     CompileBundleRequest,
     ConfirmClaimsRequest,
+    ConfirmHardwareRequest,
     CreateDesignCaseRequest,
     DesignCaseListResponse,
     DesignCaseResponse,
@@ -61,9 +62,12 @@ from oak.interfaces.api.models import (
     ModelFamily,
     ModelSelectionRequest,
     ModelStatusResponse,
+    NativeConsentReference,
+    NativeConsentResponse,
     OperationResponse,
     OutboxLagResponse,
     Problem,
+    ProposeHardwareRequest,
     ReadinessResponse,
     ReportResponse,
     ResearchPlanResponse,
@@ -587,7 +591,9 @@ def _error_status(error: OAKError) -> int:
         return 400
     if error.code in {"OAK-MODEL-RATE-LIMITED", "OAK-OPERATION-QUOTA", "OAK-MODEL-BUDGET"}:
         return 429
-    if error.code == "OAK-DATABASE-UNCONFIGURED":
+    # A consent text the server cannot read is the server's own configuration, never the
+    # request's (ADR-0019): a consent is given only on the local command line.
+    if error.code in {"OAK-DATABASE-UNCONFIGURED", "OAK-NATIVE-CONSENT"}:
         return 503
     if error.code in {
         "OAK-CASE-NOT-FOUND",
@@ -1033,6 +1039,70 @@ def create_app(
         )
 
     @api.post(
+        "/v1/design-cases/{case_id}:propose-hardware",
+        response_model=DesignCaseResponse,
+        tags=["design-cases"],
+    )
+    def propose_hardware(
+        case_id: str,
+        body: ProposeHardwareRequest,
+        response: Response,
+        request: Request,
+        idempotency_key: IdempotencyHeader,
+        expected: ExpectedVersionHeader,
+        auth: AuthorityDependency,
+        correlation_id: CorrelationHeader = None,
+    ) -> DesignCaseResponse:
+        """Record a hardware scan's result as the case's proposal; no intent value changes."""
+
+        context = command_context(
+            request,
+            auth,
+            idempotency_key=idempotency_key,
+            expected_version=_expected_version(expected),
+            correlation_id=correlation_id,
+        )
+        result = plane().propose_hardware(case_id, body.scan, context, scanned_by=body.scanned_by)
+        response.headers["ETag"] = _etag(str(result.case["version"]))
+        return DesignCaseResponse(
+            case=result.case,
+            intent=result.intent,
+            duplicate=result.duplicate,
+        )
+
+    @api.post(
+        "/v1/design-cases/{case_id}:confirm-hardware",
+        response_model=DesignCaseResponse,
+        tags=["design-cases"],
+    )
+    def confirm_hardware(
+        case_id: str,
+        body: ConfirmHardwareRequest,
+        response: Response,
+        request: Request,
+        idempotency_key: IdempotencyHeader,
+        expected: ExpectedVersionHeader,
+        auth: AuthorityDependency,
+        correlation_id: CorrelationHeader = None,
+    ) -> DesignCaseResponse:
+        """Confirm the case's pending hardware proposal into its intent."""
+
+        context = command_context(
+            request,
+            auth,
+            idempotency_key=idempotency_key,
+            expected_version=_expected_version(expected),
+            correlation_id=correlation_id,
+        )
+        result = plane().confirm_hardware(case_id, body.proposal_id, context)
+        response.headers["ETag"] = _etag(str(result.case["version"]))
+        return DesignCaseResponse(
+            case=result.case,
+            intent=result.intent,
+            duplicate=result.duplicate,
+        )
+
+    @api.post(
         "/v1/design-cases/{case_id}:generate-candidates",
         response_model=OperationResponse,
         status_code=202,
@@ -1369,6 +1439,22 @@ def create_app(
             ),
             discovery=discovery,
             stores=status["stores"],
+        )
+
+    @api.get("/v1/native-consent", response_model=NativeConsentResponse, tags=["system"])
+    def get_native_consent(auth: AuthorityDependency) -> NativeConsentResponse:
+        """The consent text a native installation is approved against, and its digest.
+
+        What `oak approve native_consent` shows, served so the web can show it beside a native
+        plan (ADR-0019). Reading it records nothing: a consent is given only on the local
+        command line, with this digest.
+        """
+
+        del auth
+        document = plane().native_consent_text()
+        return NativeConsentResponse(
+            consent=document["consent"],
+            consent_ref=NativeConsentReference(**document["consent_ref"]),
         )
 
     @api.get("/v1/models", response_model=ModelStatusResponse, tags=["models"])

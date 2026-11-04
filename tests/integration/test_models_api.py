@@ -309,7 +309,8 @@ def test_the_mcp_surface_gains_no_model_configuration_tool() -> None:
     from oak.interfaces.mcp.tools import TOOL_NAMES
 
     assert not any("model" in name or "credential" in name or "key" in name for name in TOOL_NAMES)
-    assert len(TOOL_NAMES) == 11
+    # Twelve since Tier 3 Batch B added `oak_hardware_propose`; none configures a model.
+    assert len(TOOL_NAMES) == 12
 
 
 def test_a_provider_failure_during_discovery_keeps_its_code(client: ASGIClient) -> None:

@@ -14,12 +14,15 @@ from datetime import UTC, datetime
 from typing import Any
 
 from oak.domain import OAKError
+from oak.domain.runner_adapters import NATIVE_ADAPTER_ID, plan_apply_adapter
 
 NOTICE = (
     "Read from the design case. Producing this compiled, signed, approved and installed "
     "nothing; a user who wants only the architecture can stop here."
 )
 INSTALL_APPROVALS = ("architecture", "apply")
+# A native install also needs the consent to what it relaxes (ADR-0019).
+NATIVE_INSTALL_APPROVALS = ("architecture", "native_consent", "apply")
 
 
 def select_candidate_reference(case: dict[str, Any], candidate_id: str | None) -> dict[str, Any]:
@@ -85,6 +88,8 @@ def _installation(
     if apply is None:
         return None
     parameters = apply["parameters"]
+    if plan_apply_adapter(plan) == NATIVE_ADAPTER_ID:
+        return _native_installation(plan, parameters, approvals, now)
     entries = parameters.get("containers")
     if not isinstance(entries, list):
         # A plan compiled before the topology installer installs one stand-in container
@@ -117,6 +122,49 @@ def _installation(
                 "expires_at": (approvals.get(action) or {}).get("expires_at"),
             }
             for action in INSTALL_APPROVALS
+        },
+    }
+
+
+def _native_installation(
+    plan: dict[str, Any],
+    parameters: dict[str, Any],
+    approvals: dict[str, dict[str, Any]],
+    now: str,
+) -> dict[str, Any]:
+    """What a native install would fetch and start, and the three approvals it needs."""
+
+    return {
+        "target_id": plan["target"]["id"],
+        "superseded": False,
+        "mode": "native",
+        # Each program is started once for its check and then stopped (ADR-0019).
+        "starts_after_install": False,
+        "consent_ref": dict(parameters["consent_ref"]),
+        "components": [
+            {
+                "node_id": entry["node_id"],
+                "manifest_id": entry["manifest_id"],
+                "harness_kind": entry["harness_kind"],
+                "listen": f"127.0.0.1:{entry['listen_port']}",
+                "artifacts": [
+                    {
+                        "role": artifact["role"],
+                        "source": artifact["source"],
+                        "sha256": artifact["sha256"],
+                        "size_bytes": artifact["size_bytes"],
+                    }
+                    for artifact in entry["artifacts"]
+                ],
+            }
+            for entry in parameters["components"]
+        ],
+        "approvals": {
+            action: {
+                "state": _approval_state(approvals.get(action), now),
+                "expires_at": (approvals.get(action) or {}).get("expires_at"),
+            }
+            for action in NATIVE_INSTALL_APPROVALS
         },
     }
 
@@ -174,6 +222,20 @@ def architecture_human(document: dict[str, Any]) -> str:
     installation = architecture.get("installation")
     if installation and installation.get("superseded"):
         lines += ["", f"The plan for {installation['target_id']} was {installation['note']}."]
+    elif installation and installation.get("mode") == "native":
+        lines += [
+            "",
+            f"Would install on {installation['target_id']} outside Docker, then stop each "
+            "program after its check:",
+        ]
+        lines += [
+            f"  {item['node_id']:<24} {item['harness_kind']} on {item['listen']}"
+            for item in installation["components"]
+        ]
+        approvals = ", ".join(
+            f"{action} {entry['state']}" for action, entry in installation["approvals"].items()
+        )
+        lines += [f"Approvals a native install needs, all current: {approvals}"]
     elif installation:
         starts = "starts containers" if installation["starts_containers"] else "never starts them"
         lines += ["", f"Would install on {installation['target_id']} ({starts}):"]

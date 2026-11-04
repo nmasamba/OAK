@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from oak.domain import ArtifactReference
+from oak.domain.runner_adapters import NATIVE_ADAPTER_ID
 
 OBSERVATION_MEDIA_TYPE = "application/vnd.oak.observation-record+json"
 SINGLE_SAMPLE = "none — single non-production sample"
@@ -66,6 +67,9 @@ _METRIC_REASONS: dict[str, tuple[str, str]] = {
     ),
 }
 _NOT_MEASURED = ("not_measured", "Nothing the runner reports corresponds to this measure.")
+# How an observation names a native installation's mode (ADR-0019): no container isolation,
+# under the user's signed consent.
+NATIVE_ISOLATION = "native-user-consented"
 
 
 @dataclass(frozen=True, slots=True)
@@ -117,12 +121,21 @@ def build_observation_record(
     ]
     limitations = [
         "One install on a non-production local target; nothing here is production evidence.",
-        "Only installation, readiness and resource readings were observed; the installed "
+        "Only installation and readiness were observed; the installed programs are the "
+        "artifacts the operator acknowledged by digest in the target profile, each started "
+        "once for its check and stopped, and no request was sent to them."
+        if installation["native"]
+        else "Only installation, readiness and resource readings were observed; the installed "
         "images are whatever the operator acknowledged in the target profile, and no request "
         "was sent to them.",
         GATE_LIMITATION,
     ]
-    if installation["isolation"] != "network-none-started-hardened":
+    if installation["native"]:
+        limitations.append(
+            "A native installation runs outside any container, as the user, under the consent "
+            "recorded for it; nothing here measures what it does when the user starts it."
+        )
+    elif installation["isolation"] != "network-none-started-hardened":
         limitations.append(
             "The target does not acknowledge starting containers, so the smoke test checked "
             "creation and the resolved digest only."
@@ -193,9 +206,24 @@ class _Tally:
 
 
 def _planned_installation(plan: dict[str, Any]) -> dict[str, Any]:
+    """What the plan's ``apply`` installs: the names presence is tracked by, and its nodes.
+
+    A container install is tracked container by container; a native one (ADR-0019) as one
+    installation directory holding every node's component.
+    """
+
     for operation in plan["operations"]:
         if operation["kind"] == "apply":
             parameters = operation["parameters"]
+            adapter = operation.get("adapter")
+            if isinstance(adapter, dict) and adapter.get("id") == NATIVE_ADAPTER_ID:
+                components = parameters.get("components")
+                return {
+                    "isolation": NATIVE_ISOLATION,
+                    "names": [str(parameters.get("installation_id"))],
+                    "native": True,
+                    "nodes": len(components) if isinstance(components, list) else 0,
+                }
             entries = parameters.get("containers")
             if isinstance(entries, list):
                 names = [
@@ -206,8 +234,13 @@ def _planned_installation(plan: dict[str, Any]) -> dict[str, Any]:
                 names = [str(parameters["container_name"])]
             else:
                 names = []
-            return {"isolation": parameters.get("isolation"), "names": names}
-    return {"isolation": None, "names": []}
+            return {
+                "isolation": parameters.get("isolation"),
+                "names": names,
+                "native": False,
+                "nodes": len(names),
+            }
+    return {"isolation": None, "names": [], "native": False, "nodes": 0}
 
 
 def _dispatch_order(result: RunnerResult) -> tuple[int, str]:
@@ -226,6 +259,7 @@ def _score(results: tuple[RunnerResult, ...], installation: dict[str, Any]) -> _
     unattributable = False
     unpredicted: list[dict[str, Any]] = []
     planned = installation["names"]
+    native = bool(installation.get("native"))
     for result in sorted(results, key=_dispatch_order):
         payload = result.message.get("payload", {})
         if not isinstance(payload, dict) or payload.get("outcome") == "denied":
@@ -248,33 +282,57 @@ def _score(results: tuple[RunnerResult, ...], installation: dict[str, Any]) -> _
             rows = _rows(evidence, "status", "apply", "installation")
             was_installed = bool(planned) and all(present.get(name) for name in planned)
             if was_installed:
+                # A native re-apply adopts its own marked installation and checks it again.
                 reapply.add(
                     succeeded
                     and "apply" in applied
-                    and all(row.get("outcome") == "already_present" for row in rows),
+                    and (native or all(row.get("outcome") == "already_present" for row in rows)),
                     result.reference,
                 )
             else:
                 install.add(succeeded and "apply" in applied, result.reference)
-            for row in rows:
-                present[str(row.get("container_name"))] = True
-                seen_any = True
+            if native:
+                if succeeded and "apply" in applied:
+                    for name in planned:
+                        present[name] = True
+                        seen_any = True
+            else:
+                for row in rows:
+                    present[str(row.get("container_name"))] = True
+                    seen_any = True
             for item in evidence:
                 if item.get("category") == "test_result" and item.get("operation") == "apply":
                     content = item.get("content", {})
                     tested = [row for row in content.get("smoke_test", []) if isinstance(row, dict)]
+                    expected = int(installation.get("nodes", len(planned)))
                     complete = content.get("complete", True) is True and (
-                        not planned or len(tested) == len(planned)
+                        not expected or len(tested) == expected
                     )
                     smoke.add(bool(content.get("passed")) and complete, result.reference)
                     if succeeded and not was_installed:
                         # Startup is measured by a fresh install; a re-apply starts nothing.
-                        unpredicted = _unpredicted(evidence, result.reference)
+                        unpredicted = (
+                            _native_unpredicted(evidence, result.reference, planned[0])
+                            if native and planned
+                            else _unpredicted(evidence, result.reference)
+                        )
         for item in evidence:
             if item.get("category") != "rollback_result":
                 continue
             operation = item.get("operation")
             content = item.get("content", {})
+            if native:
+                failed_here = (operation == "rollback" and failed_kind == "rollback") or (
+                    operation == "compensation" and outcome == "manual_recovery_required"
+                )
+                removed = content.get("removed") is True
+                if operation in {"rollback", "compensation"} and (removed or failed_here):
+                    removal.add(not failed_here and content.get("absent") is True, result.reference)
+                installation_id = content.get("installation_id")
+                if content.get("absent") is True and installation_id in planned:
+                    present[str(installation_id)] = False
+                    seen_any = True
+                continue
             rows = [row for row in content.get("containers", []) if isinstance(row, dict)]
             if operation in {"rollback", "compensation"}:
                 failed_here = (operation == "rollback" and failed_kind == "rollback") or (
@@ -379,6 +437,26 @@ def _unpredicted(
             )
         )
     return measurements
+
+
+def _native_unpredicted(
+    evidence: list[dict[str, Any]], reference: ArtifactReference, installation_id: str
+) -> list[dict[str, Any]]:
+    """A native install's readings: each component's seconds from start to its first healthy
+    answer. Memory is not read: the process is stopped once it answers."""
+
+    return [
+        {
+            "node_id": str(row.get("node_id")),
+            "installation_id": installation_id,
+            "metric": "startup_seconds",
+            "value": row["seconds_to_ready"],
+            "unit": "seconds",
+            "evidence_ref": reference.to_document(),
+        }
+        for row in _rows(evidence, "test_result", "apply", "smoke_test")
+        if isinstance(row.get("seconds_to_ready"), int | float)
+    ]
 
 
 def _unpredicted_row(

@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://oak.example/schemas/native-consent.schema.json",
+  "title": "NativeConsent",
+  "description": "What a user reads and consents to before OAK installs an architecture natively (ADR-0019): each control the container installation keeps and this mode relaxes, with its risk, and the controls that stay. A `native_consent` approval names this document by digest and its relaxed controls by id.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "id", "version", "status", "title", "statement", "relaxed_controls", "retained_controls", "extensions"],
+  "properties": {
+    "schema_version": {"const": "0.1.0"},
+    "id": {"$ref": "common.schema.json#/$defs/identifier"},
+    "version": {"$ref": "common.schema.json#/$defs/semver"},
+    "status": {
+      "description": "`draft` until the owner signs off the text; `approved` after.",
+      "enum": ["draft", "approved"]
+    },
+    "title": {"type": "string", "minLength": 1, "maxLength": 160},
+    "statement": {"type": "string", "minLength": 1, "maxLength": 2000},
+    "relaxed_controls": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 16,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "relaxes", "risk"],
+        "properties": {
+          "id": {"enum": ["network_isolation", "read_only_root", "no_capabilities", "unprivileged_user", "resource_ceilings", "loopback_port"]},
+          "relaxes": {"type": "string", "minLength": 1, "maxLength": 400},
+          "risk": {"type": "string", "minLength": 1, "maxLength": 400}
+        }
+      }
+    },
+    "retained_controls": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 16,
+      "items": {"type": "string", "minLength": 1, "maxLength": 400}
+    },
+    "extensions": {"$ref": "common.schema.json#/$defs/extensions"}
+  }
+}
