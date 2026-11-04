@@ -42,7 +42,7 @@ import threading
 import time
 import zipfile
 from collections.abc import Callable, Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from importlib import resources
 from pathlib import Path, PurePosixPath
@@ -92,10 +92,28 @@ CHILD_LIMITS: tuple[tuple[str, str, int], ...] = (
 )
 NOT_LIMITED = ("memory", "cpu_time", "processes")
 
+
+@dataclass(frozen=True, slots=True)
+class DownloadProgress:
+    """How far one download has come, for a person watching. Nothing records it.
+
+    A download's first update has `written` 0 and its last has `finished` set, whether it
+    succeeded or not. `name` is the file its URL ends in, or None when that is not a plain
+    name; neither the URL nor the path on disk is ever in here.
+    """
+
+    role: str
+    name: str | None
+    written: int
+    total: int
+    finished: bool = False
+
+
 Popen = Callable[..., subprocess.Popen[bytes]]
 Fetch = Callable[..., tuple[int, str]]
 Probe = Callable[[int, str, float], int | None]
 PortFree = Callable[[int], bool]
+Progress = Callable[[DownloadProgress], None]
 
 
 @dataclass(frozen=True, slots=True)
@@ -225,6 +243,7 @@ class NativeProcessAdapter:
         platform_key: tuple[str, str] | None = None,
         sleep: Callable[[float], None] = time.sleep,
         clock: Callable[[], float] = time.monotonic,
+        progress: Progress | None = None,
     ) -> None:
         self._root = root
         self._fetch = fetch
@@ -234,6 +253,7 @@ class NativeProcessAdapter:
         self._platform = platform_key or (platform.system().lower(), platform.machine().lower())
         self._sleep = sleep
         self._clock = clock
+        self._progress = progress
 
     # ----- install ------------------------------------------------------------------
 
@@ -446,18 +466,7 @@ class NativeProcessAdapter:
                 output.write(content)
             size, digest = len(content), "sha256:" + hashlib.sha256(content).hexdigest()
         else:
-            try:
-                size, digest = self._fetch(
-                    artifact.source,
-                    download,
-                    allowed_hosts=allowed,
-                    expected_size=artifact.size_bytes,
-                    timeout=DOWNLOAD_TIMEOUT_SECONDS,
-                    deadline=deadline,
-                )
-            except OAKError:
-                download.unlink(missing_ok=True)
-                raise
+            size, digest = self._download(artifact, download, allowed, deadline)
         if size != artifact.size_bytes or digest != artifact.sha256:
             download.unlink(missing_ok=True)
             raise OAKError(
@@ -485,6 +494,52 @@ class NativeProcessAdapter:
             _delete_tree(unpacked)
         staging.rename(unpacked)
         return unpacked
+
+    def _download(
+        self,
+        artifact: NativeArtifact,
+        destination: Path,
+        allowed: frozenset[str],
+        deadline: datetime | None,
+    ) -> tuple[int, str]:
+        """Fetch one artifact, telling whoever is watching how far along it is."""
+
+        update = DownloadProgress(
+            artifact.role,
+            native_network.artifact_name(artifact.source),
+            0,
+            artifact.size_bytes,
+        )
+
+        def advanced(written: int) -> None:
+            nonlocal update
+            update = replace(update, written=written)
+            self._report(update)
+
+        self._report(update)
+        try:
+            return self._fetch(
+                artifact.source,
+                destination,
+                allowed_hosts=allowed,
+                expected_size=artifact.size_bytes,
+                timeout=DOWNLOAD_TIMEOUT_SECONDS,
+                deadline=deadline,
+                progress=advanced,
+            )
+        except OAKError:
+            destination.unlink(missing_ok=True)
+            raise
+        finally:
+            self._report(replace(update, finished=True))
+
+    def _report(self, update: DownloadProgress) -> None:
+        """A report that cannot be made is dropped, as a heartbeat's is: a write to the
+        terminal that fails is no failed install, and inside `fetch` it would read as one."""
+
+        if self._progress is not None:
+            with contextlib.suppress(OSError, ValueError):
+                self._progress(update)
 
     @staticmethod
     def _command(
