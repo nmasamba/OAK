@@ -6,6 +6,20 @@ All notable changes to OAK Community are recorded here.
 
 ## Unreleased
 
+### After Batch B (`OAK-V1-044`)
+
+#### Changed
+
+- **A native install says what it is downloading.** `oak-runner run-once` printed nothing
+  until the dispatch ended, which read as a hang: more than three minutes for the rehearsal's
+  491 MB model. At a terminal it now names each file and its size, then repaints the bytes so
+  far and the percentage. When stdout is a file or a pipe it prints no progress, so what a
+  script captures does not change. A file is named by the last segment of its URL as written,
+  without the host or the query string, or by its role when that is not a plain name.
+  Progress is shown and forgotten: no journal, evidence, heartbeat or other signed message
+  gains anything, and a terminal that goes away during a download fails nothing. The check
+  that follows a download still prints nothing while it waits.
+
 ### Tier 3, Batch B (`OAK-V1-039`–`043`)
 
 The second batch of Tier 3, launched by the owner on 2026-11-02: hardware scanning, then native

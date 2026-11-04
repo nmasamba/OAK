@@ -30,6 +30,8 @@ CHUNK_BYTES = 1 << 20
 _HOST = re.compile(
     r"(?=.{1,253}$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*"
 )
+# How a file may be shown to a person: printable, bounded, and not read as an option.
+_FILE_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._~%+=-]{0,119}")
 
 Opener = Callable[[str, float], Any]
 
@@ -52,6 +54,20 @@ def https_host(url: str) -> str | None:
     if parts.scheme != "https" or parts.username is not None or parts.password is not None:
         return None
     return parts.hostname
+
+
+def artifact_name(source: str) -> str | None:
+    """The file a URL ends in, as written, for a person to read; None if it is not plain.
+
+    Only that last segment: never the host, the directories or the query string, which can
+    carry a signed link's token. It is never decoded, so an escape stays inert text.
+    """
+
+    try:
+        name = urllib.parse.urlsplit(source).path.rsplit("/", 1)[-1]
+    except ValueError:
+        return None
+    return name if _FILE_NAME.fullmatch(name) else None
 
 
 class _AllowedRedirects(urllib.request.HTTPRedirectHandler):
@@ -106,11 +122,13 @@ def fetch(
     timeout: float,
     opener: Opener | None = None,
     deadline: datetime | None = None,
+    progress: Callable[[int], None] | None = None,
 ) -> tuple[int, str]:
     """Download ``source`` into a new file at ``destination``.
 
     Returns the number of bytes written and their SHA-256. The caller compares both with
-    what the target profile acknowledges before anything is unpacked or run.
+    what the target profile acknowledges before anything is unpacked or run. ``progress``
+    is told the bytes written so far after each chunk, so never more than ``expected_size``.
     """
 
     if https_host(source) not in allowed_hosts:
@@ -144,6 +162,8 @@ def fetch(
                     )
                 digest.update(chunk)
                 output.write(chunk)
+                if progress is not None:
+                    progress(written)
     except (
         urllib.error.URLError,
         http.client.HTTPException,
