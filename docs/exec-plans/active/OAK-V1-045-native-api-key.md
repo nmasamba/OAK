@@ -7,8 +7,8 @@
 - Owner/agent: owner-directed coding agent
 - Started: 2026-11-04
 - Last updated: 2026-11-05
-- State: in-progress: the code is final and the PR is open; a clean local `make check` on the
-  final commit is still to come (see Progress)
+- State: in-progress: the code is final, PR #46 is open and CI is green on it; a clean local
+  `make check` on the final commit is still owed, and needs the Mac awake (see Progress)
 - Claimed tasks: `OAK-V1-045`
 
 ## Outcome
@@ -163,6 +163,16 @@ did. Nothing migrates, and nothing outside the installation's folder changes.
   `test_a_run_records_each_consumed_nonce_with_its_lease_expiry`, so the end-to-end suite did not
   run. See Discoveries: the Mac slept during the run. That test passes alone in 1.4 seconds, which
   explains the failure and does not replace a clean gate.
+- [ ] 2026-11-05 Gate on `3da4046`, the code as it stands: **not clean, the same way.** The lid was
+  still closed. Unit and contract 1,531 passed; integration stopped on another real-clock test,
+  `test_a_re_apply_over_the_installation_is_measured_as_idempotent`, with "lease has expired"
+  twice on stderr, so the end-to-end suite did not run. It passes alone in 2.2 seconds. **The last
+  clean local gate is `58faca1`, before the review's fixes.** A clean one on the final code still
+  needs a run with the Mac awake, about 13 minutes.
+- [x] 2026-11-05 CI on `3da4046`. The `pull_request` run (41959844676) is green on all four jobs:
+  `check`, `check-linux-arm64`, `check-macos-arm64` and `web-e2e`, the first three running `make
+  check` with PostgreSQL. In the `push` run of the same commit, `check-macos-arm64` failed on a test
+  this change does not touch; see Discoveries. That job was rerun.
 - [x] 2026-11-05 The final client line (`sed ... | curl --noproxy '*' -K -`) was run with the real
   `sed` and `curl` against a server that recorded what arrived, because the rehearsal's files
   had already been deleted, as the owner's approval required, and a third download was not
@@ -228,6 +238,14 @@ The journey test also moved to `tests/integration/test_native_key_journey.py`, s
 
 ## Discoveries and follow-ups
 
+- 2026-11-05 CI. **The skip ledger refused a new skip.** `scripts/check_skips.py` counts every
+  skip by reason per job, and the first version of the client test skipped where `zsh` is absent,
+  which failed `check` and `check-linux-arm64` after every suite had passed. The shells are now
+  chosen at collection time, so a missing shell is not a skip; the macOS job runs all three.
+- 2026-11-05 CI, for a follow-up. `tests/unit/test_model_transport.py::test_a_provider_that_trickles_its_status_line_is_cut_off_at_the_deadline`
+  failed once on `check-macos-arm64` at 8.40 seconds against its bound of 8, and passed on the same
+  commit in the other run. A wall-clock bound on a shared runner, in code this change does not
+  touch. Left for its own small fix.
 - 2026-11-05 Gate. **A Mac that sleeps during the gate can fail a real-clock lease test.** The lid
   was closed, so from about 00:15 UTC the machine ran only in maintenance wakes of one or two
   minutes every fifteen (`pmset -g log`; `AppleClamshellState` Yes). `test_runner_soak.py` signs a
