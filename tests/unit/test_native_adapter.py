@@ -10,6 +10,7 @@ import json
 import os
 import re
 import resource
+import secrets
 import shutil
 import signal
 import socket
@@ -809,12 +810,13 @@ class LlamaRelease:
 
     def popen(self, argv: list[str], **keywords: Any) -> Any:
         self.started.append((list(argv), keywords))
-        return subprocess.Popen([sys.executable, "-I", *argv], **keywords)
+        program = [sys.executable, "-I"] if Path(argv[0]).name == "llama-server" else []
+        return subprocess.Popen([*program, *argv], **keywords)
 
     def adapter(self, root: Path, **keywords: Any) -> NativeProcessAdapter:
         return NativeProcessAdapter(root, fetch=self.fetch, popen=self.popen, **keywords)
 
-    def _artifact(self, role: str, source: str, format_: str) -> dict[str, Any]:
+    def artifact(self, role: str, source: str, format_: str) -> dict[str, Any]:
         content = self.files[source]
         return {
             "role": role,
@@ -835,8 +837,8 @@ class LlamaRelease:
                 "node_id": node,
                 "harness_kind": "llama_cpp_server",
                 "artifacts": [
-                    self._artifact("harness", "https://example.org/llama.tar.gz", "tar.gz"),
-                    self._artifact("model", "https://example.org/model.gguf", "file"),
+                    self.artifact("harness", "https://example.org/llama.tar.gz", "tar.gz"),
+                    self.artifact("model", "https://example.org/model.gguf", "file"),
                 ],
                 "listen_port": _free_port(),
             }
@@ -915,9 +917,7 @@ def test_a_server_gets_the_path_of_the_key_and_never_the_key(tmp_path: Path) -> 
         assert key not in " ".join(keywords["env"].values())
 
 
-def test_the_check_refuses_a_request_without_the_key_and_never_runs_the_model(
-    tmp_path: Path,
-) -> None:
+def test_the_check_asks_for_the_generation_path_without_the_key(tmp_path: Path) -> None:
     probed: list[str] = []
 
     def probe(port: int, path: str, timeout: float) -> int | None:
@@ -1013,8 +1013,8 @@ def test_start_txt_says_how_a_client_sends_the_key_without_holding_it(tmp_path: 
     quoted = f"'{_key_file(root)}'"
     assert f"--api-key-file {quoted}" in text
     # The key goes to curl on its input: `curl -H "...$(cat file)"` would put it in `ps`.
-    assert f"""printf 'header = "Authorization: Bearer %s"\\n' "$(cat {quoted})" |""" in text
-    assert f"curl -K - http://127.0.0.1:{port}/v1/models" in text
+    assert f"""sed 's/.*/header = "Authorization: Bearer &"/' {quoted} |""" in text
+    assert f"curl --noproxy '*' -K - http://127.0.0.1:{port}/v1/models" in text
     assert "curl -H" not in text
     prose = " ".join(text.split())
     assert "which only your user account can read" in prose
@@ -1074,8 +1074,21 @@ def test_a_key_file_that_is_no_longer_the_one_oak_wrote_is_replaced(
     assert path.read_bytes() != before
 
 
-def test_a_link_in_place_of_the_key_file_is_refused_before_anything_starts(
-    tmp_path: Path,
+def _a_link(path: Path, elsewhere: Path) -> None:
+    path.symlink_to(elsewhere)
+
+
+def _a_pipe(path: Path, elsewhere: Path) -> None:
+    os.mkfifo(path)
+
+
+def _a_folder(path: Path, elsewhere: Path) -> None:
+    path.mkdir()
+
+
+@pytest.mark.parametrize("replacement", [_a_link, _a_pipe, _a_folder])
+def test_anything_but_a_file_in_place_of_the_key_file_is_refused_before_anything_starts(
+    tmp_path: Path, replacement: Callable[[Path, Path], None]
 ) -> None:
     root = tmp_path / "native"
     release = LlamaRelease(tmp_path)
@@ -1086,7 +1099,7 @@ def test_a_link_in_place_of_the_key_file_is_refused_before_anything_starts(
     elsewhere = tmp_path / "elsewhere.txt"
     elsewhere.write_text("not a key", encoding="utf-8")
     path.unlink()
-    path.symlink_to(elsewhere)
+    replacement(path, elsewhere)
     release.started.clear()
 
     with pytest.raises(AdapterFailureError) as caught:
@@ -1096,6 +1109,156 @@ def test_a_link_in_place_of_the_key_file_is_refused_before_anything_starts(
     assert caught.value.created == (), "the installation was already there, so it stays"
     assert release.started == []
     assert elsewhere.read_text(encoding="utf-8") == "not a key"
+
+
+def test_a_key_only_its_owner_can_read_is_kept_however_they_set_it(tmp_path: Path) -> None:
+    root = tmp_path / "native"
+    release = LlamaRelease(tmp_path)
+    parameters = release.parameters()
+    adapter = release.adapter(root)
+    adapter.apply(parameters, 120)
+    path = _key_file(root)
+    before = path.read_bytes()
+    path.chmod(0o400)
+
+    adapter.apply(parameters, 120)
+
+    assert path.read_bytes() == before
+    assert stat.S_IMODE(os.lstat(path).st_mode) == 0o400
+
+
+def test_a_key_nobody_can_read_is_replaced(tmp_path: Path) -> None:
+    root = tmp_path / "native"
+    release = LlamaRelease(tmp_path)
+    parameters = release.parameters()
+    adapter = release.adapter(root)
+    adapter.apply(parameters, 120)
+    path = _key_file(root)
+    before = path.read_bytes()
+    path.chmod(0o000)
+
+    evidence = adapter.apply(parameters, 120)
+
+    assert evidence[1]["content"]["passed"] is True
+    assert path.read_bytes() != before
+
+
+def test_a_write_that_fails_leaves_no_key_file_rather_than_an_empty_one(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An empty file would start a server with no key under a `START.txt` that still says to
+    start it. With no file at all, the server refuses to start."""
+
+    root = tmp_path / "native"
+    release = LlamaRelease(tmp_path)
+    parameters = release.parameters()
+    adapter = release.adapter(root)
+    adapter.apply(parameters, 120)
+    path = _key_file(root)
+    path.chmod(0o644)
+
+    def no_space(size: int) -> str:
+        raise OSError("no space left on device")
+
+    with monkeypatch.context() as patched:
+        patched.setattr("oak.runner.native.secrets.token_hex", no_space)
+        with pytest.raises(AdapterFailureError) as caught:
+            adapter.apply(parameters, 120)
+
+    assert caught.value.code == "OAK-NATIVE-IO"
+    assert caught.value.created == (), "the installation stays"
+    assert not path.exists(), "neither the exposed key nor an empty file"
+
+    evidence = adapter.apply(parameters, 120)
+
+    assert evidence[1]["content"]["passed"] is True
+    assert re.fullmatch(rb"[0-9a-f]{64}\n", path.read_bytes())
+    assert not (root / INSTALLATION / f"{API_KEY_FILE}.tmp").exists()
+
+
+def test_the_key_file_is_owner_only_before_anything_is_in_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "native"
+    release = LlamaRelease(tmp_path)
+    generate = secrets.token_hex
+    seen: list[tuple[int, int]] = []
+
+    def watched(size: int) -> str:
+        details = os.lstat(root / INSTALLATION / f"{API_KEY_FILE}.tmp")
+        seen.append((stat.S_IMODE(details.st_mode), details.st_size))
+        return generate(size)
+
+    monkeypatch.setattr("oak.runner.native.secrets.token_hex", watched)
+    before = os.umask(0)
+    try:
+        release.adapter(root).apply(release.parameters(), 120)
+    finally:
+        os.umask(before)
+
+    assert seen == [(0o600, 0)]
+    assert stat.S_IMODE(os.lstat(_key_file(root)).st_mode) == 0o600
+
+
+def test_only_the_model_server_of_a_mixed_installation_takes_the_key(tmp_path: Path) -> None:
+    root = tmp_path / "native"
+    release = LlamaRelease(tmp_path)
+    parameters = release.parameters()
+    parameters["components"].insert(0, _parameters(port=_free_port())["components"][0])
+
+    evidence = release.adapter(root).apply(parameters, 120)
+
+    rows = {row["node_id"]: row for row in evidence[1]["content"]["smoke_test"]}
+    assert rows["node.generation"]["status_without_key"] == 401
+    assert "status_without_key" not in rows["node.answer"]
+    text = (root / INSTALLATION / START_FILE).read_text(encoding="utf-8")
+    assert API_KEY_FILE in text.partition("node.answer")[0], "the key is named once, up front"
+    stand_in, _, server = text.partition("node.generation (llama_cpp_server)")
+    assert "curl" not in stand_in and "curl" in server
+
+
+AWKWARD = 'a space, $HOME, `date`, it\'s "quoted" & !'
+
+
+@pytest.mark.parametrize("shell", ["sh", "bash", "zsh"])
+def test_the_client_in_start_txt_runs_as_written(tmp_path: Path, shell: str) -> None:
+    """Pasted into a shell, under a path that needs quoting: it hands curl the header on its
+    input, keeps the key off every command line, and asks for no proxy."""
+
+    if shutil.which(shell) is None:
+        pytest.skip(f"{shell} is not installed")
+    root = tmp_path / AWKWARD / "native"
+    release = LlamaRelease(tmp_path)
+    release.adapter(root).apply(release.parameters(), 120)
+    lines = (root / INSTALLATION / START_FILE).read_text(encoding="utf-8").splitlines()
+    first = next(index for index, line in enumerate(lines) if line.lstrip().startswith("sed "))
+    client = "\n".join(lines[first : first + 2])
+    stub = tmp_path / "bin"
+    stub.mkdir()
+    (stub / "curl").write_text(
+        '#!/bin/sh\nprintf "%s\\n" "$@" > "$RECORD.argv"\ncat > "$RECORD.input"\n',
+        encoding="utf-8",
+    )
+    (stub / "curl").chmod(0o700)
+    record = tmp_path / "curl"
+
+    ran = subprocess.run(
+        [shell, "-c", client],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+        env={"PATH": f"{stub}{os.pathsep}{os.defpath}", "RECORD": str(record)},
+    )
+
+    assert ran.returncode == 0, ran.stderr
+    key = _key_file(root).read_text(encoding="ascii").strip()
+    assert Path(f"{record}.input").read_text(encoding="utf-8") == (
+        f'header = "Authorization: Bearer {key}"\n'
+    )
+    argv = Path(f"{record}.argv").read_text(encoding="utf-8").split()
+    assert argv[:4] == ["--noproxy", "*", "-K", "-"]
+    assert key not in argv
 
 
 def test_removing_the_installation_removes_its_key(tmp_path: Path) -> None:

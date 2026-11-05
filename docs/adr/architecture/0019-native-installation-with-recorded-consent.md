@@ -84,10 +84,12 @@ rather than letting the mode contradict it silently.
   the user only, and hands the server the path (`--api-key-file`) in its fixed argument
   template. The key is in no argument vector, environment, evidence, journal or record, and that
   folder is the only place it lives; `START.txt` names the file and shows how a client sends it.
-  A later `apply` keeps a key that is still what the runner wrote, replaces a file that is not,
-  because `--api-key-file` reads an empty file as no key at all, and refuses a link in its
-  place. The smoke test proves the key is in force: once the server is healthy, a request
-  without the key must answer `401`, or the install fails (`OAK-NATIVE-KEY`). The stand-in
+  A later `apply` keeps a key that only its owner can read and that is still what the runner
+  wrote, replaces a file that is not, because `--api-key-file` reads an empty file as no key at
+  all, and refuses anything but a file in its place; a new key is written aside and renamed in,
+  so a failed write leaves no file, which the server refuses to start without. The smoke test
+  proves the key is in force: once the server is healthy, a request without the key must be
+  refused with `401`, or the install fails (`OAK-NATIVE-KEY` for any other answer). The stand-in
   answers only its health path and takes no key.
 - **The consent is a record, not a checkbox.** Its text is a document in the catalogue,
   `consent/native-installation.yaml`, validated by `native-consent.schema.json`, naming each

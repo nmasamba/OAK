@@ -237,7 +237,7 @@ What the second rehearsal showed, on 2026-11-04, with the same build, model and 
 - **Without the key,** `/health`, `/v1/health` and the server's own web page answered, and
   `/v1/models`, `/models`, `/props`, `/slots`, `/metrics` and `/v1/chat/completions` answered
   401, as did a wrong key. That web page loads, says "Access denied" and offers Enter API Key.
-- **With the key,** `START.txt`'s commands worked as written, and a question sent with
+- **With the key,** the server started from `START.txt` as written, and a question sent with
   `Authorization: Bearer <key>` or with `X-Api-Key: <key>` was answered.
 - **From a web page in a browser** (the desktop app's own pane, Chromium 152), served from
   another origin on the same computer. Against a control started with no key, the page read
@@ -251,7 +251,10 @@ What the second rehearsal showed, on 2026-11-04, with the same build, model and 
   may ask, or allow it.
 - **`ps`** showed the key file's path and never the key while the server ran. A client that puts
   the key on its own command line does show it while it runs, which `curl -H` with `$(cat ...)`
-  did, so `START.txt`'s example hands it to `curl` on its input instead, and that showed nothing.
+  did, so `START.txt`'s example hands it to `curl` on its input instead. That form was measured
+  against a server that recorded what arrived, not against `llama-server`, whose files were
+  gone by then: no command line held the key, and the header arrived as `Authorization: Bearer
+  <key>`, the form `llama-server` had answered.
 
 ## What is not tested where
 

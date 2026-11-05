@@ -747,8 +747,9 @@ def _ensure_api_key(directory: Path) -> None:
 
     A key someone else could have read is no longer a secret, and a file holding anything
     but the line OAK writes may leave a server with no key at all: `--api-key-file` skips
-    empty lines and comments without complaint. Either is replaced, so a re-apply keeps a
-    good key working for the clients that hold it and never adopts a bad one.
+    empty lines and comments, and a server with no keys asks for none. Either is removed. A
+    new key is written aside and renamed into place, so a write that fails leaves no file,
+    which the server refuses to start without, and never an empty one.
     """
 
     path = directory / API_KEY_FILE
@@ -756,16 +757,20 @@ def _ensure_api_key(directory: Path) -> None:
         details = os.lstat(path)
         if not stat.S_ISREG(details.st_mode):
             raise OAKError("OAK-NATIVE-OWNERSHIP", "the installation's key file is not a file")
-        if stat.S_IMODE(details.st_mode) == 0o600:
+        # Its owner can read it and nobody else can, however the owner set that.
+        if stat.S_IMODE(details.st_mode) & 0o477 == 0o400:
             with path.open("rb") as held:
                 if API_KEY_LINE.fullmatch(held.read(2 * API_KEY_BYTES + 2)):
                     return
         path.unlink()
+    temporary = directory / f"{API_KEY_FILE}.tmp"
+    temporary.unlink(missing_ok=True)
     # Created owner-only and exclusively, so it is never readable by anyone else, and never
     # written through a link.
-    created = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    created = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(created, "w", encoding="ascii") as output:
         output.write(secrets.token_hex(API_KEY_BYTES) + "\n")
+    temporary.replace(path)
 
 
 def _delete_tree(path: Path) -> None:
@@ -873,10 +878,10 @@ def _write_start_instructions(
         ]
         if component.harness_kind in KEYED_PATHS:
             lines += [
-                "  A client sends the key in its Authorization header. This one does, and hands",
-                "  it to curl on its input: on a command line, other users could see it.",
-                f"""  printf 'header = "Authorization: Bearer %s"\\n' "$(cat {key_file})" |""",
-                f"    curl -K - {origin}/v1/models",
+                "  A client sends the key in its Authorization header. This one hands it to curl",
+                "  on its input, not on its command line, where other users could see it:",
+                f"""  sed 's/.*/header = "Authorization: Bearer &"/' {key_file} |""",
+                f"    curl --noproxy '*' -K - {origin}/v1/models",
                 f"  The server's own web page, {origin}/, asks for it: choose Enter API Key.",
             ]
     path = directory / START_FILE

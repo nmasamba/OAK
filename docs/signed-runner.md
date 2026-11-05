@@ -369,15 +369,17 @@ writes 256 random bits to `api-key.txt` in the installation's directory, readabl
 only, and it gives the server that file's path, never the key, so the key is in no argument
 vector, environment, evidence, journal or record. `START.txt` names the file and shows how a
 client sends the key (`Authorization: Bearer <key>`, handed to `curl` on its input so that the
-client does not put it in `ps` either), and does not hold it. A later `apply` keeps a key that
-is still what the adapter wrote, so the clients that hold it go on working. It replaces a file
-that others could read or that holds anything else, because `--api-key-file` skips empty lines
-and comments without complaint and would leave the server with no key at all, and it refuses a
-link in the file's place (`OAK-NATIVE-OWNERSHIP`). Once the server has answered
-its health probe twice, its check sends `GET /v1/chat/completions` with no key. The server
-refuses that before it routes, so no model runs, and the row records the answer as
-`status_without_key`. Anything but `401` fails the install (`OAK-NATIVE-KEY`), so a build that
-ignores the key is never left for the user to start. The stand-in answers only its health path
+client does not put it in `ps` either, and past any proxy), and does not hold it. A later
+`apply` keeps a key that only its owner can read and that is still what the adapter wrote, so
+the clients that hold it go on working. It replaces anything else, because a file that others
+could read is no longer a secret, and `--api-key-file` skips empty lines and comments, which
+would start the server with no key at all. It writes a new key aside and renames it into place,
+so a write that fails leaves no file, which the server refuses to start without, and it refuses
+anything but a file in that place (`OAK-NATIVE-OWNERSHIP`). Once the server has answered its
+health probe twice, its check sends `GET /v1/chat/completions` with no key. The server refuses
+that before it routes, so no model runs, and the row records the answer as
+`status_without_key`. Any answer but `401` fails the install (`OAK-NATIVE-KEY`), and no answer
+fails it as any other check does (`OAK-NATIVE-SMOKE`). The stand-in answers only its health path
 and takes no key.
 
 `rollback` and `destroy` remove exactly the installation's directory after checking its

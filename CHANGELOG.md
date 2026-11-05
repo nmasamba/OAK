@@ -21,16 +21,18 @@ it, knowing a key changes what every client sends.
   `ps`. It reaches no evidence, journal or record: the folder is the only place it lives.
   **A client of a running server must now send `Authorization: Bearer <key>`** (or
   `X-Api-Key: <key>`); `START.txt` names the file and shows how, handing the key to `curl` on
-  its input so that the client does not put it in `ps` either, and does not hold the key. A
-  second `apply` keeps a good key, replaces a file that others could read or that holds anything
-  else, and refuses a link in its place. `/health` stays open, so the check still works, and
+  its input, so that the client does not put it in `ps` either, and past any proxy, and it does
+  not hold the key. A second `apply` keeps a key only its owner can read, replaces a file that
+  others could read or that holds anything else, and refuses anything but a file in its place.
+  A new key is written aside and renamed into place, so a write that fails leaves no file, which
+  the server refuses to start without. `/health` stays open, so the check still works, and
   so does the server's own web page, which then asks for the key. OAK's stand-in answers only
   its health path and takes no key.
 - **The check proves the key is in force.** Once a model server is healthy, a request without
-  the key must answer `401`, or the install fails with the new code `OAK-NATIVE-KEY` and nobody
-  is told to start the server. `--api-key-file` reads an empty file as no key at all and says
-  nothing, so answering the health probe proves nothing here. The row records the answer as
-  `status_without_key`.
+  the key must be refused with `401`: any other answer fails the install with the new code
+  `OAK-NATIVE-KEY`, and no answer fails it with `OAK-NATIVE-SMOKE`. `--api-key-file` reads an
+  empty file as no key at all and starts the server anyway, so answering the health probe proves
+  nothing here. The row records the answer as `status_without_key`.
 - **The draft consent text's `loopback_port` says what is now true:** a web page or another
   program can reach the port and tell something is there, but cannot use a model server without
   the key, and any program running as you can read it. Its digest moves to

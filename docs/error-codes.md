@@ -47,7 +47,7 @@ documented flow uses it.
 | `OAK-NATIVE-DIGEST` | A downloaded or copied artifact's size or SHA-256 is not what the target profile acknowledges | Nothing was run. Check the profile's `sha256` and `size_bytes` against the publisher's release, or the source |
 | `OAK-NATIVE-HOST` | A download, or one of its redirects, reached a host the profile does not list in `allowed_download_hosts` | Add the host only if you trust it; nothing was written from it |
 | `OAK-NATIVE-SMOKE` | An installed component did not answer its health probe in time, or stopped answering | It was stopped and the install removed. Check the profile's `health_probe` and `listen_port`, and the component's `run.log` |
-| `OAK-NATIVE-KEY` | A model server answered a request that carried no key, so the installation's key is not in force | It was stopped and the install removed, so nobody is told to start it. Check that the build the profile pins takes `--api-key-file`, and read the component's `run.log` |
+| `OAK-NATIVE-KEY` | A model server answered a request that carried no key with something other than a refusal, so the installation's key is not in force | It was stopped, and a new install was removed with its log. The build the profile pins took `--api-key-file` and did not enforce it: pin a build that does |
 | `OAK-NATIVE-STOP` | A process a component started was still running after the stop | The install was removed, but that process was not: find and stop it yourself. Only a program built to leave its process group does this |
 | `OAK-NATIVE-OWNERSHIP` | The installation's directory exists but the runner did not create and mark it | Nothing was changed or removed. Move that directory aside yourself if it is not needed |
 | `OAK-NATIVE-PLATFORM` | Native installation was asked of a platform it does not support | It runs on macOS on Apple silicon and on Linux on x86_64 and aarch64; elsewhere, use a container target |
@@ -494,11 +494,11 @@ documented flow uses it.
 | `OAK-NARRATIVE-MALFORMED` | the model's answer was longer than allowed; the model's answer was not the requested JSON; the narrator did not name its model | `src/oak/adapters/models/report_narrator.py:121` |
 | `OAK-NARRATIVE-MODE` | narrative must be deterministic, online or local | `src/oak/application/report/service.py:120` |
 | `OAK-NARRATIVE-UNAVAILABLE` | the provider did not answer; the provider did not answer within the request deadline | `src/oak/adapters/models/fake_narrator.py:33` |
-| `OAK-NATIVE-ARCHIVE` | an archive link chain is too long; an archive link is too long; an archive link leaves its directory; and 7 more | `src/oak/runner/native.py:1008` |
+| `OAK-NATIVE-ARCHIVE` | an archive link chain is too long; an archive link is too long; an archive link leaves its directory; and 7 more | `src/oak/runner/native.py:1013` |
 | `OAK-NATIVE-CONSENT` | --consent belongs to `oak approve native_consent` only; a native target compiles only with its consent document; give the digest of the consent text you read; `oak approve native_consent` shows the text and its digest; and 9 more (some dynamic) | `src/oak/adapters/catalogue/consent.py:28` |
 | `OAK-NATIVE-DIGEST` | an artifact's size or SHA-256 differs from what the target profile acknowledges | `src/oak/runner/native.py:487` |
 | `OAK-NATIVE-DOWNLOAD` | an artifact could not be downloaded | `src/oak/runner/native_network.py:155` |
-| `OAK-NATIVE-HARNESS` | the harness kind has no argument template; the stand-in names no file OAK ships (some dynamic) | `src/oak/runner/native.py:1043` |
+| `OAK-NATIVE-HARNESS` | the harness kind has no argument template; the stand-in names no file OAK ships (some dynamic) | `src/oak/runner/native.py:1048` |
 | `OAK-NATIVE-HOST` | a download ended on a host the target profile does not acknowledge; an artifact's host is not one the target profile acknowledges (some dynamic) | `src/oak/runner/native_network.py:117` |
 | `OAK-NATIVE-IO` | *reason or mapping code; carries no fixed message* | `src/oak/runner/native.py:415` |
 | `OAK-NATIVE-KEY` | a model server answered a request that carried no key | `src/oak/runner/native.py:395` |
