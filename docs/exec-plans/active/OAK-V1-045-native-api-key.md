@@ -121,9 +121,10 @@ did. Nothing migrates, and nothing outside the installation's folder changes.
   one line. Started from `START.txt`: `/health` and `/v1/health` 200; `/v1/models`, `/models`,
   `/props`, `/slots`, `/metrics` and `/v1/chat/completions` 401, GET and POST; a wrong key 401;
   `Authorization: Bearer` and `X-Api-Key` each answered "Paris"; listening on 127.0.0.1 only;
-  exit 0 on SIGINT. A second signed `apply` took 8 seconds, downloaded nothing, kept the key and
-  passed its check, and `START.txt`'s final client lines worked as written. `grep` for the key
-  over everything both applies wrote found only `api-key.txt`. `oak observe` read `present`,
+  exit 0 on SIGINT. A second signed `apply`, on the next commit's code, took 8 seconds, downloaded
+  nothing, kept the key and passed its check, and the client lines `START.txt` held then
+  (`printf ... | curl -K -`) worked as written. `grep` for the key over everything both applies
+  wrote found only `api-key.txt`. `oak observe` read `present`,
   with `EV-DEP-01`, `EV-DEP-02` and the smoke test passing, then `removed`; the uninstall took a
   second, a canary beside the folder stayed, and all three journals verified against their
   signed heads. Everything the rehearsal wrote was then deleted.
@@ -143,6 +144,48 @@ did. Nothing migrates, and nothing outside the installation's folder changes.
   `/health`, or passing on another status, the stand-in given a key or a row field, a re-apply
   never keeping the key, one key for everyone, the key in `START.txt`, `START.txt` without its
   client, and the key in evidence, once against the unit test and once against the journey.
+
+- [x] 2026-11-04 Gate on `58faca1`: `make check` with the throwaway PostgreSQL, no `make: ***`
+  line; unit and contract 1,521 passed, integration 637, end to end 47, and the database showed
+  280 artifact versions and 60 case versions from the gated suites. Superseded by the gate below.
+- [x] 2026-11-04 Closing review: one independent reader, given the diff and llama.cpp's sources,
+  not the author's conclusions. Eight findings and five test gaps; see the table below. All
+  fixed, each with a test where it was code. The review found no path for the key into evidence,
+  a journal, a message, an argument vector or an environment, and no way for the check to pass
+  without the key.
+- [x] 2026-11-05 Mutation checks again, on the code the review changed: 29 of 29 failed a test,
+  among them each gap the review named (a key written in place, written then `chmod`, a folder or
+  a pipe let through, `all` for `any` at both sites, the key on `curl`'s command line, a proxy
+  taken from the environment).
+- [x] 2026-11-05 The final client line (`sed ... | curl --noproxy '*' -K -`) was run with the real
+  `sed` and `curl` against a server that recorded what arrived, because the rehearsal's files
+  had already been deleted, as the owner's approval required, and a third download was not
+  worth it for a line that sends the same bytes. No command line held the key while it ran; the
+  header arrived as exactly `Authorization: Bearer <key>`, the form the real server answered;
+  with `http_proxy` and `ALL_PROXY` set, the proxy saw nothing, and without `--noproxy` it saw the
+  key. A unit test runs the same line in `sh`, `bash` and `zsh` under a path holding a space,
+  `$`, a backtick, both quotes, `&` and `!`.
+
+## Closing review
+
+| # | Finding | Fixed by |
+|---|---|---|
+| 1 | Medium. Replacing a key was not atomic: a write that failed left an empty key file under a live `START.txt`, which starts a server with no key | A new key is written aside and renamed into place, so a failure leaves no file, which the server refuses to start without; `test_a_write_that_fails_leaves_no_key_file_rather_than_an_empty_one` |
+| 2 | `START.txt`'s client would hand the key to a proxy named in the environment | `curl --noproxy '*'`, measured with a recording proxy |
+| 3 | A `!` in the path broke the client line in interactive bash, because the path sat in double quotes | `sed` reads the file, so the path is only ever single-quoted and the key never passes through the shell; `test_the_client_in_start_txt_runs_as_written` |
+| 4 | `OAK-NATIVE-KEY`'s remedy cited a `run.log` compensation deletes, and a build lacking the flag, which fails `OAK-NATIVE-SMOKE` instead | The row says what the code means: a build that took the flag and did not enforce it |
+| 5 | "Anything but 401" fails with `OAK-NATIVE-KEY` was untrue of no answer at all | `docs/signed-runner.md`, the changelog and ADR-0019 say which code each case gets |
+| 6 | The mode rule replaced a key at `0400`, against "keeps a good key" | A key only its owner can read is kept, however they set that; `test_a_key_only_its_owner_can_read_is_kept_however_they_set_it` |
+| 7 | `STATUS.md` named the plan in `completed/` while it was in `active/` | The close moves it |
+| 8 | The changelog said an empty key file "says nothing"; the server warns | Reworded: it starts the server anyway |
+| T1 | Writing then `chmod` in place of the exclusive owner-only create survived | `test_the_key_file_is_owner_only_before_anything_is_in_it`, under `umask 0` |
+| T2 | A pipe or a folder in the key file's place was untested | The refusal test covers a link, a pipe and a folder |
+| T3 | `any` to `all` survived: no installation mixed the stand-in and a server | `test_only_the_model_server_of_a_mixed_installation_takes_the_key` |
+| T4 | A test's name claimed the model never ran, which it cannot see | Renamed; the real build's log is what showed that |
+| T5 | The journey's `401` came from a server that never read the key | The journey now installs the same fake as the unit tests, which reads the file and enforces it |
+
+The journey test also moved to `tests/integration/test_native_key_journey.py`, so that
+`NativeJourney` stays as it is and this branch stops conflicting with PR #45 in that file.
 
 ## Decisions
 
@@ -194,10 +237,14 @@ did. Nothing migrates, and nothing outside the installation's folder changes.
   instructions. `START.txt` now hands the header to `curl` on its input (`curl -K -`), which
   measured clean. An example is code too.
 - 2026-11-04 M2. **The server's own page asks for the key itself** (Enter API Key), so `START.txt`
-  says so rather than pointing into its settings, as reading the source had suggested.
+  says so rather than pointing into its settings, as reading the source had suggested. The key
+  was not typed in, so what the page does once it holds the key was not observed.
 - 2026-11-04 M2. **`GET /` answers 415 to a client that offers no gzip,** which looks like a
   refusal and is not: it is the web UI's own check, with or without a key.
 - 2026-11-04 M2. On the control, `/v1/models` gave the page the model's full path, and so the
   user's home directory. With the key it answers 401.
+- 2026-11-04 Review, for a follow-up. `OAK-NATIVE-SMOKE`'s remedy in `docs/error-codes.md` also
+  cites the component's `run.log`, which compensation deletes with a new install. That predates
+  this change, so it is left for its own small fix.
 - 2026-11-04 Reading `b11721`: `--api-key-file` with an empty file starts a server with no key and
   no error, which is why the check and the file's shape test exist.
