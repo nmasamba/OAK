@@ -6,8 +6,9 @@
 
 - Owner/agent: owner-directed coding agent
 - Started: 2026-11-04
-- Last updated: 2026-11-04
-- State: in-progress
+- Last updated: 2026-11-05
+- State: in-progress: the code is final and the PR is open; a clean local `make check` on the
+  final commit is still to come (see Progress)
 - Claimed tasks: `OAK-V1-045`
 
 ## Outcome
@@ -157,6 +158,11 @@ did. Nothing migrates, and nothing outside the installation's folder changes.
   among them each gap the review named (a key written in place, written then `chmod`, a folder or
   a pipe let through, `all` for `any` at both sites, the key on `curl`'s command line, a proxy
   taken from the environment).
+- [ ] 2026-11-05 Gate on `2396a01`, the review's fixes: **not clean.** Unit and contract 1,531
+  passed; integration stopped at `make: *** [test-integration] Error 1` on one test,
+  `test_a_run_records_each_consumed_nonce_with_its_lease_expiry`, so the end-to-end suite did not
+  run. See Discoveries: the Mac slept during the run. That test passes alone in 1.4 seconds, which
+  explains the failure and does not replace a clean gate.
 - [x] 2026-11-05 The final client line (`sed ... | curl --noproxy '*' -K -`) was run with the real
   `sed` and `curl` against a server that recorded what arrived, because the rehearsal's files
   had already been deleted, as the owner's approval required, and a third download was not
@@ -222,6 +228,13 @@ The journey test also moved to `tests/integration/test_native_key_journey.py`, s
 
 ## Discoveries and follow-ups
 
+- 2026-11-05 Gate. **A Mac that sleeps during the gate can fail a real-clock lease test.** The lid
+  was closed, so from about 00:15 UTC the machine ran only in maintenance wakes of one or two
+  minutes every fifteen (`pmset -g log`; `AppleClamshellState` Yes). `test_runner_soak.py` signs a
+  five-minute lease on the wall clock and then runs it, so a fifteen-minute sleep between the two
+  denies it ("lease has expired") and the ledger the test reads is never written. The app's
+  keep-awake cannot hold against a closed lid, and overriding the owner's closed lid with
+  `caffeinate -s` was not this work's to decide. CI's run of the same checks is unaffected.
 - 2026-11-04 M2. **The first real install failed, and its cause is not established.** It reported
   `OAK-NATIVE-DOWNLOAD` ("an artifact could not be downloaded") 150 seconds in, then compensated
   and left `native/` empty. That code is a transport failure, not a host, size or digest refusal.
