@@ -345,12 +345,12 @@ plan's lease policy admits that and no more. For a verified native `apply`, in o
    a device, an absolute path, a `..`, more than 10,000 members or more than 64 GiB is
    refused (`OAK-NATIVE-ARCHIVE`).
 3. It starts each component from its harness kind's fixed argument template: the stand-in
-   through the runner's own interpreter, `llama-server` with `--host 127.0.0.1`, its port
-   and its model file. The port must be free first, so another listener can never answer in
-   the component's place (`OAK-NATIVE-START`). The process gets only `PATH`, `HOME` and
-   `LANG`, a process group of its own, and three ceilings, each only ever lower than the
-   runner's own: no core files, at most 4,096 open files, and no written file over 2 GiB.
-   Memory, CPU time and the number of processes are not limited, and the evidence records
+   through the runner's own interpreter, `llama-server` with `--host 127.0.0.1`, its port,
+   its model file and `--api-key-file`. The port must be free first, so another listener can
+   never answer in the component's place (`OAK-NATIVE-START`). The process gets only `PATH`,
+   `HOME` and `LANG`, a process group of its own, and three ceilings, each only ever lower
+   than the runner's own: no core files, at most 4,096 open files, and no written file over
+   2 GiB. Memory, CPU time and the number of processes are not limited, and the evidence records
    both lists. The adapter probes the health path on 127.0.0.1 until it answers `200`, for
    up to 20 seconds for the stand-in and 240 for `llama-server`; the component passes only
    if it is still running after answering twice, half a second apart. Then the adapter
@@ -363,6 +363,24 @@ plan's lease policy admits that and no more. For a verified native `apply`, in o
 4. Nothing keeps running, and nothing is registered to start with the computer; a program
    built to leave its process group could still leave a process behind (`RR-056`). The
    evidence names each verified artifact, each component's check, and whether it stopped.
+
+A `llama_cpp_server` installation has a key of its own. Before it fetches anything, the adapter
+writes 256 random bits to `api-key.txt` in the installation's directory, readable by the user
+only, and it gives the server that file's path, never the key, so the key is in no argument
+vector, environment, evidence, journal or record. `START.txt` names the file and shows how a
+client sends the key (`Authorization: Bearer <key>`, handed to `curl` on its input so that the
+client does not put it in `ps` either, and past any proxy), and does not hold it. A later
+`apply` keeps a key that only its owner can read and that is still what the adapter wrote, so
+the clients that hold it go on working. It replaces anything else, because a file that others
+could read is no longer a secret, and `--api-key-file` skips empty lines and comments, which
+would start the server with no key at all. It writes a new key aside and renames it into place,
+so a write that fails leaves no file, which the server refuses to start without, and it refuses
+anything but a file in that place (`OAK-NATIVE-OWNERSHIP`). Once the server has answered its
+health probe twice, its check sends `GET /v1/chat/completions` with no key. The server refuses
+that before it routes, so no model runs, and the row records the answer as
+`status_without_key`. Any answer but `401` fails the install (`OAK-NATIVE-KEY`), and no answer
+fails it as any other check does (`OAK-NATIVE-SMOKE`). The stand-in answers only its health path
+and takes no key.
 
 `rollback` and `destroy` remove exactly the installation's directory after checking its
 marker: renamed out of the way first, so a removal that fails part way leaves the path

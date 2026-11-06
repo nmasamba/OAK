@@ -19,6 +19,10 @@ runner's own target profile):
    group; probes its health path; and **stops it**: nothing is left running and no unit
    file is written. The user starts it when they want it.
 
+A model server takes the installation's own API key, which the runner generates into a file
+only the user can read and hands over by path, so the key is in no argument vector and no
+record. The server's check also proves that it refuses a request without the key.
+
 Uninstalling removes exactly the installation's directory, after checking its marker.
 """
 
@@ -31,6 +35,7 @@ import os
 import platform
 import re
 import resource
+import secrets
 import shlex
 import shutil
 import signal
@@ -78,6 +83,17 @@ MAXIMUM_UNPACKED_BYTES = 64 * 2**30
 MAXIMUM_LINK_HOPS = 8
 MAXIMUM_LINK_TARGET_BYTES = 4096
 LLAMA_SERVER = "llama-server"
+# The file in an installation that holds its API key: one key on one line, as
+# `--api-key-file` reads it. A server is given the path, never the value, so the key is in no
+# argument vector and no record, and the installation's folder is the only place it lives.
+API_KEY_FILE = "api-key.txt"
+API_KEY_BYTES = 32
+API_KEY_LINE = re.compile(rb"[0-9a-f]{64}\n")
+# Each harness kind that takes that key, and the path its check asks for without it: the one
+# that generates text, by a GET that route does not take, so no model ever runs for the
+# check. The server refuses before it routes, which proves the key is in force.
+KEYED_PATHS = {"llama_cpp_server": "/v1/chat/completions"}
+REFUSED_WITHOUT_KEY = 401
 # The ceilings a component's check runs under, as far as this platform applies them
 # (ADR-0019; the consent names `resource_ceilings` among what a native install relaxes):
 # no core files, a bounded number of open files, and a bounded size for any file it writes.
@@ -323,6 +339,8 @@ class NativeProcessAdapter:
                 self._write_marker(creating, installation, state="installing")
                 creating.rename(directory)
                 created = True
+            if any(component.harness_kind in KEYED_PATHS for component in installation.components):
+                _ensure_api_key(directory)
             prepared: list[tuple[NativeComponent, Path, tuple[str, ...]]] = []
             verified: dict[str, Path] = {}
             for component in installation.components:
@@ -340,7 +358,7 @@ class NativeProcessAdapter:
                     )
                     for artifact in component.artifacts
                 }
-                argv, working_directory = self._command(component, files)
+                argv, working_directory = self._command(component, files, directory / API_KEY_FILE)
                 prepared.append((component, working_directory, argv))
                 installed.append(
                     {
@@ -370,6 +388,12 @@ class NativeProcessAdapter:
             if not all(row["stopped"] for row in tested):
                 raise OAKError(
                     "OAK-NATIVE-STOP", "a process a native component started is still running"
+                )
+            if any(
+                row.get("status_without_key") not in (None, REFUSED_WITHOUT_KEY) for row in tested
+            ):
+                raise OAKError(
+                    "OAK-NATIVE-KEY", "a model server answered a request that carried no key"
                 )
             if not all(row["passed"] for row in tested):
                 raise OAKError(
@@ -488,7 +512,7 @@ class NativeProcessAdapter:
 
     @staticmethod
     def _command(
-        component: NativeComponent, files: dict[str, Path]
+        component: NativeComponent, files: dict[str, Path], key_file: Path
     ) -> tuple[tuple[str, ...], Path]:
         """The harness kind's argument template, filled from typed values only."""
 
@@ -506,6 +530,8 @@ class NativeProcessAdapter:
                 port,
                 "--model",
                 str(files["model"]),
+                "--api-key-file",
+                str(key_file),
             ), executable.parent
         raise OAKError("OAK-NATIVE-HARNESS", "the harness kind has no argument template")
 
@@ -556,14 +582,20 @@ class NativeProcessAdapter:
                 raise OAKError(
                     "OAK-NATIVE-START", f"{component.node_id} could not be started"
                 ) from error
+            keyed_path = KEYED_PATHS.get(component.harness_kind)
+            without_key: int | None = None
             try:
                 with _stop_on_signal():
                     status, seconds = self._wait_ready(component, process, started, deadline)
+                    if keyed_path is not None and status == 200:
+                        without_key = self._probe(
+                            component.listen_port, keyed_path, PROBE_TIMEOUT_SECONDS
+                        )
             finally:
                 exit_code, stopped = _stop(process)
-        return {
+        row: dict[str, Any] = {
             "node_id": component.node_id,
-            "passed": status == 200,
+            "passed": status == 200 and (keyed_path is None or without_key == REFUSED_WITHOUT_KEY),
             "http_status": status,
             "seconds_to_ready": seconds,
             "stopped": stopped,
@@ -571,6 +603,9 @@ class NativeProcessAdapter:
             "resource_limits": {label: pair[0] for label, (_, pair) in limits.items()},
             "not_limited": list(NOT_LIMITED),
         }
+        if keyed_path is not None:
+            row["status_without_key"] = without_key
+        return row
 
     def _wait_ready(
         self,
@@ -707,6 +742,37 @@ class NativeProcessAdapter:
         }
 
 
+def _ensure_api_key(directory: Path) -> None:
+    """Keep the key a past install wrote, or write a new one. Nothing here returns it.
+
+    A key someone else could have read is no longer a secret, and a file holding anything
+    but the line OAK writes may leave a server with no key at all: `--api-key-file` skips
+    empty lines and comments, and a server with no keys asks for none. Either is removed. A
+    new key is written aside and renamed into place, so a write that fails leaves no file,
+    which the server refuses to start without, and never an empty one.
+    """
+
+    path = directory / API_KEY_FILE
+    if os.path.lexists(path):
+        details = os.lstat(path)
+        if not stat.S_ISREG(details.st_mode):
+            raise OAKError("OAK-NATIVE-OWNERSHIP", "the installation's key file is not a file")
+        # Its owner can read it and nobody else can, however the owner set that.
+        if stat.S_IMODE(details.st_mode) & 0o477 == 0o400:
+            with path.open("rb") as held:
+                if API_KEY_LINE.fullmatch(held.read(2 * API_KEY_BYTES + 2)):
+                    return
+        path.unlink()
+    temporary = directory / f"{API_KEY_FILE}.tmp"
+    temporary.unlink(missing_ok=True)
+    # Created owner-only and exclusively, so it is never readable by anyone else, and never
+    # written through a link.
+    created = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(created, "w", encoding="ascii") as output:
+        output.write(secrets.token_hex(API_KEY_BYTES) + "\n")
+    temporary.replace(path)
+
+
 def _delete_tree(path: Path) -> None:
     """Delete a directory the runner made, refusing a link in its place."""
 
@@ -779,18 +845,30 @@ def _write_start_instructions(
 ) -> None:
     """How to start each installed component by hand: the same command the check ran.
 
-    A file in the installation, never a record: its paths name the user's home.
+    A file in the installation, never a record: its paths name the user's home. It says
+    where the key is and how a client sends it, and does not hold the key itself.
     """
 
+    key_file = shlex.quote(str(directory / API_KEY_FILE))
     lines = [
         "Nothing from this installation is running. OAK started each program once to check",
         "that it answers on this computer, then stopped it. To start one yourself, run its",
         "commands in a terminal, and stop it with Ctrl-C. While one runs, other programs on",
-        "this computer can talk to it, and so can a web page open in your browser, unless",
-        "the browser stops it, so stop it when you are done. Removing the installation",
-        "(oak approve destroy, then oak dispatch destroy) deletes this folder.",
+        "this computer can reach its port, and so can a web page open in your browser, so",
+        "stop it when you are done. Removing the installation (oak approve destroy, then oak",
+        "dispatch destroy) deletes this folder.",
     ]
+    if any(component.harness_kind in KEYED_PATHS for component, _, _ in prepared):
+        lines += [
+            "",
+            "A model server here runs its model only for a client that sends this",
+            "installation's key. Without the key, a program or a web page can tell a server",
+            "is there but cannot use it. The key is in this file, which only your user",
+            "account can read, though any program you run can read it too:",
+            f"  {key_file}",
+        ]
     for component, working_directory, argv in prepared:
+        origin = f"http://127.0.0.1:{component.listen_port}"
         lines += [
             "",
             f"{component.node_id} ({component.harness_kind}) on 127.0.0.1:"
@@ -798,6 +876,14 @@ def _write_start_instructions(
             f"  cd {shlex.quote(str(working_directory))}",
             f"  {shlex.join(argv)}",
         ]
+        if component.harness_kind in KEYED_PATHS:
+            lines += [
+                "  A client sends the key in its Authorization header. This one hands it to curl",
+                "  on its input, not on its command line, where other users could see it:",
+                f"""  sed 's/.*/header = "Authorization: Bearer &"/' {key_file} |""",
+                f"    curl --noproxy '*' -K - {origin}/v1/models",
+                f"  The server's own web page, {origin}/, asks for it: choose Enter API Key.",
+            ]
     path = directory / START_FILE
     temporary = directory / f"{START_FILE}.tmp"
     temporary.write_text("\n".join(lines) + "\n", encoding="utf-8")
