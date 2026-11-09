@@ -646,6 +646,10 @@ The web workspace's bundle page shows the same text and the consent's state besi
 two approvals, and the install steps with the plan's consent digest filled in; it records
 nothing.
 
+A download can take minutes. At a terminal, `oak-runner run-once` names each file and shows how
+far along it is; with its output sent to a file or a pipe it shows no progress, and prints only
+when the dispatch ends.
+
 Each installation is one folder, `native/<installation id>` in the runner home
 (`~/.oak/runner` unless `OAK_RUNNER_HOME` says otherwise), readable by you only and marked as
 the runner's by `.oak-installation.json`. After an install, `oak-runner run-once` prints the

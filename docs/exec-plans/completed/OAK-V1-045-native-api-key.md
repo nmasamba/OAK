@@ -6,7 +6,7 @@
 
 - Owner/agent: owner-directed coding agent
 - Started: 2026-11-04
-- Last updated: 2026-11-06
+- Last updated: 2026-11-09
 - State: complete (PR #46 open, https://github.com/nmasamba/OAK/pull/46; its merge, and the
   sign-off of the consent text, are the owner's)
 - Claimed tasks: `OAK-V1-045`
@@ -177,6 +177,13 @@ did. Nothing migrates, and nothing outside the installation's folder changes.
   no sleep in the power log. No `make: ***` line; unit and contract 1,531 passed, integration 637,
   end to end 47, the web build done, and the database held 280 artifact versions and 60 case
   versions from the gated suites. CI on the same commit: 8 of 8 green across both runs.
+- [x] 2026-11-09 `main` merged in, after the owner merged PR #45 (`OAK-V1-044`, `fc18c2e`). Four
+  files conflicted where both branches had added at the same spot (`CHANGELOG.md`, `STATUS.md`,
+  `docs/signed-runner.md`, and the generated `docs/error-codes.md`, regenerated): both sides
+  kept. One conflict no merge tool could show: #45's tests stood a fake `llama_cpp_server` behind
+  a probe answering 200 to every path, which the key check now refuses with `OAK-NATIVE-KEY`, as
+  it must. That probe now answers only the health path without a key, as `b11721` does with one.
+  The native suites on the merge, both branches' tests: 130 passed.
 - [x] 2026-11-05 The final client line (`sed ... | curl --noproxy '*' -K -`) was run with the real
   `sed` and `curl` against a server that recorded what arrived, because the rehearsal's files
   had already been deleted, as the owner's approval required, and a third download was not
