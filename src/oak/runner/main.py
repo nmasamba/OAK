@@ -12,6 +12,7 @@ import contextlib
 import fcntl
 import json
 import os
+import select
 import shutil
 import sys
 import tempfile
@@ -19,7 +20,7 @@ import time
 from collections.abc import Callable, Iterator
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, TextIO
 
 import yaml
 
@@ -33,7 +34,7 @@ from oak.runner.heartbeat import HEARTBEAT_INTERVAL_SECONDS, LeaseHeartbeat
 from oak.runner.identity import RunnerIdentity
 from oak.runner.journal import RunnerJournal
 from oak.runner.mailbox import RunnerMailbox, is_safe_name
-from oak.runner.native import START_FILE, NativeProcessAdapter
+from oak.runner.native import START_FILE, DownloadProgress, NativeProcessAdapter
 from oak.runner.schemas import load_registry
 from oak.runner.verification import (
     RunnerDenialError,
@@ -111,6 +112,54 @@ def _print_native_start(
                 f"installed natively in {folder}; nothing is running. "
                 f"To start a component yourself, see {folder / START_FILE}"
             )
+
+
+def _size(count: int) -> str:
+    """A byte count the way the example profiles write one, in decimal units."""
+
+    if count >= 10**9:
+        return f"{count / 10**9:.1f} GB"
+    if count >= 10**6:
+        return f"{count / 10**6:.1f} MB"
+    return f"{count:,} bytes"
+
+
+class _TerminalProgress:
+    """Each download on a terminal: a line naming the file, then a line that repaints."""
+
+    def __init__(self, terminal: TextIO) -> None:
+        self._terminal = terminal
+        self._width = 0
+
+    def __call__(self, update: DownloadProgress) -> None:
+        if update.finished:
+            # Closed whatever the outcome, so the next thing printed starts on its own line.
+            text = "\n" if self._width else ""
+            self._width = 0
+        elif update.written == 0:
+            named = f"{update.name}, the {update.role}" if update.name else f"the {update.role}"
+            text = f"downloading {named} ({_size(update.total)})\n"
+        else:
+            percent = update.written * 100 // update.total
+            line = f"  {_size(update.written)} of {_size(update.total)} ({percent}%)"
+            text = "\r" + line.ljust(self._width)
+            self._width = len(line)
+        # This runs inside the download's loop, and a write to a terminal paused with Ctrl-S,
+        # or to one nobody is reading, would block it: what cannot go at once is dropped.
+        if select.select([], [self._terminal], [], 0)[1]:
+            self._terminal.write(text)
+            self._terminal.flush()
+
+
+def _terminal_progress() -> _TerminalProgress | None:
+    """Download progress when stdout is a terminal, and otherwise none, so that whatever a
+    script captures stays exactly what it was."""
+
+    try:
+        return _TerminalProgress(sys.stdout) if sys.stdout.isatty() else None
+    except (AttributeError, ValueError):
+        # `oak-runner run-once >&-` starts Python with no `sys.stdout` at all.
+        return None
 
 
 @contextlib.contextmanager
@@ -260,7 +309,8 @@ def _run_once_locked(
             heartbeat=heartbeat,
             # Native installations live under the runner home, one directory each, marked
             # as the runner's own (ADR-0019).
-            native=native_adapter or NativeProcessAdapter(home / "native"),
+            native=native_adapter
+            or NativeProcessAdapter(home / "native", progress=_terminal_progress()),
         )
         try:
             mailbox.publish_message(

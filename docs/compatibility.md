@@ -490,6 +490,10 @@ mechanical migration; **breaking** otherwise.
   `OAK-NATIVE-CONSENT`. `oak approve apply` on a native plan, which a `0.9` build cannot
   compile, needs a current `native_consent` first. `oak architecture` describes a native
   plan's installation with `mode: native`, its components and the three approvals.
+- After Tier 3's Batch B, `oak-runner run-once` shows a native download's progress on stdout
+  when stdout is a terminal: a line per file, then a line that repaints. When stdout is a
+  file or a pipe it prints no progress, so what a script captures does not change, and no
+  journal, evidence or signed message gains anything.
 
 ## MCP
 

@@ -364,6 +364,17 @@ plan's lease policy admits that and no more. For a verified native `apply`, in o
    built to leave its process group could still leave a process behind (`RR-056`). The
    evidence names each verified artifact, each component's check, and whether it stopped.
 
+While it downloads, `oak-runner run-once` says which file it is fetching and how far along it
+is: a line naming the file and its acknowledged size, then a line that repaints with the
+bytes so far. That is only for a person at a terminal. When stdout is a file or a pipe it
+prints no progress, so what a script captures does not change. A file is named by the last
+segment of its URL as written, without the host or the query string, or by its role when
+that segment is not a plain name. Progress is shown and forgotten: it is not journaled and
+reaches no evidence, heartbeat or other signed message. What the terminal cannot take at once,
+when it is paused with Ctrl-S, say, is dropped rather than waited for, and a write that fails
+is ignored, so the download goes on either way. The wait for a component to answer (step 3)
+prints nothing.
+
 `rollback` and `destroy` remove exactly the installation's directory after checking its
 marker: renamed out of the way first, so a removal that fails part way leaves the path
 free and a leftover that the next removal finishes (`OAK-NATIVE-UNINSTALL`). A failed

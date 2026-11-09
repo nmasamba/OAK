@@ -13,7 +13,7 @@ import pytest
 
 from oak.domain import OAKError
 from oak.runner import native_network
-from oak.runner.native_network import _AllowedRedirects, fetch, https_host
+from oak.runner.native_network import _AllowedRedirects, artifact_name, fetch, https_host
 
 ALLOWED = frozenset({"github.com", "objects.githubusercontent.com"})
 
@@ -174,6 +174,69 @@ def test_a_download_stops_when_the_lease_ends(tmp_path: Path) -> None:
             deadline=datetime.now(UTC) - timedelta(seconds=1),
         )
     assert caught.value.code == "OAK-RUNNER-LEASE-EXPIRED"
+
+
+def test_a_download_reports_the_bytes_written_after_each_chunk(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(native_network, "CHUNK_BYTES", 2)
+    reported: list[int] = []
+    size, _ = fetch(
+        "https://github.com/x",
+        tmp_path / "f",
+        allowed_hosts=ALLOWED,
+        expected_size=5,
+        timeout=1,
+        opener=_opener(b"hello"),
+        progress=reported.append,
+    )
+    assert size == 5
+    assert reported == [2, 4, 5]
+
+
+def test_progress_never_runs_past_the_acknowledged_size(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(native_network, "CHUNK_BYTES", 2)
+    reported: list[int] = []
+    with pytest.raises(OAKError) as caught:
+        fetch(
+            "https://github.com/x",
+            tmp_path / "f",
+            allowed_hosts=ALLOWED,
+            expected_size=3,
+            timeout=1,
+            opener=_opener(b"hello"),
+            progress=reported.append,
+        )
+    assert caught.value.code == "OAK-NATIVE-SIZE"
+    assert reported == [2], "the chunk that overran is refused before it is counted"
+
+
+@pytest.mark.parametrize(
+    ("source", "name"),
+    [
+        (
+            "https://github.com/o/r/releases/download/b1/llama-b1-bin-macos-arm64.tar.gz",
+            "llama-b1-bin-macos-arm64.tar.gz",
+        ),
+        ("https://example.org/m/tiny-q4.gguf?token=abc&expires=1", "tiny-q4.gguf"),
+        # Printed as written: decoding it could turn it into anything.
+        ("https://example.org/m/a%1b%5b2Jb.gguf", "a%1b%5b2Jb.gguf"),
+        ("https://example.org/", None),
+        ("https://example.org/m/", None),
+        ("https://example.org/m/..", None),
+        ("https://example.org/m/-rf", None),
+        ("https://example.org/m/" + "a" * 121, None),
+        ("https://example.org/m/a\x1b[2Jb", None),
+        ("https://example.org/m/caf\u00e9.gguf", None),
+        ("https://[/x", None),
+    ],
+)
+def test_a_file_is_named_by_the_end_of_its_url_when_that_is_plain(
+    source: str, name: str | None
+) -> None:
+    assert artifact_name(source) == name
 
 
 def test_a_port_with_a_listener_is_not_free() -> None:

@@ -10,8 +10,16 @@ only what the failed install created.
 
 from __future__ import annotations
 
+import functools
+import hashlib
+import io
 import json
+import os
 import socket
+import subprocess
+import sys
+import tarfile
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -21,6 +29,8 @@ import yaml
 
 from oak.contracts import load_yaml_document
 from oak.domain import ArtifactReference
+from oak.runner import main as runner_main
+from oak.runner import native_network
 from oak.runner.native import MARKER, NativeProcessAdapter
 from tests.container_support import FakeClock
 from tests.runner_support import ROOT, build_compiled_case, consent_digest, enroll_test_runner
@@ -55,9 +65,16 @@ def _listening(port: int) -> bool:
 
 class NativeJourney:
     def __init__(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, probe_path: str = "/health"
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        *,
+        probe_path: str = "/health",
+        adjust: Callable[[dict[str, Any]], None] | None = None,
     ) -> None:
         document = load_yaml_document(EXAMPLE.read_text(encoding="utf-8"))
+        if adjust is not None:
+            adjust(document)
         components = document["execution"]["native_components"]
         self.ports = _free_ports(len(components))
         for entry, port in zip(components, self.ports, strict=True):
@@ -237,3 +254,164 @@ def test_a_directory_the_runner_did_not_create_is_never_adopted_or_removed(
     assert kept["removed"] is False and kept["kept"] is True
     assert canary.read_text(encoding="utf-8") == "someone else's"
     assert not (journey.installation / MARKER).exists()
+
+
+# A release and a model the runner "downloads", over bytes held here: nothing leaves the
+# machine. The model's URL carries a query string, as a signed download link would.
+RELEASE_URL = "https://example.org/releases/download/b1/llama-b1-bin.tar.gz"
+MODEL_URL = "https://example.org/models/tiny-q4.gguf?token=query-secret"
+MODEL = b"GGUF" * 1000
+
+
+def _release() -> bytes:
+    buffer = io.BytesIO()
+    with tarfile.open(fileobj=buffer, mode="w:gz") as bundle:
+        member = tarfile.TarInfo("build/bin/llama-server")
+        member.size = 4
+        bundle.addfile(member, io.BytesIO(b"\x7fELF"))
+    return buffer.getvalue()
+
+
+FILES = {RELEASE_URL: _release(), MODEL_URL: MODEL}
+
+
+class _Response(io.BytesIO):
+    def __init__(self, body: bytes, url: str) -> None:
+        super().__init__(body)
+        self._url = url
+
+    def geturl(self) -> str:
+        return self._url
+
+
+class _Terminal(io.StringIO):
+    """Keeps what it is shown, and always has room for more."""
+
+    _room = os.open(os.devnull, os.O_WRONLY)
+
+    def isatty(self) -> bool:
+        return True
+
+    def fileno(self) -> int:
+        return self._room
+
+
+def _downloading(document: dict[str, Any]) -> None:
+    """The stand-in profile with its model components as `llama_cpp_server` downloads."""
+
+    def artifact(role: str, source: str, format_: str) -> dict[str, Any]:
+        content = FILES[source]
+        return {
+            "role": role,
+            "source": source,
+            "sha256": "sha256:" + hashlib.sha256(content).hexdigest(),
+            "size_bytes": len(content),
+            "format": format_,
+        }
+
+    execution = document["execution"]
+    execution["allowed_download_hosts"] = ["example.org"]
+    for entry in execution["native_components"]:
+        if "model" in entry["manifest_id"]:
+            entry["harness_kind"] = "llama_cpp_server"
+            entry["artifacts"] = [
+                artifact("harness", RELEASE_URL, "tar.gz"),
+                artifact("model", MODEL_URL, "file"),
+            ]
+
+
+def _install_with_downloads(journey: NativeJourney, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A native install through the real `run_once`, which builds its own adapter, so a test
+    sees what it wires. A heartbeat at every step would show one driven by progress."""
+
+    def popen(argv: list[str], **options: Any) -> Any:
+        return subprocess.Popen(
+            [sys.executable, "-I", "-c", "import time; time.sleep(60)"], **options
+        )
+
+    def adapter(root: Path, **keywords: Any) -> NativeProcessAdapter:
+        return NativeProcessAdapter(
+            root,
+            fetch=functools.partial(
+                native_network.fetch, opener=lambda url, timeout: _Response(FILES[url], url)
+            ),
+            popen=popen,
+            probe=lambda port, path, timeout: 200,
+            **keywords,
+        )
+
+    monkeypatch.setattr(runner_main, "NativeProcessAdapter", adapter)
+    monkeypatch.setattr(native_network, "CHUNK_BYTES", 1000)
+    for action in INSTALL:
+        journey.approve(action)
+    journey.harness.release.dispatch(("apply",), journey.context("dispatch"))
+    assert runner_main.run_once(heartbeat_interval_seconds=0) == 0
+
+
+def _recorded(journey: NativeJourney) -> dict[str, Any]:
+    """All the runner wrote down: its journals and every signed message it published."""
+
+    journals = sorted((journey.runner_home / "journals").glob("*.jsonl"))
+    messages = sorted((journey.harness.mailbox_root / "messages").glob("*.json"))
+    return {
+        "journal": [
+            json.loads(line)
+            for path in journals
+            for line in path.read_text(encoding="utf-8").splitlines()
+        ],
+        "messages": [json.loads(path.read_text(encoding="utf-8")) for path in messages],
+    }
+
+
+def _shape(value: Any) -> Any:
+    """A document with each value replaced by its type: its ids and times differ per run."""
+
+    if isinstance(value, dict):
+        return {key: _shape(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_shape(item) for item in value]
+    return type(value).__name__
+
+
+def test_a_download_shows_on_a_terminal_and_nothing_new_is_recorded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    (tmp_path / "piped").mkdir()
+    (tmp_path / "watched").mkdir()
+    piped = NativeJourney(tmp_path / "piped", monkeypatch, adjust=_downloading)
+    _install_with_downloads(piped, monkeypatch)
+    captured = capsys.readouterr().out
+    without = _recorded(piped)
+
+    watched = NativeJourney(tmp_path / "watched", monkeypatch, adjust=_downloading)
+    terminal = _Terminal()
+    monkeypatch.setattr(sys, "stdout", terminal)
+    _install_with_downloads(watched, monkeypatch)
+    monkeypatch.undo()
+    shown = terminal.getvalue()
+    recorded = _recorded(watched)
+
+    # A person watching sees each file, how far along it is, and then the result.
+    assert (
+        f"downloading llama-b1-bin.tar.gz, the harness ({len(FILES[RELEASE_URL])} bytes)\n" in shown
+    )
+    assert "downloading tiny-q4.gguf, the model (4,000 bytes)\n" in shown
+    assert "\r  1,000 bytes of 4,000 bytes (25%)" in shown
+    assert "\r  4,000 bytes of 4,000 bytes (100%)\ncompleted " in shown
+    before_the_result = shown.partition("completed ")[0]
+    for private in ("query-secret", "example.org", str(tmp_path)):
+        assert private not in before_the_result
+
+    # Anything that captures stdout gets exactly what it got before.
+    assert [line.split()[0] for line in captured.splitlines()] == ["completed", "installed"]
+    assert "\r" not in captured and "downloading" not in captured
+
+    # Both installs passed, and the terminal added no entry, message or field to either.
+    for document in (recorded, without):
+        kinds = {message["kind"]: message for message in document["messages"]}
+        assert kinds["completion"]["payload"]["outcome"] == "succeeded"
+        assert "heartbeat" in kinds
+    assert _shape(recorded) == _shape(without)
+    written = json.dumps(recorded)
+    for private in ("tiny-q4.gguf", "llama-b1-bin", "query-secret", "example.org", str(tmp_path)):
+        assert private not in written
