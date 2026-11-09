@@ -184,6 +184,13 @@ did. Nothing migrates, and nothing outside the installation's folder changes.
   a probe answering 200 to every path, which the key check now refuses with `OAK-NATIVE-KEY`, as
   it must. That probe now answers only the health path without a key, as `b11721` does with one.
   The native suites on the merge, both branches' tests: 130 passed.
+- [x] 2026-11-09 Gate on the merge, `0189d46`: `make check` in a detached worktree with a fresh,
+  migrated throwaway PostgreSQL, from 18:13 to 18:26 UTC with the lid open and no sleep. No
+  `make: ***` line; unit and contract 1,567 passed (#45's tests among them), integration 638, end
+  to end 47, the web build done, and the database held the gated suites' records. CI on the merge
+  started neither job: both runs ended at once, at 18:12, when GitHub opened an incident with
+  Actions and the Checks API, and a rerun was queued behind it. CI on `99311b7` had also failed one
+  job, `web-e2e`, because its runner received a shutdown signal, not because a test failed.
 - [x] 2026-11-05 The final client line (`sed ... | curl --noproxy '*' -K -`) was run with the real
   `sed` and `curl` against a server that recorded what arrived, because the rehearsal's files
   had already been deleted, as the owner's approval required, and a third download was not
