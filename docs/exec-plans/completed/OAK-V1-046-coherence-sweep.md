@@ -160,7 +160,7 @@ keeps its wording about the runner home, as a record.
 - 2026-11-10 **Where the skill lives.** The implementation refuses agent-specific files by
   design (`tools/check_repository.py`), so the recipe goes into the spec repo's vendor-neutral
   `skills.md`, the script beside its validator, and only a thin wrapper into the spec repo's
-  `.claude/skills/`, as `CLAUDE.md` points at `AGENTS.md`.
+  agent-tooling folder, the way its agent pointer file defers to `AGENTS.md`.
 - 2026-11-10 **The skill was tested by its use, not by a separate evaluation loop.** Running
   the same sweep with and without the skill would cost two whole-repository sweeps; this sweep
   is the test, and the report's false positives were fixed from what it found.
