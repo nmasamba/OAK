@@ -88,6 +88,13 @@ def _parameters(*components: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _keyed_probe(port: int, path: str, timeout: float) -> int:
+    """`llama-server` with the installation's key (OAK-V1-045): its health path answers, and
+    nothing else does for a request without the key."""
+
+    return 200 if path == "/health" else 401
+
+
 class _Response(io.BytesIO):
     def __init__(self, body: bytes, url: str) -> None:
         super().__init__(body)
@@ -112,7 +119,7 @@ def _adapter(root: Path, files: dict[str, bytes] = FILES, **keywords: Any) -> Na
             native_network.fetch, opener=lambda url, timeout: _Response(files[url], url)
         ),
         popen=popen,
-        probe=lambda port, path, timeout: 200,
+        probe=_keyed_probe,
         port_free=lambda port: True,
         sleep=lambda seconds: None,
         clock=lambda: float(next(ticks)),

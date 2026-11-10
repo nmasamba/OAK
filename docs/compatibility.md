@@ -177,6 +177,12 @@ mechanical migration; **breaking** otherwise.
   `unpredicted_measurements` names either a `container_name`, as before, or an
   `installation_id`, never both. Every stored record still validates; a `0.9.0` reader
   refuses a record of a native installation.
+- `OAK-V1-045` gives a native `llama_cpp_server` a key of its installation's own, which changes
+  what a client of a running server sends: it now needs `Authorization: Bearer <key>` or
+  `X-Api-Key: <key>`, and `START.txt` shows how. No release has carried the native adapter, so
+  it stays `0.1.0`. A row of a native `smoke_test` may carry `status_without_key`, a field no
+  schema describes; the `OAK-NATIVE-KEY` code is new. No stored document changes and no
+  reference digest moves. An installation made before this gains a key at its next `apply`.
 - Sprint 14 (unreleased, ADR-0018) made an objective's `value` in `common.schema.json`
   nullable, with `unknown_reason` required exactly when it is null. Every stored document
   still validates, because the compiler writes a null only for a candidate that holds a

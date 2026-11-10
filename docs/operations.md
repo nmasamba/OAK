@@ -654,9 +654,15 @@ Each installation is one folder, `native/<installation id>` in the runner home
 (`~/.oak/runner` unless `OAK_RUNNER_HOME` says otherwise), readable by you only and marked as
 the runner's by `.oak-installation.json`. After an install, `oak-runner run-once` prints the
 folder; its `START.txt` gives, for each component, the command that starts it on its port.
-`llama-server` has no API key there and allows every origin, so while it runs a web page open
-in your browser can use it, unless the browser stops that: stop it when you are done.
-Stop a component you started with Ctrl-C.
+A model server runs its model only for a client that sends the installation's key, which the
+runner generated into `api-key.txt` in that folder, readable by you only. A client sends it as
+`Authorization: Bearer <key>`, and `START.txt` shows how. Keep it off command lines, where other
+users of the computer can read it in `ps`: hand it to a client on its input or from the file,
+as `START.txt`'s example does. Without the key, another program or a web page open in your
+browser can tell a server is there, from its `/health` and its own web page, but cannot use it.
+Any program you run can read the file, so stop a server when you are done. A second `apply` of
+the same installation keeps the key, and removing the installation removes it. Stop a component
+you started with Ctrl-C.
 
 Remove an installation the signed way, as above with `destroy` (or `rollback`):
 

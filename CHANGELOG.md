@@ -6,6 +6,40 @@ All notable changes to OAK Community are recorded here.
 
 ## Unreleased
 
+### A key for each native model server (`OAK-V1-045`)
+
+The rehearsal of 2026-11-03 found that `llama-server` logs "no API key is set and CORS allows
+all origins" on every start. On 2026-11-04 the owner chose to close that rather than only state
+it, knowing a key changes what every client sends.
+
+#### Changed
+
+- **A model server installed natively runs its model only for a client that sends the
+  installation's key.** The runner generates 256 random bits per installation into `api-key.txt`
+  in the installation's folder, readable by the user only, and starts `llama-server` with
+  `--api-key-file`, so the key is never on a command line, where other users could read it in
+  `ps`. It reaches no evidence, journal or record: the folder is the only place it lives.
+  **A client of a running server must now send `Authorization: Bearer <key>`** (or
+  `X-Api-Key: <key>`); `START.txt` names the file and shows how, handing the key to `curl` on
+  its input, so that the client does not put it in `ps` either, and past any proxy, and it does
+  not hold the key. A second `apply` keeps a key only its owner can read, replaces a file that
+  others could read or that holds anything else, and refuses anything but a file in its place.
+  A new key is written aside and renamed into place, so a write that fails leaves no file, which
+  the server refuses to start without. `/health` stays open, so the check still works, and
+  so does the server's own web page, which then asks for the key. OAK's stand-in answers only
+  its health path and takes no key.
+- **The check proves the key is in force.** Once a model server is healthy, a request without
+  the key must be refused with `401`: any other answer fails the install with the new code
+  `OAK-NATIVE-KEY`, and no answer fails it with `OAK-NATIVE-SMOKE`. `--api-key-file` reads an
+  empty file as no key at all and starts the server anyway, so answering the health probe proves
+  nothing here. The row records the answer as `status_without_key`.
+- **The draft consent text's `loopback_port` says what is now true:** a web page or another
+  program can reach the port and tell something is there, but cannot use a model server without
+  the key, and any program running as you can read it. Its digest moves to
+  `sha256:bbed21d565009b414adf4e6eb0ee0cbdb22f5682294a34f9afb18db11daa0603`, with the pin and
+  the manual; it stays `0.1.0` and `draft` until the owner signs it off. `RR-056` and ADR-0019
+  say the same.
+
 ### After Batch B (`OAK-V1-044`)
 
 #### Changed

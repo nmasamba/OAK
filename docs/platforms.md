@@ -198,7 +198,7 @@ A GPU is seen only through its vendor's tool, so on Linux without `nvidia-smi` a
 | macOS on Apple silicon, OAK's stand-in | Verified in CI: `check-macos-arm64` runs the native journey through the installed `oak` and `oak-runner` (`tests/e2e/test_runner_journey.py`), the integration journey with its canary uninstall (`tests/integration/test_native_install.py`) and the adapter's refusals |
 | Linux x86_64, OAK's stand-in | Verified in CI on `check`, the same tests |
 | Linux aarch64, OAK's stand-in | Verified in CI on `check-linux-arm64`, the same tests |
-| llama.cpp's `llama-server` with a model (`llama_cpp_server`), macOS on Apple silicon | Verified by hand, once, on 2026-11-03: `examples/targets/local-native-llama-cpp.yaml` through the installed `oak` and `oak-runner` on an M1 Max with 64 GiB under macOS 26.3.1, the owner having approved each download. Build `b11721` with Qwen2.5-0.5B-Instruct Q4_K_M only |
+| llama.cpp's `llama-server` with a model (`llama_cpp_server`), macOS on Apple silicon | Verified by hand on 2026-11-03, and again with the installation's key on 2026-11-04: `examples/targets/local-native-llama-cpp.yaml` through the installed `oak` and `oak-runner` on an M1 Max with 64 GiB under macOS 26.3.1, the owner having approved each download both times. Build `b11721` with Qwen2.5-0.5B-Instruct Q4_K_M only |
 | `llama_cpp_server` on Linux | Not verified: the Linux archives the example's notes name have never been installed |
 
 The stand-in is OAK's own small server, copied from inside OAK and verified by digest like a
@@ -224,9 +224,37 @@ What the rehearsal showed, for that build and model on that machine:
   listened on 127.0.0.1 only, answered a chat request correctly and exited 0 on Ctrl-C.
 - **The uninstall** took about a second: it removed the installation's folder, and a file
   placed beside that folder stayed. `oak observe` then reads `removed`.
-- **Its log warns** that it has no API key and that CORS allows all origins, so while it runs
-  a web page open in your browser can use it, unless the browser stops that. The consent text
-  and `START.txt` say so.
+- **Its log warned** that it had no API key and that CORS allowed all origins. The next
+  rehearsal measured that, and what the installation's key does about it.
+
+What the second rehearsal showed, on 2026-11-04, with the same build, model and machine:
+
+- **The install's check proved the key.** `/health` answered 200, a request without the key
+  answered 401, and the server's log held neither the warning nor the key. A second `apply`
+  took 8 seconds, downloaded nothing and kept the key. The uninstall took a second and removed
+  the key with the folder. Across everything both applies wrote, every journal, message, record
+  and log, the key was only in `api-key.txt`.
+- **Without the key,** `/health`, `/v1/health` and the server's own web page answered, and
+  `/v1/models`, `/models`, `/props`, `/slots`, `/metrics` and `/v1/chat/completions` answered
+  401, as did a wrong key. That web page loads, says "Access denied" and offers Enter API Key.
+- **With the key,** the server started from `START.txt` as written, and a question sent with
+  `Authorization: Bearer <key>` or with `X-Api-Key: <key>` was answered.
+- **From a web page in a browser** (the desktop app's own pane, Chromium 152), served from
+  another origin on the same computer. Against a control started with no key, the page read
+  `/v1/models` and got an answer from the model: the gap was real. A `text/plain` request whose
+  answer the page could not read ran the model too, so restricting CORS alone would not have
+  stopped it. Against the server with the key, the same page got `/health`, 401 for the rest,
+  and no generation started.
+- **A public page was stopped by the browser.** From `https://example.com`, that browser blocked
+  every request before it left (`ERR_BLOCKED_BY_CLIENT`, local network access `denied`), so
+  neither server saw one. That is one browser in one configuration, not a guarantee: another
+  may ask, or allow it.
+- **`ps`** showed the key file's path and never the key while the server ran. A client that puts
+  the key on its own command line does show it while it runs, which `curl -H` with `$(cat ...)`
+  did, so `START.txt`'s example hands it to `curl` on its input instead. That form was measured
+  against a server that recorded what arrived, not against `llama-server`, whose files were
+  gone by then: no command line held the key, and the header arrived as `Authorization: Bearer
+  <key>`, the form `llama-server` had answered.
 
 ## What is not tested where
 

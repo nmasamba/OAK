@@ -12,6 +12,7 @@
 - Owners: @architecture, @security, @operations
 - Requirement IDs: OAK-FR-DEP-003, OAK-FR-DEP-004, OAK-FR-DEP-005, OAK-FR-IMP-001, OAK-NFR-SEC-001–004
 - Amends: ADR-0017 (adds a second installation mode beside the container one; changes none of its rules)
+- Amended: 2026-11-04 (a key for each installation's model server, `OAK-V1-045`)
 
 ## Context
 
@@ -77,6 +78,19 @@ rather than letting the mode contradict it silently.
   - the smoke test inside `apply`, after which the process is **stopped**: no unit file, no
     agent, nothing left running. The runner tells the user how to start it;
   - a tested uninstall that removes exactly what the install created.
+- **A model server takes a key of its installation's own** (amended 2026-11-04, on the owner's
+  decision; the rehearsal had found `llama-server` open to any web page). The runner generates
+  256 random bits per installation into `api-key.txt` in the installation's folder, readable by
+  the user only, and hands the server the path (`--api-key-file`) in its fixed argument
+  template. The key is in no argument vector, environment, evidence, journal or record, and that
+  folder is the only place it lives; `START.txt` names the file and shows how a client sends it.
+  A later `apply` keeps a key that only its owner can read and that is still what the runner
+  wrote, replaces a file that is not, because `--api-key-file` reads an empty file as no key at
+  all, and refuses anything but a file in its place; a new key is written aside and renamed in,
+  so a failed write leaves no file, which the server refuses to start without. The smoke test
+  proves the key is in force: once the server is healthy, a request without the key must be
+  refused with `401`, or the install fails (`OAK-NATIVE-KEY` for any other answer). The stand-in
+  answers only its health path and takes no key.
 - **The consent is a record, not a checkbox.** Its text is a document in the catalogue,
   `consent/native-installation.yaml`, validated by `native-consent.schema.json`, naming each
   relaxed control and its risk; the CLI shows it before `oak approve native_consent`, and the
@@ -101,6 +115,12 @@ rather than letting the mode contradict it silently.
   every reference digest, as ADR-0017 noted.
 - **An unsigned consent.** Rejected: the consent must be bound to what will run and checkable
   by the runner, like every other approval.
+- **The key on the command line (`--api-key`).** Rejected: other users of the computer can read
+  an argument vector in `ps`.
+- **`--cors-origins localhost` instead of a key.** Rejected: CORS stops a page reading a
+  response, not sending a request. `llama-server` reads a body as JSON whatever its
+  `Content-Type`, so a plain cross-origin request still reaches the model, and a rebound DNS
+  name makes a page same-origin.
 
 ## Consequences
 
@@ -119,6 +139,10 @@ rather than letting the mode contradict it silently.
   machine, with its digests recorded.
 - **More approvals before a native install.** `oak approve native_consent` joins
   `oak approve architecture` and `oak approve apply`.
+- **Every client of a running model server sends the key,** as `Authorization: Bearer <key>` or
+  `X-Api-Key: <key>`. `/health` and the server's own web page still answer without it, so a web
+  page can tell a server is there, and any process running as the user can read the key; the
+  consent text says both.
 
 ## Evidence and validation
 
@@ -126,7 +150,11 @@ Unit and integration tests for every refusal (a digest or size mismatch, an arch
 that escapes, or a link that leaves the archive or names nothing in it, a host or redirect the profile does not name, a foreign process, a
 consent for another installation or with another list of controls); the native journey in
 `make check` on all three CI jobs; an uninstall proven with a canary file beside the
-installation; the rehearsal of the example profile, recorded with its digests.
+installation; the rehearsal of the example profile, recorded with its digests. The key was
+rehearsed on the same build: a page from another origin in a real browser read an answer from
+a server started with no key, and got `401` from one started with the installation's key, whose
+key appeared in none of what the runner wrote; a `text/plain` request whose answer the page
+could not read still ran the model on the keyless server, which is why CORS alone is not enough.
 
 ## Revisit triggers
 
@@ -134,6 +162,7 @@ installation; the rehearsal of the example profile, recorded with its digests.
   manager is proposed.
 - A non-local target, or GPU access for the container mode, is proposed.
 - A real harness enters the curated catalogue.
+- A model-serving harness kind that cannot take a key is proposed.
 
 Any of these needs a new decision. None may drop the signed consent, the verified download or
 the tested uninstall.

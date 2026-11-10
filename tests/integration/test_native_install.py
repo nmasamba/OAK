@@ -275,6 +275,13 @@ def _release() -> bytes:
 FILES = {RELEASE_URL: _release(), MODEL_URL: MODEL}
 
 
+def _keyed_probe(port: int, path: str, timeout: float) -> int:
+    """`llama-server` with the installation's key (OAK-V1-045): its health path answers, and
+    nothing else does for a request without the key."""
+
+    return 200 if path == "/health" else 401
+
+
 class _Response(io.BytesIO):
     def __init__(self, body: bytes, url: str) -> None:
         super().__init__(body)
@@ -336,7 +343,7 @@ def _install_with_downloads(journey: NativeJourney, monkeypatch: pytest.MonkeyPa
                 native_network.fetch, opener=lambda url, timeout: _Response(FILES[url], url)
             ),
             popen=popen,
-            probe=lambda port, path, timeout: 200,
+            probe=_keyed_probe,
             **keywords,
         )
 
