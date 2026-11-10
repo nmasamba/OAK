@@ -6,6 +6,21 @@ All notable changes to OAK Community are recorded here.
 
 ## Unreleased
 
+### The inventory scan runs where the run runs (`OAK-V1-047`)
+
+#### Fixed
+
+- **The `inventory` operation's hardware scan runs its commands through the run's own
+  executor.** `oak-runner run-once` builds one executor per run, so that every command it
+  starts sees only the runner home's empty `docker-config` and starts in the run's private
+  `run-*` directory, but it did not hand that executor to the dispatch. The scan's commands,
+  `docker version` among them, ran instead through a process-wide default: a temporary
+  directory outside the runner home, with a Docker configuration of its own, also empty and
+  the runner's. They now run as `docs/configuration.md` and `RR-027` already said. What the
+  scan proposes and what the journal and the evidence record do not change. The coherence
+  sweep (`OAK-V1-046`) found it; a new test records each command the scan starts and fails
+  without the fix.
+
 ### A key for each native model server (`OAK-V1-045`)
 
 The rehearsal of 2026-11-03 found that `llama-server` logs "no API key is set and CORS allows
