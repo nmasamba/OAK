@@ -31,7 +31,7 @@ runner -> runner-owned protocols and adapters
 - `oak.interfaces` maps transport requests to application requests and results. It does not write state directly.
 - `oak.runner` remains a separate package boundary and has no control-plane database or model dependency.
 
-Automated AST checks enforce these dependency directions, reject `shell=True` anywhere in OAK source, and restrict `subprocess` imports to `oak.adapters` and `oak.runner`. Execution occurs only in the runner's typed container adapter and the optional OPA policy adapter, each through a fixed allowlisted argument vector.
+Automated AST checks enforce these dependency directions, reject `shell=True` anywhere in OAK source, and restrict `subprocess` imports to `oak.adapters` and `oak.runner`. Execution occurs only in the runner's typed container adapter, its hardware scan and the optional OPA policy adapter, each through a fixed allowlisted argument vector, and in the runner's native adapter (ADR-0019), which starts each component from its harness kind's fixed argument template.
 
 ## Current interface paths
 
@@ -77,7 +77,7 @@ only when a user picks it for one recording.
 
 The local CLI calls shared `DesignCaseService` and `CandidatePlanningService` application operations. The interface maps arguments and output only; application services own orchestration through intake, catalogue, target-profile, and workspace ports. The deterministic compiler maps explicit facts, records inferences and unknowns with scalar provenance, validates catalogue eligibility, expands provider-neutral patterns, rejects hard-constraint failures and unknowns, estimates visible objective ranges, computes the Pareto frontier, evaluates the public fixture, and compiles a draft typed plan.
 
-The bounded MCP server (`oak.interfaces.mcp`) and the CLI's remote (`--server`) mode are additional transports onto the same `CommunityControlPlane`. MCP speaks newline-delimited JSON-RPC 2.0 over stdio with a size-bounded frame reader, exposes exactly the ten interface-contract tools plus a read-only `oak_operation_get` progress query with closed typed schemas that mirror the REST request bounds, and binds actor/tenant with the same denial semantics as REST. It has no generic command, file, secret, policy-override, approval, signing, revocation, or runner-dispatch tool, and a contract test pins the registry to the documented capability matrix. Remote CLI mode maps only commands that have a REST surface, digest-verifies every document it writes locally against the case's canonical references, and refuses every local-only command (init, serve, mcp serve, keys, models, sign, approve, revoke-approval, dispatch, ingest, observe, gitops, policy, render, extensions and validate) with `OAK-REMOTE-UNSUPPORTED`. `oak architecture` is not local-only: in remote mode it reads the case and its artifacts through the existing REST reads. `interface_origin` (`cli`, `api`, `mcp`, `web`, `portal`, `import`) is audit metadata and never authority; interface conformance is verified by running one fixture across file CLI, remote CLI, REST, and MCP and comparing canonical digests, denial codes, and audit lineage. See [interfaces.md](interfaces.md) and [compatibility.md](compatibility.md).
+The bounded MCP server (`oak.interfaces.mcp`) and the CLI's remote (`--server`) mode are additional transports onto the same `CommunityControlPlane`. MCP speaks newline-delimited JSON-RPC 2.0 over stdio with a size-bounded frame reader, exposes exactly twelve tools, the ten interface-contract tools, `oak_hardware_propose` and a read-only `oak_operation_get` progress query, with closed typed schemas that mirror the REST request bounds, and binds actor/tenant with the same denial semantics as REST. It has no generic command, file, secret, policy-override, approval, signing, revocation, or runner-dispatch tool, and a contract test pins the registry to the documented capability matrix. Remote CLI mode maps only commands that have a REST surface, digest-verifies every document it writes locally against the case's canonical references, and refuses every local-only command (init, serve, mcp serve, keys, models, sign, approve, revoke-approval, dispatch, ingest, observe, gitops, policy, render, extensions, validate, workspace status and workspace migrate) with `OAK-REMOTE-UNSUPPORTED`. `oak architecture` is not local-only: in remote mode it reads the case and its artifacts through the existing REST reads. `interface_origin` (`cli`, `api`, `mcp`, `web`, `portal`, `import`) is audit metadata and never authority; interface conformance is verified by running one fixture across file CLI, remote CLI, REST, and MCP and comparing canonical digests, denial codes, and audit lineage. See [interfaces.md](interfaces.md) and [compatibility.md](compatibility.md).
 
 ## Local persistence and lineage
 
@@ -119,7 +119,7 @@ The compiler bundles synthetic catalogue data and works offline. It emits a byte
 Signing never edits a compiled artifact. The control plane signs an immutable
 `plan-signature` document that binds the plan digest, bundle digest, target identity, and
 locally recomputed target fingerprint; approvals are separate signed documents bound to one
-action (`dry_run`, `architecture`, `apply`, `rollback` or `destroy`), digest pair, target,
+action (`dry_run`, `architecture`, `native_consent`, `apply`, `rollback` or `destroy`), digest pair, target,
 actor, nonce, and expiry. An `architecture` approval also names the architecture decision,
 the selected candidate and the digest of what `apply` installs, and an install needs it as
 well as the `apply` approval. Revocation publishes a **signed**
@@ -151,9 +151,12 @@ installation. After each container is created or adopted, the adapter additional
 verifies that the digest the runtime actually resolved is the approved one. On any failure
 of `apply`, including a failed smoke test of a started container, compensation removes
 exactly the containers that `apply` created; one it adopted is left in place, and one
-carrying another case's labels is never adopted or removed (`OAK-RUNNER-FOREIGN`). Every
-check fails closed, and unknown kinds, adapters, or schemas are refused rather than
-skipped.
+carrying another case's labels is never adopted or removed (`OAK-RUNNER-FOREIGN`). A native install (ADR-0019) is checked the same way
+against the profile's `execution.native_components`, and also needs a current
+`native_consent` approval naming the consent text, the relaxed controls and the
+installation; its compensation removes the installation's folder only when that `apply`
+created it. Every check fails closed, and unknown kinds, adapters, or schemas are refused
+rather than skipped.
 
 Execution brackets each side effect with hash-chained journal entries, so an interrupted
 run resumes into `manual_recovery_required` rather than guessing. Adapters map validated

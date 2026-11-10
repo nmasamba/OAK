@@ -41,7 +41,7 @@ The bootstrap step may use the public package registries, and downloads the pinn
 
 **`make check` reports success wrongly when backgrounded.** Verify it by counting `make: ***` lines in its output rather than by its exit code.
 
-**The PostgreSQL-gated integration suites skip silently.** Thirty tests need `OAK_TEST_DATABASE_URL` (29 integration tests and the installed-MCP handshake), and a skip is indistinguishable from a pass in the summary line; CI counts each job's skips against `tests/expected-skips.json` (see `CONTRIBUTING.md`). `compose.yaml` publishes no host port for PostgreSQL, so run them like this:
+**The PostgreSQL-gated integration suites skip silently.** Thirty-one tests need `OAK_TEST_DATABASE_URL` (30 integration tests and the installed-MCP handshake), and a skip is indistinguishable from a pass in the summary line; CI counts each job's skips against `tests/expected-skips.json` (see `CONTRIBUTING.md`). `compose.yaml` publishes no host port for PostgreSQL, so run them like this:
 
 ```bash
 cat > compose.override.yaml <<'YML'
@@ -185,7 +185,7 @@ runs, holds the rules review established:
   "enterprise" and no Google Fonts URL.
 - **G2:** the generated client gains no non-GET call beyond its known mutations
   (`recordReport` from Sprint 13; `researchCatalogue` and `reviewResearchItem` from
-  Sprint 14); no
+  Sprint 14; `confirmHardware` from Tier 3's Batch B); no
   button is named for approving,
   signing, dispatching, installing or applying unless its name starts with "Copy"; the
   copy control imports no client and makes no request.

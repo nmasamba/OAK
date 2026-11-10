@@ -50,11 +50,13 @@
     <strong>What this is.</strong> OAK Community 0.9.0 is a <em>local-first developer
     release</em>. It carries no production or customer readiness claim, and no external
     security review was commissioned for it. Everything in this manual runs on your own
-    machine against public or synthetic fixtures; the only mutation the runner can
-    perform is creating, in your local Docker, one network-isolated container per
-    component of the chosen design, from an image pinned by digest in a target profile
-    you explicitly acknowledge, and removing them again. It starts them, under fixed
-    hardening, only where that profile acknowledges it. The authoritative statements of
+    machine against public or synthetic fixtures. The runner can make one of two changes,
+    each only on a target profile you explicitly acknowledge, and remove it again: create, in
+    your local Docker, one network-isolated container per component of the chosen design,
+    from an image pinned by digest in that profile, starting them under fixed hardening only
+    where the profile says so; or, after your signed consent to what it gives up, install
+    each component natively, as you, from programs the profile pins by digest, start each
+    once to check it answers, and stop it. The authoritative statements of
     scope and limitation are
     <code>SECURITY.md</code> and <code>docs/security/residual-risk.md</code> in the
     repository.
@@ -156,14 +158,17 @@
     runs with the network disabled. The network is used only when the Docker chapters (4
     and 5) pull their pinned base images once, on first build; when chapter 6's first
     install has Docker pull one pinned placeholder image anonymously from Docker Hub; by
-    the optional model provider in chapter 4, which nothing requires; and by research,
-    only when you consent to a run (chapter 3). <strong>Fail-closed:</strong> anything unknown, malformed, expired, unsigned or
+    the optional model provider in chapter 4, which nothing requires; by research,
+    only when you consent to a run (chapter 3); and by a native install whose profile
+    downloads programs, such as the llama.cpp example in chapter 6, only from the hosts that
+    profile names. <strong>Fail-closed:</strong> anything unknown, malformed, expired, unsigned or
     mismatched is refused with a stable <code>OAK-*</code> error code, never skipped.
   </p>
   <h2>What it is not</h2>
   <p>
-    It is not a deployment tool for real infrastructure: the only target it will ever
-    touch is an explicitly acknowledged, network-isolated local fixture. It is not
+    It is not a deployment tool for real infrastructure: the only targets it will ever
+    touch are explicitly acknowledged local ones, a network-isolated container fixture or,
+    for a native install you consented to, your own user account. It is not
     multi-tenant, has no authentication, and binds to loopback. It is not a hosted
     service and never phones home. And a compiled plan is not permission to run
     anything — execution authority comes only from the signing and approval chain in
@@ -191,7 +196,7 @@
     <tr><td>You install first</td><td>Docker with Compose (Docker Desktop on a Mac) and <code>git</code></td><td><code>git</code> and <code>uv</code></td></tr>
     <tr><td>OAK then sets up</td><td>Two images built locally (the API image, shared by the <code>api</code>, <code>worker</code> and <code>migrate</code> services, and the web workspace) plus <code>postgres:17.6-alpine</code>: roughly 1–2&nbsp;GB of disk with what the build needs. Also five containers and three volumes: <code>oak-postgres-data</code> (your cases), <code>oak-artifacts</code> (the files OAK produces) and <code>oak-model-state</code> (a Hugging Face token, if you store one)</td><td>A virtual environment, <code>.venv</code>, inside the checkout, holding the locked dependencies. <code>uv</code> fetches Python 3.13.12 itself and keeps it, with its download cache, in your home folder (<code>~/.local/share/uv</code>, <code>~/.cache/uv</code>)</td></tr>
     <tr><td>Listens on</td><td><code>127.0.0.1:5173</code> (workspace) and <code>127.0.0.1:8080</code> (API) only</td><td>Nothing, unless you start a server</td></tr>
-    <tr><td>Writes elsewhere</td><td>Nothing outside Docker</td><td>The workspaces you create, wherever you create them, and <code>~/.oak</code> once you use keys, model settings or the runner — besides <code>uv</code>'s own folders above. The runner's install (chapter 6) also has your local Docker pull one pinned image and create labelled containers from it, which rollback removes</td></tr>
+    <tr><td>Writes elsewhere</td><td>Nothing outside Docker</td><td>The workspaces you create, wherever you create them, and <code>~/.oak</code> (a fresh access token each time <code>oak serve</code> starts, the rest once you use keys, model settings or the runner) — besides <code>uv</code>'s own folders above. The runner's install (chapter 6) also has your local Docker pull one pinned image and create labelled containers from it, which rollback removes</td></tr>
   </table>
   <h2>Prerequisites</h2>
   <table>
@@ -419,9 +424,12 @@ Used on this machine only:
 candidate-00  simpler_baseline           feasible    true      0
 candidate-01  minimum_sufficient         feasible    true      0
 candidate-03  balanced_enterprise        feasible    true      0
-candidate-04  high_assurance_sovereign   infeasible  false     1
-candidate-05  balanced_enterprise        infeasible  true      6
-candidate-06  high_assurance_sovereign   infeasible  true      6</span></code></pre>
+candidate-04  high_assurance_sovereign   infeasible  false     1</span></code></pre>
+  <p>
+    If you ran research (2b), the list goes on with the researched designs it found, here
+    <code>candidate-05</code> and <code>candidate-06</code>, shown for comparison and never
+    selectable.
+  </p>
   <p>
     Four provider-neutral candidate architectures are generated from a bundled synthetic
     catalogue, checked against hard constraints, and scored with transparent estimator
@@ -585,8 +593,9 @@ uv run oak import ../case-export --directory ../restored
     approves nothing.
   </p>
   <p>
-    The architecture page also offers <em>Copy install steps</em>. It copies the six
-    terminal commands that sign, approve, dispatch, run and ingest an install (chapter 6).
+    The architecture page also offers <em>Copy install steps</em>. It copies the
+    terminal commands that sign, approve, dispatch, run and ingest an install (chapter 6):
+    six, or eight for a native install, which reads and then gives the consent first.
     The browser runs none of them, and its three install lights only report what the
     case already records.
   </p>
@@ -814,9 +823,10 @@ sha256:2ef34758128e13038d26b82847589b2b0ec2c5f25ba6ba56982a520a92a34d63</span></
   }
 }</code></pre>
   <p>
-    The assistant sees eleven tools: create, read and interpret a case; list questions;
-    record answers under a named person; generate, list and evaluate candidates; create
-    the assurance plan; compile the bundle; and check on a slow job. Every call is checked
+    The assistant sees twelve tools: create, read and interpret a case; list questions;
+    record answers under a named person; record a hardware scan as a proposal a person
+    confirms; generate, list and evaluate candidates; create the assurance plan; compile the
+    bundle; and check on a slow job. Every call is checked
     against the tool's schema and then handled by the same services as the browser. A
     refusal comes back as data (<code>"isError": true</code> with a stable
     <code>OAK-*</code> code) that the assistant can act on. Interpretation stays
@@ -881,7 +891,8 @@ sha256:2ef34758128e13038d26b82847589b2b0ec2c5f25ba6ba56982a520a92a34d63</span></
 
   <h2>Set up and compile against the mutation fixture</h2>
   <p>
-    Two mutation-capable targets ship, and both need Docker.
+    Four mutation-capable targets ship. Two need Docker and come first;
+    the two native ones, which need no Docker, come at the end of this chapter.
     <code>local-mutation-fixture.yaml</code>, used first, is an acknowledged,
     network-isolated fixture whose only permitted mutation is creating one container per
     node of the selected candidate (two for <code>candidate-03</code>) and removing them
@@ -1312,10 +1323,11 @@ Measured, with no prediction to compare:
     If you received OAK Community as built artifacts rather than as this repository,
     verify them before installing anything. The newest published release is
     <code>0.9.0</code>, on the project's GitHub Releases page; this manual also describes
-    the work added since (the rebuilt browser workspace, <code>oak report</code>,
+    the work added since (among it the rebuilt browser workspace, <code>oak report</code>,
     <code>oak research</code>, the PDF's Latin, Greek and Cyrillic, JSON logs, moving a
-    local case onto a server, and the verifier's signature check), which its downloads do
-    not contain. <code>0.8.0</code> was approved but never published. To build the artifacts
+    local case onto a server, the verifier's signature check, request and model-use limits,
+    workspace migration, <code>oak scan</code>, and installing natively with a key for each
+    model server), which its downloads do not contain. <code>0.8.0</code> was approved but never published. To build the artifacts
     yourself, the repository does it with:
   </p>
   <pre><code>make release</code></pre>

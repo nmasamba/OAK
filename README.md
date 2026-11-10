@@ -77,7 +77,8 @@ answers questions from a set of public technical manuals and cites the passage i
    controls to put in place before anything goes live) and a deployment **bundle** (five
    files that say exactly what to build and where). **Nothing gets deployed.** The plan
    is inert. Installing it takes a separate signing step, two approvals (one of the
-   architecture, one of the install) and the runner's own checks, which is deliberately
+   architecture, one of the install), a third for a native install (your consent to what it
+   gives up), and the runner's own checks, which is deliberately
    hard to skip. If the design is all you want, `oak architecture` prints it (the browser's
    **Take it** sheet downloads it as YAML or JSON), and you can stop there.
 7. **OAK writes it up.** Once a design is chosen, `oak report --record` (or **Record
@@ -169,8 +170,9 @@ It installs nothing system-wide and needs no admin rights. In the Docker way, `u
 Node.js are used *inside* the image build, so you don't need them on your machine. In the
 source way, `uv` keeps the Python it downloads and its package cache in your home folder
 (`~/.local/share/uv` and `~/.cache/uv`), where any other project that uses `uv` shares
-them. Apart from the folders you point it at, OAK itself writes only to `~/.oak`, and
-only once you use signing keys, AI-model settings or the runner. There are two
+them. Apart from the folders you point it at, OAK itself writes only to `~/.oak`: a fresh
+access token for the browser each time `oak serve` or the API server starts, and anything
+else only once you use signing keys, AI-model settings or the runner. There are two
 exceptions. If you use the runner to install a design, your Docker pulls one small
 placeholder image (`docker.io/rancher/mirrored-pause`, pinned by digest) and creates
 labelled containers from it; a rollback removes the containers, and the image stays until
@@ -354,7 +356,8 @@ stored file is saved only when its fingerprint (its SHA-256 digest) matches the 
 server names, and the tile then says *digest matches*. The architecture document and the
 topology drawing are put together when you ask, have no fingerprint of their own, and
 say *saved*. A download approves nothing. On the architecture page, **Copy install
-steps** copies the six terminal commands that install the design; it runs none of them.
+steps** copies the terminal commands that install the design, six of them, or eight for a
+native install, which reads and gives the consent first; it runs none of them.
 
 **Command line.** Each case is a folder. `cd` into it and carry on where you left off, for
 example with `uv run oak questions`. Three more things are worth making habits:
@@ -446,8 +449,8 @@ prints.
 
 **What the assistant can do:** create a case, read it, interpret the brief, list the
 questions, record answers (under a named person), generate, list and evaluate options,
-create the assurance plan, compile the bundle, and check on slow jobs. That's 11 tools in
-all. **What it can't do:** choose the design, which is left to a person on purpose. It
+create the assurance plan, compile the bundle, record a hardware scan as a proposal for a
+person to confirm, and check on slow jobs. That's 12 tools in all. **What it can't do:** choose the design, which is left to a person on purpose. It
 also can't sign, approve, run anything, read files, run commands or change your AI-model
 settings; those are ruled out permanently for MCP. If it asks for a tool that doesn't
 exist, the answer is simply "tool is not available". The tour walks through
@@ -528,10 +531,13 @@ means:
   network-isolated container for each component of the chosen design, from an image the
   profile pins by digest, and a rollback removes them. It starts them only where the
   profile allows a locked-down start (no network, read-only, no privileges, capped memory,
-  CPU and processes), and then checks that each one stays up. The example targets use a
+  CPU and processes), and then checks that each one stays up. Most example targets use a
   placeholder image that does none of the components' work. So `oak observe` can record
   install, rollback, startup and memory results, but the observed cost, speed, quality and
-  energy stay `unknown` beside their predictions, because no real workload runs.
+  energy stay `unknown` beside their predictions, because no real workload runs. A native
+  target instead installs the programs as you, outside Docker, after a third approval: your
+  consent to what that gives up. One example installs llama.cpp's server with a small model,
+  starts it once to check it, and stops it.
 - **Some parts record rather than enforce.** Policy checks are recorded but don't block
   anything yet. The bundled component catalogue and the bundled set of policy rules (the
   "policy pack") are synthetic examples: not real prices, and not legal advice.
@@ -598,8 +604,9 @@ Some ways in, from a first afternoon to a bigger project:
   `web/src/tokens.css`, plus its own contrast and screenshot pass.
 - **Add a deployment backend or a pack.** A "renderer" turns OAK's plan into files for one
   particular deployment tool. Two ship today, plain local manifests and a Helm chart for
-  Kubernetes. OpenTofu or Terraform, Crossplane, Ansible, and model-serving profiles such
-  as vLLM or llama.cpp are on the backlog. So are packs, which are bundles of policy
+  Kubernetes. OpenTofu or Terraform, Crossplane, Ansible, and renderers for model-serving
+  profiles such as vLLM or llama.cpp are on the backlog (a native install can already run
+  llama.cpp's server). So are packs, which are bundles of policy
   rules, domain knowledge or evaluation tests. See [extension-sdk.md](docs/extension-sdk.md).
 - **Widen where it runs.** Nobody has yet recorded a run of the Docker stack on an Intel
   or AMD Linux machine as an operator would run it. The automatic checks (CI) run on Linux
@@ -643,10 +650,11 @@ enforces.
 The newest **published** release is `0.9.0`, on the
 [Releases page](https://github.com/nmasamba/OAK/releases), published on 2026-10-01. This
 tree still reports `0.9.0`, but it also holds the work listed under "Unreleased" in
-[CHANGELOG.md](CHANGELOG.md) (the rebuilt browser workspace, `oak report`,
+[CHANGELOG.md](CHANGELOG.md) (among it the rebuilt browser workspace, `oak report`,
 `oak research`, the PDF's Latin, Greek and Cyrillic, JSON logs, moving a local case onto a
-server, and the signature check in the verifier), which the published `0.9.0` downloads do
-not contain. `0.8.0` was approved
+server, the signature check in the verifier, request and model-use limits, workspace
+migration, `oak scan`, and installing natively with a key for each model server), which the
+published `0.9.0` downloads do not contain. `0.8.0` was approved
 but never published, so `0.7.1` is the published release before it.
 
 Each release comes with a `SHA256SUMS` file. It lists a fingerprint (a SHA-256 hash) for
