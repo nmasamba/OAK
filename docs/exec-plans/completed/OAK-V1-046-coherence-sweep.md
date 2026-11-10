@@ -7,7 +7,7 @@
 - Owner/agent: owner-directed coding agent
 - Started: 2026-11-10
 - Last updated: 2026-11-10
-- State: in-progress
+- State: complete (open as a PR from branch `coherence-sweep`; its merge is the owner's)
 - Claimed tasks: `OAK-V1-046`
 
 ## Outcome
@@ -103,6 +103,12 @@ Revert the branch. The spec repo's edits are listed in its changelog.
   the way (state documents resolved before `--implementation` applied; a task recorded in
   another plan reported as planless), and gained a check for a plan the status file does not
   name. After the fixes it reports five leads, each judged below.
+- [x] 2026-11-10 M3. `make check` on `93bd7aa` in a detached worktree with a fresh, migrated
+  throwaway PostgreSQL, 19:43 to 19:56 UTC: no `make: ***` line; unit and contract 1,567 passed,
+  integration 638, end to end 47, the web build done, and the database held the gated suites'
+  records. The spec repo's validator passes, with its new rule. Then the recipe and the skill
+  gained what this sweep taught: look hardest at lists and counts the latest merges should
+  have extended, say no more than the evidence, and give intent a status rather than a rewrite.
 
 ## Findings
 
