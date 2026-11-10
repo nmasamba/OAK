@@ -115,7 +115,16 @@ record readable.
 - [x] 2026-11-10 The test written and seen to fail without the fix. With the fix it passes,
   beside the 82 tests of the neighbouring runner and scan suites.
 - [x] 2026-11-10 Three mutants, all killed.
-- [ ] 2026-11-10 `make check` with PostgreSQL on `a953984`, the code commit.
+- [x] 2026-11-10 `make check` on `a953984`, the code commit, in a detached worktree, with
+  `OAK_TEST_DATABASE_URL` on a fresh, migrated PostgreSQL on 127.0.0.1:15436: 1,567 unit and
+  contract (1 skipped), 639 integration (4 skipped: the four PostgreSQL-only assertions on the
+  file harness, by design, so no PostgreSQL-gated test skipped) and 47 end-to-end, the runner
+  journeys included; no `make: ***` line. `make validate`, the
+  repository checks and the contract tests passed on `236795b`, which adds only this plan, the
+  changelog and the status, and `make audit` was clean.
+- [x] 2026-11-10 A trial merge with the sweep's branch, `coherence-sweep`, made locally and
+  never pushed, conflicts only in `CHANGELOG.md` and `STATUS.md`; `docs/error-codes.md` merges
+  cleanly and is current on it.
 
 ## Decisions
 
