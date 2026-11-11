@@ -229,7 +229,7 @@ directory that is not in either.
 | Signing keys and trust anchors | `$OAK_TRUST_DIRECTORY` (default `~/.oak/trust`) | A **separate**, protected copy |
 | Outbound dispatch mailbox | `$OAK_DISPATCH_MAILBOX` (default `~/.oak/mailbox`) | A filesystem copy, if leases are in flight. The runner removes processed dispatch directories older than `OAK_RUNNER_DISPATCH_RETENTION_DAYS` (default 30) at the end of each run, never the newest nor one whose completion is not yet ingested |
 | Extension quarantine and activations | `$OAK_EXTENSIONS_DIRECTORY` (default `~/.oak/extensions`) | A filesystem copy |
-| Runner identity, journals (never removed), the consumed-nonce ledger (holding each nonce until its lease's expiry plus five minutes), the revocation-sequence mark, and `docker-config/`, the empty Docker client configuration the runner's `docker` commands use (a `run-*` directory there is a run's private working directory, removed when it ends: nothing to back up) | `$OAK_RUNNER_HOME` (default `~/.oak/runner`) | A **separate**, protected copy — it holds the runner's own Ed25519 private key |
+| Runner identity, journals (never removed), the consumed-nonce ledger (holding each nonce until its lease's expiry plus five minutes), the revocation-sequence mark, and `docker-config/`, the empty Docker client configuration the runner's `docker` commands use (a `run-*` directory there is a run's private working directory, removed when it ends: nothing to back up), and `native/`, one folder per native installation holding its downloaded programs and models, which can run to gigabytes, and its `api-key.txt`, a secret: leave it out of the copy, or keep the copy as protected as the key | `$OAK_RUNNER_HOME` (default `~/.oak/runner`) | A **separate**, protected copy — it holds the runner's own Ed25519 private key |
 
 > **A `pg_dump` alone is not a backup.** Artifact bytes are read *only* from the artifact
 > root; the JSONB copy in `artifact_versions.canonical_document` is never read back at
@@ -595,7 +595,7 @@ has the whole journey. The commands an operator meets:
 
 | Command | What it does | Where it runs |
 |---|---|---|
-| `oak architecture` | Prints the selected architecture and, once it is compiled for a mutation profile, the image each node would run and which of the two approvals exist. Writes nothing | Local and remote |
+| `oak architecture` | Prints the selected architecture and, once it is compiled for a mutation profile, the image each node would run (for a native profile, its program and port) and which of the approvals the install needs exist: two, or three with the native consent. Writes nothing | Local and remote |
 | `oak approve architecture` | Records the approval of the architecture as compiled. Installs nothing, and `oak approve apply` is refused without it (`OAK-APPROVAL-ARCHITECTURE`) | Local only |
 | `oak observe` | Records an `observation_record` from the runner completions that ingest accepted, and moves the case to `observing`. Proposes and dispatches nothing | Local only |
 

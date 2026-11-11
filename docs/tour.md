@@ -358,7 +358,7 @@ an AI assistant to use outside tools. Here's what happens when an assistant uses
    code the assistant can act on. An unknown tool or malformed arguments get a
    protocol-level error instead.
 
-### The eleven tools
+### The twelve tools
 
 | Tool | What it does | Changes the case? |
 |---|---|---|
@@ -367,6 +367,7 @@ an AI assistant to use outside tools. Here's what happens when an assistant uses
 | `oak_design_case_interpret` | Interprets the brief. Deterministic unless `interpreter` says `online` or `local` | yes |
 | `oak_questions_list` | Lists the open questions | no |
 | `oak_claims_confirm` | Records answers. It needs a named `actor` | yes |
+| `oak_hardware_propose` | Records a hardware scan's result (from `oak scan --output json`) as the case's hardware proposal; nothing in the brief's reading changes until a person confirms it | yes |
 | `oak_candidates_generate` | Starts generating options (a slow job) | yes |
 | `oak_candidates_list` | Lists options with their rejection reasons | no |
 | `oak_candidate_evaluate` | Starts evaluating one option (a slow job) | yes |

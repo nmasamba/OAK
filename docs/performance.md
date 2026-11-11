@@ -37,10 +37,13 @@ where the floor is. They do not tell you what your machine will do.
 The machine-readable reports, including full provenance, are
 [release/0.7.0/performance.json](release/0.7.0/performance.json), which the sections below
 describe, and [release/0.9.0/performance.json](release/0.9.0/performance.json). Measure the
-current tree into its own release directory, never over an earlier report:
+current tree into a file of its own, never over an earlier report. `VERSION` names the last
+release until the next one is cut, so a report of unreleased work goes under
+`docs/performance/` with the date in its name, and into its release's directory only when
+that release is cut:
 
 ```bash
-python scripts/benchmark.py --output docs/release/$(cat VERSION)/performance.json
+python scripts/benchmark.py --output docs/performance/performance-$(date +%F).json
 ```
 
 The workspace-growth curve alone, which takes a few minutes, is `--only workspace_growth`,

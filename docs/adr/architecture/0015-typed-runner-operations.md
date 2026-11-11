@@ -11,6 +11,7 @@
 - Date: 2026-08-14
 - Owners: @architecture, @security, @operations
 - Requirement IDs: OAK-FR-CTL-005–008, OAK-FR-DEP-001–008, OAK-NFR-SEC-001–004, OAK-NFR-REL-001–002
+- Amended by: ADR-0019 (one exception to downloaded code, for a native installation)
 
 ## Context
 
@@ -22,7 +23,7 @@ The compiler emits an immutable `DeploymentBundle` plus a `RunnerPlan` containin
 
 The control plane signs the plan under an explicit verification policy. A target mutation additionally requires a current approval bound to plan/bundle digest, target, action and expiry. The runner independently validates plan, target, lease, policy, approvals, adapter and parameters before target access. See ADR-0017 for the separate `architecture` approval an install also requires, and for when an install may start what it created.
 
-Adapter code maps validated fields to a fixed allowlisted executable and argument vector. It must not use a shell interpreter, plan-selected executable, dynamic downloaded code or free-form command field. The runner resolves secrets locally, journals side effects and returns only evidence allowed by the observation/data contract. Communication is outbound-initiated where possible.
+Adapter code maps validated fields to a fixed allowlisted executable and argument vector. It must not use a shell interpreter, plan-selected executable, dynamic downloaded code or free-form command field. ADR-0019 makes the one exception to downloaded code: the native adapter may run an executable it downloaded, only when the signed plan's target profile acknowledges its digest, it is verified before it runs, and its harness kind fixes which file runs with which arguments. The runner resolves secrets locally, journals side effects and returns only evidence allowed by the observation/data contract. Communication is outbound-initiated where possible.
 
 ## Alternatives
 

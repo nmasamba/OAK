@@ -61,8 +61,8 @@ limitation. If you need a response by a deadline, say so in the report.
   in scope.
 - Attacks that require write access to the operator's own home directory or Docker daemon.
   Anyone with that already holds the private keys in `~/.oak/trust`.
-- Denial of service through unbounded local workloads. There is no quota or rate limiter
-  and the register says so (`RR-024`).
+- Denial of service through local workloads beyond the per-process request, operation and
+  model-use limits, which bound but do not prevent it (`RR-024`, `RR-041`).
 - Findings against dependencies with no OAK-reachable path — report those upstream, though
   we would like to hear about them.
 

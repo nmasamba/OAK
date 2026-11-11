@@ -12,14 +12,15 @@
 - Owners: @architecture, @security, @operations
 - Requirement IDs: OAK-FR-DEP-003, OAK-FR-DEP-004, OAK-FR-DEP-005, OAK-FR-IMP-001, OAK-NFR-SEC-001–004
 - Amends: ADR-0017 (adds a second installation mode beside the container one; changes none of its rules)
-- Amended: 2026-11-04 (a key for each installation's model server, `OAK-V1-045`)
+- Amended: 2026-11-04 (a key for each installation's model server, `OAK-V1-045`); 2026-11-10 (what
+  `oak observe` reads, corrected by a coherence sweep, `OAK-V1-046`)
 
 ## Context
 
 ADR-0017 installs the selected candidate as one hardened container per node. That needs Docker,
 and it isolates each process so far (no network, a read-only root, no capabilities, resource
 ceilings) that a real serving harness could not do its work. The owner's definition of native
-installation, in `sprints.md`: the user downloads the architecture to their machine instead of
+installation, in the original spec repo's `sprints.md`: the user downloads the architecture to their machine instead of
 using Docker, once they have approved installation, on two platforms, with the security
 requirements relaxed because the user has given permission and the risks have been explained.
 
@@ -100,9 +101,10 @@ rather than letting the mode contradict it silently.
   the signed plan was compiled against, it is verified before any execution, it sits in a
   runner-owned directory with modes the runner set, and the harness kind fixes which file runs
   and with which arguments.
-- **Observation reuses the smoke test.** `oak observe` on a native installation starts it,
-  probes it and stops it, recording what it measured beside the predictions, as ADR-0017's
-  observation does.
+- **Observation reuses the smoke test.** `oak observe` on a native installation starts
+  nothing: it reads what the install's smoke test measured, each component's seconds to its
+  first healthy answer, from the ingested evidence, and records it beside the predictions, as
+  ADR-0017's observation does.
 
 ## Alternatives
 

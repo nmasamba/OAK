@@ -13,10 +13,10 @@ given an invented description.
 
 | Surface | Where the code appears |
 |---|---|
-| CLI | `CODE: message` on stderr. Exit `0` success, `2` refusal or invalid input, `4` version or idempotency conflict |
+| CLI | `CODE: message` on stderr. Exit `0` success, `2` refusal or invalid input, `4` version or idempotency conflict, `141` when whatever reads its output closes first |
 | REST | The `code` field of the problem-details body. For a not-found code the `detail` is replaced with an opaque string, so **the code is your only signal** |
 | MCP | The `code` field of the tool result's `structuredContent`, with `isError: true`. Not-found codes are opaqued as on REST |
-| Runner | `CODE: message` on stderr. Exit `64` for a configuration refusal (a required `OAK_RUNNER_*` variable missing), `70` for a verification or execution refusal |
+| Runner | `CODE: message` on stderr. Exit `0` once every pending dispatch is handled, a denied or failed one included (its outcome is in the signed message the runner publishes); `64` when a required `OAK_RUNNER_*` variable is missing; `70` when the runner itself cannot run, a malformed variable among the reasons |
 | Process startup | A refusal before logging is set up is plain text on stderr, `CODE: message` (or a bare message for a bad `OAK_PORT` or `OAK_WORKER_ID`), exit `1`: `OAK-LOG-CONFIG`, `OAK-SAFE-BIND`, `OAK-WORKER-CONFIG` and `OAK-MCP-CONFIG` reach you only this way, and `oak-db-migrate` prints `OAK-DATABASE-CONFIG` and `OAK-DATABASE-MIGRATION` so. Any other failure of `oak-api`, `oak-worker` or `oak-mcp` to start is a `startup_failed` JSON line naming the error's type and code (for `oak-api`, with the host and port; `OAK-SERVE-BIND` for a port in use), exit `1` (docs/operations.md, "Logs") |
 
 Codes are a public surface governed by [compatibility.md](compatibility.md): new codes may
@@ -46,9 +46,9 @@ documented flow uses it.
 | `OAK-NATIVE-CONSENT` | A native installation's consent is missing, out of order, given without the digest of the text you read, or the text changed after the plan was compiled | Run `oak approve native_consent` to read the text and its digest, then repeat it with `--consent` and that digest, after the architecture approval and before `oak approve apply`; recompile if the text changed |
 | `OAK-NATIVE-DIGEST` | A downloaded or copied artifact's size or SHA-256 is not what the target profile acknowledges | Nothing was run. Check the profile's `sha256` and `size_bytes` against the publisher's release, or the source |
 | `OAK-NATIVE-HOST` | A download, or one of its redirects, reached a host the profile does not list in `allowed_download_hosts` | Add the host only if you trust it; nothing was written from it |
-| `OAK-NATIVE-SMOKE` | An installed component did not answer its health probe in time, or stopped answering | It was stopped and the install removed. Check the profile's `health_probe` and `listen_port`, and the component's `run.log` |
+| `OAK-NATIVE-SMOKE` | An installed component did not answer its health probe in time, or stopped answering | It was stopped. A new install was removed, log and all; one that was already there is kept, with the component's `run.log` in its folder. Check the profile's `health_probe` and `listen_port` |
 | `OAK-NATIVE-KEY` | A model server answered a request that carried no key with something other than a refusal, so the installation's key is not in force | It was stopped, and a new install was removed with its log. The build the profile pins took `--api-key-file` and did not enforce it: pin a build that does |
-| `OAK-NATIVE-STOP` | A process a component started was still running after the stop | The install was removed, but that process was not: find and stop it yourself. Only a program built to leave its process group does this |
+| `OAK-NATIVE-STOP` | A process a component started was still running after the stop | A new install was removed and one that was already there kept, but that process was not: find and stop it yourself. Only a program built to leave its process group does this |
 | `OAK-NATIVE-OWNERSHIP` | The installation's directory exists but the runner did not create and mark it | Nothing was changed or removed. Move that directory aside yourself if it is not needed |
 | `OAK-NATIVE-PLATFORM` | Native installation was asked of a platform it does not support | It runs on macOS on Apple silicon and on Linux on x86_64 and aarch64; elsewhere, use a container target |
 | `OAK-REMOTE-UNSUPPORTED` | A local-only command was run with `--server` | Signing, approval, dispatch, keys, model-provider configuration, extensions and policy are local-only by design |
@@ -58,7 +58,7 @@ documented flow uses it.
 
 ## Full index
 
-404 codes across 17 families.
+410 codes across 17 families.
 
 ### Workspace, artifacts and import/export (28)
 
@@ -160,15 +160,19 @@ documented flow uses it.
 | `OAK-TARGET-PATH` | target profile must be a regular file | `src/oak/adapters/targets/local_profile.py:24` |
 | `OAK-TARGET-TENANT` | target tenant does not match the command authority | `src/oak/application/candidate_planning.py:573` |
 
-### Catalogue (31)
+### Catalogue (37)
 
 | Code | Meaning | First raise site |
 |---|---|---|
 | `OAK-CAT-AVAILABILITY-BLOCKED` | *reason or mapping code; carries no fixed message* | `src/oak/domain/catalogue_rules.py:31` |
+| `OAK-CAT-DATA-LICENCE-BLOCKED` | *reason or mapping code; carries no fixed message* | `src/oak/domain/catalogue_rules.py:41` |
+| `OAK-CAT-DATA-LICENCE-UNREVIEWED` | *reason or mapping code; carries no fixed message* | `src/oak/domain/catalogue_rules.py:43` |
 | `OAK-CAT-EVIDENCE-FUTURE` | *reason or mapping code; carries no fixed message* | `src/oak/compiler/catalogue.py:30` |
 | `OAK-CAT-EVIDENCE-STALE` | *reason or mapping code; carries no fixed message* | `src/oak/domain/catalogue_rules.py:33` |
 | `OAK-CAT-EVIDENCE-UNDIGESTED` | *reason or mapping code; carries no fixed message* | `src/oak/domain/catalogue_rules.py:46` |
 | `OAK-CAT-KNOWN-VULNERABILITY` | *reason or mapping code; carries no fixed message* | `src/oak/compiler/catalogue.py:30` |
+| `OAK-CAT-MODEL-LICENCE-BLOCKED` | *reason or mapping code; carries no fixed message* | `src/oak/domain/catalogue_rules.py:41` |
+| `OAK-CAT-MODEL-LICENCE-UNREVIEWED` | *reason or mapping code; carries no fixed message* | `src/oak/domain/catalogue_rules.py:43` |
 | `OAK-CAT-RESEARCH-ARCHIVED` | *reason or mapping code; carries no fixed message* | `src/oak/domain/research_rules.py:71` |
 | `OAK-CAT-RESEARCH-CAPABILITY` | *reason or mapping code; carries no fixed message* | `src/oak/domain/research_rules.py:77` |
 | `OAK-CAT-RESEARCH-DISABLED` | *reason or mapping code; carries no fixed message* | `src/oak/domain/research_rules.py:72` |
@@ -184,6 +188,8 @@ documented flow uses it.
 | `OAK-CAT-RESEARCH-UNDIGESTED` | *reason or mapping code; carries no fixed message* | `src/oak/domain/research_rules.py:76` |
 | `OAK-CAT-RESEARCH-UNREACHABLE` | *reason or mapping code; carries no fixed message* | `src/oak/domain/research_rules.py:82` |
 | `OAK-CAT-RESEARCH-UNVETTED` | *reason or mapping code; carries no fixed message* | `src/oak/domain/research_rules.py:78` |
+| `OAK-CAT-SOFTWARE-LICENCE-BLOCKED` | *reason or mapping code; carries no fixed message* | `src/oak/domain/catalogue_rules.py:41` |
+| `OAK-CAT-SOFTWARE-LICENCE-UNREVIEWED` | *reason or mapping code; carries no fixed message* | `src/oak/domain/catalogue_rules.py:43` |
 | `OAK-CAT-STATUS-NOT-ELIGIBLE` | *reason or mapping code; carries no fixed message* | `src/oak/domain/catalogue_rules.py:29` |
 | `OAK-CAT-TRANSITIVE-LICENCE-UNRESOLVED` | *reason or mapping code; carries no fixed message* | `src/oak/domain/catalogue_rules.py:37` |
 | `OAK-CATALOGUE-COUNT` | catalogue contains too many documents | `src/oak/adapters/catalogue/local_catalogue.py:37` |
