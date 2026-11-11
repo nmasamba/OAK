@@ -285,7 +285,7 @@ documented flow uses it.
 | `OAK-RUNNER-KEY` | runner key length is invalid; runner key must be a private regular file; the mailbox holds completions but the runner home has no key to tell this runner's own from them; and 1 more | `src/oak/runner/identity.py:44` |
 | `OAK-RUNNER-LEASE` | the lease expired before the next side effect | `src/oak/runner/adapters.py:773` |
 | `OAK-RUNNER-LEASE-EXPIRED` | the lease expired before the next step; the lease expired during a download | `src/oak/runner/native.py:453` |
-| `OAK-RUNNER-MAILBOX` | *dynamic message* | `src/oak/runner/main.py:344` |
+| `OAK-RUNNER-MAILBOX` | *dynamic message* | `src/oak/runner/main.py:347` |
 | `OAK-RUNNER-NETWORK` | *reason or mapping code; carries no fixed message* | `src/oak/runner/verification.py:492` |
 | `OAK-RUNNER-OPERATION` | operation kind is not supported | `src/oak/runner/execution.py:338` |
 | `OAK-RUNNER-PARAMETERS` | container entry is not permitted; container list is not permitted; container name is not permitted; and 8 more | `src/oak/runner/adapters.py:815` |

@@ -304,6 +304,9 @@ def _run_once_locked(
             target_document=target_document,
             registry=registry,
             now=now,
+            # The inventory scan runs its commands through this run's executor too: from the
+            # run's directory, with the runner's own Docker configuration (RR-013, RR-027).
+            executor=executor,
             cancellation_requested=cancellation_requested,
             adapter=container,
             heartbeat=heartbeat,
