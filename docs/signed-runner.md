@@ -4,10 +4,11 @@
 
 Sprint 5 adds local signing, approvals, outbound-only dispatch, and a separate runner trust
 domain. Everything here is development-grade: keys are labelled `development`, and the only
-reachable target is an isolated non-production local profile. The sole permitted mutation
-installs the selected candidate's topology on the runner's local Docker daemon, one
-network-isolated container per node, and removes it again. Whether those containers are
-ever started is the target profile's acknowledgement (see
+reachable target is an isolated non-production local profile. A mutation installs the
+selected candidate's topology on an acknowledged local target and removes it again: on the
+runner's local Docker daemon, one network-isolated container per node, which the target
+profile decides whether to start, or, on a profile that acknowledges a native installation,
+each component installed as the user, checked and stopped (see
 [Mutation profiles](#mutation-profiles)).
 
 ## Authority separation
@@ -144,7 +145,10 @@ approvals can be recorded (`OAK-APPROVAL-STATE`).
 
 ## What the runner checks before touching a target
 
-In this order, and any failure denies the dispatch before an adapter is constructed:
+In this order, and any failure denies the dispatch before an adapter is constructed. Before
+step 0, the runner skips a dispatch directory whose name no control plane delivers, and a
+dispatch its journal shows was interrupted goes to recovery (below) instead of being
+verified again:
 
 0. **Revocation set.** Before the envelope is read, the signed revocation manifest is
    schema-validated and anchor-verified, its sequence checked against the high-water
@@ -219,7 +223,9 @@ In this order, and any failure denies the dispatch before an adapter is construc
      installation never needs it;
    - every other requested kind requires the `dry_run` approval.
 
-Steps 8 and 9 run for each requested kind in turn.
+The plan may hold one operation of each kind (`OAK-RUNNER-OPERATION`). Then, for each
+requested kind in turn, the runner checks that the plan holds an operation of that kind
+(`OAK-RUNNER-OPERATION`), step 7's per-kind clauses, and steps 8 and 9.
 
 ## Mutation profiles
 
@@ -243,7 +249,11 @@ as the user, from the harness kind its `execution.native_components` entry names
 stopped once its check passes
 ([ADR-0019](adr/architecture/0019-native-installation-with-recorded-consent.md), `RR-056`,
 `RR-057`). It installs OAK's own stand-in server for every synthetic component, so it
-downloads nothing; see "What the native adapter does" below.
+downloads nothing; see "What the native adapter does" below. A fourth,
+`examples/targets/local-native-llama-cpp.yaml`, is the same mode with a real harness:
+llama.cpp's `llama-server` (build `b11721`) and a small model, downloaded from the hosts it
+names, each model server with its installation's own key; [platforms.md](platforms.md) says
+where it has been run.
 
 At compile, a component with no acknowledged image fails `preflight.installation`
 (`OAK-TARGET-INCOMPATIBLE`); nothing falls back to another image. A profile that still
@@ -536,6 +546,8 @@ so, which `oak ingest` records as `runner_recovery_required`. `oak-runner status
 any journal with an open operation as needing recovery. Resolve it by inspecting the journal
 and the installation's labelled containers
 (`docker ps --all --filter label=oak.installation=<installation id>`), removing them with a
-signed rollback or by hand, then re-dispatch. Losing the
+signed rollback or by hand, then re-dispatch. A native installation is resolved the same
+way with its folder, `native/<installation id>` in the runner home, in place of the
+containers: read its `.oak-installation.json` before removing anything by hand. Losing the
 trust directory invalidates outstanding envelopes and approvals, which are re-signable from
 the unchanged canonical artifacts.

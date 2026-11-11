@@ -21,6 +21,32 @@ All notable changes to OAK Community are recorded here.
   sweep (`OAK-V1-046`) found it; a new test records each command the scan starts and fails
   without the fix.
 
+### A coherence sweep (`OAK-V1-046`)
+
+At the owner's request on 2026-11-10, after PRs #44 to #46 merged, both repositories were
+swept so that what they say agrees with the code. The sweep used a new **Coherence sweep**
+recipe in the original spec repo's `skills.md`, with a lead generator,
+`scripts/coherence_report.py`, beside its validator. It changes no behavior.
+
+#### Changed
+
+- **The documents now say what the code does**, about sixty sentences in thirty files, each
+  checked against the code before it changed. Among them: the MCP server has 12 tools, not
+  11; the runner's mutations include the native installation, with a fourth example profile,
+  native recovery and a third approval wherever the approvals are listed; `SECURITY.md` no
+  longer says there is no rate limiter; the runner home's contents name `native/` and its
+  `api-key.txt`, so the backup row says what a copy would hold; 31 tests, not 30, need the
+  test database; the benchmark command no longer overwrites a published report; and the
+  status files no longer call merged pull requests open. `docs/exec-plans/active/OAK-V1-046-coherence-sweep.md`
+  has the findings, their evidence and what each fix was.
+- **The error reference lists the six catalogue licence codes** (`OAK-CAT-{SOFTWARE,MODEL,DATA}-LICENCE-{BLOCKED,UNREVIEWED}`)
+  that `scripts/generate_error_reference.py` could not see, because they are built from a
+  template, and its hand-written rows now say that a denied dispatch exits the runner with
+  `0`, that the CLI exits `141` when its reader goes away, and that a failed native check
+  removes only an install it created.
+- **The runner's verification order is documented as it runs:** what happens before step 0,
+  and the per-kind operation and policy checks before steps 8 and 9. No check moved.
+
 ### A key for each native model server (`OAK-V1-045`)
 
 The rehearsal of 2026-11-03 found that `llama-server` logs "no API key is set and CORS allows

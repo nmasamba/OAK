@@ -201,8 +201,9 @@ Notes:
   (`--narrative online|local`, `?narrative=`) adds one labelled note per main slide
   and needs the capability token like a model-mode interpretation. MCP has no report
   tool (kickoff decision K6).
-- The MCP tool set is exactly the ten interface-contract tools plus the
-  read-only `oak_operation_get` progress query. A contract test pins this set;
+- The MCP tool set is exactly twelve tools: the ten interface-contract tools,
+  `oak_hardware_propose` (Tier 3 Batch B) and the read-only `oak_operation_get` progress
+  query. A contract test pins this set;
   a new tool cannot appear without failing it.
 - The CLI has no separate candidate-list command: `oak candidates` generates and
   displays them, converging on the existing set when retried with the same
@@ -271,7 +272,8 @@ These are deliberately absent; their presence would be a different product
   independently verified by the runner against an isolated non-production
   fixture.
 - Secret resolution through any interface. Canonical documents carry secret
-  *references* only; the runner resolves them locally after verification. This is a
+  *references* only, and in Community the runner resolves none: it refuses an operation
+  that carries one (`OAK-RUNNER-SECRETS`). This is a
   different thing from storing the user's own model-provider key, which the local CLI,
   the loopback REST routes and the web workspace do support: that key is machine-local
   configuration, never enters a canonical document, and is never returned by any

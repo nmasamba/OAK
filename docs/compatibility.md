@@ -320,7 +320,8 @@ mechanical migration; **breaking** otherwise.
 ## CLI
 
 - Stable surface: command names, positional argument meaning, documented option names,
-  exit codes (`0` success, `2` refusal/invalid input, `4` version/idempotency conflict),
+  exit codes (`0` success, `2` refusal/invalid input, `4` version/idempotency conflict,
+  `141` when whatever reads the output closes it first),
   the stdout/stderr split (data on stdout, `CODE: message` diagnostics on stderr), and
   the `--output json|yaml` document shapes, which mirror the application results.
 - Adding a command or an option with a default that preserves old behavior is
@@ -579,9 +580,12 @@ mechanical migration; **breaking** otherwise.
   `0.9` runner denies a native plan (`OAK-RUNNER-ADAPTER`), and container plans verify
   exactly as before. A native plan's `lease_policy.maximum_seconds` is `3600` and the
   control plane issues a native `apply` dispatch an hour's lease, because the install
-  downloads inside it; every other plan and dispatch keeps `300`, byte for byte. New codes:
-  `OAK-NATIVE-STOP` (a process a component started outlived the stop) and `OAK-NATIVE-IO`
-  (a file of the installation could not be written or read).
+  downloads inside it; every other plan and dispatch keeps `300`, byte for byte. New codes: the
+  hardware scan's `OAK-HARDWARE-EMPTY`, `-PROPOSAL` and `-STATE`; the native installation's
+  `OAK-NATIVE-ARCHIVE`, `-CONSENT`, `-DIGEST`, `-DOWNLOAD`, `-HARNESS`, `-HOST`, `-IO`,
+  `-OWNERSHIP`, `-PLATFORM`, `-SIZE`, `-SMOKE`, `-START`, `-STOP` and `-UNINSTALL`; and
+  `OAK-RUNNER-LEASE-EXPIRED`. `OAK-NATIVE-KEY` came with `OAK-V1-045`.
+  `docs/error-codes.md` says what each means.
 
 ## Deprecation process
 

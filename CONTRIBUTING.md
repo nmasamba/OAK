@@ -105,7 +105,8 @@ because it often needs an ADR (see [Governance](#governance)).
 Two renderers ship today (`renderer.local-manifests` and `renderer.helm-kubernetes`). The
 backlog includes OpenTofu or Terraform modules, Crossplane compositions and Kratix Promises,
 Ansible for appliance and edge targets, OPEA or DIAL application definitions, pipeline
-definitions, model-serving profiles such as vLLM and llama.cpp, and policy, domain,
+definitions, renderers for model-serving profiles such as vLLM and llama.cpp (a native
+install can already run llama.cpp's server), and policy, domain,
 evaluation and evidence packs. All of them go through the governed extension path and its
 templates, described in [extension-sdk.md](docs/extension-sdk.md). Each backend stays
 replaceable and owned by its own project. OAK compiles *to* them; it doesn't absorb them.
@@ -142,8 +143,8 @@ replaceable and owned by its own project. OAK compiles *to* them; it doesn't abs
   process's).
 - Closing the evidence loop. `oak observe` already records each prediction beside an
   observed value, but every observed cost, latency, quality and energy value is still
-  `unknown`: the shipped profiles install a placeholder image, and nothing runs a
-  workload against it. Real component images, a representative workload and the
+  `unknown`: most shipped profiles install a placeholder image, the native llama.cpp
+  example starts its server only to check it answers, and nothing runs a workload. Real component images, a representative workload and the
   measurements to go with them would let it fill those in.
 - A fuller developer-portal plugin, building on the starter in
   [examples/backstage/](examples/backstage/README.md).
@@ -168,7 +169,7 @@ invented marker fails collection. Shared harnesses are `tests/runner_support.py`
 (`build_compiled_case` drives the whole reference journey) and `tests/mcp_support.py`
 (file-backed control plane, in-memory operation store, `MCPClient`).
 
-**The PostgreSQL suites skip silently.** Thirty tests — all but one under `tests/integration`, plus the installed-MCP handshake in `tests/e2e/test_mcp_interface.py` — are gated on
+**The PostgreSQL suites skip silently.** Thirty-one tests — thirty under `tests/integration`, plus the installed-MCP handshake in `tests/e2e/test_mcp_interface.py` — are gated on
 `OAK_TEST_DATABASE_URL`, and a skip looks exactly like a pass in the summary line, so a run
 without it ends by counting the tests it skipped. CI's `check` job and the release
 workflow's gate set it: each runs a PostgreSQL service and migrates it first, and
